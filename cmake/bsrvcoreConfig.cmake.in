@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+# Include the exported targets for consumers
+include("${CMAKE_CURRENT_LIST_DIR}/bsrvcoreTargets.cmake")
+

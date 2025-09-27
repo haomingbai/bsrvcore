@@ -1,0 +1,6 @@
+# Ignore the build directory of the project.
+build/
+
+# Ignore the clangd cache and vscode project file.
+.cache/
+.vscode/
