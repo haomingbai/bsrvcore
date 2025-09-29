@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 
+#include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_server_task.h"
@@ -72,7 +73,7 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
   }
 
   std::shared_ptr<HttpServer> AddRouteEntry(
-      HttpRequestMethod method, std::string_view url,
+      HttpRequestMethod method, const std::string_view url,
       std::unique_ptr<HttpRequestHandler> handler);
 
   template <typename Func>
@@ -80,14 +81,15 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
       { fn(task) };
     }
   std::shared_ptr<HttpServer> AddRouteEntry(HttpRequestMethod method,
-                                            std::string_view str, Func &&func) {
+                                            const std::string_view str,
+                                            Func &&func) {
     auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
 
     return AddRouteEntry(method, str, std::move(handler));
   }
 
   std::shared_ptr<HttpServer> AddExclusiveRouteEntry(
-      HttpRequestMethod method, std::string_view url,
+      HttpRequestMethod method, const std::string_view url,
       std::unique_ptr<HttpRequestHandler> handler);
 
   template <typename Func>
@@ -95,11 +97,49 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
       { fn(task) };
     }
   std::shared_ptr<HttpServer> AddExclusiveRouteEntry(HttpRequestMethod method,
-                                                     std::string_view str,
+                                                     const std::string_view str,
                                                      Func &&func) {
     auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
 
     return AddExclusiveRouteEntry(method, str, std::move(handler));
+  }
+
+  std::shared_ptr<HttpRequestAspectHandler> AddAspect(
+      HttpRequestMethod method, const std::string_view url,
+      std::unique_ptr<HttpRequestAspectHandler> aspect);
+
+  template <typename F1, typename F2>
+  std::shared_ptr<HttpServer> AddAspect(HttpRequestMethod method,
+                                        const std::string_view url, F1 f1,
+                                        F2 f2) {
+    auto aspect =
+        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+
+    return AddAspect(method, url, std::move(aspect));
+  }
+
+  std::shared_ptr<HttpServer> AddGlobalAspect(
+      HttpRequestMethod method,
+      std::unique_ptr<HttpRequestAspectHandler> aspect);
+
+  std::shared_ptr<HttpServer> AddGlobalAspect(
+      std::unique_ptr<HttpRequestAspectHandler> aspect);
+
+  template <typename F1, typename F2>
+  std::shared_ptr<HttpServer> AddGlobalAspect(HttpRequestMethod method, F1 f1,
+                                              F2 f2) {
+    auto aspect =
+        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+
+    return AddGlobalAspect(method, std::move(aspect));
+  }
+
+  template <typename F1, typename F2>
+  std::shared_ptr<HttpServer> AddGlobalAspect(F1 f1, F2 f2) {
+    auto aspect =
+        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+
+    return AddGlobalAspect(std::move(aspect));
   }
 
   std::shared_ptr<HttpServer> AddListen(boost::asio::ip::tcp::endpoint ep);

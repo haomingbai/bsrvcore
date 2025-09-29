@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <vector>
 #ifndef BSRVCORE_HTTP_SERVER_TASK_H_
 #define BSRVCORE_HTTP_SERVER_TASK_H_
 
@@ -121,6 +122,7 @@ class HttpServerTask : NonCopyableNonMovable<HttpServerTask> {
  private:
   HttpRequest req_;
   HttpResponse resp_;
+  std::vector<std::string> parameters;
   std::string current_location_;
   std::shared_ptr<HttpServerConnection> conn_;
   bool keep_alive_;

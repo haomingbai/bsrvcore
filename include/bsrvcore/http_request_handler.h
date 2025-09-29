@@ -49,13 +49,6 @@ class FunctionRouteHandler : public HttpRequestHandler {
   Fn fn_;
 };
 
-class EmptyRouteHandler : public HttpRequestHandler {
- public:
-  EmptyRouteHandler() = default;
-
-  void Service(std::shared_ptr<HttpServerTask> task) override;
-};
-
 }  // namespace bsrvcore
 
 #endif
