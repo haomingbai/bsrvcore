@@ -57,7 +57,7 @@ bool HttpRouteTableLayer::SetHandler(
   return true;
 }
 
-bool HttpRouteTableLayer::SetDefaulltRoute(
+bool HttpRouteTableLayer::SetDefaultRoute(
     std::unique_ptr<HttpRouteTableLayer> route) noexcept {
   if (route == nullptr) {
     return false;
@@ -110,7 +110,7 @@ HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
   }
 }
 
-HttpRequestHandler* HttpRouteTableLayer::GetHanndler() noexcept {
+HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
   return handler_.get();
 }
 

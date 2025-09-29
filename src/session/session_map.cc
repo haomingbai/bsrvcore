@@ -172,11 +172,11 @@ void SessionMap::SetCleaner() {
       });
 }
 
-void SessionMap::SetCleanerInterval(std::size_t interval) {
+void SessionMap::SetCleanerInterval(std::size_t interval) noexcept {
   cleaner_interval_ = interval;
 }
 
-void SessionMap::SetDefaultSessionTimeout(std::size_t timeout) {
+void SessionMap::SetDefaultSessionTimeout(std::size_t timeout) noexcept {
   default_timeout_ = timeout;
 }
 

@@ -22,6 +22,14 @@ SessionKeyHeapEntry::SessionKeyHeapEntry(
     std::string id, std::chrono::steady_clock::time_point expiry)
     : id_(std::move(id)), expiry_(expiry) {}
 
-bool SessionKeyHeapEntry::operator<(const SessionKeyHeapEntry &other) const {
+bool SessionKeyHeapEntry::operator<(const SessionKeyHeapEntry &other) const noexcept {
   return expiry_ > other.expiry_;
+}
+
+const std::string &SessionKeyHeapEntry::GetId() const noexcept {
+  return id_;
+}
+
+std::chrono::steady_clock::time_point SessionKeyHeapEntry::GetExpiry() const noexcept {
+  return expiry_;
 }

@@ -50,3 +50,28 @@ install(FILES
   DESTINATION ${INSTALL_CONFIGDIR}
 )
 
+# Optional Doxygen: generate docs only if Doxygen is found
+find_package(Doxygen QUIET)
+
+if(DOXYGEN_FOUND)
+  # Output dir for docs
+  set(DOXYGEN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs")
+  # Input dirs for Doxygen
+  set(DOXYGEN_INPUT_DIRS "${CMAKE_SOURCE_DIR}/include")
+
+  # Configure Doxyfile from template
+  configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/Doxyfile.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+
+  # Add doc target that runs Doxygen
+  add_custom_target(doc
+    COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generate API docs with Doxygen"
+    VERBATIM
+  )
+else()
+  # Notify user that docs are skipped
+  message(STATUS "Doxygen not found; skipping doc target")
+endif()
+

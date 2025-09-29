@@ -1,0 +1,14 @@
+# Minimal Doxyfile template
+PROJECT_NAME           = "@PROJECT_NAME@"
+OUTPUT_DIRECTORY       = "@DOXYGEN_OUTPUT_DIR@"
+CREATE_SUBDIRS         = YES
+INPUT                  = @DOXYGEN_INPUT_DIRS@
+RECURSIVE              = YES
+EXTRACT_ALL            = YES
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_LATEX         = NO
+QUIET                  = YES
+WARNINGS               = NO
+GENERATE_TREEVIEW      = YES
+
