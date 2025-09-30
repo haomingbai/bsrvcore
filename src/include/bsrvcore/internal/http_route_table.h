@@ -27,6 +27,7 @@
 #include <vector>
 
 #include "bsrvcore/http_request_method.h"
+#include "bsrvcore/http_route_result.h"
 #include "bsrvcore/internal/http_route_table_layer.h"
 #include "bsrvcore/trait.h"
 
@@ -35,23 +36,6 @@ namespace bsrvcore {
 class HttpRequestHandler;
 
 class HttpRequestAspectHandler;
-
-/**
- * @brief Result of routing an HTTP request
- *
- * Contains the matched handler, aspect chain, route parameters, and request
- * limits.
- */
-struct HttpRouteResult {
-  std::string current_location;        ///< Matched route path
-  std::vector<std::string> parameters; ///< Extracted route parameters
-  std::vector<HttpRequestAspectHandler *>
-      aspects;                 ///< Aspect handlers to execute
-  HttpRequestHandler *handler; ///< Main request handler
-  std::size_t max_body_size;   ///< Maximum allowed request body size
-  std::size_t read_expiry;     ///< Read operation timeout
-  std::size_t write_expiry;    ///< Write operation timeout
-};
 
 /**
  * @brief Thread-safe HTTP routing table with AOP support
@@ -82,7 +66,7 @@ struct HttpRouteResult {
  * @endcode
  */
 class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
-public:
+ public:
   /**
    * @brief Route an HTTP request to the appropriate handler
    * @param method HTTP request method
@@ -208,16 +192,15 @@ public:
    */
   HttpRouteTable() noexcept;
 
-private:
+ private:
   /**
    * @brief A helper function to get the correct route layer. When the layer is
    * not available, create one.
    * @param target The url target to find
    * @return The route table layer found.
    */
-  route_internal::HttpRouteTableLayer *
-  GetOrCreateRouteTableLayer(HttpRequestMethod method,
-                             const std::string_view target);
+  route_internal::HttpRouteTableLayer *GetOrCreateRouteTableLayer(
+      HttpRequestMethod method, const std::string_view target);
 
   /**
    * @brief Build a default route result used when routing fails or no layer
@@ -227,8 +210,8 @@ private:
    * handler, and global aspects.
    * @note This function does not throw and is noexcept.
    */
-  HttpRouteResult
-  BuildDefaultRouteResult(HttpRequestMethod method) const noexcept;
+  HttpRouteResult BuildDefaultRouteResult(
+      HttpRequestMethod method) const noexcept;
 
   /**
    * @brief Match URL segments against the route tree and extract parameters.
@@ -259,27 +242,27 @@ private:
    * @note Returned pointers are non-owning; lifetime is bound to the stored
    * handlers.
    */
-  std::vector<HttpRequestAspectHandler *>
-  CollectAspects(route_internal::HttpRouteTableLayer *route_layer,
-                 HttpRequestMethod method) const noexcept;
+  std::vector<HttpRequestAspectHandler *> CollectAspects(
+      route_internal::HttpRouteTableLayer *route_layer,
+      HttpRequestMethod method) const noexcept;
 
   static constexpr size_t kHttpRequestMethodNum = 9;
-  std::shared_mutex mtx_; ///< Read-write lock for thread safety
+  std::shared_mutex mtx_;  ///< Read-write lock for thread safety
   std::array<std::unique_ptr<route_internal::HttpRouteTableLayer>,
              kHttpRequestMethodNum>
-      entrance_; ///< Routing layers per HTTP method
+      entrance_;  ///< Routing layers per HTTP method
   std::array<std::vector<std::unique_ptr<HttpRequestAspectHandler>>,
              kHttpRequestMethodNum>
-      global_specific_aspects_; ///< Method-specific global aspects
+      global_specific_aspects_;  ///< Method-specific global aspects
   std::vector<std::unique_ptr<HttpRequestAspectHandler>>
-      global_aspects_; ///< Global aspects for all methods
+      global_aspects_;  ///< Global aspects for all methods
   std::unique_ptr<HttpRequestHandler>
-      default_handler_;               ///< Fallback handler for unmatched routes
-  std::size_t default_max_body_size_; ///< Default maximum request body size
-  std::size_t default_read_expiry_;   ///< Default read timeout
-  std::size_t default_write_expiry_;  ///< Default write timeout
+      default_handler_;  ///< Fallback handler for unmatched routes
+  std::size_t default_max_body_size_;  ///< Default maximum request body size
+  std::size_t default_read_expiry_;    ///< Default read timeout
+  std::size_t default_write_expiry_;   ///< Default write timeout
 };
 
-} // namespace bsrvcore
+}  // namespace bsrvcore
 
 #endif

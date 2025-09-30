@@ -105,12 +105,20 @@ class HttpServerConnection : NonCopyableNonMovable<HttpServerConnection> {
 
   void DoCycle();
 
-  virtual ~HttpServerConnection();
+  virtual ~HttpServerConnection() = default;
 
  protected:
   boost::beast::flat_buffer& GetBuffer();
 
  private:
+  virtual void DoReadHeader() = 0;
+
+  void DoRoute();
+
+  virtual void DoReadBody() = 0;
+
+  void DoForwardRequest();
+
   boost::asio::strand<boost::asio::io_context> strand_;
   boost::asio::steady_timer timer_;
   boost::shared_ptr<HttpServer> srv_;
@@ -120,14 +128,6 @@ class HttpServerConnection : NonCopyableNonMovable<HttpServerConnection> {
       boost::beast::http::string_body, boost::beast::http::fields>>
       parser_;
   std::size_t header_read_expiry_;
-
-  virtual void DoReadHeader() = 0;
-
-  void DoRoute();
-
-  virtual void DoReadBody() = 0;
-
-  void DoForwardRequest();
 };
 
 }  // namespace bsrvcore
