@@ -297,7 +297,7 @@ bool HttpRouteTable::MatchSegments(
       out_location.append(seg);
     } else {
       // If the further route is prevented, then jump out and get the handler.
-      if (route_layer->IgnoreDefaultRoute()) {
+      if (route_layer->GetIgnoreDefaultRoute()) {
         break;
       }
 

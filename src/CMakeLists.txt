@@ -3,12 +3,14 @@
 # Add the subdirectories in this project.
 add_subdirectory(route)
 add_subdirectory(session)
+add_subdirectory(connection)
 
 # List source files explicitly for better incremental builds
 
 set(BSRVCORE_SOURCES
   ${ROUTE_SOURCES}
   ${SESSION_SOURCES}
+  ${CONNECTION_SOURCES}
 )
 
 # Create library (static or shared follows BUILD_SHARED_LIBS)

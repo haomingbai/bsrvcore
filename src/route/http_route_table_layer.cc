@@ -17,14 +17,14 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
-
-namespace bsrvcore {
 
 class HttpRequestHandler;
 
-using namespace route_internal;
+using namespace bsrvcore::route_internal;
 
 HttpRouteTableLayer::HttpRouteTableLayer()
     : default_route_(nullptr),
@@ -110,7 +110,15 @@ HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
   }
 }
 
-HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
+HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(std::string&& key) noexcept {
+  if (map_.count(key)) {
+    return map_[key].get();
+  } else {
+    return nullptr;
+  }
+}
+
+bsrvcore::HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
   return handler_.get();
 }
 
@@ -118,4 +126,24 @@ bool HttpRouteTableLayer::GetIgnoreDefaultRoute() noexcept {
   return ignore_default_route_;
 }
 
-}  // namespace bsrvcore
+bool HttpRouteTableLayer::AddAspect(
+    std::unique_ptr<HttpRequestAspectHandler> aspect) try {
+  aspects_.emplace_back(std::move(aspect));
+  return true;
+} catch (...) {
+  return false;
+}
+
+std::vector<bsrvcore::HttpRequestAspectHandler*>
+HttpRouteTableLayer::GetAspects() const {
+  std::vector<bsrvcore::HttpRequestAspectHandler*> aspects(aspects_.size());
+  for (std::size_t i = 0; i < aspects_.size(); i++) {
+    aspects[i] = aspects_[i].get();
+  }
+
+  return aspects;
+}
+
+std::size_t HttpRouteTableLayer::GetAspectNum() const noexcept {
+  return aspects_.size();
+}
