@@ -391,7 +391,7 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    * @param level Log level
    * @param message Log message
    */
-  void Log(LogLevel level, std::string_view message);
+  void Log(LogLevel level, std::string message);
 
   /**
    * @brief Route a request to find appropriate handler
@@ -423,16 +423,18 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
   /**
    * @brief Set custom timeout for a session (copy version)
    * @param sessionid Session identifier
+   * @param timeout Session timeout
    * @return true if session was found and timeout was set
    */
-  bool SetSessionTimeout(const std::string &sessionid);
+  bool SetSessionTimeout(const std::string &sessionid, std::size_t timeout);
 
   /**
    * @brief Set custom timeout for a session (move version)
    * @param sessionid Session identifier
+   * @param timeout Session timeout
    * @return true if session was found and timeout was set
    */
-  bool SetSessionTimeout(std::string &sessionid);
+  bool SetSessionTimeout(std::string &sessionid, std::size_t timeout);
 
   /**
    * @brief Get the server context

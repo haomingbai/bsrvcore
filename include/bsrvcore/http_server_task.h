@@ -277,10 +277,19 @@ class HttpServerTask : NonCopyableNonMovable<HttpServerTask> {
    */
   void DoClose();
 
+  HttpServerTask(HttpRequest req, std::vector<std::string> params,
+                 std::string current_location,
+                 std::shared_ptr<HttpServerConnection> conn);
+
+  /**
+   * @brief Destructor of the HttpServerTask
+   */
+  ~HttpServerTask();
+
  private:
   HttpRequest req_;                             ///< HTTP request data
   HttpResponse resp_;                           ///< HTTP response data
-  std::vector<std::string> parameters;          ///< Extracted route parameters
+  std::vector<std::string> parameters_;         ///< Extracted route parameters
   std::string current_location_;                ///< Matched route path
   std::shared_ptr<HttpServerConnection> conn_;  ///< Associated connection
   bool keep_alive_;                             ///< Keep-alive flag

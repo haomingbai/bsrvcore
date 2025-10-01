@@ -23,14 +23,14 @@
 #include <boost/beast/http/message_fwd.hpp>
 #include <boost/beast/http/parser_fwd.hpp>
 #include <boost/beast/http/string_body_fwd.hpp>
-#include <boost/smart_ptr/shared_ptr.hpp>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string>
-#include <string_view>
 
+#include "bsrvcore/http_route_result.h"
+#include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
-#include "bsrvcore/internal/http_route_table.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/trait.h"
 
@@ -40,10 +40,10 @@ class HttpServer;
 
 class Context;
 
-class HttpServerConnection : NonCopyableNonMovable<HttpServerConnection> {
+class HttpServerConnection
+    : NonCopyableNonMovable<HttpServerConnection>,
+      std::enable_shared_from_this<HttpServerConnection> {
  public:
-  boost::asio::strand<boost::asio::io_context> GetExecutor();
-
   void Post(std::function<void()>);
 
   template <typename Fn, typename... Args>
@@ -80,35 +80,46 @@ class HttpServerConnection : NonCopyableNonMovable<HttpServerConnection> {
 
   std::shared_ptr<Context> GetContext() noexcept;
 
-  std::shared_ptr<Context> GetSession(const std::string& sessionid) noexcept;
+  std::shared_ptr<Context> GetSession(const std::string& sessionid);
 
-  std::shared_ptr<Context> GetSession(std::string&& sessionid) noexcept;
+  std::shared_ptr<Context> GetSession(std::string&& sessionid);
 
   bool SetSessionTimeout(const std::string&, std::size_t);
 
   bool SetSessionTimeout(std::string&&, std::size_t);
 
-  void Log(LogLevel level, std::string_view message);
+  void Log(LogLevel level, std::string message);
 
-  virtual bool IsStreamAvailable() noexcept;
+  virtual bool IsStreamAvailable() noexcept = 0;
+
+  bool IsServerRunning() const noexcept;
 
   void Run();
 
-  void DoWriteResponse();
+  virtual void DoWriteResponse(HttpResponse resp, bool keep_alive) = 0;
 
   void DoFlushResponseHeader(
       boost::beast::http::response_header<boost::beast::http::fields> header);
 
   void DoFlushResponseBody(std::string body);
 
-  void DoClose();
+  virtual void DoClose() = 0;
 
   void DoCycle();
+
+  HttpServerConnection(
+      boost::asio::strand<boost::asio::io_context::executor_type> strand,
+      std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
+      std::size_t keep_alive_timeout);
 
   virtual ~HttpServerConnection() = default;
 
  protected:
   boost::beast::flat_buffer& GetBuffer();
+
+  boost::asio::strand<boost::asio::io_context::executor_type> GetExecutor();
+
+  void MakeHttpServerTask();
 
  private:
   virtual void DoReadHeader() = 0;
@@ -117,17 +128,23 @@ class HttpServerConnection : NonCopyableNonMovable<HttpServerConnection> {
 
   virtual void DoReadBody() = 0;
 
-  void DoForwardRequest();
+  void DoPreService(std::shared_ptr<HttpServerTask> task, std::size_t curr_idx);
 
-  boost::asio::strand<boost::asio::io_context> strand_;
+  void DoPostService(std::shared_ptr<HttpServerTask> task,
+                     std::size_t curr_idx);
+
+  void DoForwardRequest(std::shared_ptr<HttpServerTask> task);
+
+  boost::asio::strand<boost::asio::io_context::executor_type> strand_;
   boost::asio::steady_timer timer_;
-  boost::shared_ptr<HttpServer> srv_;
   boost::beast::flat_buffer buf_;
   HttpRouteResult route_result_;
-  std::unique_ptr<boost::beast::http::request_parser<
-      boost::beast::http::string_body, boost::beast::http::fields>>
+  std::shared_ptr<HttpServer> srv_;
+  std::unique_ptr<
+      boost::beast::http::request_parser<boost::beast::http::string_body>>
       parser_;
   std::size_t header_read_expiry_;
+  std::size_t keep_alive_timeout_;
 };
 
 }  // namespace bsrvcore

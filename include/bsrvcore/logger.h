@@ -19,7 +19,7 @@
 #define BSRVCORE_LOGGER_H_
 
 #include <cstdint>
-#include <string_view>
+#include <string>
 
 namespace bsrvcore {
 
@@ -113,7 +113,7 @@ class Logger {
    * @param level Severity level of the log message
    * @param message Log message content
    */
-  virtual void Log(LogLevel level, std::string_view message) = 0;
+  virtual void Log(LogLevel level, std::string message) = 0;
 
   /**
    * @brief Deleted destructor prevents direct instantiation
