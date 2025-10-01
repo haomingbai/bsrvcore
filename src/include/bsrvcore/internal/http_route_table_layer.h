@@ -52,11 +52,6 @@ namespace route_internal {
 class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
  public:
   /**
-   * @brief Construct a new routing layer
-   */
-  HttpRouteTableLayer();
-
-  /**
    * @brief Set maximum request body size for this route layer
    * @param max_body_size Maximum body size in bytes
    */
@@ -175,6 +170,11 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @return true if default route is ignored
    */
   bool GetIgnoreDefaultRoute() noexcept;
+
+  /**
+   * @brief Construct a new routing layer
+   */
+  HttpRouteTableLayer();
 
  private:
   std::unordered_map<std::string, std::unique_ptr<HttpRouteTableLayer>>

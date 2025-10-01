@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "bsrvcore/trait.h"
 #ifndef BSRVCORE_HTTP_REQUEST_HANDLER_H_
 #define BSRVCORE_HTTP_REQUEST_HANDLER_H_
 
@@ -107,7 +108,9 @@ template <typename Fn>
   requires requires(Fn fn, std::shared_ptr<HttpServerTask> task) {
     { fn(task) };
   }
-class FunctionRouteHandler : public HttpRequestHandler {
+class FunctionRouteHandler
+    : public HttpRequestHandler,
+      public NonCopyableNonMovable<FunctionRouteHandler<Fn>> {
  public:
   /**
    * @brief Construct a function-based route handler

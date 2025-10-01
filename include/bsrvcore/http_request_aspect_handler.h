@@ -20,6 +20,8 @@
 
 #include <memory>
 
+#include "bsrvcore/trait.h"
+
 namespace bsrvcore {
 
 class HttpServerTask;
@@ -110,7 +112,9 @@ class HttpRequestAspectHandler {
  * @endcode
  */
 template <typename F1, typename F2>
-class FunctionRequestAspectHandler : public HttpRequestAspectHandler {
+class FunctionRequestAspectHandler
+    : public HttpRequestAspectHandler,
+      public NonCopyableNonMovable<FunctionRequestAspectHandler<F1, F2>> {
  public:
   /**
    * @brief Execute pre-service function

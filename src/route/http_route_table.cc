@@ -26,6 +26,7 @@
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
+#include "bsrvcore/internal/empty_route_handler.h"
 #include "bsrvcore/internal/http_route_table_layer.h"
 
 using bsrvcore::HttpRequestAspectHandler;
@@ -63,12 +64,12 @@ inline bool IsValidParametricTarget(const std::string_view target) {
     } else if (c == '}') {
       brace_count--;
       if (brace_count < 0) {
-        return false; // Right more than left.
+        return false;  // Right more than left.
       }
     }
   }
   if (brace_count != 0) {
-    return false; // Cannot pair.
+    return false;  // Cannot pair.
   }
 
   // Check the parameter on the path.
@@ -90,9 +91,9 @@ inline bool IsValidParametricTarget(const std::string_view target) {
 
   return true;
 }
-} // namespace route_internal
+}  // namespace route_internal
 
-} // namespace bsrvcore
+}  // namespace bsrvcore
 
 HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                                       std::string_view target) noexcept {
@@ -213,9 +214,8 @@ bool HttpRouteTable::AddExclusiveRouteEntry(
   return true;
 }
 
-HttpRouteTableLayer *
-HttpRouteTable::GetOrCreateRouteTableLayer(HttpRequestMethod method,
-                                           const std::string_view target) {
+HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
+    HttpRequestMethod method, const std::string_view target) {
   auto route_layer = entrance_[static_cast<size_t>(method)].get();
 
   std::string_view url = target.substr(0, target.find('?'));
@@ -321,9 +321,8 @@ bool HttpRouteTable::MatchSegments(
   return true;
 }
 
-std::vector<HttpRequestAspectHandler *>
-HttpRouteTable::CollectAspects(HttpRouteTableLayer *route_layer,
-                               HttpRequestMethod method) const noexcept {
+std::vector<HttpRequestAspectHandler *> HttpRouteTable::CollectAspects(
+    HttpRouteTableLayer *route_layer, HttpRequestMethod method) const noexcept {
   std::vector<HttpRequestAspectHandler *> aspects;
   auto method_idx = static_cast<size_t>(method);
 
@@ -467,4 +466,14 @@ void HttpRouteTable::SetDefaultReadExpiry(std::size_t expiry) noexcept {
 
 void HttpRouteTable::SetDefaultMaxBodySize(std::size_t max_body_size) noexcept {
   default_max_body_size_ = max_body_size;
+}
+
+HttpRouteTable::HttpRouteTable() noexcept
+    : default_handler_(std::make_unique<route_internal::EmptyRouteHandler>()),
+      default_max_body_size_(4096),
+      default_read_expiry_(4000),
+      default_write_expiry_(4000) {
+  for (auto &it : entrance_) {
+    it = std::make_unique<HttpRouteTableLayer>();
+  }
 }

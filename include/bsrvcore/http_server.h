@@ -67,12 +67,12 @@ class HttpRouteTable;
  *
  * server->AddRouteEntry(HttpRequestMethod::kGet, "/",
  *                      [](auto task) {
- *                        task->SetResponse(200, "Hello World");
+ *                        task->SetBody(200, "Hello World");
  *                      })
  *      ->AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
  *                      [](auto task) {
  *                        auto id = task->GetRouteParameters()[0];
- *                        task->SetResponse(200, "User: " + id);
+ *                        task->SetBody(200, "User: " + id);
  *                      })
  *      ->AddGlobalAspect([](auto task) { // Pre-service
  *                        std::cout << "Request: " << task->GetRequest().path;
@@ -89,7 +89,7 @@ class HttpRouteTable;
  * @endcode
  */
 class HttpServer : std::enable_shared_from_this<HttpServer>,
-                   NonCopyableNonMovable<HttpServer> {
+                   public NonCopyableNonMovable<HttpServer> {
  public:
   /**
    * @brief Set a timer to execute a function after timeout
@@ -372,6 +372,14 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    * @return Shared pointer to server for method chaining
    */
   std::shared_ptr<HttpServer> SetKeepAliveTimeout(std::size_t timeout);
+
+  /**
+   * @brief Set keep-alive connection timeout
+   * @param Global fallback handler for requests.
+   * @return Shared pointer to server for method chaining
+   */
+  std::shared_ptr<HttpServer> SetDefaultHandler(
+      std::unique_ptr<HttpRequestHandler> handler);
 
   /**
    * @brief Set the ssl context of the connection

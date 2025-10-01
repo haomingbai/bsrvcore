@@ -66,6 +66,11 @@ void HttpServerConnection::Log(bsrvcore::LogLevel level, std::string message) {
 }
 
 void HttpServerConnection::Run() {
+  if (!IsServerRunning() || !IsStreamAvailable()) {
+    DoClose();
+    return;
+  }
+
   boost::asio::post(strand_, [self = shared_from_this(), this] {
     if (header_read_expiry_) {
       timer_.expires_after(std::chrono::milliseconds(header_read_expiry_));
@@ -81,6 +86,12 @@ void HttpServerConnection::DoRoute() {
 
   if (!parser_->is_header_done()) {
     DoClose();
+    return;
+  }
+
+  if (!IsServerRunning() || !IsStreamAvailable()) {
+    DoClose();
+    return;
   }
 
   auto &res = parser_->get();
@@ -98,6 +109,10 @@ void HttpServerConnection::DoRoute() {
                        this](boost::system::error_code ec) { DoClose(); });
   }
 
+  if (route_result_.max_body_size) {
+    parser_->body_limit(route_result_.max_body_size);
+  }
+
   DoReadBody();
 }
 
@@ -105,11 +120,18 @@ void HttpServerConnection::DoPreService(std::shared_ptr<HttpServerTask> task,
                                         std::size_t curr_idx) {
   if (task == nullptr) {
     DoClose();
+    return;
+  }
+
+  if (!IsServerRunning() || !IsStreamAvailable()) {
+    DoClose();
+    return;
   }
 
   if (curr_idx > route_result_.aspects.size()) {
     assert(false);
     DoClose();
+    return;
   }
 
   if (curr_idx == route_result_.aspects.size()) {
@@ -127,11 +149,18 @@ void HttpServerConnection::DoPostService(std::shared_ptr<HttpServerTask> task,
                                          std::size_t curr_idx) {
   if (task == nullptr) {
     DoClose();
+    return;
+  }
+
+  if (!IsServerRunning() || !IsStreamAvailable()) {
+    DoClose();
+    return;
   }
 
   if (curr_idx >= route_result_.aspects.size()) {
     assert(false);
     DoClose();
+    return;
   }
 
   if (curr_idx == 0) {
@@ -150,6 +179,12 @@ void HttpServerConnection::DoForwardRequest(
     std::shared_ptr<HttpServerTask> task) {
   if (task == nullptr) {
     DoClose();
+    return;
+  }
+
+  if (!IsServerRunning() || !IsStreamAvailable()) {
+    DoClose();
+    return;
   }
 
   srv_->Post([task, self = shared_from_this(), this] {
@@ -161,7 +196,7 @@ void HttpServerConnection::DoForwardRequest(
 }
 
 void HttpServerConnection::DoCycle() {
-  if (srv_->IsRunning()) {
+  if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
     parser_ = std::make_unique<
         boost::beast::http::request_parser<boost::beast::http::string_body>>();
@@ -175,6 +210,7 @@ void HttpServerConnection::DoCycle() {
     Run();
   } else {
     DoClose();
+    return;
   }
 }
 
@@ -199,4 +235,10 @@ void HttpServerConnection::MakeHttpServerTask() {
 
 bool HttpServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();
+}
+
+std::unique_ptr<
+    boost::beast::http::request_parser<boost::beast::http::string_body>> &
+HttpServerConnection::GetParser() noexcept {
+  return parser_;
 }

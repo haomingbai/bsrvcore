@@ -188,6 +188,12 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   void SetDefaultMaxBodySize(std::size_t max_body_size) noexcept;
 
   /**
+   * @brief Set fallback request handler for all routes
+   * @param handler The fallback handler to be set
+   */
+  void SetDefaultHandler(std::unique_ptr<HttpRequestHandler> handler);
+
+  /**
    * @brief Construct an empty routing table
    */
   HttpRouteTable() noexcept;

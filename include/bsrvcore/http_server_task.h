@@ -94,7 +94,7 @@ using HttpRequestHeader =
  * }
  * @endcode
  */
-class HttpServerTask : NonCopyableNonMovable<HttpServerTask> {
+class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
  public:
   /**
    * @brief Get the HTTP request object
@@ -276,6 +276,18 @@ class HttpServerTask : NonCopyableNonMovable<HttpServerTask> {
    * @brief Close the connection (for manual connection management)
    */
   void DoClose();
+
+  /**
+   * @brief Get the current_location of the task
+   * @return The current location
+   */
+  const std::string& GetCurrentLocation();
+
+  /**
+   * @brief Get the reference to the path parameters
+   * @return The path parameters of the task
+   */
+  const std::vector<std::string>& GetPathParameters();
 
   HttpServerTask(HttpRequest req, std::vector<std::string> params,
                  std::string current_location,

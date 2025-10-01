@@ -41,8 +41,8 @@ class HttpServer;
 class Context;
 
 class HttpServerConnection
-    : NonCopyableNonMovable<HttpServerConnection>,
-      std::enable_shared_from_this<HttpServerConnection> {
+    : public NonCopyableNonMovable<HttpServerConnection>,
+      protected std::enable_shared_from_this<HttpServerConnection> {
  public:
   void Post(std::function<void()>);
 
@@ -90,18 +90,17 @@ class HttpServerConnection
 
   void Log(LogLevel level, std::string message);
 
-  virtual bool IsStreamAvailable() noexcept = 0;
-
   bool IsServerRunning() const noexcept;
 
   void Run();
 
   virtual void DoWriteResponse(HttpResponse resp, bool keep_alive) = 0;
 
-  void DoFlushResponseHeader(
-      boost::beast::http::response_header<boost::beast::http::fields> header);
+  virtual void DoFlushResponseHeader(
+      boost::beast::http::response_header<boost::beast::http::fields>
+          header) = 0;
 
-  void DoFlushResponseBody(std::string body);
+  virtual void DoFlushResponseBody(std::string body) = 0;
 
   virtual void DoClose() = 0;
 
@@ -119,12 +118,15 @@ class HttpServerConnection
 
   boost::asio::strand<boost::asio::io_context::executor_type> GetExecutor();
 
+  std::unique_ptr<
+      boost::beast::http::request_parser<boost::beast::http::string_body>>&
+  GetParser() noexcept;
+
   void MakeHttpServerTask();
 
- private:
-  virtual void DoReadHeader() = 0;
-
   void DoRoute();
+
+  virtual void DoReadHeader() = 0;
 
   virtual void DoReadBody() = 0;
 
@@ -135,6 +137,11 @@ class HttpServerConnection
 
   void DoForwardRequest(std::shared_ptr<HttpServerTask> task);
 
+  virtual bool IsStreamAvailable() const noexcept = 0;
+
+  boost::asio::strand<boost::asio::io_context::executor_type>& GetStrand();
+
+ private:
   boost::asio::strand<boost::asio::io_context::executor_type> strand_;
   boost::asio::steady_timer timer_;
   boost::beast::flat_buffer buf_;

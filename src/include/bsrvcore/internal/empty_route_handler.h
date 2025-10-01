@@ -18,15 +18,21 @@
 #include <memory>
 
 #include "bsrvcore/http_request_handler.h"
+#include "bsrvcore/trait.h"
 
 namespace bsrvcore {
 
-class EmptyRouteHandler : public HttpRequestHandler {
+namespace route_internal {
+
+class EmptyRouteHandler : public HttpRequestHandler,
+                          public CopyableMovable<EmptyRouteHandler> {
  public:
   EmptyRouteHandler() = default;
 
   void Service(std::shared_ptr<HttpServerTask> task) override;
 };
+
+}  // namespace route_internal
 
 }  // namespace bsrvcore
 
