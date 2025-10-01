@@ -10,6 +10,11 @@
  * @details
  */
 
+#pragma once
+
+#ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
+#define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
+
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -299,3 +304,5 @@ class HttpServerConnectionImpl : public HttpServerConnection {
 }  // namespace connection_internal
 
 }  // namespace bsrvcore
+
+#endif
