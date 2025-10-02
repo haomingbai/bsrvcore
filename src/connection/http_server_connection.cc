@@ -14,8 +14,8 @@
 
 #include <boost/asio/post.hpp>
 #include <boost/beast.hpp>
-#include <boost/beast/http/parser_fwd.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cassert>
 #include <chrono>
 #include <cstddef>

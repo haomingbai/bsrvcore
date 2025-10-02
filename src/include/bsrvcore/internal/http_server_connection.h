@@ -23,10 +23,10 @@
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
-#include <boost/beast/http/fields_fwd.hpp>
-#include <boost/beast/http/message_fwd.hpp>
-#include <boost/beast/http/parser_fwd.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cstddef>
 #include <functional>
 #include <memory>

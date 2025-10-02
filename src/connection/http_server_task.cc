@@ -13,7 +13,6 @@
 #include "bsrvcore/http_server_task.h"
 
 #include <boost/beast/http/field.hpp>
-#include <boost/beast/http/fields_fwd.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>

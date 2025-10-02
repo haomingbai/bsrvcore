@@ -20,9 +20,9 @@
 
 #include <boost/beast/http.hpp>
 #include <boost/beast/http/field.hpp>
-#include <boost/beast/http/fields_fwd.hpp>
-#include <boost/beast/http/message_fwd.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cstddef>
 #include <functional>
 #include <future>

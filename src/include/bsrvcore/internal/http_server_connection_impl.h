@@ -28,11 +28,10 @@
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/http/empty_body.hpp>
-#include <boost/beast/http/fields_fwd.hpp>
-#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/serializer.hpp>
-#include <boost/beast/http/serializer_fwd.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/system/detail/error_code.hpp>
