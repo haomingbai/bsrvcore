@@ -1,0 +1,6 @@
+set(CORE_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/http_server.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/empty_logger.cc
+)
+
+set(CORE_SOURCES ${CORE_SOURCES} PARENT_SCOPE)

@@ -97,7 +97,8 @@ void HttpServerConnection::DoRoute() {
   auto &res = parser_->get();
   auto target = res.target();
 
-  route_result_ = srv_->Route(target);
+  route_result_ = srv_->Route(
+      HttpServer::BeastHttpVerbToHttpRequestMethod(res.method()), target);
 
   if (route_result_.handler == nullptr) {
     DoClose();
@@ -215,7 +216,7 @@ void HttpServerConnection::DoCycle() {
 }
 
 HttpServerConnection::HttpServerConnection(
-    boost::asio::strand<boost::asio::io_context::executor_type> strand,
+    boost::asio::strand<boost::asio::any_io_executor> strand,
     std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
     std::size_t keep_alive_timeout)
     : strand_(std::move(strand)),
@@ -241,4 +242,8 @@ std::unique_ptr<
     boost::beast::http::request_parser<boost::beast::http::string_body>> &
 HttpServerConnection::GetParser() noexcept {
   return parser_;
+}
+
+std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
+  return keep_alive_timeout_ / 1000 ? keep_alive_timeout_ / 1000 : 1;
 }

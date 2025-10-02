@@ -76,6 +76,8 @@ class SessionContextEntry : CopyableMovable<SessionContextEntry> {
   SessionContextEntry(std::shared_ptr<Context> context,
                       std::chrono::steady_clock::time_point expiry);
 
+  SessionContextEntry() = default;
+
  private:
   std::shared_ptr<Context> ctx_;                  ///< Session context data
   std::chrono::steady_clock::time_point expiry_;  ///< Session expiration time

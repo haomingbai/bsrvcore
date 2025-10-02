@@ -28,7 +28,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
-#include <semaphore>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -222,7 +222,7 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    * @param aspect Aspect handler
    * @return Shared pointer to aspect handler for management
    */
-  std::shared_ptr<HttpRequestAspectHandler> AddAspect(
+  std::shared_ptr<HttpServer> AddAspect(
       HttpRequestMethod method, const std::string_view url,
       std::unique_ptr<HttpRequestAspectHandler> aspect);
 
@@ -394,6 +394,13 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    */
   std::shared_ptr<HttpServer> UnsetSslContext();
 
+  /*
+   * @brief Set the logger of the server
+   * @param logger The shared ptr of the logger
+   * @return Shared pointer to server for method chaining
+   */
+  std::shared_ptr<HttpServer> SetLogger(std::shared_ptr<Logger> logger);
+
   /**
    * @brief Log a message with specified level
    * @param level Log level
@@ -403,10 +410,11 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
 
   /**
    * @brief Route a request to find appropriate handler
+   * @param method The method of the request
    * @param target Request path to route
    * @return Routing result with handler and aspects
    */
-  HttpRouteResult Route(std::string_view target);
+  HttpRouteResult Route(HttpRequestMethod method, std::string_view target);
 
   /**
    * @brief Retrieve a session by ID (copy version)
@@ -420,7 +428,7 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    * @param sessionid Session identifier
    * @return Shared pointer to session context
    */
-  std::shared_ptr<Context> GetSession(std::string &sessionid);
+  std::shared_ptr<Context> GetSession(std::string &&sessionid);
 
   /**
    * @brief Set default session timeout
@@ -442,7 +450,7 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
    * @param timeout Session timeout
    * @return true if session was found and timeout was set
    */
-  bool SetSessionTimeout(std::string &sessionid, std::size_t timeout);
+  bool SetSessionTimeout(std::string &&sessionid, std::size_t timeout);
 
   /**
    * @brief Get the server context
@@ -490,24 +498,27 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
   static boost::beast::http::verb HttpRequestMethodToBeastHttpVerb(
       HttpRequestMethod method);
 
+  HttpServer(std::size_t thread_num);
+
  private:
-  boost::asio::ssl::context ssl_ctx_;  ///< The ssl context of the server
-  boost::asio::io_context ioc_;        ///< The io context of the server
+  void DoAccept(boost::asio::ip::tcp::acceptor &acc);
+
+  std::optional<boost::asio::ssl::context>
+      ssl_ctx_;                  ///< The ssl context of the server
+  boost::asio::io_context ioc_;  ///< The io context of the server
   std::vector<std::thread>
       io_threads_;  ///< Locations to store the threads to run io_context
   std::vector<boost::asio::ip::tcp::acceptor>
       acceptors_;                     ///< Acceptors to accept socket
-  std::binary_semaphore sem_;         ///< Semaphore
   std::mutex mtx_;                    ///< Mutex
   std::shared_ptr<Context> context_;  ///< Global context.
   std::shared_ptr<Logger> logger_;    ///< Logger to take log.
   std::unique_ptr<boost::asio::thread_pool>
       thread_pool_;                              ///< Exector: a thread pool
   std::unique_ptr<HttpRouteTable> route_table_;  ///< Route table
-  std::unique_ptr<SessionMap> sessions_;  ///< A session map to manage sessions
+  std::shared_ptr<SessionMap> sessions_;  ///< A session map to manage sessions
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers
   std::size_t keep_alive_timeout_;  ///< Timeout for keep alive connection
-  bool use_ssl_;                    ///< Determine whether to use a ssl context
   std::atomic<bool> is_running_;    ///< Var to show if the server is running
 };
 

@@ -201,6 +201,12 @@ class HttpServerConnection
   bool IsServerRunning() const noexcept;
 
   /**
+   * @brief Check if the underlying stream is available (pure virtual)
+   * @return true if stream is open and operational
+   */
+  virtual bool IsStreamAvailable() const noexcept = 0;
+
+  /**
    * @brief Start the connection processing loop
    */
   void Run();
@@ -243,10 +249,10 @@ class HttpServerConnection
    * @param header_read_expiry Header read timeout in milliseconds
    * @param keep_alive_timeout Keep-alive timeout in milliseconds
    */
-  HttpServerConnection(
-      boost::asio::strand<boost::asio::io_context::executor_type> strand,
-      std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
-      std::size_t keep_alive_timeout);
+  HttpServerConnection(boost::asio::strand<boost::asio::any_io_executor> strand,
+                       std::shared_ptr<HttpServer> srv,
+                       std::size_t header_read_expiry,
+                       std::size_t keep_alive_timeout);
 
   /**
    * @brief Virtual destructor for proper cleanup
@@ -316,19 +322,19 @@ class HttpServerConnection
   void DoForwardRequest(std::shared_ptr<HttpServerTask> task);
 
   /**
-   * @brief Check if the underlying stream is available (pure virtual)
-   * @return true if stream is open and operational
-   */
-  virtual bool IsStreamAvailable() const noexcept = 0;
-
-  /**
    * @brief Get the strand for this connection
    * @return Reference to ASIO strand
    */
-  boost::asio::strand<boost::asio::io_context::executor_type>& GetStrand();
+  boost::asio::strand<boost::asio::any_io_executor>& GetStrand();
+
+  /**
+   * @brief Get the timeout of the keep_alive connection.
+   * @return timeout in seconds (convenient to be set)
+   */
+  std::size_t GetKeepAliveTimeout() const noexcept;
 
  private:
-  boost::asio::strand<boost::asio::io_context::executor_type>
+  boost::asio::strand<boost::asio::any_io_executor>
       strand_;  ///< Strand for thread-safe operation sequencing
   boost::asio::steady_timer timer_;  ///< Timer for timeouts
   boost::beast::flat_buffer buf_;    ///< Buffer for reading requests

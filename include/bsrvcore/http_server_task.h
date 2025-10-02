@@ -27,12 +27,15 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "bsrvcore/logger.h"
+#include "bsrvcore/server_set_cookie.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {
@@ -112,7 +115,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @brief Get the current session context
    * @return Shared pointer to session context, nullptr if no session
    */
-  std::shared_ptr<Context> GetSession() noexcept;
+  std::shared_ptr<Context> GetSession();
 
   /**
    * @brief Set timeout for the current session
@@ -154,6 +157,8 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @note When enabled, the response is automatically sent when the
    *       handler completes. When disabled, manual WriteHeader/WriteBody
    *       calls are required.
+   * @note You can only disable autowrite while default value is true for
+   *       security reasons.
    */
   void SetAutowrite(bool value) noexcept;
 
@@ -174,7 +179,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @param level Log level
    * @param message Log message
    */
-  void Log(LogLevel level, const std::string_view message);
+  void Log(LogLevel level, const std::string message);
 
   /**
    * @brief Write response body to client (manual mode)
@@ -273,15 +278,17 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   bool IsAvailable() noexcept;
 
   /**
-   * @brief Close the connection (for manual connection management)
-   */
-  void DoClose();
-
-  /**
    * @brief Get the current_location of the task
    * @return The current location
    */
   const std::string& GetCurrentLocation();
+
+  /**
+   * @brief Get the cookie of the request by name
+   * @param key The name of the cookie.
+   * @return The value of the cookie.
+   */
+  const std::string& GetCookie(const std::string& key);
 
   /**
    * @brief Get the reference to the path parameters
@@ -289,6 +296,20 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    */
   const std::vector<std::string>& GetPathParameters();
 
+  /**
+   * @brief Add a cookie to the response.
+   * @param cookie The cookie.
+   * @return Whether the operation success.
+   */
+  bool AddCookie(ServerSetCookie cookie);
+
+  /**
+   * @brief Constructor of the server task
+   * @param req The request of this http request.
+   * @param params The parametres on the path of the url.
+   * @param current_location The location of the current request.
+   * @param conn The connection of this task.
+   */
   HttpServerTask(HttpRequest req, std::vector<std::string> params,
                  std::string current_location,
                  std::shared_ptr<HttpServerConnection> conn);
@@ -299,13 +320,23 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   ~HttpServerTask();
 
  private:
-  HttpRequest req_;                             ///< HTTP request data
-  HttpResponse resp_;                           ///< HTTP response data
-  std::vector<std::string> parameters_;         ///< Extracted route parameters
+  void GenerateCookiePairs();
+
+  const std::string& GetSessionId();
+
+  HttpRequest req_;    ///< HTTP request data
+  HttpResponse resp_;  ///< HTTP response data
+  std::unordered_map<std::string, std::string>
+      cookies_;                                 ///< Cookies of the request.
+  std::optional<std::string> sessionid_;        ///< SessionId of the request.
+  std::vector<ServerSetCookie> set_cookies_;    ///< Set-Cookie
+  std::vector<std::string> parameters_;         ///< Extracted route parameter
   std::string current_location_;                ///< Matched route path
   std::shared_ptr<HttpServerConnection> conn_;  ///< Associated connection
   bool keep_alive_;                             ///< Keep-alive flag
   bool autowrite_;                              ///< Auto-write response flag
+  bool
+      is_cookie_parsed_;  ///< Determine if the cookie of the request is parsed.
 };
 
 }  // namespace bsrvcore

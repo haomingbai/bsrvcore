@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <boost/beast/http/field.hpp>
 #ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 #define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 
@@ -29,6 +30,7 @@
 #include <boost/beast/http/empty_body.hpp>
 #include <boost/beast/http/fields_fwd.hpp>
 #include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/serializer.hpp>
 #include <boost/beast/http/serializer_fwd.hpp>
 #include <boost/beast/http/string_body_fwd.hpp>
 #include <boost/beast/http/write.hpp>
@@ -145,8 +147,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
    * @param keep_alive_timeout Keep-alive timeout in milliseconds
    */
   HttpServerConnectionImpl(
-      S stream,
-      boost::asio::strand<boost::asio::io_context::executor_type> strand,
+      S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
       std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
       std::size_t keep_alive_timeout)
       : HttpServerConnection(std::move(strand), std::move(srv),
@@ -206,8 +207,13 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
+    resp.keep_alive(keep_alive);
+    resp.set(boost::beast::http::field::keep_alive,
+             std::to_string(GetKeepAliveTimeout()));
+    resp.prepare_payload();
+
     boost::beast::http::async_write(
-        stream_, GetBuffer(), resp,
+        stream_, resp,
         boost::asio::bind_executor(
             GetExecutor(), [self = shared_from_this(), this, keep_alive](
                                boost::system::error_code ec,
@@ -332,7 +338,9 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             header) {
       auto serializer =
           std::make_shared<boost::beast::http::response_serializer<
-              boost::beast::http::empty_body>>(std::move(header));
+              boost::beast::http::empty_body>>(
+              boost::beast::http::response<boost::beast::http::empty_body>{
+                  header});
       boost::asio::post(conn_.GetExecutor(),
                         [conn = conn_.shared_from_this(), this,
                          serializer = std::move(serializer)] {

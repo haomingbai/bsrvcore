@@ -281,8 +281,6 @@ bool HttpRouteTable::MatchSegments(
   out_location.clear();
   out_parameters.clear();
 
-  size_t param_cnt = 0;
-
   for (auto const &seg : url.segments()) {
     // Every non-empty segs should add a '/' before.
     out_location.push_back('/');
@@ -310,11 +308,7 @@ bool HttpRouteTable::MatchSegments(
 
       out_parameters.emplace_back(seg);
       route_layer = default_layer;
-
-      out_location.append("{param");
-      out_location.append(std::to_string(param_cnt));
-      out_location.push_back('}');
-      ++param_cnt;
+      out_location.append(seg);
     }
   }
 
@@ -470,7 +464,7 @@ void HttpRouteTable::SetDefaultMaxBodySize(std::size_t max_body_size) noexcept {
 
 HttpRouteTable::HttpRouteTable() noexcept
     : default_handler_(std::make_unique<route_internal::EmptyRouteHandler>()),
-      default_max_body_size_(4096),
+      default_max_body_size_(16384),
       default_read_expiry_(4000),
       default_write_expiry_(4000) {
   for (auto &it : entrance_) {

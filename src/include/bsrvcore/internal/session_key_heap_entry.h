@@ -71,6 +71,8 @@ class SessionKeyHeapEntry : CopyableMovable<SessionKeyHeapEntry> {
    */
   const std::string &GetId() const noexcept;
 
+  SessionKeyHeapEntry() = default;
+
  private:
   std::string id_;                                ///< Session identifier
   std::chrono::steady_clock::time_point expiry_;  ///< Expiration time point

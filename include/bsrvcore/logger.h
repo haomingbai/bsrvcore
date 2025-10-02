@@ -116,13 +116,9 @@ class Logger {
   virtual void Log(LogLevel level, std::string message) = 0;
 
   /**
-   * @brief Deleted destructor prevents direct instantiation
-   *
-   * @note Derived classes must implement proper cleanup in their own
-   *       destructors. This ensures that the base class cannot be
-   *       instantiated directly while allowing proper polymorphism.
+   * @brief Destructor prevents direct instantiation
    */
-  virtual ~Logger() = delete;
+  virtual ~Logger() = default;
 };
 
 }  // namespace bsrvcore
