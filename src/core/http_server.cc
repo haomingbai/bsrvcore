@@ -22,6 +22,7 @@
 #include <boost/asio/strand.hpp>
 #include <boost/asio/thread_pool.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
+#include <boost/beast/http/verb.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
 #include <cstddef>
@@ -34,6 +35,7 @@
 #include <utility>
 
 #include "bsrvcore/context.h"
+#include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
@@ -49,18 +51,29 @@ HttpServer::HttpServer(std::size_t thread_num)
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
       thread_pool_(std::make_unique<boost::asio::thread_pool>(thread_num)),
-      route_table_(std::make_unique<HttpRouteTable>()),
-      sessions_(std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this())),
+      route_table_(std::make_shared<HttpRouteTable>()),
+      sessions_(),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
+      thread_cnt_(thread_num),
+      is_running_(false) {}
+
+HttpServer::HttpServer()
+    : context_(std::make_shared<Context>()),
+      logger_(std::make_shared<internal::EmptyLogger>()),
+      thread_pool_(std::make_unique<boost::asio::thread_pool>()),
+      route_table_(std::make_shared<HttpRouteTable>()),
+      sessions_(),
+      header_read_expiry_(3000),
+      keep_alive_timeout_(4000),
+      thread_cnt_(0),
       is_running_(false) {}
 
 void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
   auto timer =
       std::make_shared<boost::asio::steady_timer>(thread_pool_->get_executor());
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
-  timer->async_wait([fn](boost::system::error_code ec) {
+  timer->async_wait([fn, timer](boost::system::error_code ec) {
     if (!ec) {
       fn();
     }
@@ -120,6 +133,18 @@ std::shared_ptr<HttpServer> HttpServer::AddGlobalAspect(
   }
 
   route_table_->AddGlobalAspect(method, std::move(aspect));
+  return shared_from_this();
+}
+
+std::shared_ptr<HttpServer> HttpServer::AddGlobalAspect(
+    std::unique_ptr<HttpRequestAspectHandler> aspect) {
+  std::lock_guard<std::mutex> lock(mtx_);
+
+  if (is_running_) {
+    return shared_from_this();
+  }
+
+  route_table_->AddGlobalAspect(std::move(aspect));
   return shared_from_this();
 }
 
@@ -291,25 +316,50 @@ HttpRouteResult HttpServer::Route(HttpRequestMethod method,
 }
 
 std::shared_ptr<Context> HttpServer::GetSession(const std::string &sessionid) {
+  if (sessions_ == nullptr) {
+    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
+                                             shared_from_this());
+  }
+
   return sessions_->GetSession(sessionid);
 }
 
 std::shared_ptr<Context> HttpServer::GetSession(std::string &&sessionid) {
+  if (sessions_ == nullptr) {
+    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
+                                             shared_from_this());
+  }
+
   return sessions_->GetSession(std::move(sessionid));
 }
 
 void HttpServer::SetDefaultSessionTimeout(std::size_t timeout) {
+  if (sessions_ == nullptr) {
+    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
+                                             shared_from_this());
+  }
+
   sessions_->SetDefaultSessionTimeout(timeout);
 }
 
 bool HttpServer::SetSessionTimeout(const std::string &sessionid,
                                    std::size_t timeout) {
+  if (sessions_ == nullptr) {
+    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
+                                             shared_from_this());
+  }
+
   sessions_->SetSessionTimeout(sessionid, timeout);
   return true;
 }
 
 bool HttpServer::SetSessionTimeout(std::string &&sessionid,
                                    std::size_t timeout) {
+  if (sessions_ == nullptr) {
+    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
+                                             shared_from_this());
+  }
+
   sessions_->SetSessionTimeout(sessionid, timeout);
   return true;
 }
@@ -331,36 +381,10 @@ bool HttpServer::Start(std::size_t thread_cnt) {
     return false;
   }
 
-  for (auto &acc : acceptors_) {
-    acc.async_accept(
-        boost::asio::make_strand(ioc_),
-        [self = shared_from_this(), this, &acc](
-            boost::system::error_code ec, boost::asio::ip::tcp::socket skt) {
-          if (!ec) {
-            boost::beast::tcp_stream stream(std::move(skt));
-            if (ssl_ctx_.has_value()) {
-              boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
-                  std::move(stream), ssl_ctx_.value());
-              std::make_shared<connection_internal::HttpServerConnectionImpl<
-                  boost::beast::ssl_stream<boost::beast::tcp_stream>>>(
-                  std::move(sstream),
-                  boost::asio::strand<boost::asio::any_io_executor>(
-                      sstream.get_executor()),
-                  shared_from_this(), header_read_expiry_, keep_alive_timeout_)
-                  ->Run();
-            } else {
-              std::make_shared<connection_internal::HttpServerConnectionImpl<
-                  boost::beast::tcp_stream>>(
-                  std::move(stream),
-                  boost::asio::strand<boost::asio::any_io_executor>(
-                      stream.get_executor()),
-                  shared_from_this(), header_read_expiry_, keep_alive_timeout_)
-                  ->Run();
-            }
-          }
+  is_running_ = true;
 
-          DoAccept(acc);
-        });
+  for (auto &acc : acceptors_) {
+    DoAccept(acc);
   }
 
   io_threads_.reserve(thread_cnt);
@@ -395,10 +419,89 @@ void HttpServer::Stop() {
     it.join();
   }
 
+  if (thread_cnt_) {
+    thread_pool_ = std::make_unique<boost::asio::thread_pool>(thread_cnt_);
+  } else {
+    thread_pool_ = std::make_unique<boost::asio::thread_pool>();
+  }
+  io_threads_.clear();
   acceptors_.clear();
   for (auto ep : eps) {
     acceptors_.emplace_back(ioc_, ep);
   }
 
   ioc_.restart();
+}
+
+HttpRequestMethod HttpServer::BeastHttpVerbToHttpRequestMethod(
+    boost::beast::http::verb verb) {
+  switch (verb) {
+    case boost::beast::http::verb::get:
+      return HttpRequestMethod::kGet;
+    case boost::beast::http::verb::post:
+      return HttpRequestMethod::kPost;
+    case boost::beast::http::verb::put:
+      return HttpRequestMethod::kPut;
+    case boost::beast::http::verb::delete_:
+      return HttpRequestMethod::kDelete;
+    case boost::beast::http::verb::patch:
+      return HttpRequestMethod::kPatch;
+    case boost::beast::http::verb::head:
+      return HttpRequestMethod::kHead;
+    default:
+      return HttpRequestMethod::kGet;
+  }
+}
+
+boost::beast::http::verb HttpServer::HttpRequestMethodToBeastHttpVerb(
+    HttpRequestMethod method) {
+  switch (method) {
+    case HttpRequestMethod::kGet:
+      return boost::beast::http::verb::get;
+    case HttpRequestMethod::kPost:
+      return boost::beast::http::verb::post;
+    case HttpRequestMethod::kPut:
+      return boost::beast::http::verb::put;
+    case HttpRequestMethod::kDelete:
+      return boost::beast::http::verb::delete_;
+    case HttpRequestMethod::kPatch:
+      return boost::beast::http::verb::patch;
+    case HttpRequestMethod::kHead:
+      return boost::beast::http::verb::head;
+  }
+  return boost::beast::http::verb::get;
+}
+
+void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor &acc) {
+  acc.async_accept(
+      boost::asio::make_strand(ioc_),
+      [self = shared_from_this(), this, &acc](
+          boost::system::error_code ec, boost::asio::ip::tcp::socket skt) {
+        if (!ec) {
+          boost::beast::tcp_stream stream(std::move(skt));
+          if (ssl_ctx_.has_value()) {
+            boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
+                std::move(stream), ssl_ctx_.value());
+            std::make_shared<connection_internal::HttpServerConnectionImpl<
+                boost::beast::ssl_stream<boost::beast::tcp_stream>>>(
+                std::move(sstream),
+                boost::asio::strand<boost::asio::any_io_executor>(
+                    sstream.get_executor()),
+                shared_from_this(), header_read_expiry_, keep_alive_timeout_)
+                ->Run();
+          } else {
+            std::make_shared<connection_internal::HttpServerConnectionImpl<
+                boost::beast::tcp_stream>>(
+                std::move(stream),
+                boost::asio::strand<boost::asio::any_io_executor>(
+                    stream.get_executor()),
+                shared_from_this(), header_read_expiry_, keep_alive_timeout_)
+                ->Run();
+          }
+        }
+
+        if (is_running_) {
+          DoAccept(acc);
+        }
+      });
 }

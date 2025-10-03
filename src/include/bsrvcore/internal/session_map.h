@@ -49,7 +49,7 @@ class HttpServer;
  * @endcode
  */
 class SessionMap : NonCopyableNonMovable<SessionMap>,
-                   std::enable_shared_from_this<SessionMap> {
+                   public std::enable_shared_from_this<SessionMap> {
  public:
   /**
    * @brief Retrieve a session by ID (copy version)

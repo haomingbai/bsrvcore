@@ -147,3 +147,15 @@ HttpRouteTableLayer::GetAspects() const {
 std::size_t HttpRouteTableLayer::GetAspectNum() const noexcept {
   return aspects_.size();
 }
+
+std::size_t HttpRouteTableLayer::GetMaxBodySize() const noexcept {
+  return max_body_size_;
+}
+
+std::size_t HttpRouteTableLayer::GetReadExpiry() const noexcept {
+  return read_expiry_;
+}
+
+std::size_t HttpRouteTableLayer::GetWriteExpiry() const noexcept {
+  return write_expiry_;
+}

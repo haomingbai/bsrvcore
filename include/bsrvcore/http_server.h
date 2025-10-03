@@ -32,6 +32,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/http_request_aspect_handler.h"
@@ -39,13 +40,14 @@
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
 #include "bsrvcore/http_server_task.h"
-#include "bsrvcore/internal/session_map.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {
 
 class HttpRouteTable;
+
+class SessionMap;
 
 /**
  * @brief Main HTTP server with comprehensive web service capabilities
@@ -88,7 +90,7 @@ class HttpRouteTable;
  *      ->Start(4);  // 4 worker threads
  * @endcode
  */
-class HttpServer : std::enable_shared_from_this<HttpServer>,
+class HttpServer : public std::enable_shared_from_this<HttpServer>,
                    public NonCopyableNonMovable<HttpServer> {
  public:
   /**
@@ -382,6 +384,21 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
       std::unique_ptr<HttpRequestHandler> handler);
 
   /**
+   * @brief Set keep-alive connection timeout
+   * @param Global fallback handler function for requests.
+   * @return Shared pointer to server for method chaining
+   */
+  template <typename F>
+    requires requires(F f, std::shared_ptr<HttpServerTask> task) {
+      { f(task) };
+    }
+  std::shared_ptr<HttpServer> SetDefaultHandler(F f) {
+    std::unique_ptr<HttpRequestHandler> handler =
+        std::make_unique<FunctionRouteHandler<F>>(f);
+    return SetDefaultHandler(std::move(handler));
+  }
+
+  /**
    * @brief Set the ssl context of the connection
    * @param ctx The ssl context of the server
    * @return Shared pointer to server for method chaining
@@ -500,6 +517,8 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
 
   HttpServer(std::size_t thread_num);
 
+  HttpServer();
+
  private:
   void DoAccept(boost::asio::ip::tcp::acceptor &acc);
 
@@ -515,10 +534,11 @@ class HttpServer : std::enable_shared_from_this<HttpServer>,
   std::shared_ptr<Logger> logger_;    ///< Logger to take log.
   std::unique_ptr<boost::asio::thread_pool>
       thread_pool_;                              ///< Exector: a thread pool
-  std::unique_ptr<HttpRouteTable> route_table_;  ///< Route table
+  std::shared_ptr<HttpRouteTable> route_table_;  ///< Route table
   std::shared_ptr<SessionMap> sessions_;  ///< A session map to manage sessions
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers
   std::size_t keep_alive_timeout_;  ///< Timeout for keep alive connection
+  std::size_t thread_cnt_;          ///< Number of threads in the thread_pool
   std::atomic<bool> is_running_;    ///< Var to show if the server is running
 };
 

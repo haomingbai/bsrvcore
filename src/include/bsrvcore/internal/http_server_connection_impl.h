@@ -16,12 +16,12 @@
 
 #pragma once
 
-#include <boost/beast/http/field.hpp>
 #ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 #define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/write.hpp>
@@ -34,11 +34,11 @@
 #include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/system/detail/error_code.hpp>
 #include <cassert>
 #include <cstddef>
 #include <deque>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <variant>
@@ -47,41 +47,22 @@
 #include "bsrvcore/internal/http_server_connection.h"
 
 namespace bsrvcore {
-
 namespace connection_internal {
 
 namespace helper {
 
-/**
- * @brief Type trait to detect Boost.Beast SSL streams
- * @tparam T Type to check
- */
 template <typename T>
 struct IsBeastSslStream : std::false_type {};
 
-/**
- * @brief Specialization for Boost.Beast SSL streams
- * @tparam NextLayer Underlying stream type
- */
 template <typename NextLayer>
 struct IsBeastSslStream<boost::beast::ssl_stream<NextLayer>> : std::true_type {
 };
 
-/**
- * @brief Get the underlying TCP socket from a Beast stream
- * @param s TCP stream
- * @return Reference to underlying TCP socket
- */
 inline boost::asio::ip::tcp::socket& GetLowestSocket(
     boost::beast::tcp_stream& s) {
   return s.socket();
 }
 
-/**
- * @brief Get the underlying TCP socket from a Beast SSL stream
- * @param s SSL stream
- * @return Reference to underlying TCP socket
- */
 inline boost::asio::ip::tcp::socket& GetLowestSocket(
     boost::beast::ssl_stream<boost::beast::tcp_stream>& s) {
   return s.next_layer().socket();
@@ -89,62 +70,15 @@ inline boost::asio::ip::tcp::socket& GetLowestSocket(
 
 }  // namespace helper
 
-/**
- * @brief Concept for valid stream types supported by the connection
- * implementation
- * @tparam S Stream type
- *
- * A stream is valid if it provides a GetLowestSocket function that returns
- * a reference to a boost::asio::ip::tcp::socket.
- */
 template <typename S>
 concept ValidStream = requires(S s) {
   { helper::GetLowestSocket(s) };
 };
 
-/**
- * @brief Template implementation of HTTP server connection for various stream
- * types
- *
- * This template class provides concrete implementation of HTTP server
- * connections for different stream types (TCP, SSL, etc.). It handles the
- * transport-specific details while providing a consistent interface for HTTP
- * protocol handling.
- *
- * Features:
- * - Supports both plain TCP and SSL streams
- * - Efficient message queuing for response streaming
- * - Asynchronous I/O with proper error handling
- * - Graceful connection shutdown
- *
- * @tparam S Stream type (must satisfy ValidStream concept)
- *
- * @code
- * // Example usage with TCP stream
- * boost::beast::tcp_stream stream(std::move(socket));
- * auto tcp_conn =
- * std::make_shared<HttpServerConnectionImpl<boost::beast::tcp_stream>>(
- *     std::move(stream), strand, server, 30000, 15000);
- *
- * // Example usage with SSL stream
- * boost::beast::ssl_stream<boost::beast::tcp_stream>
- * ssl_stream(std::move(tcp_stream), ssl_ctx); auto ssl_conn =
- * std::make_shared<HttpServerConnectionImpl<
- *     boost::beast::ssl_stream<boost::beast::tcp_stream>>>(
- *     std::move(ssl_stream), strand, server, 30000, 15000);
- * @endcode
- */
 template <ValidStream S>
 class HttpServerConnectionImpl : public HttpServerConnection {
  public:
-  /**
-   * @brief Construct a connection implementation with the specified stream
-   * @param stream Boost.Beast stream (TCP or SSL)
-   * @param strand ASIO strand for thread safety
-   * @param srv HTTP server instance
-   * @param header_read_expiry Header read timeout in milliseconds
-   * @param keep_alive_timeout Keep-alive timeout in milliseconds
-   */
+  // Keep original constructor signature for compatibility.
   HttpServerConnectionImpl(
       S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
       std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
@@ -152,35 +86,42 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       : HttpServerConnection(std::move(strand), std::move(srv),
                              header_read_expiry, keep_alive_timeout),
         stream_(std::move(stream)),
-        message_queue_(std::make_unique<MessageQueue>(*this)),
-        closed_(false) {}
+        closed_(false) {
+    // Do NOT create message_queue_ here by calling shared_from_this(),
+    // because object might not yet be owned by shared_ptr.
+    //
+    // Prefer using the static Create(...) factory which constructs the
+    // shared_ptr and then attaches the message_queue_ immediately:
+    //   auto conn = HttpServerConnectionImpl<Stream>::Create(...);
+  }
 
-  /**
-   * @brief Close the connection gracefully
-   *
-   * For SSL connections, performs async shutdown before closing the socket.
-   * For plain TCP connections, immediately shuts down and closes the socket.
-   */
+  // Preferred factory: ensures connection is owned by shared_ptr and then
+  // creates message_queue_ which stores a weak_ptr back to the connection.
+  template <typename... Args>
+  static std::shared_ptr<HttpServerConnectionImpl<S>> Create(Args&&... args) {
+    auto conn = std::make_shared<HttpServerConnectionImpl<S>>(
+        std::forward<Args>(args)...);
+    // Now conn is owned by shared_ptr; create message_queue_ with weak ref.
+    conn->message_queue_ =
+        std::make_shared<typename HttpServerConnectionImpl<S>::MessageQueue>(
+            conn->weak_from_this());
+    return conn;
+  }
+
   void DoClose() override {
-    if (closed_) {
-      return;
-    }
-
+    if (closed_) return;
     closed_ = true;
 
-    if (!helper::GetLowestSocket(stream_).is_open()) {
-      return;
-    }
+    if (!helper::GetLowestSocket(stream_).is_open()) return;
 
     if constexpr (helper::IsBeastSslStream<S>::value) {
       stream_.async_shutdown(boost::asio::bind_executor(
-          GetExecutor(),
-          [self = shared_from_this(), this](boost::system::error_code ec) {
+          GetExecutor(), [self = this->shared_from_this(), this](auto ec) {
             boost::system::error_code socket_ec;
             helper::GetLowestSocket(stream_).close(socket_ec);
           }));
     } else {
-      boost::asio::post(GetStrand(), [self = shared_from_this(), this] {
+      boost::asio::post(GetStrand(), [self = this->shared_from_this(), this] {
         boost::system::error_code ec;
         helper::GetLowestSocket(stream_).shutdown(
             boost::asio::ip::tcp::socket::shutdown_both, ec);
@@ -189,32 +130,24 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
   }
 
-  /**
-   * @brief Check if the stream is still available
-   * @return true if stream is open and not closed
-   */
   bool IsStreamAvailable() const noexcept override { return !closed_; }
 
-  /**
-   * @brief Write complete HTTP response to client
-   * @param resp HTTP response to write
-   * @param keep_alive Whether to keep connection alive after writing
-   */
   void DoWriteResponse(HttpResponse resp, bool keep_alive) override {
     if (!IsServerRunning() || !IsStreamAvailable()) {
       DoClose();
       return;
     }
-
     resp.keep_alive(keep_alive);
     resp.set(boost::beast::http::field::keep_alive,
              std::to_string(GetKeepAliveTimeout()));
     resp.prepare_payload();
 
+    resp_ = std::move(resp);
+
     boost::beast::http::async_write(
-        stream_, resp,
+        stream_, resp_,
         boost::asio::bind_executor(
-            GetExecutor(), [self = shared_from_this(), this, keep_alive](
+            GetExecutor(), [self = this->shared_from_this(), this, keep_alive](
                                boost::system::error_code ec,
                                [[maybe_unused]] std::size_t bytes_transfered) {
               if (ec) {
@@ -229,38 +162,30 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             }));
   }
 
-  /**
-   * @brief Flush response headers to client (manual mode)
-   * @param header HTTP response headers
-   */
   void DoFlushResponseHeader(
       boost::beast::http::response_header<boost::beast::http::fields> header)
       override {
+    EnsureMessageQueueCreated();
+    // capture shared_ptr to message_queue_ inside AddHeader to ensure it is
+    // kept.
     message_queue_->AddHeader(std::move(header));
   }
 
-  /**
-   * @brief Flush response body to client (manual mode)
-   * @param body Response body content
-   */
   void DoFlushResponseBody(std::string body) override {
+    EnsureMessageQueueCreated();
     message_queue_->AddBody(std::move(body));
   }
 
  protected:
-  /**
-   * @brief Read HTTP request headers asynchronously
-   */
   void DoReadHeader() override {
     if (!IsServerRunning() || !IsStreamAvailable()) {
       DoClose();
       return;
     }
-
     boost::beast::http::async_read_header(
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
-            GetExecutor(), [self = shared_from_this(), this](
+            GetExecutor(), [self = this->shared_from_this(), this](
                                boost::system::error_code ec,
                                [[maybe_unused]] std::size_t bytes_transfered) {
               if (ec) {
@@ -271,19 +196,15 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             }));
   }
 
-  /**
-   * @brief Read HTTP request body asynchronously
-   */
   void DoReadBody() override {
     if (!IsServerRunning() || !IsStreamAvailable()) {
       DoClose();
       return;
     }
-
     boost::beast::http::async_read(
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
-            GetExecutor(), [self = shared_from_this(), this](
+            GetExecutor(), [self = this->shared_from_this(), this](
                                boost::system::error_code ec,
                                [[maybe_unused]] std::size_t bytes_transfered) {
               if (ec) {
@@ -295,148 +216,188 @@ class HttpServerConnectionImpl : public HttpServerConnection {
   }
 
  private:
-  /**
-   * @brief Thread-safe message queue for response streaming
-   *
-   * Manages a queue of response messages (headers and bodies) and ensures
-   * they are written to the stream in the correct order. Supports both
-   * automatic and manual response writing modes.
-   */
-  class MessageQueue {
+  // Ensure message_queue_ is created. If already created, no-op.
+  void EnsureMessageQueueCreated() {
+    // If already created, nothing to do.
+    if (message_queue_) return;
+
+    // Try to create it using weak_from_this() (works only if object is owned
+    // by shared_ptr). If weak_from_this is empty, message_queue_ will be
+    // created later when AddBody/AddHeader runs (they call this again).
+    auto weak = this->weak_from_this();
+    if (auto locked = weak.lock()) {
+      std::lock_guard<std::mutex> lock(mtx_);
+      if (!message_queue_) {
+        message_queue_ = std::make_shared<
+            typename HttpServerConnectionImpl<S>::MessageQueue>(std::move(
+            std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked)));
+      }
+    }
+  }
+
+  // MessageQueue definition: now shared and holding weak_ptr back to parent.
+  class MessageQueue : public std::enable_shared_from_this<MessageQueue> {
    public:
-    /**
-     * @brief Construct a message queue for a connection
-     * @param conn Reference to the parent connection
-     */
-    MessageQueue(HttpServerConnectionImpl<S>& conn)
-        : conn_(conn), is_writing_(false) {}
+    explicit MessageQueue(std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp)
+        : conn_wp_(std::move(conn_wp)), is_writing_(false) {}
 
-    /**
-     * @brief Add a body message to the queue
-     * @param msg Response body content
-     */
-    void AddBody(std::string msg) {
-      BodyMessage message = {std::make_shared<std::string>(std::move(msg))};
-      boost::asio::post(conn_.GetExecutor(),
-                        [conn = conn_.shared_from_this(), this,
-                         message = std::move(message)] {
-                          queue_.emplace_back(std::move(message));
+    void AddBody(std::string body) {
+      BodyMessage message{std::make_shared<std::string>(std::move(body))};
+      // Ensure message_queue instance is kept alive during posting & handler
+      auto self_sp = this->shared_from_this();
 
-                          if (!is_writing_) {
-                            DoWrite();
-                          }
-                        });
+      // Try to lock the connection to get the executor (must run on strand).
+      if (auto conn_sp = conn_wp_.lock()) {
+        boost::asio::post(
+            conn_sp->GetExecutor(),
+            [conn_sp, self_sp, message = std::move(message)]() mutable {
+              // All queue modifications happen on the strand.
+              self_sp->queue_.emplace_back(std::move(message));
+              if (!self_sp->is_writing_) {
+                self_sp->DoWrite_locked(conn_sp);
+              }
+            });
+      } else {
+        // Connection no longer exists; drop message.
+      }
     }
 
-    /**
-     * @brief Add a header message to the queue
-     * @param header Response headers
-     */
     void AddHeader(
         boost::beast::http::response_header<boost::beast::http::fields>
             header) {
-      auto serializer =
-          std::make_shared<boost::beast::http::response_serializer<
-              boost::beast::http::empty_body>>(
-              boost::beast::http::response<boost::beast::http::empty_body>{
-                  header});
-      boost::asio::post(conn_.GetExecutor(),
-                        [conn = conn_.shared_from_this(), this,
-                         serializer = std::move(serializer)] {
-                          HeaderMessage message = {std::move(serializer)};
-                          queue_.emplace_back(std::move(message));
-
-                          if (!is_writing_) {
-                            DoWrite();
-                          }
-                        });
+      HeaderMessage message{std::move(header)};
+      auto self_sp = this->shared_from_this();
+      if (auto conn_sp = conn_wp_.lock()) {
+        boost::asio::post(
+            conn_sp->GetExecutor(),
+            [conn_sp, self_sp, message = std::move(message)]() mutable {
+              self_sp->queue_.emplace_back(std::move(message));
+              if (!self_sp->is_writing_) {
+                self_sp->DoWrite_locked(conn_sp);
+              }
+            });
+      } else {
+        // Connection no longer exists; drop header.
+      }
     }
 
    private:
-    /// @brief Body message containing response body content
     struct BodyMessage {
-      std::shared_ptr<std::string> msg;  ///< Shared pointer to body content
+      std::shared_ptr<std::string> msg;
     };
 
-    /// @brief Header message containing response headers
+    // *** FIX: This struct now uses a shared_ptr to manage the response
+    // lifetime robustly, preventing use-after-free bugs. ***
     struct HeaderMessage {
-      std::shared_ptr<boost::beast::http::response_serializer<
-          boost::beast::http::empty_body>>
-          msg;  ///< Shared pointer to header serializer
+      // A shared_ptr to the response object to guarantee its lifetime.
+      std::shared_ptr<
+          boost::beast::http::response<boost::beast::http::empty_body>>
+          resp_sp;
+      // The serializer, which will hold a *valid* reference to the object
+      // pointed to by resp_sp.
+      boost::beast::http::response_serializer<boost::beast::http::empty_body>
+          sr;
+
+      // Constructor that correctly initializes the response on the heap and the
+      // serializer.
+      explicit HeaderMessage(
+          boost::beast::http::response_header<boost::beast::http::fields>&&
+              header)
+          : resp_sp(std::make_shared<boost::beast::http::response<
+                        boost::beast::http::empty_body>>(std::move(header))),
+            sr(*resp_sp) {}
     };
 
-    /**
-     * @brief Process the message queue and write to stream
-     */
-    void DoWrite() {
-      if (queue_.empty() || is_writing_) {
-        return;
-      }
+    // This function runs on the connection strand (guaranteed by
+    // post/bind_executor).
+    void DoWrite_locked(std::shared_ptr<HttpServerConnectionImpl<S>> conn_sp) {
+      if (queue_.empty() || is_writing_) return;
       is_writing_ = true;
-      auto& task = queue_.front();
+
+      // Use a reference to the front element to avoid copying.
+      auto& front = queue_.front();
 
       std::visit(
-          [this, conn = std::static_pointer_cast<HttpServerConnectionImpl<S>>(
-                     conn_.shared_from_this())](auto& task) {
-            using T = std::decay_t<decltype(task)>;
+          [conn_sp, mq_sp = this->shared_from_this()](auto& task_variant) {
+            using T = std::decay_t<decltype(task_variant)>;
 
             if constexpr (std::is_same_v<T, BodyMessage>) {
-              auto buffers = boost::asio::buffer(*(task.msg));
+              auto msg_sp = task_variant.msg;
+              auto buf = boost::asio::buffer(*msg_sp);
+
+              if (!conn_sp->IsServerRunning() ||
+                  !conn_sp->IsStreamAvailable()) {
+                mq_sp->is_writing_ = false;
+                return;
+              }
+
               boost::asio::async_write(
-                  conn->stream_, buffers,
-                  boost::asio::bind_executor(conn->GetExecutor(),
-                                             [msg = task.msg, conn, this](
-                                                 boost::system::error_code ec,
-                                                 [[maybe_unused]] std::size_t) {
-                                               if (ec) {
-                                                 conn->DoClose();
-                                                 is_writing_ = false;
-                                                 return;
-                                               } else {
-                                                 queue_.pop_front();
-                                                 is_writing_ = false;
-                                                 if (!queue_.empty()) {
-                                                   DoWrite();
-                                                 }
-                                               }
-                                             }));
-            } else {
-              boost::beast::http::async_write_header(
-                  conn->stream_, *(task.msg),
+                  conn_sp->stream_, buf,
                   boost::asio::bind_executor(
-                      conn->GetExecutor(),
-                      [conn, this](boost::system::error_code ec,
-                                   [[maybe_unused]] std::size_t) {
+                      conn_sp->GetExecutor(),
+                      // Capture the shared_ptr to the message to keep it alive.
+                      [conn_sp, mq_sp, msg_sp](boost::system::error_code ec,
+                                               [[maybe_unused]] std::size_t) {
+                        // This completion handler always runs on the strand.
                         if (ec) {
-                          conn->DoClose();
-                          is_writing_ = false;
+                          conn_sp->DoClose();
+                          mq_sp->is_writing_ = false;
                           return;
-                        } else {
-                          queue_.pop_front();
-                          is_writing_ = false;
-                          if (!queue_.empty()) {
-                            DoWrite();
-                          }
+                        }
+                        mq_sp->queue_.pop_front();
+                        mq_sp->is_writing_ = false;
+                        if (!mq_sp->queue_.empty()) {
+                          mq_sp->DoWrite_locked(conn_sp);
+                        }
+                      }));
+            } else {  // This will be HeaderMessage
+              if (!conn_sp->IsServerRunning() ||
+                  !conn_sp->IsStreamAvailable()) {
+                mq_sp->is_writing_ = false;
+                return;
+              }
+
+              // *** FIX: Explicitly capture the response shared_ptr to extend
+              // its lifetime until the async operation completes. ***
+              auto resp_sp_to_keep_alive = task_variant.resp_sp;
+
+              boost::beast::http::async_write_header(
+                  conn_sp->stream_, task_variant.sr,
+                  boost::asio::bind_executor(
+                      conn_sp->GetExecutor(),
+                      [conn_sp, mq_sp, resp_sp_to_keep_alive](
+                          boost::system::error_code ec,
+                          [[maybe_unused]] std::size_t) {
+                        if (ec) {
+                          conn_sp->DoClose();
+                          mq_sp->is_writing_ = false;
+                          return;
+                        }
+                        mq_sp->queue_.pop_front();
+                        mq_sp->is_writing_ = false;
+                        if (!mq_sp->queue_.empty()) {
+                          mq_sp->DoWrite_locked(conn_sp);
                         }
                       }));
             }
           },
-          task);
+          front);
     }
 
-    std::deque<std::variant<BodyMessage, HeaderMessage>>
-        queue_;                          ///< Message queue
-    HttpServerConnectionImpl<S>& conn_;  ///< Parent connection
-    std::atomic<bool> is_writing_;       ///< Write operation in progress flag
+    std::deque<std::variant<BodyMessage, HeaderMessage>> queue_;
+    std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
+    bool is_writing_;
   };
 
-  S stream_;  ///< Boost.Beast stream (TCP or SSL)
-  std::unique_ptr<MessageQueue>
-      message_queue_;         ///< Message queue for response streaming
-  std::atomic<bool> closed_;  ///< Connection closed flag
+  // members
+  boost::beast::http::response<boost::beast::http::string_body> resp_;
+  S stream_;
+  std::mutex mtx_;
+  std::shared_ptr<MessageQueue> message_queue_;  // now shared
+  std::atomic<bool> closed_;
 };
-}  // namespace connection_internal
 
+}  // namespace connection_internal
 }  // namespace bsrvcore
 
-#endif
+#endif  // BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_

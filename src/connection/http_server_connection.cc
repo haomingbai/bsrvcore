@@ -14,6 +14,7 @@
 
 #include <boost/asio/post.hpp>
 #include <boost/beast.hpp>
+#include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <cassert>
@@ -74,8 +75,11 @@ void HttpServerConnection::Run() {
   boost::asio::post(strand_, [self = shared_from_this(), this] {
     if (header_read_expiry_) {
       timer_.expires_after(std::chrono::milliseconds(header_read_expiry_));
-      timer_.async_wait(
-          [self, this](boost::system::error_code ec) { DoClose(); });
+      timer_.async_wait([self, this](boost::system::error_code ec) {
+        if (!ec) {
+          DoClose();
+        }
+      });
     }
     DoReadHeader();
   });
@@ -102,12 +106,17 @@ void HttpServerConnection::DoRoute() {
 
   if (route_result_.handler == nullptr) {
     DoClose();
+    return;
   }
 
   if (route_result_.read_expiry) {
     timer_.expires_after(std::chrono::milliseconds(route_result_.read_expiry));
-    timer_.async_wait([self = shared_from_this(),
-                       this](boost::system::error_code ec) { DoClose(); });
+    timer_.async_wait(
+        [self = shared_from_this(), this](boost::system::error_code ec) {
+          if (!ec) {
+            DoClose();
+          }
+        });
   }
 
   if (route_result_.max_body_size) {
@@ -204,8 +213,12 @@ void HttpServerConnection::DoCycle() {
     if (header_read_expiry_ + keep_alive_timeout_) {
       timer_.expires_after(
           std::chrono::milliseconds(header_read_expiry_ + keep_alive_timeout_));
-      timer_.async_wait([self = shared_from_this(),
-                         this](boost::system::error_code ec) { DoClose(); });
+      timer_.async_wait(
+          [self = shared_from_this(), this](boost::system::error_code ec) {
+            if (!ec) {
+              DoClose();
+            }
+          });
     }
 
     Run();
@@ -222,12 +235,14 @@ HttpServerConnection::HttpServerConnection(
     : strand_(std::move(strand)),
       timer_(strand_),
       buf_(4096),
+      srv_(srv),
       parser_(std::make_unique<boost::beast::http::request_parser<
                   boost::beast::http::string_body>>()),
       header_read_expiry_(header_read_expiry),
       keep_alive_timeout_(keep_alive_timeout) {}
 
 void HttpServerConnection::MakeHttpServerTask() {
+  timer_.cancel();
   std::shared_ptr<HttpServerTask> task = std::make_shared<HttpServerTask>(
       parser_->release(), std::move(route_result_.parameters),
       std::move(route_result_.current_location), shared_from_this());
@@ -247,3 +262,15 @@ HttpServerConnection::GetParser() noexcept {
 std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
   return keep_alive_timeout_ / 1000 ? keep_alive_timeout_ / 1000 : 1;
 }
+
+boost::asio::strand<boost::asio::any_io_executor> &
+HttpServerConnection::GetStrand() {
+  return strand_;
+}
+
+boost::asio::strand<boost::asio::any_io_executor>
+HttpServerConnection::GetExecutor() {
+  return strand_;
+}
+
+boost::beast::flat_buffer &HttpServerConnection::GetBuffer() { return buf_; }

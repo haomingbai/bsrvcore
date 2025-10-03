@@ -11,8 +11,8 @@ endif()
 # Generate compile_commands.json to help LSP server
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Require Boost.Beast and Boost.Asio (header-only; Boost.System required)
-find_package(Boost 1.70 COMPONENTS system CONFIG REQUIRED)
+# Require Boost.Beast and Boost.Asio (header-only; Boost.System required, Boost.url required)
+find_package(Boost 1.75 COMPONENTS system url CONFIG REQUIRED)
 
 # Standard install directories
 include(GNUInstallDirs)

@@ -235,7 +235,9 @@ HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
       } else {
         // Layer not exists.
         auto new_layer = std::make_unique<HttpRouteTableLayer>();
+        current_layer = new_layer.get();
         route_layer->SetDefaultRoute(std::move(new_layer));
+        route_layer = current_layer;
       }
     } else {
       // Specific path.
@@ -245,7 +247,9 @@ HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
       } else {
         // Layer not exists.
         auto new_layer = std::make_unique<HttpRouteTableLayer>();
+        current_layer = new_layer.get();
         route_layer->SetRoute(std::string(word), std::move(new_layer));
+        route_layer = current_layer;
       }
     }
   }
@@ -460,6 +464,11 @@ void HttpRouteTable::SetDefaultReadExpiry(std::size_t expiry) noexcept {
 
 void HttpRouteTable::SetDefaultMaxBodySize(std::size_t max_body_size) noexcept {
   default_max_body_size_ = max_body_size;
+}
+
+void HttpRouteTable::SetDefaultHandler(
+    std::unique_ptr<HttpRequestHandler> handler) {
+  default_handler_ = std::move(handler);
 }
 
 HttpRouteTable::HttpRouteTable() noexcept

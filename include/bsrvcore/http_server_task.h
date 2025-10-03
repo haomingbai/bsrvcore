@@ -74,26 +74,26 @@ using HttpRequestHeader =
  * @code
  * // Example usage in request handler
  * void Service(std::shared_ptr<HttpServerTask> task) override {
- *   auto& request = task->GetRequest();
- *   auto& response = task->GetResponse();
+ * auto& request = task->GetRequest();
+ * auto& response = task->GetResponse();
  *
- *   // Set response status and body
- *   response.result(boost::beast::http::status::ok);
- *   response.body() = "Hello, World!";
- *   response.prepare_payload();
+ * // Set response status and body
+ * response.result(boost::beast::http::status::ok);
+ * response.body() = "Hello, World!";
+ * response.prepare_payload();
  *
- *   // Or use convenience methods
- *   task->SetBody("Hello, World!");
- *   task->SetField("Content-Type", "text/plain");
+ * // Or use convenience methods
+ * task->SetBody("Hello, World!");
+ * task->SetField("Content-Type", "text/plain");
  *
- *   // Access session data
- *   auto session = task->GetSession();
- *   if (session) {
- *     auto user = session->GetAttribute("user");
- *   }
+ * // Access session data
+ * auto session = task->GetSession();
+ * if (session) {
+ * auto user = session->GetAttribute("user");
+ * }
  *
- *   // Log the request
- *   task->Log(LogLevel::Info, "Processed request to " + request.target());
+ * // Log the request
+ * task->Log(LogLevel::Info, "Processed request to " + request.target());
  * }
  * @endcode
  */
@@ -155,10 +155,10 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @param value true to enable auto-write, false to disable
    *
    * @note When enabled, the response is automatically sent when the
-   *       handler completes. When disabled, manual WriteHeader/WriteBody
-   *       calls are required.
+   * handler completes. When disabled, manual WriteHeader/WriteBody
+   * calls are required.
    * @note You can only disable autowrite while default value is true for
-   *       security reasons.
+   * security reasons.
    */
   void SetAutowrite(bool value) noexcept;
 
@@ -167,6 +167,18 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @param value true to keep connection alive, false to close
    */
   void SetKeepAlive(bool value) noexcept;
+
+  /**
+   * @brief Take manual control of the connection's lifetime.
+   * @param value true to enable manual management.
+   *
+   * @note When enabled for a task with autowrite disabled, the task's
+   * destructor will not call DoCycle() or DoClose() on the connection.
+   * This is essential for long-lived responses like SSE or WebSockets,
+   * where the connection must remain open after the initial handler completes.
+   * The user is then responsible for the connection's lifetime.
+   */
+  void SetManualConnectionManagement(bool value) noexcept;
 
   /**
    * @brief Get the request context
@@ -215,7 +227,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * // Example: Post async database query
    * auto future = task->Post(&Database::Query, db, "SELECT * FROM users");
    * future.then([](auto result) {
-   *   // Process query result
+   * // Process query result
    * });
    * @endcode
    */
@@ -304,6 +316,11 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   bool AddCookie(ServerSetCookie cookie);
 
   /**
+   * @brief Close the connection.
+   */
+  void DoClose();
+
+  /**
    * @brief Constructor of the server task
    * @param req The request of this http request.
    * @param params The parametres on the path of the url.
@@ -335,6 +352,8 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   std::shared_ptr<HttpServerConnection> conn_;  ///< Associated connection
   bool keep_alive_;                             ///< Keep-alive flag
   bool autowrite_;                              ///< Auto-write response flag
+  bool
+      manual_connection_management_;  ///< Manual connection lifetime management
   bool
       is_cookie_parsed_;  ///< Determine if the cookie of the request is parsed.
 };

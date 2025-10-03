@@ -27,8 +27,8 @@
 #include <vector>
 
 #include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_route_result.h"
 #include "bsrvcore/internal/http_route_table_layer.h"
+#include "bsrvcore/http_route_result.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {

@@ -89,7 +89,7 @@ class Context;
  */
 class HttpServerConnection
     : public NonCopyableNonMovable<HttpServerConnection>,
-      protected std::enable_shared_from_this<HttpServerConnection> {
+      public std::enable_shared_from_this<HttpServerConnection> {
  public:
   /**
    * @brief Post a function to be executed on the connection's strand
@@ -270,7 +270,7 @@ class HttpServerConnection
    * @brief Get the executor for this connection
    * @return ASIO strand executor
    */
-  boost::asio::strand<boost::asio::io_context::executor_type> GetExecutor();
+  boost::asio::strand<boost::asio::any_io_executor> GetExecutor();
 
   /**
    * @brief Get the HTTP request parser

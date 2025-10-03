@@ -30,6 +30,8 @@ class EmptyRouteHandler : public HttpRequestHandler,
   EmptyRouteHandler() = default;
 
   void Service(std::shared_ptr<HttpServerTask> task) override;
+
+  ~EmptyRouteHandler() override = default;
 };
 
 }  // namespace route_internal

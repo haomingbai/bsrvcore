@@ -129,6 +129,7 @@ HttpServerTask::HttpServerTask(HttpRequest req, std::vector<std::string> params,
       conn_(std::move(conn)),
       keep_alive_(true),
       autowrite_(true),
+      manual_connection_management_(false),  // Initialize the new flag
       is_cookie_parsed_(false) {}
 
 void HttpServerTask::GenerateCookiePairs() {
@@ -174,14 +175,24 @@ const std::string &HttpServerTask::GetSessionId() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
+  if (!conn_) {
+    return nullptr;
+  }
   return conn_->GetSession(GetSessionId());
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
+  if (!conn_) {
+    return nullptr;
+  }
+
   return conn_->GetContext();
 }
 
 bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
+  if (!conn_) {
+    return false;
+  }
   return conn_->SetSessionTimeout(GetSessionId(), timeout);
 }
 
@@ -213,26 +224,44 @@ void HttpServerTask::SetKeepAlive(bool value) noexcept {
   keep_alive_ = value ? true : false;
 }
 
+void HttpServerTask::SetManualConnectionManagement(bool value) noexcept {
+  if (!manual_connection_management_) {
+    manual_connection_management_ = value ? true : false;
+  }
+}
+
 void HttpServerTask::Log(bsrvcore::LogLevel level, const std::string message) {
+  if (!conn_) {
+    return;
+  }
   conn_->Log(level, std::move(message));
 }
 
 void HttpServerTask::WriteBody(std::string body) {
+  if (!conn_) {
+    return;
+  }
   conn_->DoFlushResponseBody(std::move(body));
 }
 
 void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
+  if (!conn_) {
+    return;
+  }
   conn_->DoFlushResponseHeader(std::move(header));
 }
 
 void HttpServerTask::Post(std::function<void()> fn) { conn_->Post(fn); }
 
 void HttpServerTask::SetTimer(std::size_t timeout, std::function<void()> fn) {
+  if (!conn_) {
+    return;
+  }
   conn_->SetTimer(timeout, fn);
 }
 
 bool HttpServerTask::IsAvailable() noexcept {
-  return conn_->IsServerRunning() && conn_->IsStreamAvailable();
+  return conn_ && conn_->IsServerRunning() && conn_->IsStreamAvailable();
 }
 
 const std::string &HttpServerTask::GetCurrentLocation() {
@@ -244,6 +273,16 @@ const std::vector<std::string> &HttpServerTask::GetPathParameters() {
 }
 
 HttpServerTask::~HttpServerTask() {
+  // If connection lifetime is managed manually (e.g., for SSE),
+  // the destructor should do nothing to the connection.
+  if (manual_connection_management_) {
+    return;
+  }
+
+  if (!conn_) {
+    return;
+  }
+
   if (autowrite_) {
     for (const auto &it : set_cookies_) {
       auto set_cookie_string = it.ToString();
@@ -255,6 +294,12 @@ HttpServerTask::~HttpServerTask() {
 
     conn_->DoWriteResponse(std::move(resp_), keep_alive_);
   } else {
+    // This block is problematic for long-lived connections like SSE.
+    // If autowrite is false, it means we are manually writing.
+    // However, calling DoCycle() here immediately resets the connection
+    // to read the *next* request, causing a race condition with
+    // any pending manual writes. This is now prevented by the
+    // `manual_connection_management_` flag.
     if (keep_alive_) {
       conn_->DoCycle();
     } else {
@@ -268,4 +313,13 @@ bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
   return true;
 } catch (...) {
   return false;
+}
+
+void HttpServerTask::DoClose() {
+  if (!conn_) {
+    return;
+  }
+
+  conn_->DoClose();
+  conn_ = nullptr;
 }

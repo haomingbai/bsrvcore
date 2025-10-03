@@ -31,3 +31,8 @@ std::shared_ptr<bsrvcore::Context> SessionContextEntry::GetContext() const {
 std::chrono::steady_clock::time_point SessionContextEntry::GetExpiry() const {
   return expiry_;
 }
+
+SessionContextEntry::SessionContextEntry(
+    std::shared_ptr<Context> context,
+    std::chrono::steady_clock::time_point expiry)
+    : ctx_(context), expiry_(expiry) {}

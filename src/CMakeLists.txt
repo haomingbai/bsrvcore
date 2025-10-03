@@ -18,6 +18,13 @@ set(BSRVCORE_SOURCES
 # Create library (static or shared follows BUILD_SHARED_LIBS)
 add_library(bsrvcore SHARED ${BSRVCORE_SOURCES})
 
+# Link libraries
+target_link_libraries(bsrvcore
+    PRIVATE 
+        Boost::system
+        Boost::url
+)
+
 # Public include directories for build and install
 target_include_directories(bsrvcore
   PUBLIC
