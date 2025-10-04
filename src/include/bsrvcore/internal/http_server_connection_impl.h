@@ -249,6 +249,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
           queue_size_(0),
           connection_dead_(false) {}
 
+    // Public interface
     void AddBody(std::string body) {
       BodyMessage message{std::make_shared<std::string>(std::move(body))};
       auto self_sp = this->shared_from_this();
@@ -257,18 +258,10 @@ class HttpServerConnectionImpl : public HttpServerConnection {
         boost::asio::post(
             conn_sp->GetExecutor(),
             [conn_sp, self_sp, message = std::move(message)]() mutable {
-              // All queue modifications happen on the strand.
-              self_sp->queue_.emplace_back(std::move(message));
-              self_sp->queue_size_.fetch_add(1, std::memory_order_relaxed);
-              if (!self_sp->is_writing_) {
-                self_sp->DoWrite_locked(conn_sp);
-              }
+              self_sp->EnqueueBodyOnStrand(std::move(message));
             });
       } else {
-        // Connection no longer exists; mark connection dead and notify waiters.
-        connection_dead_.store(true, std::memory_order_release);
-        std::lock_guard<std::mutex> lk(cv_mutex_);
-        cv_.notify_all();
+        MarkConnectionDeadAndNotify();
       }
     }
 
@@ -282,24 +275,14 @@ class HttpServerConnectionImpl : public HttpServerConnection {
         boost::asio::post(
             conn_sp->GetExecutor(),
             [conn_sp, self_sp, message = std::move(message)]() mutable {
-              self_sp->queue_.emplace_back(std::move(message));
-              self_sp->queue_size_.fetch_add(1, std::memory_order_relaxed);
-              if (!self_sp->is_writing_) {
-                self_sp->DoWrite_locked(conn_sp);
-              }
+              self_sp->EnqueueHeaderOnStrand(std::move(message));
             });
       } else {
-        // Connection no longer exists; mark connection dead and notify waiters.
-        connection_dead_.store(true, std::memory_order_release);
-        std::lock_guard<std::mutex> lk(cv_mutex_);
-        cv_.notify_all();
+        MarkConnectionDeadAndNotify();
       }
     }
 
-    // Wait until either:
-    //   - the connection is marked dead (连接失效),
-    //   - or the queue size becomes 0 (队列恰好被清空).
-    // This blocks the calling thread until one of the conditions is true.
+    // Wait until queue is empty OR connection is marked dead.
     void Wait() {
       std::unique_lock<std::mutex> lk(cv_mutex_);
       cv_.wait(lk, [this] {
@@ -309,6 +292,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
 
    private:
+    // ---- messages ----
     struct BodyMessage {
       std::shared_ptr<std::string> msg;
     };
@@ -328,128 +312,141 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             sr(*resp_sp) {}
     };
 
-    // This function runs on the connection strand (guaranteed by
-    // post/bind_executor).
-    void DoWrite_locked(std::shared_ptr<HttpServerConnectionImpl<S>> conn_sp) {
+    // ---- enqueue helpers (run on strand) ----
+    void EnqueueBodyOnStrand(BodyMessage message) {
+      queue_.emplace_back(std::move(message));
+      queue_size_.fetch_add(1, std::memory_order_relaxed);
+      StartWriteIfNeeded();
+    }
+
+    void EnqueueHeaderOnStrand(HeaderMessage message) {
+      queue_.emplace_back(std::move(message));
+      queue_size_.fetch_add(1, std::memory_order_relaxed);
+      StartWriteIfNeeded();
+    }
+
+    // ---- start write (run on strand) ----
+    void StartWriteIfNeeded() {
       if (queue_.empty() || is_writing_) return;
       is_writing_ = true;
 
       auto& front = queue_.front();
-
       std::visit(
-          [conn_sp,
-           mq_sp = this->shared_from_this()](auto& task_variant) mutable {
-            using T = std::decay_t<decltype(task_variant)>;
-
+          [mq = this->shared_from_this()](auto& task) {
+            using T = std::decay_t<decltype(task)>;
             if constexpr (std::is_same_v<T, BodyMessage>) {
-              auto msg_sp = task_variant.msg;
-              auto buf = boost::asio::buffer(*msg_sp);
-
-              if (!conn_sp->IsServerRunning() ||
-                  !conn_sp->IsStreamAvailable()) {
-                // Connection became not usable — notify waiters.
-                mq_sp->is_writing_ = false;
-                mq_sp->connection_dead_.store(true, std::memory_order_release);
-                {
-                  std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                  mq_sp->cv_.notify_all();
-                }
-                return;
-              }
-
-              boost::asio::async_write(
-                  conn_sp->stream_, buf,
-                  boost::asio::bind_executor(
-                      conn_sp->GetExecutor(),
-                      // Capture the shared_ptr to the message to keep it alive.
-                      [conn_sp, mq_sp, msg_sp](
-                          boost::system::error_code ec,
-                          [[maybe_unused]] std::size_t) mutable {
-                        // This completion handler always runs on the strand.
-                        if (ec) {
-                          conn_sp->DoClose();
-                          mq_sp->connection_dead_.store(
-                              true, std::memory_order_release);
-                          {
-                            std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                            mq_sp->cv_.notify_all();
-                          }
-                          mq_sp->is_writing_ = false;
-                          return;
-                        }
-                        // pop and update queue size
-                        mq_sp->queue_.pop_front();
-                        auto prev = mq_sp->queue_size_.fetch_sub(
-                            1, std::memory_order_relaxed);
-                        // if prev was 1 -> now 0
-                        if (prev == 1) {
-                          std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                          mq_sp->cv_.notify_all();
-                        }
-                        mq_sp->is_writing_ = false;
-                        if (!mq_sp->queue_.empty()) {
-                          mq_sp->DoWrite_locked(conn_sp);
-                        }
-                      }));
-            } else {  // HeaderMessage
-              if (!conn_sp->IsServerRunning() ||
-                  !conn_sp->IsStreamAvailable()) {
-                mq_sp->is_writing_ = false;
-                mq_sp->connection_dead_.store(true, std::memory_order_release);
-                {
-                  std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                  mq_sp->cv_.notify_all();
-                }
-                return;
-              }
-
-              // Keep resp_sp alive until async completes.
-              auto resp_sp_to_keep_alive = task_variant.resp_sp;
-
-              boost::beast::http::async_write_header(
-                  conn_sp->stream_, task_variant.sr,
-                  boost::asio::bind_executor(
-                      conn_sp->GetExecutor(),
-                      [conn_sp, mq_sp, resp_sp_to_keep_alive](
-                          boost::system::error_code ec,
-                          [[maybe_unused]] std::size_t) mutable {
-                        if (ec) {
-                          conn_sp->DoClose();
-                          mq_sp->connection_dead_.store(
-                              true, std::memory_order_release);
-                          {
-                            std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                            mq_sp->cv_.notify_all();
-                          }
-                          mq_sp->is_writing_ = false;
-                          return;
-                        }
-                        mq_sp->queue_.pop_front();
-                        auto prev = mq_sp->queue_size_.fetch_sub(
-                            1, std::memory_order_relaxed);
-                        if (prev == 1) {
-                          std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
-                          mq_sp->cv_.notify_all();
-                        }
-                        mq_sp->is_writing_ = false;
-                        if (!mq_sp->queue_.empty()) {
-                          mq_sp->DoWrite_locked(conn_sp);
-                        }
-                      }));
+              mq->StartWriteBody(task);
+            } else {
+              mq->StartWriteHeader(task);
             }
           },
           front);
     }
 
+    // ---- write starters ----
+    void StartWriteBody(BodyMessage& task) {
+      auto msg_sp = task.msg;
+      auto buf = boost::asio::buffer(*msg_sp);
+
+      auto conn_sp = conn_wp_.lock();
+      if (!conn_sp || !conn_sp->IsServerRunning() ||
+          !conn_sp->IsStreamAvailable()) {
+        HandleConnectionUnavailable();
+        return;
+      }
+
+      boost::asio::async_write(
+          conn_sp->stream_, buf,
+          boost::asio::bind_executor(
+              conn_sp->GetExecutor(),
+              [conn_sp, mq = this->shared_from_this(), msg_sp](
+                  boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+                mq->HandleBodyWriteComplete(ec);
+              }));
+    }
+
+    void StartWriteHeader(HeaderMessage& task) {
+      auto conn_sp = conn_wp_.lock();
+      if (!conn_sp || !conn_sp->IsServerRunning() ||
+          !conn_sp->IsStreamAvailable()) {
+        HandleConnectionUnavailable();
+        return;
+      }
+
+      // keep resp_sp alive by capturing it
+      auto resp_keeper = task.resp_sp;
+
+      boost::beast::http::async_write_header(
+          conn_sp->stream_, task.sr,
+          boost::asio::bind_executor(
+              conn_sp->GetExecutor(),
+              [conn_sp, mq = this->shared_from_this(), resp_keeper](
+                  boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+                mq->HandleHeaderWriteComplete(ec);
+              }));
+    }
+
+    // ---- completion handlers (run on strand) ----
+    void HandleBodyWriteComplete(const boost::system::error_code& ec) {
+      if (ec) {
+        HandleWriteError(ec);
+        return;
+      }
+      PopFrontAndNotifyIfEmpty();
+      is_writing_ = false;
+      if (!queue_.empty()) StartWriteIfNeeded();
+    }
+
+    void HandleHeaderWriteComplete(const boost::system::error_code& ec) {
+      if (ec) {
+        HandleWriteError(ec);
+        return;
+      }
+      PopFrontAndNotifyIfEmpty();
+      is_writing_ = false;
+      if (!queue_.empty()) StartWriteIfNeeded();
+    }
+
+    // ---- small helpers ----
+    void PopFrontAndNotifyIfEmpty() {
+      queue_.pop_front();
+      auto prev = queue_size_.fetch_sub(1, std::memory_order_relaxed);
+      if (prev == 1) {
+        std::lock_guard<std::mutex> lk(cv_mutex_);
+        cv_.notify_all();
+      }
+    }
+
+    void HandleWriteError(const boost::system::error_code& /*ec*/) {
+      if (auto conn_sp = conn_wp_.lock()) conn_sp->DoClose();
+      connection_dead_.store(true, std::memory_order_release);
+      std::lock_guard<std::mutex> lk(cv_mutex_);
+      cv_.notify_all();
+      is_writing_ = false;
+    }
+
+    void HandleConnectionUnavailable() {
+      connection_dead_.store(true, std::memory_order_release);
+      std::lock_guard<std::mutex> lk(cv_mutex_);
+      cv_.notify_all();
+      is_writing_ = false;
+    }
+
+    void MarkConnectionDeadAndNotify() {
+      connection_dead_.store(true, std::memory_order_release);
+      std::lock_guard<std::mutex> lk(cv_mutex_);
+      cv_.notify_all();
+    }
+
+    // ---- members ----
     std::deque<std::variant<BodyMessage, HeaderMessage>> queue_;
     std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
     bool is_writing_;
 
-    // Synchronization primitives for Wait/notify:
     std::mutex cv_mutex_;
     std::condition_variable cv_;
-    std::atomic_size_t queue_size_;      // updated on strand when push/pop
-    std::atomic<bool> connection_dead_;  // set true when conn invalid or error
+    std::atomic_size_t queue_size_;
+    std::atomic<bool> connection_dead_;
   };
 
   // members
