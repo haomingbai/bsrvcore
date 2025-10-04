@@ -252,7 +252,7 @@ mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j$(nproc)  # or use `cmake --build . -- -
-make install
+sudo make install
 ```
 
 If you would like to build with documentation, you also need to install `Doxygen`, then run:
@@ -260,7 +260,7 @@ If you would like to build with documentation, you also need to install `Doxygen
 ```bash
 cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --target doc
-make install
+sudo make install
 ```
 
 The project does not depend directly on `OpenSSL`, but if you want to enable `HTTPS` support, you need to install `OpenSSL` and make sure CMake can find it.
