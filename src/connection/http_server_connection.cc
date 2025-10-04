@@ -24,8 +24,10 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/context.h"
+#include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_server_task.h"
 #include "bsrvcore/logger.h"
 
@@ -206,6 +208,7 @@ void HttpServerConnection::DoForwardRequest(
 }
 
 void HttpServerConnection::DoCycle() {
+  ClearMessage();
   if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
     parser_ = std::make_unique<

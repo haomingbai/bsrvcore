@@ -18,6 +18,7 @@
 #ifndef BSRVCORE_HTTP_SERVER_TASK_H_
 #define BSRVCORE_HTTP_SERVER_TASK_H_
 
+#include <atomic>
 #include <boost/beast/http.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/fields.hpp>
@@ -149,18 +150,6 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @param value Header field value
    */
   void SetField(boost::beast::http::field key, const std::string_view value);
-
-  /**
-   * @brief Enable or disable automatic response writing
-   * @param value true to enable auto-write, false to disable
-   *
-   * @note When enabled, the response is automatically sent when the
-   * handler completes. When disabled, manual WriteHeader/WriteBody
-   * calls are required.
-   * @note You can only disable autowrite while default value is true for
-   * security reasons.
-   */
-  void SetAutowrite(bool value) noexcept;
 
   /**
    * @brief Enable or disable keep-alive for this connection
@@ -321,6 +310,11 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   void DoClose();
 
   /**
+   * @brief Close the connection.
+   */
+  void DoCycle();
+
+  /**
    * @brief Constructor of the server task
    * @param req The request of this http request.
    * @param params The parametres on the path of the url.
@@ -344,14 +338,14 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   HttpRequest req_;    ///< HTTP request data
   HttpResponse resp_;  ///< HTTP response data
   std::unordered_map<std::string, std::string>
-      cookies_;                                 ///< Cookies of the request.
-  std::optional<std::string> sessionid_;        ///< SessionId of the request.
-  std::vector<ServerSetCookie> set_cookies_;    ///< Set-Cookie
-  std::vector<std::string> parameters_;         ///< Extracted route parameter
-  std::string current_location_;                ///< Matched route path
-  std::shared_ptr<HttpServerConnection> conn_;  ///< Associated connection
-  bool keep_alive_;                             ///< Keep-alive flag
-  bool autowrite_;                              ///< Auto-write response flag
+      cookies_;                               ///< Cookies of the request.
+  std::optional<std::string> sessionid_;      ///< SessionId of the request.
+  std::vector<ServerSetCookie> set_cookies_;  ///< Set-Cookie
+  std::vector<std::string> parameters_;       ///< Extracted route parameter
+  std::string current_location_;              ///< Matched route path
+  std::atomic<std::shared_ptr<HttpServerConnection>>
+      conn_;         ///< Associated connection
+  bool keep_alive_;  ///< Keep-alive flag
   bool
       manual_connection_management_;  ///< Manual connection lifetime management
   bool

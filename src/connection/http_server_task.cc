@@ -128,7 +128,6 @@ HttpServerTask::HttpServerTask(HttpRequest req, std::vector<std::string> params,
       current_location_(std::move(current_location)),
       conn_(std::move(conn)),
       keep_alive_(true),
-      autowrite_(true),
       manual_connection_management_(false),  // Initialize the new flag
       is_cookie_parsed_(false) {}
 
@@ -175,25 +174,31 @@ const std::string &HttpServerTask::GetSessionId() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return nullptr;
   }
-  return conn_->GetSession(GetSessionId());
+  return conn->GetSession(GetSessionId());
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return nullptr;
   }
 
-  return conn_->GetContext();
+  return conn->GetContext();
 }
 
 bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return false;
   }
-  return conn_->SetSessionTimeout(GetSessionId(), timeout);
+  return conn->SetSessionTimeout(GetSessionId(), timeout);
 }
 
 void HttpServerTask::SetBody(std::string body) {
@@ -214,12 +219,6 @@ void HttpServerTask::SetField(boost::beast::http::field key,
   resp_.set(key, value);
 }
 
-void HttpServerTask::SetAutowrite(bool value) noexcept {
-  if (autowrite_) {
-    autowrite_ = value ? true : false;
-  }
-}
-
 void HttpServerTask::SetKeepAlive(bool value) noexcept {
   keep_alive_ = value ? true : false;
 }
@@ -231,37 +230,50 @@ void HttpServerTask::SetManualConnectionManagement(bool value) noexcept {
 }
 
 void HttpServerTask::Log(bsrvcore::LogLevel level, const std::string message) {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return;
   }
-  conn_->Log(level, std::move(message));
+  conn->Log(level, std::move(message));
 }
 
 void HttpServerTask::WriteBody(std::string body) {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return;
   }
-  conn_->DoFlushResponseBody(std::move(body));
+  conn->DoFlushResponseBody(std::move(body));
 }
 
 void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return;
   }
-  conn_->DoFlushResponseHeader(std::move(header));
+  conn->DoFlushResponseHeader(std::move(header));
 }
 
-void HttpServerTask::Post(std::function<void()> fn) { conn_->Post(fn); }
+void HttpServerTask::Post(std::function<void()> fn) {
+  auto conn = conn_.load();
+  if (conn) {
+    conn->Post(fn);
+  }
+}
 
 void HttpServerTask::SetTimer(std::size_t timeout, std::function<void()> fn) {
-  if (!conn_) {
+  auto conn = conn_.load();
+  if (!conn) {
     return;
   }
-  conn_->SetTimer(timeout, fn);
+  conn->SetTimer(timeout, fn);
 }
 
 bool HttpServerTask::IsAvailable() noexcept {
-  return conn_ && conn_->IsServerRunning() && conn_->IsStreamAvailable();
+  auto conn = conn_.load();
+  return conn && conn->IsServerRunning() && conn->IsStreamAvailable();
 }
 
 const std::string &HttpServerTask::GetCurrentLocation() {
@@ -279,32 +291,20 @@ HttpServerTask::~HttpServerTask() {
     return;
   }
 
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return;
   }
 
-  if (autowrite_) {
-    for (const auto &it : set_cookies_) {
-      auto set_cookie_string = it.ToString();
-      if (!set_cookie_string.empty()) {
-        resp_.insert(boost::beast::http::field::set_cookie, set_cookie_string);
-      }
-    }
-
-    conn_->DoWriteResponse(std::move(resp_), keep_alive_);
-  } else {
-    // This block is problematic for long-lived connections like SSE.
-    // If autowrite is false, it means we are manually writing.
-    // However, calling DoCycle() here immediately resets the connection
-    // to read the *next* request, causing a race condition with
-    // any pending manual writes. This is now prevented by the
-    // `manual_connection_management_` flag.
-    if (keep_alive_) {
-      conn_->DoCycle();
-    } else {
-      conn_->DoClose();
+  for (const auto &it : set_cookies_) {
+    auto set_cookie_string = it.ToString();
+    if (!set_cookie_string.empty()) {
+      resp_.insert(boost::beast::http::field::set_cookie, set_cookie_string);
     }
   }
+
+  conn->DoWriteResponse(std::move(resp_), keep_alive_);
 }
 
 bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
@@ -315,10 +315,23 @@ bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
 }
 
 void HttpServerTask::DoClose() {
-  if (!conn_) {
+  auto conn = conn_.load();
+
+  if (!conn) {
     return;
   }
 
-  conn_->DoClose();
+  conn->DoClose();
+  conn_ = nullptr;
+}
+
+void HttpServerTask::DoCycle() {
+  auto conn = conn_.load();
+
+  if (!conn) {
+    return;
+  }
+
+  conn->DoCycle();
   conn_ = nullptr;
 }

@@ -240,7 +240,7 @@ class HttpServerConnection
   /**
    * @brief Process one request cycle (read -> route -> process -> write)
    */
-  void DoCycle();
+  virtual void DoCycle();
 
   /**
    * @brief Construct a HTTP server connection
@@ -299,6 +299,11 @@ class HttpServerConnection
    * @brief Read HTTP request body (pure virtual)
    */
   virtual void DoReadBody() = 0;
+
+  /**
+   * @brief Wait the for the message in one request to be cleared.
+   */
+  virtual void ClearMessage() = 0;
 
   /**
    * @brief Execute pre-service aspect handlers

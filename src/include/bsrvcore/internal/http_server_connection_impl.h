@@ -215,6 +215,12 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             }));
   }
 
+  void ClearMessage() override {
+    if (message_queue_) {
+      message_queue_->Wait();
+    }
+  }
+
  private:
   // Ensure message_queue_ is created. If already created, no-op.
   void EnsureMessageQueueCreated() {
@@ -235,30 +241,34 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
   }
 
-  // MessageQueue definition: now shared and holding weak_ptr back to parent.
   class MessageQueue : public std::enable_shared_from_this<MessageQueue> {
    public:
     explicit MessageQueue(std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp)
-        : conn_wp_(std::move(conn_wp)), is_writing_(false) {}
+        : conn_wp_(std::move(conn_wp)),
+          is_writing_(false),
+          queue_size_(0),
+          connection_dead_(false) {}
 
     void AddBody(std::string body) {
       BodyMessage message{std::make_shared<std::string>(std::move(body))};
-      // Ensure message_queue instance is kept alive during posting & handler
       auto self_sp = this->shared_from_this();
 
-      // Try to lock the connection to get the executor (must run on strand).
       if (auto conn_sp = conn_wp_.lock()) {
         boost::asio::post(
             conn_sp->GetExecutor(),
             [conn_sp, self_sp, message = std::move(message)]() mutable {
               // All queue modifications happen on the strand.
               self_sp->queue_.emplace_back(std::move(message));
+              self_sp->queue_size_.fetch_add(1, std::memory_order_relaxed);
               if (!self_sp->is_writing_) {
                 self_sp->DoWrite_locked(conn_sp);
               }
             });
       } else {
-        // Connection no longer exists; drop message.
+        // Connection no longer exists; mark connection dead and notify waiters.
+        connection_dead_.store(true, std::memory_order_release);
+        std::lock_guard<std::mutex> lk(cv_mutex_);
+        cv_.notify_all();
       }
     }
 
@@ -267,18 +277,35 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             header) {
       HeaderMessage message{std::move(header)};
       auto self_sp = this->shared_from_this();
+
       if (auto conn_sp = conn_wp_.lock()) {
         boost::asio::post(
             conn_sp->GetExecutor(),
             [conn_sp, self_sp, message = std::move(message)]() mutable {
               self_sp->queue_.emplace_back(std::move(message));
+              self_sp->queue_size_.fetch_add(1, std::memory_order_relaxed);
               if (!self_sp->is_writing_) {
                 self_sp->DoWrite_locked(conn_sp);
               }
             });
       } else {
-        // Connection no longer exists; drop header.
+        // Connection no longer exists; mark connection dead and notify waiters.
+        connection_dead_.store(true, std::memory_order_release);
+        std::lock_guard<std::mutex> lk(cv_mutex_);
+        cv_.notify_all();
       }
+    }
+
+    // Wait until either:
+    //   - the connection is marked dead (连接失效),
+    //   - or the queue size becomes 0 (队列恰好被清空).
+    // This blocks the calling thread until one of the conditions is true.
+    void Wait() {
+      std::unique_lock<std::mutex> lk(cv_mutex_);
+      cv_.wait(lk, [this] {
+        return connection_dead_.load(std::memory_order_acquire) ||
+               queue_size_.load(std::memory_order_acquire) == 0;
+      });
     }
 
    private:
@@ -286,20 +313,13 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       std::shared_ptr<std::string> msg;
     };
 
-    // *** FIX: This struct now uses a shared_ptr to manage the response
-    // lifetime robustly, preventing use-after-free bugs. ***
     struct HeaderMessage {
-      // A shared_ptr to the response object to guarantee its lifetime.
       std::shared_ptr<
           boost::beast::http::response<boost::beast::http::empty_body>>
           resp_sp;
-      // The serializer, which will hold a *valid* reference to the object
-      // pointed to by resp_sp.
       boost::beast::http::response_serializer<boost::beast::http::empty_body>
           sr;
 
-      // Constructor that correctly initializes the response on the heap and the
-      // serializer.
       explicit HeaderMessage(
           boost::beast::http::response_header<boost::beast::http::fields>&&
               header)
@@ -314,11 +334,11 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       if (queue_.empty() || is_writing_) return;
       is_writing_ = true;
 
-      // Use a reference to the front element to avoid copying.
       auto& front = queue_.front();
 
       std::visit(
-          [conn_sp, mq_sp = this->shared_from_this()](auto& task_variant) {
+          [conn_sp,
+           mq_sp = this->shared_from_this()](auto& task_variant) mutable {
             using T = std::decay_t<decltype(task_variant)>;
 
             if constexpr (std::is_same_v<T, BodyMessage>) {
@@ -327,7 +347,13 @@ class HttpServerConnectionImpl : public HttpServerConnection {
 
               if (!conn_sp->IsServerRunning() ||
                   !conn_sp->IsStreamAvailable()) {
+                // Connection became not usable — notify waiters.
                 mq_sp->is_writing_ = false;
+                mq_sp->connection_dead_.store(true, std::memory_order_release);
+                {
+                  std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                  mq_sp->cv_.notify_all();
+                }
                 return;
               }
 
@@ -336,29 +362,48 @@ class HttpServerConnectionImpl : public HttpServerConnection {
                   boost::asio::bind_executor(
                       conn_sp->GetExecutor(),
                       // Capture the shared_ptr to the message to keep it alive.
-                      [conn_sp, mq_sp, msg_sp](boost::system::error_code ec,
-                                               [[maybe_unused]] std::size_t) {
+                      [conn_sp, mq_sp, msg_sp](
+                          boost::system::error_code ec,
+                          [[maybe_unused]] std::size_t) mutable {
                         // This completion handler always runs on the strand.
                         if (ec) {
                           conn_sp->DoClose();
+                          mq_sp->connection_dead_.store(
+                              true, std::memory_order_release);
+                          {
+                            std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                            mq_sp->cv_.notify_all();
+                          }
                           mq_sp->is_writing_ = false;
                           return;
                         }
+                        // pop and update queue size
                         mq_sp->queue_.pop_front();
+                        auto prev = mq_sp->queue_size_.fetch_sub(
+                            1, std::memory_order_relaxed);
+                        // if prev was 1 -> now 0
+                        if (prev == 1) {
+                          std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                          mq_sp->cv_.notify_all();
+                        }
                         mq_sp->is_writing_ = false;
                         if (!mq_sp->queue_.empty()) {
                           mq_sp->DoWrite_locked(conn_sp);
                         }
                       }));
-            } else {  // This will be HeaderMessage
+            } else {  // HeaderMessage
               if (!conn_sp->IsServerRunning() ||
                   !conn_sp->IsStreamAvailable()) {
                 mq_sp->is_writing_ = false;
+                mq_sp->connection_dead_.store(true, std::memory_order_release);
+                {
+                  std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                  mq_sp->cv_.notify_all();
+                }
                 return;
               }
 
-              // *** FIX: Explicitly capture the response shared_ptr to extend
-              // its lifetime until the async operation completes. ***
+              // Keep resp_sp alive until async completes.
               auto resp_sp_to_keep_alive = task_variant.resp_sp;
 
               boost::beast::http::async_write_header(
@@ -367,13 +412,25 @@ class HttpServerConnectionImpl : public HttpServerConnection {
                       conn_sp->GetExecutor(),
                       [conn_sp, mq_sp, resp_sp_to_keep_alive](
                           boost::system::error_code ec,
-                          [[maybe_unused]] std::size_t) {
+                          [[maybe_unused]] std::size_t) mutable {
                         if (ec) {
                           conn_sp->DoClose();
+                          mq_sp->connection_dead_.store(
+                              true, std::memory_order_release);
+                          {
+                            std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                            mq_sp->cv_.notify_all();
+                          }
                           mq_sp->is_writing_ = false;
                           return;
                         }
                         mq_sp->queue_.pop_front();
+                        auto prev = mq_sp->queue_size_.fetch_sub(
+                            1, std::memory_order_relaxed);
+                        if (prev == 1) {
+                          std::lock_guard<std::mutex> lk(mq_sp->cv_mutex_);
+                          mq_sp->cv_.notify_all();
+                        }
                         mq_sp->is_writing_ = false;
                         if (!mq_sp->queue_.empty()) {
                           mq_sp->DoWrite_locked(conn_sp);
@@ -387,6 +444,12 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     std::deque<std::variant<BodyMessage, HeaderMessage>> queue_;
     std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
     bool is_writing_;
+
+    // Synchronization primitives for Wait/notify:
+    std::mutex cv_mutex_;
+    std::condition_variable cv_;
+    std::atomic_size_t queue_size_;      // updated on strand when push/pop
+    std::atomic<bool> connection_dead_;  // set true when conn invalid or error
   };
 
   // members
