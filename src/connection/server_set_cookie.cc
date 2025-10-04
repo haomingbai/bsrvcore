@@ -74,7 +74,7 @@ std::string ServerSetCookie::ToString() const {
     return "";
   }
 
-  std::string result = std::move(name_.value()) + std::move(value_.value());
+  std::string result = std::move(name_.value()) + "=" + std::move(value_.value());
   result.push_back(';');
 
   if (expiry_.has_value() && !expiry_.value().empty()) {

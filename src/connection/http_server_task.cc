@@ -287,8 +287,7 @@ HttpServerTask::~HttpServerTask() {
     for (const auto &it : set_cookies_) {
       auto set_cookie_string = it.ToString();
       if (!set_cookie_string.empty()) {
-        resp_.set(boost::beast::http::field::set_cookie,
-                  std::move(set_cookie_string));
+        resp_.insert(boost::beast::http::field::set_cookie, set_cookie_string);
       }
     }
 
