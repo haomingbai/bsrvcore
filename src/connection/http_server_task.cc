@@ -168,6 +168,12 @@ const std::string &HttpServerTask::GetSessionId() {
   if (!sessionid_.has_value()) {
     using bsrvcore::connection_internal::helper::GenerateSessionId;
     sessionid_ = GenerateSessionId();
+
+    if (sessionid_.has_value()) {
+      ServerSetCookie session_cookie;
+      session_cookie.SetName("sessionId").SetValue(sessionid_.value_or(""));
+      AddCookie(std::move(session_cookie));
+    }
   }
 
   return sessionid_.value();

@@ -326,14 +326,19 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
                  std::shared_ptr<HttpServerConnection> conn);
 
   /**
+   * @brief Get the sessionid of the request or generate a new sessionid to be
+   * the sessionid of the id of the session.
+   * @return The session id gotten or generated.
+   */
+  const std::string& GetSessionId();
+
+  /**
    * @brief Destructor of the HttpServerTask
    */
   ~HttpServerTask();
 
  private:
   void GenerateCookiePairs();
-
-  const std::string& GetSessionId();
 
   HttpRequest req_;    ///< HTTP request data
   HttpResponse resp_;  ///< HTTP response data
