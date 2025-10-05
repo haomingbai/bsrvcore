@@ -120,8 +120,7 @@ HttpRequest &HttpServerTask::GetRequest() noexcept { return req_; }
 
 HttpResponse &HttpServerTask::GetResponse() noexcept { return resp_; }
 
-HttpServerTask::HttpServerTask(HttpRequest req,
-                               std::unique_ptr<HttpRouteResult> route_result,
+HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
                                std::shared_ptr<HttpServerConnection> conn)
     : req_(std::move(req)),
       resp_(),
@@ -275,11 +274,11 @@ bool HttpServerTask::IsAvailable() noexcept {
 }
 
 const std::string &HttpServerTask::GetCurrentLocation() {
-  return route_result_->current_location;
+  return route_result_.current_location;
 }
 
 const std::vector<std::string> &HttpServerTask::GetPathParameters() {
-  return route_result_->parameters;
+  return route_result_.parameters;
 }
 
 HttpServerTask::~HttpServerTask() {
@@ -339,15 +338,15 @@ void HttpServerTask::Start() {
 }
 
 void HttpServerTask::DoPreService(std::size_t curr_idx) {
-  if (curr_idx > route_result_->aspects.size()) {
+  if (curr_idx > route_result_.aspects.size()) {
     assert(0);
     return;
   }
 
-  if (curr_idx == route_result_->aspects.size()) {
+  if (curr_idx == route_result_.aspects.size()) {
     Post([self = shared_from_this(), this] { DoService(); });
   } else {
-    route_result_->aspects[curr_idx]->PreService(shared_from_this());
+    route_result_.aspects[curr_idx]->PreService(shared_from_this());
     Post([self = shared_from_this(), this, curr_idx] {
       DoPreService(curr_idx + 1);
     });
@@ -355,22 +354,22 @@ void HttpServerTask::DoPreService(std::size_t curr_idx) {
 }
 
 void HttpServerTask::DoService() {
-  route_result_->handler->Service(shared_from_this());
+  route_result_.handler->Service(shared_from_this());
 
-  if (!route_result_->aspects.empty()) {
+  if (!route_result_.aspects.empty()) {
     Post([self = shared_from_this(), this] {
-      DoPostService(route_result_->aspects.size() - 1);
+      DoPostService(route_result_.aspects.size() - 1);
     });
   }
 }
 
 void HttpServerTask::DoPostService(std::size_t curr_idx) {
-  if (curr_idx >= route_result_->aspects.size()) {
+  if (curr_idx >= route_result_.aspects.size()) {
     assert(0);
     return;
   }
 
-  route_result_->aspects[curr_idx]->PostService(shared_from_this());
+  route_result_.aspects[curr_idx]->PostService(shared_from_this());
 
   if (curr_idx != 0) {
     Post([self = shared_from_this(), this, curr_idx] {

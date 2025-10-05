@@ -74,4 +74,3 @@ else()
   # Notify user that docs are skipped
   message(STATUS "Doxygen not found; skipping doc target")
 endif()
-

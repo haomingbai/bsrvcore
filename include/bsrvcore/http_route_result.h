@@ -19,10 +19,10 @@
 #include <string>
 #include <vector>
 
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_request_handler.h"
-
 namespace bsrvcore {
+class HttpRequestAspectHandler;
+class HttpRequestHandler;
+
 /**
  * @brief Result of routing an HTTP request
  *

@@ -35,6 +35,7 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/http_route_result.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
 #include "bsrvcore/trait.h"
@@ -44,7 +45,6 @@ namespace bsrvcore {
 class HttpServerConnection;
 class Context;
 class HttpServer;
-class HttpRouteResult;
 
 // Type aliases for Boost.Beast HTTP types
 using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
@@ -324,7 +324,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
    * @param current_location The location of the current request.
    * @param conn The connection of this task.
    */
-  HttpServerTask(HttpRequest req, std::unique_ptr<HttpRouteResult> route_result,
+  HttpServerTask(HttpRequest req, HttpRouteResult route_result,
                  std::shared_ptr<HttpServerConnection> conn);
 
   /**
@@ -361,7 +361,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
   std::vector<ServerSetCookie> set_cookies_;  ///< Set-Cookie
   std::atomic<std::shared_ptr<HttpServerConnection>>
       conn_;  ///< Associated connection
-  std::unique_ptr<HttpRouteResult> route_result_;
+  HttpRouteResult route_result_;
   HttpServer* srv_;
   bool keep_alive_;  ///< Keep-alive flag
   bool

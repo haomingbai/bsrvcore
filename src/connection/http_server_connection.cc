@@ -136,9 +136,7 @@ void HttpServerConnection::DoForwardRequest() {
 
   timer_.cancel();
   std::shared_ptr<HttpServerTask> task = std::make_shared<HttpServerTask>(
-      parser_->release(),
-      std::make_unique<HttpRouteResult>(std::move(route_result_)),
-      shared_from_this());
+      parser_->release(), std::move(route_result_), shared_from_this());
   task->Start();
 }
 
