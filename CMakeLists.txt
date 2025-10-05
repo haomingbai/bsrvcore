@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 1.0.0 LANGUAGES CXX)
+project(bsrvcore VERSION 0.0.2 LANGUAGES CXX)
 
 # Use C++20
 if(NOT DEFINED CMAKE_CXX_STANDARD)
@@ -74,3 +74,29 @@ else()
   # Notify user that docs are skipped
   message(STATUS "Doxygen not found; skipping doc target")
 endif()
+
+# CPack support
+include(InstallRequiredSystemLibraries)
+
+set(CPACK_GENERATOR "DEB;RPM;TGZ")
+set(CPACK_PACKAGE_NAME    "${PROJECT_NAME}")
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_CONTACT "email@example.com")
+set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
+
+# Let dpkg-shlibdeps compute runtime deps automatically (recommended)
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+# If you must add manual runtime deps, avoid "-dev" here:
+# set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-system1.75.0") 
+
+# RPM: runtime requires (do not list -devel here)
+set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+set(CPACK_RPM_PACKAGE_GROUP   "Development/Libraries")
+set(CPACK_RPM_PACKAGE_REQUIRES "boost")  # adjust per-distro if needed
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/LICENSE")
+  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+endif()
+
+include(CPack)
+

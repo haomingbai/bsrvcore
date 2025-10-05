@@ -320,8 +320,8 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
   /**
    * @brief Constructor of the server task
    * @param req The request of this http request.
-   * @param params The parametres on the path of the url.
-   * @param current_location The location of the current request.
+   * @param route_result The route result of the request according to the target
+   *    of the request.
    * @param conn The connection of this task.
    */
   HttpServerTask(HttpRequest req, HttpRouteResult route_result,
