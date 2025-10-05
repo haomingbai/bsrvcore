@@ -17,7 +17,7 @@ jobs:
 
       # 2) Install a suitable version of CMake (your CMakeLists requires >= 3.25)
       - name: Install CMake >= 3.25
-        uses: lukka/get-cmake@v3
+        uses: lukka/get-cmake@latest
         with:
           cmake-version: '3.25.0'
 
