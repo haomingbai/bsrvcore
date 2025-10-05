@@ -43,6 +43,7 @@ namespace bsrvcore {
 
 class HttpServerConnection;
 class Context;
+class HttpServer;
 
 // Type aliases for Boost.Beast HTTP types
 using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
@@ -348,8 +349,9 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   std::vector<ServerSetCookie> set_cookies_;  ///< Set-Cookie
   std::vector<std::string> parameters_;       ///< Extracted route parameter
   std::string current_location_;              ///< Matched route path
-  std::atomic<std::shared_ptr<HttpServerConnection>>
-      conn_;         ///< Associated connection
+  std::atomic<std::weak_ptr<HttpServerConnection>>
+      conn_;  ///< Associated connection
+  HttpServer* srv_;
   bool keep_alive_;  ///< Keep-alive flag
   bool
       manual_connection_management_;  ///< Manual connection lifetime management

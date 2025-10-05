@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "bsrvcore/http_server.h"
 #ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 #define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 
@@ -81,10 +82,10 @@ class HttpServerConnectionImpl : public HttpServerConnection {
   // Keep original constructor signature for compatibility.
   HttpServerConnectionImpl(
       S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
-      std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
+      HttpServer* srv, std::size_t header_read_expiry,
       std::size_t keep_alive_timeout)
-      : HttpServerConnection(std::move(strand), std::move(srv),
-                             header_read_expiry, keep_alive_timeout),
+      : HttpServerConnection(std::move(strand), srv, header_read_expiry,
+                             keep_alive_timeout),
         stream_(std::move(stream)),
         closed_(false) {
     // Do NOT create message_queue_ here by calling shared_from_this(),

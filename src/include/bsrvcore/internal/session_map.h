@@ -48,8 +48,7 @@ class HttpServer;
  * session_map->SetBackgroundCleaner(true);
  * @endcode
  */
-class SessionMap : NonCopyableNonMovable<SessionMap>,
-                   public std::enable_shared_from_this<SessionMap> {
+class SessionMap : NonCopyableNonMovable<SessionMap> {
  public:
   /**
    * @brief Retrieve a session by ID (copy version)
@@ -132,7 +131,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap>,
    * @endcode
    */
   template <typename Executor>
-  SessionMap(Executor exec, std::shared_ptr<HttpServer> server)
+  SessionMap(Executor exec, HttpServer *server)
       : timer_(exec),
         server_(server),
         cleaner_interval_(1000 * 60 * 30),     // 30 minutes default
@@ -148,9 +147,9 @@ class SessionMap : NonCopyableNonMovable<SessionMap>,
   std::unordered_map<std::string, session_internal::SessionContextEntry>
       map_;  ///< Session storage
   Heap<session_internal::SessionKeyHeapEntry>
-      pqueue_;                        ///< Priority queue for expiration
-  boost::asio::steady_timer timer_;   ///< Cleanup timer
-  std::weak_ptr<HttpServer> server_;  ///< Associated HTTP server
+      pqueue_;                       ///< Priority queue for expiration
+  boost::asio::steady_timer timer_;  ///< Cleanup timer
+  HttpServer *server_;               ///< Associated HTTP server
   std::atomic<std::size_t> cleaner_interval_;  ///< Cleanup interval in ms
   std::atomic<std::size_t> default_timeout_;  ///< Default session timeout in ms
   bool allow_cleaner_;                        ///< Cleaner enabled flag

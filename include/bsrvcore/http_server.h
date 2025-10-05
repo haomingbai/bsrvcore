@@ -61,11 +61,11 @@ class SessionMap;
  * - Keep-alive connection management
  *
  * The class supports fluent interface for configuration and returns
- * shared_ptr<HttpServer> for method chaining.
+ * HttpServer* for method chaining.
  *
  * @code
  * // Example server setup
- * auto server = std::make_shared<HttpServer>();
+ * auto server = std::make_unique<HttpServer>();
  *
  * server->AddRouteEntry(HttpRequestMethod::kGet, "/",
  *                      [](auto task) {
@@ -90,8 +90,7 @@ class SessionMap;
  *      ->Start(4);  // 4 worker threads
  * @endcode
  */
-class HttpServer : public std::enable_shared_from_this<HttpServer>,
-                   public NonCopyableNonMovable<HttpServer> {
+class HttpServer : public NonCopyableNonMovable<HttpServer> {
  public:
   /**
    * @brief Set a timer to execute a function after timeout
@@ -110,7 +109,7 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @return Future containing function result
    */
   template <typename Fn, typename... Args>
-  auto SetTimer(std::size_t timeout, Fn fn, Args &&...args)
+  auto SetTimer(std::size_t timeout, Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
@@ -139,7 +138,7 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @return Future containing function result
    */
   template <typename Fn, typename... Args>
-  auto Post(Fn fn, Args &&...args)
+  auto Post(Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
@@ -158,11 +157,11 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param url Route pattern (supports parameters like {id})
    * @param handler Request handler
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> AddRouteEntry(
-      HttpRequestMethod method, const std::string_view url,
-      std::unique_ptr<HttpRequestHandler> handler);
+  HttpServer* AddRouteEntry(HttpRequestMethod method,
+                            const std::string_view url,
+                            std::unique_ptr<HttpRequestHandler> handler);
 
   /**
    * @brief Add a route with a function object (lambda or function pointer)
@@ -170,15 +169,14 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param str Route pattern
    * @param func Callable to handle requests
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
   template <typename Func>
     requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
       { fn(task) };
     }
-  std::shared_ptr<HttpServer> AddRouteEntry(HttpRequestMethod method,
-                                            const std::string_view str,
-                                            Func &&func) {
+  HttpServer* AddRouteEntry(HttpRequestMethod method,
+                            const std::string_view str, Func&& func) {
     auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
 
     return AddRouteEntry(method, str, std::move(handler));
@@ -189,11 +187,11 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param url Route pattern
    * @param handler Request handler
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    *
    * @note Exclusive routes take precedence over parameter routes at same path
    */
-  std::shared_ptr<HttpServer> AddExclusiveRouteEntry(
+  HttpServer* AddExclusiveRouteEntry(
       HttpRequestMethod method, const std::string_view url,
       std::unique_ptr<HttpRequestHandler> handler);
 
@@ -203,15 +201,14 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param str Route pattern
    * @param func Callable to handle requests
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
   template <typename Func>
     requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
       { fn(task) };
     }
-  std::shared_ptr<HttpServer> AddExclusiveRouteEntry(HttpRequestMethod method,
-                                                     const std::string_view str,
-                                                     Func &&func) {
+  HttpServer* AddExclusiveRouteEntry(HttpRequestMethod method,
+                                     const std::string_view str, Func&& func) {
     auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
 
     return AddExclusiveRouteEntry(method, str, std::move(handler));
@@ -222,11 +219,10 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param url Route pattern
    * @param aspect Aspect handler
-   * @return Shared pointer to aspect handler for management
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> AddAspect(
-      HttpRequestMethod method, const std::string_view url,
-      std::unique_ptr<HttpRequestAspectHandler> aspect);
+  HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
+                        std::unique_ptr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add an aspect with function objects for pre/post processing
@@ -236,12 +232,11 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param url Route pattern
    * @param f1 Pre-service function
    * @param f2 Post-service function
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-  std::shared_ptr<HttpServer> AddAspect(HttpRequestMethod method,
-                                        const std::string_view url, F1 f1,
-                                        F2 f2) {
+  HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
+                        F1 f1, F2 f2) {
     auto aspect =
         std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
@@ -252,19 +247,17 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @brief Add a global aspect for a specific HTTP method
    * @param method HTTP method
    * @param aspect Aspect handler
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> AddGlobalAspect(
-      HttpRequestMethod method,
-      std::unique_ptr<HttpRequestAspectHandler> aspect);
+  HttpServer* AddGlobalAspect(HttpRequestMethod method,
+                              std::unique_ptr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect for all HTTP methods
    * @param aspect Aspect handler
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> AddGlobalAspect(
-      std::unique_ptr<HttpRequestAspectHandler> aspect);
+  HttpServer* AddGlobalAspect(std::unique_ptr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect with functions for specific HTTP method
@@ -273,11 +266,10 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param method HTTP method
    * @param f1 Pre-service function
    * @param f2 Post-service function
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-  std::shared_ptr<HttpServer> AddGlobalAspect(HttpRequestMethod method, F1 f1,
-                                              F2 f2) {
+  HttpServer* AddGlobalAspect(HttpRequestMethod method, F1 f1, F2 f2) {
     auto aspect =
         std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
@@ -290,10 +282,10 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @tparam F2 Post-service function type
    * @param f1 Pre-service function
    * @param f2 Post-service function
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-  std::shared_ptr<HttpServer> AddGlobalAspect(F1 f1, F2 f2) {
+  HttpServer* AddGlobalAspect(F1 f1, F2 f2) {
     auto aspect =
         std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
@@ -303,120 +295,117 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
   /**
    * @brief Add a listening endpoint
    * @param ep TCP endpoint to listen on
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> AddListen(boost::asio::ip::tcp::endpoint ep);
+  HttpServer* AddListen(boost::asio::ip::tcp::endpoint ep);
 
   /**
    * @brief Set read timeout for a specific route
    * @param method HTTP method
    * @param url Route pattern
    * @param expiry Read timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetReadExpiry(HttpRequestMethod method,
-                                            std::string_view url,
-                                            std::size_t expiry);
+  HttpServer* SetReadExpiry(HttpRequestMethod method, std::string_view url,
+                            std::size_t expiry);
 
   /**
    * @brief Set header read timeout for all requests
    * @param expiry Header read timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetHeaderReadExpiry(std::size_t expiry);
+  HttpServer* SetHeaderReadExpiry(std::size_t expiry);
 
   /**
    * @brief Set write timeout for a specific route
    * @param method HTTP method
    * @param url Route pattern
    * @param expiry Write timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetWriteExpiry(HttpRequestMethod method,
-                                             std::string_view url,
-                                             std::size_t expiry);
+  HttpServer* SetWriteExpiry(HttpRequestMethod method, std::string_view url,
+                             std::size_t expiry);
 
   /**
    * @brief Set maximum body size for a specific route
    * @param method HTTP method
    * @param url Route pattern
    * @param size Maximum body size in bytes
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetMaxBodySize(HttpRequestMethod method,
-                                             std::string_view url,
-                                             std::size_t size);
+  HttpServer* SetMaxBodySize(HttpRequestMethod method, std::string_view url,
+                             std::size_t size);
 
   /**
    * @brief Set default read timeout for all routes
    * @param expiry Read timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetDefaultReadExpiry(std::size_t expiry);
+  HttpServer* SetDefaultReadExpiry(std::size_t expiry);
 
   /**
    * @brief Set default write timeout for all routes
    * @param expiry Write timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetDefaultWriteExpiry(std::size_t expiry);
+  HttpServer* SetDefaultWriteExpiry(std::size_t expiry);
 
   /**
    * @brief Set default maximum body size for all routes
    * @param size Maximum body size in bytes
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetDefaultMaxBodySize(std::size_t size);
+  HttpServer* SetDefaultMaxBodySize(std::size_t size);
 
   /**
    * @brief Set keep-alive connection timeout
    * @param timeout Keep-alive timeout in milliseconds
-   * @return Shared pointer to server for method chaining
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetKeepAliveTimeout(std::size_t timeout);
+  HttpServer* SetKeepAliveTimeout(std::size_t timeout);
 
   /**
-   * @brief Set keep-alive connection timeout
-   * @param Global fallback handler for requests.
-   * @return Shared pointer to server for method chaining
+   * @brief Set default request handler for unmatched routes
+   * @param handler Global fallback handler for requests
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetDefaultHandler(
-      std::unique_ptr<HttpRequestHandler> handler);
+  HttpServer* SetDefaultHandler(std::unique_ptr<HttpRequestHandler> handler);
 
   /**
-   * @brief Set keep-alive connection timeout
-   * @param Global fallback handler function for requests.
-   * @return Shared pointer to server for method chaining
+   * @brief Set default request handler with function object
+   * @tparam F Callable type accepting std::shared_ptr<HttpServerTask>
+   * @param f Global fallback handler function for requests
+   * @return Pointer to server for method chaining
    */
   template <typename F>
     requires requires(F f, std::shared_ptr<HttpServerTask> task) {
       { f(task) };
     }
-  std::shared_ptr<HttpServer> SetDefaultHandler(F f) {
+  HttpServer* SetDefaultHandler(F f) {
     std::unique_ptr<HttpRequestHandler> handler =
         std::make_unique<FunctionRouteHandler<F>>(f);
     return SetDefaultHandler(std::move(handler));
   }
 
   /**
-   * @brief Set the ssl context of the connection
-   * @param ctx The ssl context of the server
-   * @return Shared pointer to server for method chaining
+   * @brief Set the SSL context for secure connections
+   * @param ctx SSL context for the server
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetSslContext(boost::asio::ssl::context ctx);
+  HttpServer* SetSslContext(boost::asio::ssl::context ctx);
 
   /**
-   * @brief Unset the ssl context of the connection
-   * @return Shared pointer to server for method chaining
+   * @brief Unset the SSL context (disable HTTPS)
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> UnsetSslContext();
+  HttpServer* UnsetSslContext();
 
-  /*
-   * @brief Set the logger of the server
-   * @param logger The shared ptr of the logger
-   * @return Shared pointer to server for method chaining
+  /**
+   * @brief Set the logger for the server
+   * @param logger Shared pointer to the logger
+   * @return Pointer to server for method chaining
    */
-  std::shared_ptr<HttpServer> SetLogger(std::shared_ptr<Logger> logger);
+  HttpServer* SetLogger(std::shared_ptr<Logger> logger);
 
   /**
    * @brief Log a message with specified level
@@ -438,14 +427,14 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param sessionid Session identifier
    * @return Shared pointer to session context
    */
-  std::shared_ptr<Context> GetSession(const std::string &sessionid);
+  std::shared_ptr<Context> GetSession(const std::string& sessionid);
 
   /**
    * @brief Retrieve a session by ID (move version)
    * @param sessionid Session identifier
    * @return Shared pointer to session context
    */
-  std::shared_ptr<Context> GetSession(std::string &&sessionid);
+  std::shared_ptr<Context> GetSession(std::string&& sessionid);
 
   /**
    * @brief Set default session timeout
@@ -459,7 +448,7 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param timeout Session timeout
    * @return true if session was found and timeout was set
    */
-  bool SetSessionTimeout(const std::string &sessionid, std::size_t timeout);
+  bool SetSessionTimeout(const std::string& sessionid, std::size_t timeout);
 
   /**
    * @brief Set custom timeout for a session (move version)
@@ -467,7 +456,7 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
    * @param timeout Session timeout
    * @return true if session was found and timeout was set
    */
-  bool SetSessionTimeout(std::string &&sessionid, std::size_t timeout);
+  bool SetSessionTimeout(std::string&& sessionid, std::size_t timeout);
 
   /**
    * @brief Get the server context
@@ -515,31 +504,43 @@ class HttpServer : public std::enable_shared_from_this<HttpServer>,
   static boost::beast::http::verb HttpRequestMethodToBeastHttpVerb(
       HttpRequestMethod method);
 
+  /**
+   * @brief Construct HttpServer with specified thread pool size
+   * @param thread_num Number of threads in thread pool
+   */
   HttpServer(std::size_t thread_num);
 
+  /**
+   * @brief Construct HttpServer with default thread pool size
+   */
   HttpServer();
 
+  /**
+   * @brief Destroy HttpServer and cleanup resources
+   */
+  ~HttpServer();
+
  private:
-  void DoAccept(boost::asio::ip::tcp::acceptor &acc);
+  void DoAccept(boost::asio::ip::tcp::acceptor& acc);
 
   std::optional<boost::asio::ssl::context>
-      ssl_ctx_;                  ///< The ssl context of the server
-  boost::asio::io_context ioc_;  ///< The io context of the server
-  std::vector<std::thread>
-      io_threads_;  ///< Locations to store the threads to run io_context
+      ssl_ctx_;                          ///< The SSL context of the server
+  boost::asio::io_context ioc_;          ///< The I/O context of the server
+  std::vector<std::thread> io_threads_;  ///< Threads to run I/O context
   std::vector<boost::asio::ip::tcp::acceptor>
-      acceptors_;                     ///< Acceptors to accept socket
-  std::mutex mtx_;                    ///< Mutex
-  std::shared_ptr<Context> context_;  ///< Global context.
-  std::shared_ptr<Logger> logger_;    ///< Logger to take log.
+      acceptors_;                     ///< Acceptors to accept sockets
+  std::mutex mtx_;                    ///< Mutex for thread synchronization
+  std::shared_ptr<Context> context_;  ///< Global server context
+  std::shared_ptr<Logger> logger_;    ///< Logger for server events
   std::unique_ptr<boost::asio::thread_pool>
-      thread_pool_;                              ///< Exector: a thread pool
-  std::shared_ptr<HttpRouteTable> route_table_;  ///< Route table
-  std::shared_ptr<SessionMap> sessions_;  ///< A session map to manage sessions
-  std::size_t header_read_expiry_;  ///< Default expiry for reading headers
-  std::size_t keep_alive_timeout_;  ///< Timeout for keep alive connection
-  std::size_t thread_cnt_;          ///< Number of threads in the thread_pool
-  std::atomic<bool> is_running_;    ///< Var to show if the server is running
+      thread_pool_;  ///< Thread pool executor
+  std::unique_ptr<HttpRouteTable>
+      route_table_;                       ///< Route table for request routing
+  std::unique_ptr<SessionMap> sessions_;  ///< Session manager
+  std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
+  std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
+  std::size_t thread_cnt_;          ///< Number of threads in thread pool
+  std::atomic<bool> is_running_;    ///< Flag indicating if server is running
 };
 
 }  // namespace bsrvcore

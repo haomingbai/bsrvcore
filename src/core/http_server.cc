@@ -51,8 +51,9 @@ HttpServer::HttpServer(std::size_t thread_num)
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
       thread_pool_(std::make_unique<boost::asio::thread_pool>(thread_num)),
-      route_table_(std::make_shared<HttpRouteTable>()),
-      sessions_(),
+      route_table_(std::make_unique<HttpRouteTable>()),
+      sessions_(
+          std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
       thread_cnt_(thread_num),
@@ -62,8 +63,9 @@ HttpServer::HttpServer()
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
       thread_pool_(std::make_unique<boost::asio::thread_pool>()),
-      route_table_(std::make_shared<HttpRouteTable>()),
-      sessions_(),
+      route_table_(std::make_unique<HttpRouteTable>()),
+      sessions_(
+          std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
       thread_cnt_(0),
@@ -84,226 +86,217 @@ void HttpServer::Post(std::function<void()> fn) {
   boost::asio::post(thread_pool_->get_executor(), fn);
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddRouteEntry(
+HttpServer* HttpServer::AddRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestHandler> handler) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->AddRouteEntry(method, url, std::move(handler));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddExclusiveRouteEntry(
+HttpServer* HttpServer::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestHandler> handler) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->AddExclusiveRouteEntry(method, url, std::move(handler));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddAspect(
+HttpServer* HttpServer::AddAspect(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->AddAspect(method, url, std::move(aspect));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddGlobalAspect(
+HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method,
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->AddGlobalAspect(method, std::move(aspect));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddGlobalAspect(
+HttpServer* HttpServer::AddGlobalAspect(
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->AddGlobalAspect(std::move(aspect));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::AddListen(
-    boost::asio::ip::tcp::endpoint ep) {
+HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   acceptors_.emplace_back(ioc_, ep);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetReadExpiry(HttpRequestMethod method,
-                                                      std::string_view url,
-                                                      std::size_t expiry) {
+HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
+                                      std::string_view url,
+                                      std::size_t expiry) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetReadExpiry(method, url, expiry);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetHeaderReadExpiry(
-    std::size_t expiry) {
+HttpServer* HttpServer::SetHeaderReadExpiry(std::size_t expiry) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   header_read_expiry_ = expiry;
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetWriteExpiry(HttpRequestMethod method,
-                                                       std::string_view url,
-                                                       std::size_t expiry) {
+HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
+                                       std::string_view url,
+                                       std::size_t expiry) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetWriteExpiry(method, url, expiry);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetMaxBodySize(HttpRequestMethod method,
-                                                       std::string_view url,
-                                                       std::size_t size) {
+HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
+                                       std::string_view url, std::size_t size) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetMaxBodySize(method, url, size);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetDefaultReadExpiry(
-    std::size_t expiry) {
+HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetDefaultReadExpiry(expiry);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetDefaultWriteExpiry(
-    std::size_t expiry) {
+HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetDefaultWriteExpiry(expiry);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetDefaultMaxBodySize(
-    std::size_t size) {
+HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetDefaultMaxBodySize(size);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetKeepAliveTimeout(
-    std::size_t timeout) {
+HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   keep_alive_timeout_ = timeout;
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetDefaultHandler(
+HttpServer* HttpServer::SetDefaultHandler(
     std::unique_ptr<HttpRequestHandler> handler) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   route_table_->SetDefaultHandler(std::move(handler));
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetSslContext(
-    boost::asio::ssl::context ctx) {
+HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   ssl_ctx_ = std::move(ctx);
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::UnsetSslContext() {
+HttpServer* HttpServer::UnsetSslContext() {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   ssl_ctx_.reset();
-  return shared_from_this();
+  return this;
 }
 
-std::shared_ptr<HttpServer> HttpServer::SetLogger(
-    std::shared_ptr<Logger> logger) {
+HttpServer* HttpServer::SetLogger(std::shared_ptr<Logger> logger) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   if (is_running_) {
-    return shared_from_this();
+    return this;
   }
 
   logger_ = logger;
-  return shared_from_this();
+  return this;
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {
@@ -315,51 +308,26 @@ HttpRouteResult HttpServer::Route(HttpRequestMethod method,
   return route_table_->Route(method, target);
 }
 
-std::shared_ptr<Context> HttpServer::GetSession(const std::string &sessionid) {
-  if (sessions_ == nullptr) {
-    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this());
-  }
-
+std::shared_ptr<Context> HttpServer::GetSession(const std::string& sessionid) {
   return sessions_->GetSession(sessionid);
 }
 
-std::shared_ptr<Context> HttpServer::GetSession(std::string &&sessionid) {
-  if (sessions_ == nullptr) {
-    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this());
-  }
-
+std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
   return sessions_->GetSession(std::move(sessionid));
 }
 
 void HttpServer::SetDefaultSessionTimeout(std::size_t timeout) {
-  if (sessions_ == nullptr) {
-    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this());
-  }
-
   sessions_->SetDefaultSessionTimeout(timeout);
 }
 
-bool HttpServer::SetSessionTimeout(const std::string &sessionid,
+bool HttpServer::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {
-  if (sessions_ == nullptr) {
-    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this());
-  }
-
   sessions_->SetSessionTimeout(sessionid, timeout);
   return true;
 }
 
-bool HttpServer::SetSessionTimeout(std::string &&sessionid,
+bool HttpServer::SetSessionTimeout(std::string&& sessionid,
                                    std::size_t timeout) {
-  if (sessions_ == nullptr) {
-    sessions_ = std::make_shared<SessionMap>(thread_pool_->get_executor(),
-                                             shared_from_this());
-  }
-
   sessions_->SetSessionTimeout(sessionid, timeout);
   return true;
 }
@@ -383,13 +351,13 @@ bool HttpServer::Start(std::size_t thread_cnt) {
 
   is_running_ = true;
 
-  for (auto &acc : acceptors_) {
+  for (auto& acc : acceptors_) {
     DoAccept(acc);
   }
 
   io_threads_.reserve(thread_cnt);
   for (size_t i = 0; i < thread_cnt; i++) {
-    auto th = std::thread([self = shared_from_this(), this] { ioc_.run(); });
+    auto th = std::thread([this] { ioc_.run(); });
     io_threads_.emplace_back(std::move(th));
   }
 
@@ -407,7 +375,7 @@ void HttpServer::Stop() {
   }
 
   is_running_ = false;
-  for (auto &acc : acceptors_) {
+  for (auto& acc : acceptors_) {
     eps.push_back(acc.local_endpoint());
     boost::system::error_code ec1;
     boost::system::error_code ec2;
@@ -415,7 +383,7 @@ void HttpServer::Stop() {
   }
 
   thread_pool_->join();
-  for (auto &it : io_threads_) {
+  for (auto& it : io_threads_) {
     it.join();
   }
 
@@ -472,11 +440,11 @@ boost::beast::http::verb HttpServer::HttpRequestMethodToBeastHttpVerb(
   return boost::beast::http::verb::get;
 }
 
-void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor &acc) {
+void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
   acc.async_accept(
       boost::asio::make_strand(ioc_),
-      [self = shared_from_this(), this, &acc](
-          boost::system::error_code ec, boost::asio::ip::tcp::socket skt) {
+      [this, &acc](boost::system::error_code ec,
+                   boost::asio::ip::tcp::socket skt) {
         if (!ec) {
           boost::beast::tcp_stream stream(std::move(skt));
           if (ssl_ctx_.has_value()) {
@@ -487,7 +455,7 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor &acc) {
                 std::move(sstream),
                 boost::asio::strand<boost::asio::any_io_executor>(
                     sstream.get_executor()),
-                shared_from_this(), header_read_expiry_, keep_alive_timeout_)
+                this, header_read_expiry_, keep_alive_timeout_)
                 ->Run();
           } else {
             std::make_shared<connection_internal::HttpServerConnectionImpl<
@@ -495,7 +463,7 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor &acc) {
                 std::move(stream),
                 boost::asio::strand<boost::asio::any_io_executor>(
                     stream.get_executor()),
-                shared_from_this(), header_read_expiry_, keep_alive_timeout_)
+                this, header_read_expiry_, keep_alive_timeout_)
                 ->Run();
           }
         }
@@ -505,3 +473,5 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor &acc) {
         }
       });
 }
+
+HttpServer::~HttpServer() { Stop(); }

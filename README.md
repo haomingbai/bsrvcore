@@ -16,7 +16,7 @@ int main() {
     using namespace bsrvcore;
 
     // 1. Create a server instance
-    auto server = std::make_shared<HttpServer>(4); // 4 worker threads
+    auto server = std::make_unique<HttpServer>(4); // 4 worker threads
 
     // 2. Configure the server using a chained-method style
     server
@@ -99,7 +99,7 @@ int main() {
     using namespace bsrvcore;
 
     // 1. Create a server instance
-    auto server = std::make_shared<HttpServer>(4);
+    auto server = std::make_unique<HttpServer>(4);
 
     // 2. Register instances of handler classes for specific routes
     server
@@ -203,11 +203,11 @@ int main() {
 
         // 3. Secure Route (OOP Style): Protected by the AuthAspect
         ->AddRouteEntry(HttpRequestMethod::kGet, "/secure/data",
-                        std::make_shared<SecretDataHandler>())
+                        std::make_unique<SecretDataHandler>())
         
         // 4. Apply the AuthAspect specifically to the secure route
         ->AddAspect(HttpRequestMethod::kGet, "/secure/data",
-                    std::make_shared<AuthAspect>())
+                    std::make_unique<AuthAspect>())
 
         ->AddListen({{}, 8082}); // Listen on port 8082
 

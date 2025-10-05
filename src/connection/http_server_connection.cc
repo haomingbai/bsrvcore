@@ -28,6 +28,7 @@
 
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_request_aspect_handler.h"
+#include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
 #include "bsrvcore/logger.h"
 
@@ -232,9 +233,8 @@ void HttpServerConnection::DoCycle() {
 }
 
 HttpServerConnection::HttpServerConnection(
-    boost::asio::strand<boost::asio::any_io_executor> strand,
-    std::shared_ptr<HttpServer> srv, std::size_t header_read_expiry,
-    std::size_t keep_alive_timeout)
+    boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer *srv,
+    std::size_t header_read_expiry, std::size_t keep_alive_timeout)
     : strand_(std::move(strand)),
       timer_(strand_),
       buf_(4096),
@@ -277,3 +277,7 @@ HttpServerConnection::GetExecutor() {
 }
 
 boost::beast::flat_buffer &HttpServerConnection::GetBuffer() { return buf_; }
+
+bsrvcore::HttpServer *HttpServerConnection::GetServer() const noexcept {
+  return srv_;
+}

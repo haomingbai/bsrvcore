@@ -127,6 +127,7 @@ HttpServerTask::HttpServerTask(HttpRequest req, std::vector<std::string> params,
       parameters_(std::move(params)),
       current_location_(std::move(current_location)),
       conn_(std::move(conn)),
+      srv_(conn_.load().lock()->GetServer()),
       keep_alive_(true),
       manual_connection_management_(false),  // Initialize the new flag
       is_cookie_parsed_(false) {}
@@ -180,7 +181,7 @@ const std::string &HttpServerTask::GetSessionId() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return nullptr;
@@ -189,7 +190,7 @@ std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return nullptr;
@@ -199,11 +200,12 @@ std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
 }
 
 bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return false;
   }
+
   return conn->SetSessionTimeout(GetSessionId(), timeout);
 }
 
@@ -236,16 +238,11 @@ void HttpServerTask::SetManualConnectionManagement(bool value) noexcept {
 }
 
 void HttpServerTask::Log(bsrvcore::LogLevel level, const std::string message) {
-  auto conn = conn_.load();
-
-  if (!conn) {
-    return;
-  }
-  conn->Log(level, std::move(message));
+  srv_->Log(level, std::move(message));
 }
 
 void HttpServerTask::WriteBody(std::string body) {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return;
@@ -254,7 +251,7 @@ void HttpServerTask::WriteBody(std::string body) {
 }
 
 void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return;
@@ -263,23 +260,18 @@ void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
 }
 
 void HttpServerTask::Post(std::function<void()> fn) {
-  auto conn = conn_.load();
-  if (conn) {
-    conn->Post(fn);
+  if (srv_->IsRunning()) {
+    srv_->Post(fn);
   }
 }
 
 void HttpServerTask::SetTimer(std::size_t timeout, std::function<void()> fn) {
-  auto conn = conn_.load();
-  if (!conn) {
-    return;
-  }
-  conn->SetTimer(timeout, fn);
+  srv_->SetTimer(timeout, fn);
 }
 
 bool HttpServerTask::IsAvailable() noexcept {
-  auto conn = conn_.load();
-  return conn && conn->IsServerRunning() && conn->IsStreamAvailable();
+  auto conn = conn_.load().lock();
+  return conn && srv_->IsRunning() && conn->IsStreamAvailable();
 }
 
 const std::string &HttpServerTask::GetCurrentLocation() {
@@ -297,7 +289,7 @@ HttpServerTask::~HttpServerTask() {
     return;
   }
 
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return;
@@ -321,23 +313,23 @@ bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
 }
 
 void HttpServerTask::DoClose() {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return;
   }
 
   conn->DoClose();
-  conn_ = nullptr;
+  conn_.load().reset();
 }
 
 void HttpServerTask::DoCycle() {
-  auto conn = conn_.load();
+  auto conn = conn_.load().lock();
 
   if (!conn) {
     return;
   }
 
   conn->DoCycle();
-  conn_ = nullptr;
+  conn_.load().reset();
 }

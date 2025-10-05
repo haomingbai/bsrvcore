@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include "bsrvcore/trait.h"
 #ifndef BSRVCORE_HTTP_REQUEST_HANDLER_H_
 #define BSRVCORE_HTTP_REQUEST_HANDLER_H_
 
@@ -23,6 +22,7 @@
 
 #include "bsrvcore/http_server_task.h"
 #include "bsrvcore/logger.h"
+#include "bsrvcore/trait.h"
 
 namespace bsrvcore {
 class HttpServerTask;

@@ -243,6 +243,12 @@ class HttpServerConnection
   virtual void DoCycle();
 
   /**
+   * @brief Get the server pointer.
+   * @return The pointer of the server.
+   */
+  HttpServer* GetServer() const noexcept;
+
+  /**
    * @brief Construct a HTTP server connection
    * @param strand ASIO strand for thread-safe operation sequencing
    * @param srv HTTP server instance
@@ -250,8 +256,7 @@ class HttpServerConnection
    * @param keep_alive_timeout Keep-alive timeout in milliseconds
    */
   HttpServerConnection(boost::asio::strand<boost::asio::any_io_executor> strand,
-                       std::shared_ptr<HttpServer> srv,
-                       std::size_t header_read_expiry,
+                       HttpServer* srv, std::size_t header_read_expiry,
                        std::size_t keep_alive_timeout);
 
   /**
@@ -344,7 +349,7 @@ class HttpServerConnection
   boost::asio::steady_timer timer_;  ///< Timer for timeouts
   boost::beast::flat_buffer buf_;    ///< Buffer for reading requests
   HttpRouteResult route_result_;     ///< Result of routing the current request
-  std::shared_ptr<HttpServer> srv_;  ///< Reference to HTTP server
+  HttpServer* srv_;                  ///< Reference to HTTP server
   std::unique_ptr<
       boost::beast::http::request_parser<boost::beast::http::string_body>>
       parser_;                      ///< HTTP request parser

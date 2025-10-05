@@ -144,32 +144,31 @@ void SessionMap::SetCleaner() {
   timer_.expires_after(std::max<std::chrono::milliseconds>(
       std::chrono::milliseconds(kMinSessionTimeout),
       std::chrono::milliseconds(cleaner_interval_)));
-  timer_.async_wait(
-      [self = shared_from_this(), this](boost::system::error_code ec) {
-        if (ec) {
-          return;
+  timer_.async_wait([this](boost::system::error_code ec) {
+    if (ec) {
+      return;
+    }
+
+    HttpServer *server_ptr = server_;
+    if (server_ptr != nullptr && server_ptr->IsRunning()) {
+      server_ptr->Post([this] {
+        std::lock_guard<std::mutex> lock(mtx_);
+
+        if (pqueue_.GetSize() < map_.size() * 8) {
+          ShortClean();
+        } else {
+          ThoroughClean();
         }
 
-        std::shared_ptr<HttpServer> server_ptr = server_.lock();
-        if (server_ptr != nullptr && server_ptr->IsRunning()) {
-          server_ptr->Post([self, this] {
-            std::lock_guard<std::mutex> lock(mtx_);
+        auto server_ptr = server_;
 
-            if (pqueue_.GetSize() < map_.size() * 8) {
-              ShortClean();
-            } else {
-              ThoroughClean();
-            }
-
-            auto server_ptr = server_.lock();
-
-            if (allow_cleaner_ && server_ptr != nullptr &&
-                server_ptr->IsRunning()) {
-              SetCleaner();
-            }
-          });
+        if (allow_cleaner_ && server_ptr != nullptr &&
+            server_ptr->IsRunning()) {
+          SetCleaner();
         }
       });
+    }
+  });
 }
 
 void SessionMap::SetCleanerInterval(std::size_t interval) noexcept {
