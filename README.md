@@ -277,6 +277,6 @@ If you are going to process with RESTful API, it is also recommended to install 
 - [ ] Enable CTest for unit tests.
 - [x] Repair the conflicts between `HttpServer::AddGlobalAspect` and `HttpServerTask::DoCycle`.
 - [ ] Improve the documentations with more details and examples.
-- [ ] Add CPake support to make a release.
-- [ ] Add CI/CD support.
+- [x] Add CPake support to make a release.
+- [x] Add CI/CD support.
 - [ ] Release the 0.1.0 version.
