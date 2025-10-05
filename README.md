@@ -177,7 +177,7 @@ class SecretDataHandler : public bsrvcore::HttpRequestHandler {
 
 int main() {
     using namespace bsrvcore;
-    auto server = std::make_shared<HttpServer>(4);
+    auto server = std::make_unique<HttpServer>(4);
 
     // --- Route and Aspect Configuration ---
     server
