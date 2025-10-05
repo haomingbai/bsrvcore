@@ -31,8 +31,8 @@ jobs:
             ninja-build \
             pkg-config \
             libboost-all-dev \      # For building
-            dpkg-dev fakeroot        # For .deb (dpkg-shlibdeps comes from dpkg-dev)
-            rpm                      # For .rpm
+            dpkg-deb fakeroot \     # For .deb (dpkg-shlibdeps comes from dpkg-dev)
+            rpm                     # For .rpm
           # Tip: If you rely on more specific rpm tools (rpmbuild), you might need additional packages on some runners.
 
       # 4) Configure (out-of-source build)
