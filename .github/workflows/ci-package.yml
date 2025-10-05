@@ -9,7 +9,13 @@ jobs:
     name: Build, Package (DEB/RPM/TGZ)
     runs-on: ubuntu-latest
 
-    # Adjust the number of parallel runs as needed
+    # --- FIX STARTS HERE ---
+    # Grant 'contents: write' permission to the GITHUB_TOKEN for this job.
+    # This is required by the action-gh-release step to create a release.
+    permissions:
+      contents: write
+    # --- FIX ENDS HERE ---
+
     steps:
       # 1) Checkout source code
       - name: Checkout source
@@ -21,22 +27,20 @@ jobs:
         with:
           cmake-version: '3.25.0'
 
-      # 3) Install system dependencies: build tools, Boost development packages (for building), and packaging tools (dpkg-dev/fakeroot/rpm)
-      #    Note: Generating deb/rpm requires these tools; package names might vary slightly on different runners.
+      # 3) Install system dependencies
       - name: Install apt packages (build + packagers)
         run: |
           sudo apt-get update
           packages=(
-            build-essential      # Core toolchain
-            ninja-build          # Ninja generator (if you use -G Ninja later)
-            pkg-config           # For pkg-config checks
-            libboost-all-dev     # Boost (dev headers/libs)
-            dpkg-dev             # Needed for deb helper tools (dpkg-shlibdeps, etc.)
-            fakeroot             # For building .deb without real root
-            rpm                  # For generating RPMs with CPack
+            build-essential     # Core toolchain
+            ninja-build         # Ninja generator (if you use -G Ninja later)
+            pkg-config          # For pkg-config checks
+            libboost-all-dev    # Boost (dev headers/libs)
+            dpkg-dev            # Needed for deb helper tools (dpkg-shlibdeps, etc.)
+            fakeroot            # For building .deb without real root
+            rpm                 # For generating RPMs with CPack
           )
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
-          # Tip: If you rely on more specific rpm tools (rpmbuild), you might need additional packages on some runners.
 
       # 4) Configure (out-of-source build)
       - name: Configure with CMake
@@ -46,17 +50,15 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      # 6) Package: Run CPack to generate DEB/RPM/TGZ (will use the CPack configuration from your CMakeLists)
+      # 6) Package: Run CPack to generate DEB/RPM/TGZ
       - name: Package with CPack (DEB, RPM, TGZ)
         run: |
           cd build
-          # Running cpack directly will use the CPACK_GENERATOR configured in CMakeLists (DEB;RPM;TGZ)
-          # We trigger them explicitly here for clearer logs; if a generator lacks system tools, it will fail or be skipped.
           cpack -G DEB || echo "DEB generation failed or skipped"
           cpack -G RPM || echo "RPM generation failed or skipped"
           cpack -G TGZ || echo "TGZ generation failed or skipped"
 
-      # 7) Upload the built packages as workflow artifacts (for easy download and debugging on the Actions page)
+      # 7) Upload the built packages as workflow artifacts
       - name: Upload packages as workflow artifact (for debugging)
         uses: actions/upload-artifact@v4
         with:
@@ -66,13 +68,11 @@ jobs:
             build/*.rpm
             build/*.tar.gz
 
-      # 8) If this is a tag starting with 'v' (e.g., v1.2.3), create a GitHub Release and upload the packages as release assets.
-      #    Condition: Only executes for refs/tags/v* references.
+      # 8) If this is a tag starting with 'v', create a GitHub Release
       - name: Create GitHub Release and upload packages (tags like v1.2.3)
-        if: startsWith(github.ref, 'refs/tags/v')   # Execute only if triggered by a tag starting with 'v'
-        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2 # Suggest using a more recent version like v2
         with:
-          # Automatically upload matching packages from the build directory as release assets
           files: |
             build/*.deb
             build/*.rpm
@@ -80,4 +80,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-# End
