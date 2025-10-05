@@ -1,0 +1,80 @@
+name: CI & Package
+
+# Triggered by any push (branch or tag). In the job, we decide whether to upload a release based on whether it's a tag.
+on:
+  push: {}
+
+jobs:
+  build-and-package:
+    name: Build, Package (DEB/RPM/TGZ)
+    runs-on: ubuntu-latest
+
+    # Adjust the number of parallel runs as needed
+    steps:
+      # 1) Checkout source code
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # 2) Install a suitable version of CMake (your CMakeLists requires >= 3.25)
+      - name: Install CMake >= 3.25
+        uses: lukka/get-cmake@v3
+        with:
+          cmake-version: '3.25.0'
+
+      # 3) Install system dependencies: build tools, Boost development packages (for building), and packaging tools (dpkg-dev/fakeroot/rpm)
+      #    Note: Generating deb/rpm requires these tools; package names might vary slightly on different runners.
+      - name: Install apt packages (build + packagers)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ninja-build \
+            pkg-config \
+            libboost-all-dev \      # For building
+            dpkg-dev fakeroot        # For .deb (dpkg-shlibdeps comes from dpkg-dev)
+            rpm                      # For .rpm
+          # Tip: If you rely on more specific rpm tools (rpmbuild), you might need additional packages on some runners.
+
+      # 4) Configure (out-of-source build)
+      - name: Configure with CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+
+      # 5) Build
+      - name: Build
+        run: cmake --build build --parallel
+
+      # 6) Package: Run CPack to generate DEB/RPM/TGZ (will use the CPack configuration from your CMakeLists)
+      - name: Package with CPack (DEB, RPM, TGZ)
+        run: |
+          cd build
+          # Running cpack directly will use the CPACK_GENERATOR configured in CMakeLists (DEB;RPM;TGZ)
+          # We trigger them explicitly here for clearer logs; if a generator lacks system tools, it will fail or be skipped.
+          cpack -G DEB || echo "DEB generation failed or skipped"
+          cpack -G RPM || echo "RPM generation failed or skipped"
+          cpack -G TGZ || echo "TGZ generation failed or skipped"
+
+      # 7) Upload the built packages as workflow artifacts (for easy download and debugging on the Actions page)
+      - name: Upload packages as workflow artifact (for debugging)
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: |
+            build/*.deb
+            build/*.rpm
+            build/*.tar.gz
+
+      # 8) If this is a tag starting with 'v' (e.g., v1.2.3), create a GitHub Release and upload the packages as release assets.
+      #    Condition: Only executes for refs/tags/v* references.
+      - name: Create GitHub Release and upload packages (tags like v1.2.3)
+        if: startsWith(github.ref, 'refs/tags/v')   # Execute only if triggered by a tag starting with 'v'
+        uses: softprops/action-gh-release@v1
+        with:
+          # Automatically upload matching packages from the build directory as release assets
+          files: |
+            build/*.deb
+            build/*.rpm
+            build/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# End
