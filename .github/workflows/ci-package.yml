@@ -26,13 +26,16 @@ jobs:
       - name: Install apt packages (build + packagers)
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            ninja-build \
-            pkg-config \
-            libboost-all-dev \      # For building
-            dpkg-deb fakeroot \     # For .deb (dpkg-shlibdeps comes from dpkg-dev)
-            rpm                     # For .rpm
+          packages=(
+            build-essential      # Core toolchain
+            ninja-build          # Ninja generator (if you use -G Ninja later)
+            pkg-config           # For pkg-config checks
+            libboost-all-dev     # Boost (dev headers/libs)
+            dpkg-dev             # Needed for deb helper tools (dpkg-shlibdeps, etc.)
+            fakeroot             # For building .deb without real root
+            rpm                  # For generating RPMs with CPack
+          )
+          sudo apt-get install -y --no-install-recommends "${packages[@]}"
           # Tip: If you rely on more specific rpm tools (rpmbuild), you might need additional packages on some runners.
 
       # 4) Configure (out-of-source build)
