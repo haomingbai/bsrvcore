@@ -16,7 +16,6 @@
 
 #pragma once
 
-#include "bsrvcore/http_server.h"
 #ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 #define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 
@@ -48,6 +47,9 @@
 #include "bsrvcore/internal/http_server_connection.h"
 
 namespace bsrvcore {
+
+class HttpServer;
+
 namespace connection_internal {
 
 namespace helper {
@@ -211,7 +213,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
               if (ec) {
                 DoClose();
               } else {
-                MakeHttpServerTask();
+                DoForwardRequest();
               }
             }));
   }

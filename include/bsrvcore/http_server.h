@@ -27,8 +27,8 @@
 #include <functional>
 #include <future>
 #include <memory>
-#include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -529,7 +529,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::vector<std::thread> io_threads_;  ///< Threads to run I/O context
   std::vector<boost::asio::ip::tcp::acceptor>
       acceptors_;                     ///< Acceptors to accept sockets
-  std::mutex mtx_;                    ///< Mutex for thread synchronization
+  std::shared_mutex mtx_;             ///< Mutex for thread synchronization
   std::shared_ptr<Context> context_;  ///< Global server context
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
   std::unique_ptr<boost::asio::thread_pool>

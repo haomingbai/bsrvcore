@@ -24,7 +24,6 @@
 #include <memory>
 #include <string>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_request_aspect_handler.h"
@@ -129,83 +128,18 @@ void HttpServerConnection::DoRoute() {
   DoReadBody();
 }
 
-void HttpServerConnection::DoPreService(std::shared_ptr<HttpServerTask> task,
-                                        std::size_t curr_idx) {
-  if (task == nullptr) {
-    DoClose();
-    return;
-  }
-
+void HttpServerConnection::DoForwardRequest() {
   if (!IsServerRunning() || !IsStreamAvailable()) {
     DoClose();
     return;
   }
 
-  if (curr_idx > route_result_.aspects.size()) {
-    assert(false);
-    DoClose();
-    return;
-  }
-
-  if (curr_idx == route_result_.aspects.size()) {
-    srv_->Post(
-        [task, self = shared_from_this(), this] { DoForwardRequest(task); });
-  } else {
-    srv_->Post([task, self = shared_from_this(), this, curr_idx] {
-      route_result_.aspects[curr_idx]->PreService(task);
-      DoPreService(task, curr_idx + 1);
-    });
-  }
-}
-
-void HttpServerConnection::DoPostService(std::shared_ptr<HttpServerTask> task,
-                                         std::size_t curr_idx) {
-  if (task == nullptr) {
-    DoClose();
-    return;
-  }
-
-  if (!IsServerRunning() || !IsStreamAvailable()) {
-    DoClose();
-    return;
-  }
-
-  if (curr_idx >= route_result_.aspects.size()) {
-    assert(false);
-    DoClose();
-    return;
-  }
-
-  if (curr_idx == 0) {
-    srv_->Post([task, self = shared_from_this(), this, curr_idx] {
-      route_result_.aspects[curr_idx]->PostService(task);
-    });
-  } else {
-    srv_->Post([task, self = shared_from_this(), this, curr_idx] {
-      route_result_.aspects[curr_idx]->PostService(task);
-      DoPostService(task, curr_idx - 1);
-    });
-  }
-}
-
-void HttpServerConnection::DoForwardRequest(
-    std::shared_ptr<HttpServerTask> task) {
-  if (task == nullptr) {
-    DoClose();
-    return;
-  }
-
-  if (!IsServerRunning() || !IsStreamAvailable()) {
-    DoClose();
-    return;
-  }
-
-  srv_->Post([task, self = shared_from_this(), this] {
-    route_result_.handler->Service(task);
-    if (!route_result_.aspects.empty()) {
-      DoPostService(task, route_result_.aspects.size() - 1);
-    }
-  });
+  timer_.cancel();
+  std::shared_ptr<HttpServerTask> task = std::make_shared<HttpServerTask>(
+      parser_->release(),
+      std::make_unique<HttpRouteResult>(std::move(route_result_)),
+      shared_from_this());
+  task->Start();
 }
 
 void HttpServerConnection::DoCycle() {
@@ -243,14 +177,6 @@ HttpServerConnection::HttpServerConnection(
                   boost::beast::http::string_body>>()),
       header_read_expiry_(header_read_expiry),
       keep_alive_timeout_(keep_alive_timeout) {}
-
-void HttpServerConnection::MakeHttpServerTask() {
-  timer_.cancel();
-  std::shared_ptr<HttpServerTask> task = std::make_shared<HttpServerTask>(
-      parser_->release(), std::move(route_result_.parameters),
-      std::move(route_result_.current_location), shared_from_this());
-  DoPreService(task, 0);
-}
 
 bool HttpServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();

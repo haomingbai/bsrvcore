@@ -29,7 +29,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
-#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -72,6 +72,12 @@ HttpServer::HttpServer()
       is_running_(false) {}
 
 void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
+  std::shared_lock<std::shared_mutex> lock(mtx_);
+
+  if (!is_running_) {
+    return;
+  }
+
   auto timer =
       std::make_shared<boost::asio::steady_timer>(thread_pool_->get_executor());
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
@@ -83,13 +89,19 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
 }
 
 void HttpServer::Post(std::function<void()> fn) {
+  std::shared_lock<std::shared_mutex> lock(mtx_);
+
+  if (!is_running_) {
+    return;
+  }
+
   boost::asio::post(thread_pool_->get_executor(), fn);
 }
 
 HttpServer* HttpServer::AddRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -102,7 +114,7 @@ HttpServer* HttpServer::AddRouteEntry(
 HttpServer* HttpServer::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -115,7 +127,7 @@ HttpServer* HttpServer::AddExclusiveRouteEntry(
 HttpServer* HttpServer::AddAspect(
     HttpRequestMethod method, const std::string_view url,
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -128,7 +140,7 @@ HttpServer* HttpServer::AddAspect(
 HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method,
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -140,7 +152,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 
 HttpServer* HttpServer::AddGlobalAspect(
     std::unique_ptr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -151,7 +163,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 }
 
 HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -164,7 +176,7 @@ HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep) {
 HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
                                       std::string_view url,
                                       std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -175,7 +187,7 @@ HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
 }
 
 HttpServer* HttpServer::SetHeaderReadExpiry(std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -188,7 +200,7 @@ HttpServer* HttpServer::SetHeaderReadExpiry(std::size_t expiry) {
 HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
                                        std::string_view url,
                                        std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -200,7 +212,7 @@ HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
 
 HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
                                        std::string_view url, std::size_t size) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -211,7 +223,7 @@ HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
 }
 
 HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -222,7 +234,7 @@ HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -233,7 +245,7 @@ HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -244,7 +256,7 @@ HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
 }
 
 HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -256,7 +268,7 @@ HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
 
 HttpServer* HttpServer::SetDefaultHandler(
     std::unique_ptr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -267,7 +279,7 @@ HttpServer* HttpServer::SetDefaultHandler(
 }
 
 HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -278,7 +290,7 @@ HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
 }
 
 HttpServer* HttpServer::UnsetSslContext() {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -289,7 +301,7 @@ HttpServer* HttpServer::UnsetSslContext() {
 }
 
 HttpServer* HttpServer::SetLogger(std::shared_ptr<Logger> logger) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return this;
@@ -343,7 +355,7 @@ bool HttpServer::Start(std::size_t thread_cnt) {
     return false;
   }
 
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::unique_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
     return false;
@@ -368,7 +380,7 @@ void HttpServer::Stop() {
   std::vector<boost::asio::ip::tcp::endpoint> eps;
   eps.reserve(acceptors_.size());
 
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::unique_lock<std::shared_mutex> lock(mtx_);
 
   if (!is_running_) {
     return;

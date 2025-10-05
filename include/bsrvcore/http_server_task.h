@@ -44,6 +44,7 @@ namespace bsrvcore {
 class HttpServerConnection;
 class Context;
 class HttpServer;
+class HttpRouteResult;
 
 // Type aliases for Boost.Beast HTTP types
 using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
@@ -99,7 +100,8 @@ using HttpRequestHeader =
  * }
  * @endcode
  */
-class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
+class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
+                       public std::enable_shared_from_this<HttpServerTask> {
  public:
   /**
    * @brief Get the HTTP request object
@@ -322,8 +324,7 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
    * @param current_location The location of the current request.
    * @param conn The connection of this task.
    */
-  HttpServerTask(HttpRequest req, std::vector<std::string> params,
-                 std::string current_location,
+  HttpServerTask(HttpRequest req, std::unique_ptr<HttpRouteResult> route_result,
                  std::shared_ptr<HttpServerConnection> conn);
 
   /**
@@ -334,6 +335,11 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
   const std::string& GetSessionId();
 
   /**
+   * @brief Start the life cycle of the task.
+   */
+  void Start();
+
+  /**
    * @brief Destructor of the HttpServerTask
    */
   ~HttpServerTask();
@@ -341,16 +347,21 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask> {
  private:
   void GenerateCookiePairs();
 
+  void DoPreService(std::size_t curr_idx);
+
+  void DoService();
+
+  void DoPostService(std::size_t curr_idx);
+
   HttpRequest req_;    ///< HTTP request data
   HttpResponse resp_;  ///< HTTP response data
   std::unordered_map<std::string, std::string>
       cookies_;                               ///< Cookies of the request.
   std::optional<std::string> sessionid_;      ///< SessionId of the request.
   std::vector<ServerSetCookie> set_cookies_;  ///< Set-Cookie
-  std::vector<std::string> parameters_;       ///< Extracted route parameter
-  std::string current_location_;              ///< Matched route path
-  std::atomic<std::weak_ptr<HttpServerConnection>>
+  std::atomic<std::shared_ptr<HttpServerConnection>>
       conn_;  ///< Associated connection
+  std::unique_ptr<HttpRouteResult> route_result_;
   HttpServer* srv_;
   bool keep_alive_;  ///< Keep-alive flag
   bool

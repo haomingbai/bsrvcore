@@ -286,11 +286,6 @@ class HttpServerConnection
   GetParser() noexcept;
 
   /**
-   * @brief Create HTTP server task for current request
-   */
-  void MakeHttpServerTask();
-
-  /**
    * @brief Route the current request to appropriate handler
    */
   void DoRoute();
@@ -311,25 +306,9 @@ class HttpServerConnection
   virtual void ClearMessage() = 0;
 
   /**
-   * @brief Execute pre-service aspect handlers
-   * @param task HTTP server task
-   * @param curr_idx Current aspect index in the chain
-   */
-  void DoPreService(std::shared_ptr<HttpServerTask> task, std::size_t curr_idx);
-
-  /**
-   * @brief Execute post-service aspect handlers
-   * @param task HTTP server task
-   * @param curr_idx Current aspect index in the chain
-   */
-  void DoPostService(std::shared_ptr<HttpServerTask> task,
-                     std::size_t curr_idx);
-
-  /**
    * @brief Forward request to main handler and aspects for processing
-   * @param task HTTP server task
    */
-  void DoForwardRequest(std::shared_ptr<HttpServerTask> task);
+  void DoForwardRequest();
 
   /**
    * @brief Get the strand for this connection

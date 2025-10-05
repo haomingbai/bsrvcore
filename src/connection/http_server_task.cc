@@ -16,6 +16,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <cassert>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -119,15 +120,14 @@ HttpRequest &HttpServerTask::GetRequest() noexcept { return req_; }
 
 HttpResponse &HttpServerTask::GetResponse() noexcept { return resp_; }
 
-HttpServerTask::HttpServerTask(HttpRequest req, std::vector<std::string> params,
-                               std::string current_location,
+HttpServerTask::HttpServerTask(HttpRequest req,
+                               std::unique_ptr<HttpRouteResult> route_result,
                                std::shared_ptr<HttpServerConnection> conn)
     : req_(std::move(req)),
       resp_(),
-      parameters_(std::move(params)),
-      current_location_(std::move(current_location)),
       conn_(std::move(conn)),
-      srv_(conn_.load().lock()->GetServer()),
+      route_result_(std::move(route_result)),
+      srv_(conn_.load()->GetServer()),
       keep_alive_(true),
       manual_connection_management_(false),  // Initialize the new flag
       is_cookie_parsed_(false) {}
@@ -181,7 +181,7 @@ const std::string &HttpServerTask::GetSessionId() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return nullptr;
@@ -190,7 +190,7 @@ std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return nullptr;
@@ -200,7 +200,7 @@ std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
 }
 
 bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return false;
@@ -242,7 +242,7 @@ void HttpServerTask::Log(bsrvcore::LogLevel level, const std::string message) {
 }
 
 void HttpServerTask::WriteBody(std::string body) {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return;
@@ -251,7 +251,7 @@ void HttpServerTask::WriteBody(std::string body) {
 }
 
 void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return;
@@ -270,16 +270,16 @@ void HttpServerTask::SetTimer(std::size_t timeout, std::function<void()> fn) {
 }
 
 bool HttpServerTask::IsAvailable() noexcept {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
   return conn && srv_->IsRunning() && conn->IsStreamAvailable();
 }
 
 const std::string &HttpServerTask::GetCurrentLocation() {
-  return current_location_;
+  return route_result_->current_location;
 }
 
 const std::vector<std::string> &HttpServerTask::GetPathParameters() {
-  return parameters_;
+  return route_result_->parameters;
 }
 
 HttpServerTask::~HttpServerTask() {
@@ -289,7 +289,7 @@ HttpServerTask::~HttpServerTask() {
     return;
   }
 
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return;
@@ -313,7 +313,7 @@ bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
 }
 
 void HttpServerTask::DoClose() {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return;
@@ -324,7 +324,7 @@ void HttpServerTask::DoClose() {
 }
 
 void HttpServerTask::DoCycle() {
-  auto conn = conn_.load().lock();
+  auto conn = conn_.load();
 
   if (!conn) {
     return;
@@ -332,4 +332,49 @@ void HttpServerTask::DoCycle() {
 
   conn->DoCycle();
   conn_.load().reset();
+}
+
+void HttpServerTask::Start() {
+  Post([self = shared_from_this(), this] { DoPreService(0); });
+}
+
+void HttpServerTask::DoPreService(std::size_t curr_idx) {
+  if (curr_idx > route_result_->aspects.size()) {
+    assert(0);
+    return;
+  }
+
+  if (curr_idx == route_result_->aspects.size()) {
+    Post([self = shared_from_this(), this] { DoService(); });
+  } else {
+    route_result_->aspects[curr_idx]->PreService(shared_from_this());
+    Post([self = shared_from_this(), this, curr_idx] {
+      DoPreService(curr_idx + 1);
+    });
+  }
+}
+
+void HttpServerTask::DoService() {
+  route_result_->handler->Service(shared_from_this());
+
+  if (!route_result_->aspects.empty()) {
+    Post([self = shared_from_this(), this] {
+      DoPostService(route_result_->aspects.size() - 1);
+    });
+  }
+}
+
+void HttpServerTask::DoPostService(std::size_t curr_idx) {
+  if (curr_idx >= route_result_->aspects.size()) {
+    assert(0);
+    return;
+  }
+
+  route_result_->aspects[curr_idx]->PostService(shared_from_this());
+
+  if (curr_idx != 0) {
+    Post([self = shared_from_this(), this, curr_idx] {
+      DoPostService(curr_idx - 1);
+    });
+  }
 }
