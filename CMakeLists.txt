@@ -78,25 +78,59 @@ endif()
 # CPack support
 include(InstallRequiredSystemLibraries)
 
+# Basic package metadata
 set(CPACK_GENERATOR "DEB;RPM;TGZ")
 set(CPACK_PACKAGE_NAME    "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_CONTACT "email@example.com")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 
-# Let dpkg-shlibdeps compute runtime deps automatically (recommended)
+# Component behaviour: create one package per component (recommended)
+# ONE_PER_GROUP will create one package per component (no grouping).
+set(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
+
+# Enable component-aware packaging for DEB and RPM
+set(CPACK_DEB_COMPONENT_INSTALL ON)   # DEB: produce multiple .deb (e.g. package and package-dev)
+set(CPACK_RPM_COMPONENT_INSTALL ON)   # RPM: produce multiple .rpm (e.g. package and package-devel)
+
+# Which components we define (order is presentation order)
+# Note: install(... COMPONENT ...) should use these names ("runtime", "devel")
+set(CPACK_COMPONENTS_ALL runtime devel)
+
+# Human-friendly names & descriptions shown by some installers
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime libraries")
+set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Shared libraries required to run ${PROJECT_NAME}.")
+set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development files")
+set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers, CMake config and pkg-config files for developing against ${PROJECT_NAME}.")
+
+# Let dpkg-shlibdeps compute runtime deps automatically for DEB
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-# If you must add manual runtime deps, avoid "-dev" here:
-# set(CPACK_DEBIAN_PACKAGE_DEPENDS "libboost-system1.75.0") 
+# Bind shlibdeps specifically to the runtime component (so found deps go into the runtime package)
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
 
-# RPM: runtime requires (do not list -devel here)
-set(CPACK_RPM_PACKAGE_LICENSE "MIT")
-set(CPACK_RPM_PACKAGE_GROUP   "Development/Libraries")
-set(CPACK_RPM_PACKAGE_REQUIRES "boost")  # adjust per-distro if needed
+# Per-component package names (upper-case component id in variable name)
+# Debian naming: we want e.g. bsrvcore_<ver> and bsrvcore-dev_<ver>
+set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
+set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
 
+# RPM naming: typical rpm convention uses "-devel"
+set(CPACK_RPM_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
+set(CPACK_RPM_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
+
+# Optional: short summaries for each RPM package
+set(CPACK_RPM_RUNTIME_PACKAGE_SUMMARY "Runtime libraries for ${PROJECT_NAME}")
+set(CPACK_RPM_DEVEL_PACKAGE_SUMMARY "Development files (headers & cmake config) for ${PROJECT_NAME}")
+
+# If you need to set Debian package architecture explicitly:
+# set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+
+# Resource files
 if(EXISTS "${CMAKE_SOURCE_DIR}/LICENSE")
   set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 endif()
 
-include(CPack)
+# Useful: avoid packing -dev files into runtime by mistake:
+# make sure any install() that places headers / cmake config uses COMPONENT devel.
+# Conversely, install shared libraries/binaries with COMPONENT runtime.
 
+include(CPack)

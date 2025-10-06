@@ -1,4 +1,7 @@
-# Minimal src CMakeLists for bsrvcore
+# Minimal src CMakeLists for bsrvcore (component-aware installs)
+# - splits installed files into two CPack components: "runtime" and "devel"
+# - runtime: shared libraries, runtime executables
+# - devel: headers, static libs, CMake export/config files
 
 # Add the subdirectories in this project.
 add_subdirectory(route)
@@ -7,7 +10,6 @@ add_subdirectory(connection)
 add_subdirectory(core)
 
 # List source files explicitly for better incremental builds
-
 set(BSRVCORE_SOURCES
   ${ROUTE_SOURCES}
   ${SESSION_SOURCES}
@@ -46,18 +48,73 @@ if(NOT WIN32)
   set_target_properties(bsrvcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
-# Install the target and export CMake targets file
+# ------------------------------------------------------------------
+# Component-aware install rules
+# - "runtime" component: shared libraries and runtime executables
+# - "devel" component: headers, static libs (archive), CMake export file
+# NOTE: Top-level CMakeLists.txt should set INSTALL_CONFIGDIR (used below).
+# If not defined, provide a safe default.
+# ------------------------------------------------------------------
+if(NOT DEFINED INSTALL_CONFIGDIR)
+  set(INSTALL_CONFIGDIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+endif()
+
+# Install the target and mark files to components
 install(TARGETS bsrvcore
   EXPORT bsrvcoreTargets
-  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  # Shared libraries (.so) and platform runtime files go into runtime
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+  # Static archives (.a) and import libraries go to devel (developer package)
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT devel
+  # headers and INCLUDE location hint (the actual headers are installed below)
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT devel
 )
 
+# Install public headers into devel component
+# Use top-level source include directory so this works when invoked from top-level build
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT devel
+  FILES_MATCHING PATTERN "*.h*"
+)
+
+# ------------------------ pkg-config generation ------------------------
+# Generate a pkg-config file for bsrvcore and install it with the devel component.
+# We avoid requiring a source-level .pc.in by generating the template at configure time.
+if(NOT DEFINED PROJECT_DESCRIPTION)
+  set(PROJECT_DESCRIPTION "${PROJECT_NAME} library")
+endif()
+
+# Write a small .pc.in template into the build tree, then configure it.
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc.in "prefix=@CMAKE_INSTALL_PREFIX@\nexec_prefix=\\${prefix}\nlibdir=\\${exec_prefix}/@CMAKE_INSTALL_LIBDIR@\nincludedir=\\${prefix}/@CMAKE_INSTALL_INCLUDEDIR@\n\nName: ${PROJECT_NAME}\nDescription: ${PROJECT_DESCRIPTION}\nVersion: ${PROJECT_VERSION}\nLibs: -L\\${libdir} -l${PROJECT_NAME}\nCflags: -I\\${includedir}\n")
+
+configure_file(${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc.in
+               ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)
+
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc
+  DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig
+  COMPONENT devel
+)
+# ----------------------------------------------------------------------
+
+# Export installed CMake targets so other projects can find this package
 install(EXPORT bsrvcoreTargets
   FILE bsrvcoreTargets.cmake
   NAMESPACE bsrvcore::
-  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/bsrvcore
+  DESTINATION ${INSTALL_CONFIGDIR}
+  COMPONENT devel
 )
+
+# Note: the top-level project usually configures and installs
+# bsrvcoreConfig.cmake and bsrvcoreConfigVersion.cmake (configured files).
+# Make sure those top-level install(FILES ...) calls use COMPONENT devel
+# so the -dev/-devel package contains the CMake config files.
+
+# ------------------------------------------------------------------
+# Optional: generate a pkg-config file at install time (uncomment if needed)
+# configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pkgconfig/bsrvcore.pc.in
+#                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)
+# install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc
+#   DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig COMPONENT devel)
+# ------------------------------------------------------------------
 

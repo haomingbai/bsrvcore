@@ -9,17 +9,16 @@ jobs:
     name: Build, Package (DEB/RPM/TGZ)
     runs-on: ubuntu-latest
 
-    # --- FIX STARTS HERE ---
-    # Grant 'contents: write' permission to the GITHUB_TOKEN for this job.
-    # This is required by the action-gh-release step to create a release.
+    # Grant 'contents: write' permission to the GITHUB_TOKEN for this job (required to create release).
     permissions:
       contents: write
-    # --- FIX ENDS HERE ---
 
     steps:
-      # 1) Checkout source code
+      # 1) Checkout source code (fetch tags as well to ensure tag detection)
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # 2) Install a suitable version of CMake (your CMakeLists requires >= 3.25)
       - name: Install CMake >= 3.25
@@ -36,9 +35,10 @@ jobs:
             ninja-build         # Ninja generator (if you use -G Ninja later)
             pkg-config          # For pkg-config checks
             libboost-all-dev    # Boost (dev headers/libs)
-            dpkg-dev            # Needed for deb helper tools (dpkg-shlibdeps, etc.)
+            dpkg-dev            # dpkg helpers (dpkg-shlibdeps etc.)
             fakeroot            # For building .deb without real root
             rpm                 # For generating RPMs with CPack
+            ca-certificates     # network certs (safe)
           )
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
 
@@ -50,33 +50,39 @@ jobs:
       - name: Build
         run: cmake --build build --parallel
 
-      # 6) Package: Run CPack to generate DEB/RPM/TGZ
+      # 6) Package: Run CPack to generate DEB/RPM/TGZ (try multiple generators)
       - name: Package with CPack (DEB, RPM, TGZ)
         run: |
           cd build
-          cpack -G DEB || echo "DEB generation failed or skipped"
-          cpack -G RPM || echo "RPM generation failed or skipped"
-          cpack -G TGZ || echo "TGZ generation failed or skipped"
+          # try each generator; failures won't stop the job (they'll be echoed)
+          cpack -G DEB || echo "DEB generation failed or produced no packages"
+          cpack -G RPM || echo "RPM generation failed or produced no packages"
+          cpack -G TGZ || echo "TGZ generation failed or produced no packages"
 
-      # 7) Upload the built packages as workflow artifacts
+      # 6.1) Collect all produced packages into a single folder for upload
+      - name: Collect generated packages
+        run: |
+          mkdir -p packages
+          # recursively find typical package file extensions produced by CPack
+          find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.tgz" \) -print0 \
+            | xargs -0 -I{} bash -lc 'cp -v "{}" packages/ || true'
+          echo "Collected files:"
+          ls -lah packages || true
+
+      # 7) Upload the built packages as workflow artifacts (for debugging)
       - name: Upload packages as workflow artifact (for debugging)
         uses: actions/upload-artifact@v4
         with:
           name: packages
-          path: |
-            build/*.deb
-            build/*.rpm
-            build/*.tar.gz
+          path: packages/*
 
-      # 8) If this is a tag starting with 'v', create a GitHub Release
+      # 8) Create GitHub Release and upload packages if this is a tag starting with 'v'
       - name: Create GitHub Release and upload packages (tags like v1.2.3)
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2 # Suggest using a more recent version like v2
+        uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/*.deb
-            build/*.rpm
-            build/*.tar.gz
+            packages/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
