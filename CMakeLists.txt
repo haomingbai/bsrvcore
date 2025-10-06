@@ -14,6 +14,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Require Boost.Beast and Boost.Asio (header-only; Boost.System required, Boost.url required)
 find_package(Boost 1.75 COMPONENTS system url CONFIG REQUIRED)
 
+# Require OpenSSL for running.
+find_package(OpenSSL REQUIRED)
+
 # Standard install directories
 include(GNUInstallDirs)
 
@@ -134,3 +137,25 @@ endif()
 # Conversely, install shared libraries/binaries with COMPONENT runtime.
 
 include(CPack)
+
+# --------------------------------------------------------
+# CTest / GoogleTest (minimal)
+# --------------------------------------------------------
+option(BSRVCORE_BUILD_TESTS "Build bsrvcore tests (requires GoogleTest). Default: OFF" OFF)
+
+if(BSRVCORE_BUILD_TESTS)
+  enable_testing()
+  include(FetchContent)
+
+  # Fetch GoogleTest only when tests are enabled
+  FetchContent_Declare(
+    googletest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+  )
+  # Make available adds targets GTest::gtest and GTest::gtest_main
+  FetchContent_MakeAvailable(googletest)
+
+  # add tests subdir (create tests/CMakeLists.txt below)
+  add_subdirectory(tests)
+endif()
+

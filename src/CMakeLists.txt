@@ -25,6 +25,9 @@ target_link_libraries(bsrvcore
     PRIVATE 
         Boost::system
         Boost::url
+    PUBLIC
+        OpenSSL::SSL
+        OpenSSL::Crypto
 )
 
 # Public include directories for build and install

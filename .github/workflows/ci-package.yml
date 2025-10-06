@@ -6,7 +6,7 @@ on:
 
 jobs:
   build-and-package:
-    name: Build, Package (DEB/RPM/TGZ)
+    name: Build, Test, Package (DEB/RPM/TGZ)
     runs-on: ubuntu-latest
 
     # Grant 'contents: write' permission to the GITHUB_TOKEN for this job (required to create release).
@@ -26,31 +26,75 @@ jobs:
         with:
           cmake-version: '3.25.0'
 
-      # 3) Install system dependencies
-      - name: Install apt packages (build + packagers)
+      # 3) Install system dependencies (build + packagers + libssl + crypto++ + gtest sources)
+      - name: Install apt packages (build + packagers + libs)
         run: |
           sudo apt-get update
           packages=(
             build-essential     # Core toolchain
-            ninja-build         # Ninja generator (if you use -G Ninja later)
+            ninja-build         # Ninja generator (optional)
             pkg-config          # For pkg-config checks
             libboost-all-dev    # Boost (dev headers/libs)
             dpkg-dev            # dpkg helpers (dpkg-shlibdeps etc.)
             fakeroot            # For building .deb without real root
             rpm                 # For generating RPMs with CPack
             ca-certificates     # network certs (safe)
+            libssl-dev          # OpenSSL (provides libssl & libcrypto)
+            libcrypto++-dev     # Crypto++ (if you meant Crypto++ library)
+            libgtest-dev        # GoogleTest sources (we will build it)
           )
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
 
-      # 4) Configure (out-of-source build)
-      - name: Configure with CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+      # 3.1) Build and install GoogleTest (some distros ship only source in libgtest-dev)
+      - name: Build & install GoogleTest from system sources
+        run: |
+          set -e
+          # try common locations for gtest sources
+          if [ -d /usr/src/googletest ]; then
+            SRC_DIR=/usr/src/googletest
+          elif [ -d /usr/src/gtest ]; then
+            SRC_DIR=/usr/src/gtest
+          else
+            echo "gtest source not found in expected locations; skipping build"
+            exit 0
+          fi
+          echo "Building gtest from ${SRC_DIR}"
+          cmake -S "${SRC_DIR}" -B "${SRC_DIR}/build"
+          cmake --build "${SRC_DIR}/build" -- -j$(nproc)
+          # copy libraries to a system lib dir so the linker can find them
+          sudo mkdir -p /usr/lib
+          # copy any static libs produced
+          find "${SRC_DIR}/build" -name "libgtest*.a" -exec sudo cp -v '{}' /usr/lib/ \; || true
+          find "${SRC_DIR}/build" -name "libgmock*.a" -exec sudo cp -v '{}' /usr/lib/ \; || true
+
+      # 4) Configure (out-of-source build) — enable tests and hint OpenSSL location
+      - name: Configure with CMake (enable tests)
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=ON \
+            -DOPENSSL_ROOT_DIR=/usr
 
       # 5) Build
       - name: Build
         run: cmake --build build --parallel
 
-      # 6) Package: Run CPack to generate DEB/RPM/TGZ (try multiple generators)
+      # 6) Run tests with CTest (fail the job if tests fail) and save log
+      - name: Run ctest
+        run: |
+          set -o pipefail
+          # run tests with output on failure and parallel where possible
+          ctest --test-dir build --output-on-failure -j$(nproc) | tee ctest.log
+
+      # 6.1) Upload ctest log as artifact for debugging
+      - name: Upload ctest log
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-log
+          path: ctest.log
+
+      # 7) Package: Run CPack to generate DEB/RPM/TGZ (try multiple generators)
       - name: Package with CPack (DEB, RPM, TGZ)
         run: |
           cd build
@@ -59,7 +103,7 @@ jobs:
           cpack -G RPM || echo "RPM generation failed or produced no packages"
           cpack -G TGZ || echo "TGZ generation failed or produced no packages"
 
-      # 6.1) Collect all produced packages into a single folder for upload
+      # 7.1) Collect all produced packages into a single folder for upload
       - name: Collect generated packages
         run: |
           mkdir -p packages
@@ -69,14 +113,14 @@ jobs:
           echo "Collected files:"
           ls -lah packages || true
 
-      # 7) Upload the built packages as workflow artifacts (for debugging)
+      # 8) Upload the built packages as workflow artifacts (for debugging)
       - name: Upload packages as workflow artifact (for debugging)
         uses: actions/upload-artifact@v4
         with:
           name: packages
           path: packages/*
 
-      # 8) Create GitHub Release and upload packages if this is a tag starting with 'v'
+      # 9) Create GitHub Release and upload packages if this is a tag starting with 'v'
       - name: Create GitHub Release and upload packages (tags like v1.2.3)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
