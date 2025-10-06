@@ -47,7 +47,7 @@ jobs:
       - name: Configure with CMake
         run: |
           # Enable testing so CTest can discover tests (requires your CMakeLists to call enable_testing/add_test)
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=ON
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTING=ON
 
       # 5) Build
       - name: Build
