@@ -82,7 +82,7 @@ include(InstallRequiredSystemLibraries)
 set(CPACK_GENERATOR "DEB;RPM;TGZ")
 set(CPACK_PACKAGE_NAME    "${PROJECT_NAME}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_CONTACT "email@example.com")
+set(CPACK_PACKAGE_CONTACT "haomingbai@hotmail.com")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")
 
 # Component behaviour: create one package per component (recommended)
