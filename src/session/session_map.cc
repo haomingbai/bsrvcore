@@ -31,7 +31,7 @@ constexpr size_t kMinSessionTimeout = 1000;
 constexpr size_t kMinShrinkSize = 256;
 
 std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
-    const std::string &sessionid) {
+    const std::string& sessionid) {
   using bsrvcore::session_internal::SessionContextEntry;
 
   std::lock_guard<std::mutex> lock(this->mtx_);
@@ -40,7 +40,7 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
   auto now = std::chrono::steady_clock::now();
 
   if (map_.count(sessionid) && map_.at(sessionid).GetExpiry() > now) {
-    auto &map_entry = map_.at(sessionid);
+    auto& map_entry = map_.at(sessionid);
     result = map_entry.GetContext();
     auto new_expiry =
         std::max(now + std::chrono::milliseconds(default_timeout_),
@@ -67,18 +67,42 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
 }
 
 std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
-    std::string &&sessionid) {
+    std::string&& sessionid) {
   using bsrvcore::session_internal::SessionContextEntry;
 
   std::lock_guard<std::mutex> lock(this->mtx_);
   std::shared_ptr<Context> result;
+
+  auto now = std::chrono::steady_clock::now();
+
+  if (map_.count(sessionid) && map_.at(sessionid).GetExpiry() > now) {
+    auto& map_entry = map_.at(sessionid);
+    result = map_entry.GetContext();
+    auto new_expiry =
+        std::max(now + std::chrono::milliseconds(default_timeout_),
+                 map_entry.GetExpiry());
+
+    if (new_expiry != map_entry.GetExpiry()) {
+      pqueue_.Push(sessionid, new_expiry);
+    }
+
+    map_entry.SetExpiry(new_expiry);
+  } else {
+    result = std::make_shared<Context>();
+    auto new_expiry = now + std::chrono::milliseconds(std::max<size_t>(
+                                kMinSessionTimeout, default_timeout_));
+
+    map_.emplace(sessionid, SessionContextEntry(result, new_expiry));
+
+    pqueue_.Push(sessionid, new_expiry);
+  }
 
   ShortClean();
 
   return result;
 }
 
-bool SessionMap::RemoveSession(const std::string &sessionid) {
+bool SessionMap::RemoveSession(const std::string& sessionid) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   bool success;
@@ -99,7 +123,7 @@ bool SessionMap::RemoveSession(const std::string &sessionid) {
   return success;
 }
 
-bool SessionMap::RemoveSession(std::string &&sessionid) {
+bool SessionMap::RemoveSession(std::string&& sessionid) {
   std::lock_guard<std::mutex> lock(mtx_);
 
   bool success;
@@ -149,7 +173,7 @@ void SessionMap::SetCleaner() {
       return;
     }
 
-    HttpServer *server_ptr = server_;
+    HttpServer* server_ptr = server_;
     if (server_ptr != nullptr && server_ptr->IsRunning()) {
       server_ptr->Post([this] {
         std::lock_guard<std::mutex> lock(mtx_);
@@ -179,7 +203,7 @@ void SessionMap::SetDefaultSessionTimeout(std::size_t timeout) noexcept {
   default_timeout_ = timeout;
 }
 
-void SessionMap::SetSessionTimeout(const std::string &sessionid,
+void SessionMap::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {
   std::lock_guard<std::mutex> lock(mtx_);
   auto now = std::chrono::steady_clock::now();
@@ -208,7 +232,7 @@ void SessionMap::SetSessionTimeout(const std::string &sessionid,
   ShortClean();
 }
 
-void SessionMap::SetSessionTimeout(std::string &&sessionid,
+void SessionMap::SetSessionTimeout(std::string&& sessionid,
                                    std::size_t timeout) {
   std::lock_guard<std::mutex> lock(mtx_);
   auto now = std::chrono::steady_clock::now();

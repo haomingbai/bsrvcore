@@ -101,7 +101,7 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   using boost::urls::url_view;
 
   // Initial layer.
-  HttpRouteTableLayer *route_layer =
+  HttpRouteTableLayer* route_layer =
       entrance_[static_cast<size_t>(method)].get();
 
   // No route, return directly.
@@ -127,7 +127,7 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   auto aspects = CollectAspects(route_layer, method);
 
   // Get the required handler
-  HttpRequestHandler *handler = route_layer->GetHandler();
+  HttpRequestHandler* handler = route_layer->GetHandler();
 
   if (!handler) {
     return BuildDefaultRouteResult(method);
@@ -214,13 +214,13 @@ bool HttpRouteTable::AddExclusiveRouteEntry(
   return true;
 }
 
-HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
+HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
     HttpRequestMethod method, const std::string_view target) {
   auto route_layer = entrance_[static_cast<size_t>(method)].get();
 
   std::string_view url = target.substr(0, target.find('?'));
   auto url_segments = url | std::views::split('/') |
-                      std::ranges::views::transform([](auto &&word) {
+                      std::ranges::views::transform([](auto&& word) {
                         return std::string_view(word.begin(), word.end());
                       });
 
@@ -229,7 +229,7 @@ HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
       continue;
     } else if (word.front() == '{') {
       // Route with parametre.
-      if (HttpRouteTableLayer *current_layer = route_layer->GetDefaultRoute()) {
+      if (HttpRouteTableLayer* current_layer = route_layer->GetDefaultRoute()) {
         // Layer exists.
         route_layer = current_layer;
       } else {
@@ -258,10 +258,10 @@ HttpRouteTableLayer *HttpRouteTable::GetOrCreateRouteTableLayer(
 }
 
 HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
-    HttpRequestMethod method) const noexcept {
-  std::vector<HttpRequestAspectHandler *> aspects;
+    [[maybe_unused]] HttpRequestMethod method) const noexcept {
+  std::vector<HttpRequestAspectHandler*> aspects;
   aspects.reserve(global_aspects_.size());
-  for (auto const &a : global_aspects_) {
+  for (auto const& a : global_aspects_) {
     aspects.emplace_back(a.get());
   }
 
@@ -279,13 +279,13 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 }
 
 bool HttpRouteTable::MatchSegments(
-    const boost::urls::url_view &url, HttpRouteTableLayer *&route_layer,
-    std::string &out_location,
-    std::vector<std::string> &out_parameters) const noexcept {
+    const boost::urls::url_view& url, HttpRouteTableLayer*& route_layer,
+    std::string& out_location,
+    std::vector<std::string>& out_parameters) const noexcept {
   out_location.clear();
   out_parameters.clear();
 
-  for (auto const &seg : url.segments()) {
+  for (auto const& seg : url.segments()) {
     // Every non-empty segs should add a '/' before.
     out_location.push_back('/');
 
@@ -294,7 +294,7 @@ bool HttpRouteTable::MatchSegments(
     }
 
     // First try route with map.
-    if (HttpRouteTableLayer *next = route_layer->GetRoute(std::string(seg))) {
+    if (HttpRouteTableLayer* next = route_layer->GetRoute(std::string(seg))) {
       route_layer = next;
       out_location.append(seg);
     } else {
@@ -304,7 +304,7 @@ bool HttpRouteTable::MatchSegments(
       }
 
       // Use parametric route.
-      HttpRouteTableLayer *default_layer = route_layer->GetDefaultRoute();
+      HttpRouteTableLayer* default_layer = route_layer->GetDefaultRoute();
       // If current parametre is not available.
       if (!default_layer) {
         return false;
@@ -319,9 +319,9 @@ bool HttpRouteTable::MatchSegments(
   return true;
 }
 
-std::vector<HttpRequestAspectHandler *> HttpRouteTable::CollectAspects(
-    HttpRouteTableLayer *route_layer, HttpRequestMethod method) const noexcept {
-  std::vector<HttpRequestAspectHandler *> aspects;
+std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
+    HttpRouteTableLayer* route_layer, HttpRequestMethod method) const noexcept {
+  std::vector<HttpRequestAspectHandler*> aspects;
   auto method_idx = static_cast<size_t>(method);
 
   size_t reserve_size = global_aspects_.size();
@@ -331,12 +331,12 @@ std::vector<HttpRequestAspectHandler *> HttpRouteTable::CollectAspects(
   reserve_size += route_layer->GetAspectNum();
   aspects.reserve(reserve_size);
 
-  for (auto const &a : global_aspects_) {
+  for (auto const& a : global_aspects_) {
     aspects.emplace_back(a.get());
   }
 
   if (method_idx < global_specific_aspects_.size()) {
-    for (auto const &a : global_specific_aspects_[method_idx]) {
+    for (auto const& a : global_specific_aspects_[method_idx]) {
       aspects.emplace_back(a.get());
     }
   }
@@ -476,7 +476,7 @@ HttpRouteTable::HttpRouteTable() noexcept
       default_max_body_size_(16384),
       default_read_expiry_(4000),
       default_write_expiry_(4000) {
-  for (auto &it : entrance_) {
+  for (auto& it : entrance_) {
     it = std::make_unique<HttpRouteTableLayer>();
   }
 }

@@ -119,7 +119,8 @@ class HttpServerConnectionImpl : public HttpServerConnection {
 
     if constexpr (helper::IsBeastSslStream<S>::value) {
       stream_.async_shutdown(boost::asio::bind_executor(
-          GetExecutor(), [self = this->shared_from_this(), this](auto ec) {
+          GetExecutor(),
+          [self = this->shared_from_this(), this]([[maybe_unused]] auto ec) {
             boost::system::error_code socket_ec;
             helper::GetLowestSocket(stream_).close(socket_ec);
           }));

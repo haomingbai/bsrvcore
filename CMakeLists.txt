@@ -8,6 +8,11 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
+# Add Wall flag.
+if(NOT MSVC)
+  add_compile_options(-Wall)
+endif()
+
 # Generate compile_commands.json to help LSP server
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
