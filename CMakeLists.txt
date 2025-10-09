@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 0.1.0 LANGUAGES CXX)
+project(bsrvcore VERSION 0.1.1 LANGUAGES CXX)
 
 # Use C++20
 if(NOT DEFINED CMAKE_CXX_STANDARD)
