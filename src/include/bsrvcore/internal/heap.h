@@ -29,7 +29,7 @@ template <typename T, typename C = std::less<T>>
 class Heap : CopyableMovable<Heap<T>> {
  public:
   template <typename... Args>
-  bool Push(Args &&...val) {
+  bool Push(Args&&... val) {
     auto curr_idx = container_.size();
     container_.emplace_back(std::forward<Args>(val)...);
     T tmp = std::move(container_.back());
@@ -102,7 +102,7 @@ class Heap : CopyableMovable<Heap<T>> {
     return result;
   }
 
-  const T &Top() const noexcept {
+  const T& Top() const noexcept {
     assert(!IsEmpty());
     return container_[1];
   }
@@ -132,10 +132,10 @@ class Heap : CopyableMovable<Heap<T>> {
     return true;
   }
 
-  Heap() : container_(1), comp_(C()) {}
+  Heap() : container_(1) {}
 
   template <typename... Comp>
-  Heap(Comp &&...c) : container_(1), comp_(std::forward<Comp>(c)...) {}
+  Heap() : container_(1) {}
 
  private:
   std::vector<T> container_;

@@ -274,9 +274,10 @@ If you are going to process with RESTful API, it is also recommended to install 
 ## TODO
 
 - [ ] Add examples.
-- [ ] Enable CTest for unit tests.
+- [x] Enable CTest for unit tests.
 - [x] Repair the conflicts between `HttpServer::AddGlobalAspect` and `HttpServerTask::DoCycle`.
 - [ ] Improve the documentations with more details and examples.
 - [x] Add CPake support to make a release.
 - [x] Add CI/CD support.
-- [ ] Release the 0.1.0 version.
+- [x] Release the 0.1.0 version.
+- [ ] Fix the inconsistent behaviors between the two versions of `Post`
