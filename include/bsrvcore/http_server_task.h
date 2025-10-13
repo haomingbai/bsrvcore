@@ -214,17 +214,9 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
    * @param fn Function to execute
    * @param args Arguments to forward to function
    * @return Future containing function result
-   *
-   * @code
-   * // Example: Post async database query
-   * auto future = task->Post(&Database::Query, db, "SELECT * FROM users");
-   * future.then([](auto result) {
-   * // Process query result
-   * });
-   * @endcode
    */
   template <typename Fn, typename... Args>
-  auto Post(Fn fn, Args&&... args)
+  auto FuturedPost(Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
@@ -236,6 +228,23 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
     Post(to_post);
 
     return future;
+  }
+
+  /**
+   * @brief Post a function with arguments and return a future for the result
+   * @tparam Fn Function type
+   * @tparam Args Argument types
+   * @param fn Function to execute
+   * @param args Arguments to forward to function
+   */
+  template <typename Fn, typename... Args>
+  void Post(Fn fn, Args&&... args) {
+    auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
+    std::function<void()> to_post = [binded_fn]() { binded_fn(); };
+
+    Post(to_post);
+
+    return;
   }
 
   /**
