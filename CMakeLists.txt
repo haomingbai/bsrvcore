@@ -31,6 +31,17 @@ include(CMakePackageConfigHelpers)
 # Build library from src
 add_subdirectory(src)
 
+# Optional: Build examples
+option(BSRVCORE_BUILD_EXAMPLES "Build bsrvcore examples. Default: ON" ON)
+
+if(BSRVCORE_BUILD_EXAMPLES)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples")
+    add_subdirectory(examples)
+  else()
+    message(STATUS "BSRVCORE_BUILD_EXAMPLES is ON but the 'examples' directory does not exist.")
+  endif()
+endif()
+
 # Install public headers
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 

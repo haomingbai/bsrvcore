@@ -2,7 +2,7 @@
 # Expect bsrvcore target to exist (we build tests after add_subdirectory(src))
 
 add_executable(server_configuration_test
-  server_configuration_test.cpp
+  server_configuration_test.cc
 )
 
 target_link_libraries(server_configuration_test
