@@ -457,7 +457,14 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @brief Set default session timeout
    * @param timeout Session timeout in milliseconds
    */
-  void SetDefaultSessionTimeout(std::size_t timeout);
+  HttpServer* SetDefaultSessionTimeout(std::size_t timeout);
+
+  /**
+   * @brief Set the background cleaner of the session map.
+   * @param Whether the sessionmap need a background cleaner.
+   * @return The pointer of the server.
+   */
+  HttpServer* SetSessionCleaner(bool use_cleaner);
 
   /**
    * @brief Set custom timeout for a session (copy version)
