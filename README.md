@@ -273,7 +273,7 @@ If you are going to process with RESTful API, it is also recommended to install 
 
 ## TODO
 
-- [ ] Add examples.
+- [x] Add examples.
 - [x] Enable CTest for unit tests.
 - [x] Repair the conflicts between `HttpServer::AddGlobalAspect` and `HttpServerTask::DoCycle`.
 - [ ] Improve the documentations with more details and examples.
@@ -281,3 +281,5 @@ If you are going to process with RESTful API, it is also recommended to install 
 - [x] Add CI/CD support.
 - [x] Release the 0.1.0 version.
 - [x] Fix the inconsistent behaviors between the two versions of `Post`
+- [ ] Add a quick app to build a server with pre-compiled executables.
+- [ ] Write a tool to quickly generate bsrvcore projects.
