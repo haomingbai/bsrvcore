@@ -89,10 +89,6 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
   return sessions_->GetSession(std::move(sessionid));
 }
 
-void HttpServer::SetDefaultSessionTimeout(std::size_t timeout) {
-  sessions_->SetDefaultSessionTimeout(timeout);
-}
-
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {
   sessions_->SetSessionTimeout(sessionid, timeout);

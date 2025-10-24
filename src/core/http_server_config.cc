@@ -10,8 +10,6 @@
  * @details
  */
 
-#include "bsrvcore/http_server.h"
-
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
@@ -36,6 +34,7 @@
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
+#include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
 #include "bsrvcore/internal/http_route_table.h"
 #include "bsrvcore/internal/http_server_connection_impl.h"
@@ -254,5 +253,15 @@ HttpServer* HttpServer::SetLogger(std::shared_ptr<Logger> logger) {
   }
 
   logger_ = logger;
+  return this;
+}
+
+HttpServer* HttpServer::SetDefaultSessionTimeout(std::size_t timeout) {
+  sessions_->SetDefaultSessionTimeout(timeout);
+  return this;
+}
+
+HttpServer* HttpServer::SetSessionCleaner(bool use_cleaner) {
+  sessions_->SetBackgroundCleaner(use_cleaner);
   return this;
 }
