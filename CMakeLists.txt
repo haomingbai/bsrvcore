@@ -40,7 +40,6 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  # Use upstream commit that relies on C++23 (std::move_only_function)
   GIT_TAG 20284a3
 )
 
