@@ -23,6 +23,7 @@
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
+#include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -40,6 +41,14 @@ HttpServer::HttpServer(std::size_t thread_num)
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
       thread_pool_(std::make_unique<boost::asio::thread_pool>(thread_num)),
+      bth_pool_([thread_num] {
+        bthpool::detail::BThreadPoolParam param;
+        if (thread_num != 0) {
+          param.core_thread_num = thread_num;
+          param.max_thread_num = thread_num;
+        }
+        return std::make_unique<bthpool::detail::BThreadPool>(param);
+      }()),
       route_table_(std::make_unique<HttpRouteTable>()),
       sessions_(
           std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),
@@ -52,6 +61,7 @@ HttpServer::HttpServer()
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
       thread_pool_(std::make_unique<boost::asio::thread_pool>()),
+      bth_pool_(std::make_unique<bthpool::detail::BThreadPool>()),
       route_table_(std::make_unique<HttpRouteTable>()),
       sessions_(
           std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),

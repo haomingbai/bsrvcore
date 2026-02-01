@@ -29,6 +29,8 @@
 #include <shared_mutex>
 #include <utility>
 
+#include <bthpool/bthpool.hpp>
+
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
 #include "bsrvcore/internal/http_server_connection_impl.h"
@@ -80,6 +82,9 @@ void HttpServer::Stop() {
     ec2 = acc.close(ec1);
   }
 
+  if (bth_pool_) {
+    bth_pool_->join();
+  }
   thread_pool_->join();
   for (auto& it : io_threads_) {
     it.join();
@@ -87,8 +92,13 @@ void HttpServer::Stop() {
 
   if (thread_cnt_) {
     thread_pool_ = std::make_unique<boost::asio::thread_pool>(thread_cnt_);
+    bthpool::detail::BThreadPoolParam param;
+    param.core_thread_num = thread_cnt_;
+    param.max_thread_num = thread_cnt_;
+    bth_pool_ = std::make_unique<bthpool::detail::BThreadPool>(param);
   } else {
     thread_pool_ = std::make_unique<boost::asio::thread_pool>();
+    bth_pool_ = std::make_unique<bthpool::detail::BThreadPool>();
   }
   io_threads_.clear();
   acceptors_.clear();

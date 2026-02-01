@@ -43,6 +43,10 @@
 #include "bsrvcore/logger.h"
 #include "bsrvcore/trait.h"
 
+namespace bthpool::detail {
+class BThreadPool;
+}  // namespace bthpool::detail
+
 namespace bsrvcore {
 
 class HttpRouteTable;
@@ -558,6 +562,8 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
   std::unique_ptr<boost::asio::thread_pool>
       thread_pool_;  ///< Thread pool executor
+  std::unique_ptr<bthpool::detail::BThreadPool>
+      bth_pool_;  ///< Internal background pool (build-time only dependency)
   std::unique_ptr<HttpRouteTable>
       route_table_;                       ///< Route table for request routing
   std::unique_ptr<SessionMap> sessions_;  ///< Session manager

@@ -41,11 +41,15 @@ set(BSRVCORE_SOURCES
 # Create library (static or shared follows BUILD_SHARED_LIBS)
 add_library(bsrvcore SHARED ${BSRVCORE_SOURCES})
 
+# Ensure the library is built with C++23 (required by our internal bthpool usage).
+target_compile_features(bsrvcore PUBLIC cxx_std_23)
+
 # Link libraries
 target_link_libraries(bsrvcore
     PRIVATE 
         Boost::system
         Boost::url
+    bthpool_headers
     PUBLIC
         OpenSSL::SSL
         OpenSSL::Crypto

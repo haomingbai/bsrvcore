@@ -10,8 +10,6 @@
  * @details
  */
 
-#include "bsrvcore/http_server.h"
-
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
@@ -25,6 +23,7 @@
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
+#include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -37,6 +36,7 @@
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
+#include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
 #include "bsrvcore/internal/http_route_table.h"
 #include "bsrvcore/internal/http_server_connection_impl.h"
@@ -69,7 +69,11 @@ void HttpServer::Post(std::function<void()> fn) {
     return;
   }
 
-  boost::asio::post(thread_pool_->get_executor(), fn);
+  if (bth_pool_) {
+    bth_pool_->post(std::move(fn));
+  } else {
+    boost::asio::post(thread_pool_->get_executor(), std::move(fn));
+  }
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {
@@ -106,4 +110,3 @@ std::shared_ptr<Context> HttpServer::GetContext() { return context_; }
 std::size_t HttpServer::GetKeepAliveTimeout() { return keep_alive_timeout_; }
 
 bool HttpServer::IsRunning() { return is_running_; }
-

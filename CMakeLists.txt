@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.25)
 project(bsrvcore VERSION 0.1.1 LANGUAGES CXX)
 
-# Use C++20
+# Use C++23
 if(NOT DEFINED CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 20)
+  set(CMAKE_CXX_STANDARD 23)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
@@ -21,6 +21,37 @@ find_package(Boost 1.75 COMPONENTS system url CONFIG REQUIRED)
 
 # Require OpenSSL for running.
 find_package(OpenSSL REQUIRED)
+
+# --------------------------------------------------------
+# bthpool (header-only, build-time only)
+#
+# We use bthpool internally in .cc files, but public headers only forward
+# declare the type and store it behind a std::unique_ptr. To keep distribution
+# clean, we DO NOT add bthpool as a subdirectory (which would register install
+# rules). Instead we just fetch/populate headers and create an INTERFACE target
+# that is linked PRIVATE.
+# --------------------------------------------------------
+include(FetchContent)
+
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
+
+FetchContent_Declare(
+  bthpool
+  GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
+  # Use upstream commit that relies on C++23 (std::move_only_function)
+  GIT_TAG 20284a3
+)
+
+FetchContent_GetProperties(bthpool)
+if(NOT bthpool_POPULATED)
+  FetchContent_Populate(bthpool)
+endif()
+
+add_library(bthpool_headers INTERFACE)
+add_library(bthpool::headers ALIAS bthpool_headers)
+target_include_directories(bthpool_headers SYSTEM INTERFACE ${bthpool_SOURCE_DIR}/include)
 
 # Standard install directories
 include(GNUInstallDirs)
