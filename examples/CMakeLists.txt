@@ -19,17 +19,28 @@ else()
   add_link_options("$<$<CONFIG:Debug>:-fsanitize=address>")
 endif()
 
-# quick_start
-add_executable(quick_start quick_start.cc)
-target_link_libraries(quick_start PRIVATE bsrvcore)
+# example_quick_start
+add_executable(example_quick_start example_quick_start.cc)
+target_link_libraries(example_quick_start PRIVATE bsrvcore)
 
-# use_logger
-add_executable(use_logger use_logger.cc)
-target_link_libraries(use_logger PRIVATE bsrvcore)
+# example_configuration
+add_executable(example_configuration example_configuration.cc)
+target_link_libraries(example_configuration PRIVATE bsrvcore)
 
-# oop_developing
-add_executable(oop_developing oop_developing.cc)
-target_link_libraries(oop_developing PRIVATE bsrvcore)
+# example_oop_handler
+add_executable(example_oop_handler example_oop_handler.cc)
+target_link_libraries(example_oop_handler PRIVATE bsrvcore)
 
-# Optional: Improve user experience by printing a message
-message(STATUS "Added example: simple_example")
+# example_aspect_basic
+add_executable(example_aspect_basic example_aspect_basic.cc)
+target_link_libraries(example_aspect_basic PRIVATE bsrvcore)
+
+# example_logger_custom
+add_executable(example_logger_custom example_logger_custom.cc)
+target_link_libraries(example_logger_custom PRIVATE bsrvcore)
+
+# example_session_context
+add_executable(example_session_context example_session_context.cc)
+target_link_libraries(example_session_context PRIVATE bsrvcore)
+
+message(STATUS "Added bsrvcore examples")
