@@ -24,10 +24,10 @@
 TEST(Server, DisableConfigurationWhenRunning) {
   using namespace bsrvcore;
 
-  auto server = new HttpServer();
+  auto server = std::make_unique<HttpServer>();
 
   auto start_res = server->Start(1);
-  ASSERT_EQ(start_res, 1);
+  ASSERT_TRUE(start_res);
 
   class MyRouteHandler : public HttpRequestHandler {
    public:
@@ -35,9 +35,9 @@ TEST(Server, DisableConfigurationWhenRunning) {
     void Service(std::shared_ptr<HttpServerTask> task) override { return; }
   };
 
-  HttpRequestHandler* handler_raw;
+  HttpRequestHandler* handler_raw = nullptr;
 
-  auto th = std::thread([server, &handler_raw] {
+  auto th = std::thread([&server, &handler_raw] {
     auto handler = std::make_unique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
@@ -53,7 +53,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   // --- Test when the server stop.
   server->Stop();
 
-  th = std::thread([server, &handler_raw] {
+  th = std::thread([&server, &handler_raw] {
     auto handler = std::make_unique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
@@ -65,9 +65,4 @@ TEST(Server, DisableConfigurationWhenRunning) {
       server->Route(bsrvcore::HttpRequestMethod::kGet, "/");
 
   ASSERT_EQ(route_result_after.handler, handler_raw);
-}
-
-int main(int argc, char** argv) {
-  ::testing::InitGoogleTest(&argc, argv);
-  return RUN_ALL_TESTS();
 }

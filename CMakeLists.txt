@@ -40,7 +40,7 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG 20284a3
+  GIT_TAG 5f1ae05
 )
 
 FetchContent_GetProperties(bthpool)
@@ -188,6 +188,7 @@ include(CPack)
 # CTest / GoogleTest (minimal)
 # --------------------------------------------------------
 option(BSRVCORE_BUILD_TESTS "Build bsrvcore tests (requires GoogleTest). Default: OFF" OFF)
+option(BSRVCORE_ENABLE_STRESS_TESTS "Enable bsrvcore stress tests. Default: OFF" OFF)
 
 if(BSRVCORE_BUILD_TESTS)
   enable_testing()

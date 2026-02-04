@@ -256,6 +256,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
+    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
+      { fn1(task) };
+      { fn2(task) };
+    }
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
                         F1 f1, F2 f2) {
     auto aspect =
@@ -290,6 +294,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
+    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
+      { fn1(task) };
+      { fn2(task) };
+    }
   HttpServer* AddGlobalAspect(HttpRequestMethod method, F1 f1, F2 f2) {
     auto aspect =
         std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
@@ -306,6 +314,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
+    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
+      { fn1(task) };
+      { fn2(task) };
+    }
   HttpServer* AddGlobalAspect(F1 f1, F2 f2) {
     auto aspect =
         std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
