@@ -188,7 +188,7 @@ include(CPack)
 # CTest / GoogleTest (minimal)
 # --------------------------------------------------------
 option(BSRVCORE_BUILD_TESTS "Build bsrvcore tests (requires GoogleTest). Default: OFF" OFF)
-option(BSRVCORE_ENABLE_STRESS_TESTS "Enable bsrvcore stress tests. Default: OFF" OFF)
+option(BSRVCORE_ENABLE_STRESS_TESTS "Enable bsrvcore stress tests. Default: ON" ON)
 
 if(BSRVCORE_BUILD_TESTS)
   enable_testing()
