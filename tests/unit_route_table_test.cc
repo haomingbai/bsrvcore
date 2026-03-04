@@ -20,8 +20,8 @@ class DummyHandler : public bsrvcore::HttpRequestHandler {
 // Minimal aspect used to verify aspect ordering.
 class DummyAspect : public bsrvcore::HttpRequestAspectHandler {
  public:
-  void PreService(std::shared_ptr<bsrvcore::HttpServerTask>) override {}
-  void PostService(std::shared_ptr<bsrvcore::HttpServerTask>) override {}
+  void PreService(std::shared_ptr<bsrvcore::HttpPreServerTask>) override {}
+  void PostService(std::shared_ptr<bsrvcore::HttpPostServerTask>) override {}
 };
 
 }  // namespace

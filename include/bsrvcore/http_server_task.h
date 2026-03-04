@@ -1,16 +1,20 @@
 /**
  * @file http_server_task.h
- * @brief HTTP server task representing a single request-response cycle
+ * @brief HTTP server tasks for request lifecycle phases
  * @author Haoming Bai <haomingbai@hotmail.com>
- * @date   2025-09-24
+ * @date   2025-10-06
  *
  * Copyright © 2025 Haoming Bai
  * SPDX-License-Identifier: MIT
  *
  * @details
- * Represents a complete HTTP request-response cycle, providing access to
- * request data, response building, session management, and asynchronous
- * operations. This is the main interface for request handlers and aspects.
+ * Defines three lifecycle task types:
+ * - HttpPreServerTask: pre-aspect phase
+ * - HttpServerTask: route handler phase
+ * - HttpPostServerTask: post-aspect phase
+ *
+ * They share the same request/response state and are connected by custom
+ * deleters that transition phase-by-phase.
  */
 
 #pragma once
@@ -45,6 +49,12 @@ namespace bsrvcore {
 class HttpServerConnection;
 class Context;
 class HttpServer;
+class HttpPreServerTask;
+class HttpPostServerTask;
+
+namespace task_internal {
+struct HttpTaskSharedState;
+}  // namespace task_internal
 
 // Type aliases for Boost.Beast HTTP types
 using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
@@ -61,159 +71,119 @@ using HttpRequestHeader =
     boost::beast::http::request_header<boost::beast::http::fields>;
 
 /**
- * @brief Represents a single HTTP request-response cycle
+ * @brief Shared API surface for lifecycle task phases
  *
- * HttpServerTask encapsulates all data and operations for processing
- * an HTTP request and generating a response. It provides:
- * - Access to request data (headers, body, method, etc.)
- * - Response building with flexible output options
- * - Session and context management
- * - Asynchronous operation support
- * - Connection control and logging
+ * Provides request/response/session/context/cookie utilities that are shared
+ * by pre, service and post phases.
  *
- * This is the primary interface used by request handlers and aspect
- * handlers to process HTTP requests.
- *
- * @code
- * // Example usage in request handler
- * void Service(std::shared_ptr<HttpServerTask> task) override {
- * auto& request = task->GetRequest();
- * auto& response = task->GetResponse();
- *
- * // Set response status and body
- * response.result(boost::beast::http::status::ok);
- * response.body() = "Hello, World!";
- * response.prepare_payload();
- *
- * // Or use convenience methods
- * task->SetBody("Hello, World!");
- * task->SetField("Content-Type", "text/plain");
- *
- * // Access session data
- * auto session = task->GetSession();
- * if (session) {
- * auto user = session->GetAttribute("user");
- * }
- *
- * // Log the request
- * task->Log(LogLevel::Info, "Processed request to " + request.target());
- * }
- * @endcode
+ * @note This class is intended as a base type for phase tasks and is not
+ *       created directly by user code.
  */
-class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
-                       public std::enable_shared_from_this<HttpServerTask> {
+class HttpTaskBase {
  public:
   /**
-   * @brief Get the HTTP request object
-   * @return Reference to the HTTP request
+   * @brief Get the HTTP request object.
+   * @return Reference to request.
    */
   HttpRequest& GetRequest() noexcept;
 
   /**
-   * @brief Get the HTTP response object
-   * @return Reference to the HTTP response
+   * @brief Get the HTTP response object.
+   * @return Reference to response.
    */
   HttpResponse& GetResponse() noexcept;
 
   /**
-   * @brief Get the current session context
-   * @return Shared pointer to session context, nullptr if no session
+   * @brief Get current session by request sessionId.
+   * @return Session context pointer, or nullptr if unavailable.
    */
   std::shared_ptr<Context> GetSession();
 
   /**
-   * @brief Set timeout for the current session
-   * @param timeout Session timeout in milliseconds
-   * @return true if session exists and timeout was set
+   * @brief Set timeout for current session.
+   * @param timeout Timeout in milliseconds.
+   * @return true if session timeout was updated.
    */
   bool SetSessionTimeout(std::size_t timeout);
 
   /**
-   * @brief Set the response body content
-   * @param body Response body string
+   * @brief Replace response body.
+   * @param body New response body.
    */
   void SetBody(std::string body);
 
   /**
-   * @brief Append content to the response body
-   * @param body Content to append to existing body
+   * @brief Append content to response body.
+   * @param body Content to append.
    */
   void AppendBody(const std::string_view body);
 
   /**
-   * @brief Set a response header field by string key
-   * @param key Header field name
-   * @param value Header field value
+   * @brief Set response header by key string.
+   * @param key Header name.
+   * @param value Header value.
    */
   void SetField(const std::string_view key, const std::string_view value);
 
   /**
-   * @brief Set a response header field by Boost.Beast field enum
-   * @param key Header field enum
-   * @param value Header field value
+   * @brief Set response header by Beast enum key.
+   * @param key Header field enum.
+   * @param value Header value.
    */
   void SetField(boost::beast::http::field key, const std::string_view value);
 
   /**
-   * @brief Enable or disable keep-alive for this connection
-   * @param value true to keep connection alive, false to close
+   * @brief Configure keep-alive for final response write.
+   * @param value true to keep connection alive.
    */
   void SetKeepAlive(bool value) noexcept;
 
   /**
-   * @brief Take manual control of the connection's lifetime.
-   * @param value true to enable manual management.
+   * @brief Enable manual connection lifetime management.
+   * @param value true to enable manual mode.
    *
-   * @note When enabled for a task with autowrite disabled, the task's
-   * destructor will not call DoCycle() or DoClose() on the connection.
-   * This is essential for long-lived responses like SSE or WebSockets,
-   * where the connection must remain open after the initial handler completes.
-   * The user is then responsible for the connection's lifetime.
+   * @note Once enabled, later phase completion does not auto-write response.
    */
   void SetManualConnectionManagement(bool value) noexcept;
 
   /**
-   * @brief Get the request context
-   * @return Shared pointer to request context
+   * @brief Get shared request context.
+   * @return Context pointer, or nullptr if unavailable.
    */
   std::shared_ptr<Context> GetContext() noexcept;
 
   /**
-   * @brief Log a message with specified level
-   * @param level Log level
-   * @param message Log message
+   * @brief Log message through server logger.
+   * @param level Log level.
+   * @param message Log content.
    */
   void Log(LogLevel level, const std::string message);
 
   /**
-   * @brief Write response body to client (manual mode)
-   * @param body Response body content
-   *
-   * @note Only used when auto-write is disabled
+   * @brief Flush response body immediately.
+   * @param body Body chunk to flush.
    */
   void WriteBody(std::string body);
 
   /**
-   * @brief Write response headers to client (manual mode)
-   * @param header Response headers
-   *
-   * @note Only used when auto-write is disabled
+   * @brief Flush response header immediately.
+   * @param header Header to flush.
    */
   void WriteHeader(HttpResponseHeader header);
 
   /**
-   * @brief Post a function to be executed on the connection's strand
-   * @param fn Function to execute asynchronously
+   * @brief Post callback to server executor.
+   * @param fn Callback.
    */
   void Post(std::function<void()> fn);
 
   /**
-   * @brief Post a function with arguments and return a future for the result
-   * @tparam Fn Function type
-   * @tparam Args Argument types
-   * @param fn Function to execute
-   * @param args Arguments to forward to function
-   * @return Future containing function result
+   * @brief Post callback and get future result.
+   * @tparam Fn Callable type.
+   * @tparam Args Argument types.
+   * @param fn Callable.
+   * @param args Callable arguments.
+   * @return Future of callable return value.
    */
   template <typename Fn, typename... Args>
   auto FuturedPost(Fn fn, Args&&... args)
@@ -231,11 +201,11 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
   }
 
   /**
-   * @brief Post a function with arguments and return a future for the result
-   * @tparam Fn Function type
-   * @tparam Args Argument types
-   * @param fn Function to execute
-   * @param args Arguments to forward to function
+   * @brief Post callable with arguments.
+   * @tparam Fn Callable type.
+   * @tparam Args Argument types.
+   * @param fn Callable.
+   * @param args Callable arguments.
    */
   template <typename Fn, typename... Args>
   void Post(Fn fn, Args&&... args) {
@@ -248,26 +218,20 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
   }
 
   /**
-   * @brief Set a timer to execute a function after timeout
-   * @param timeout Timeout in milliseconds
-   * @param fn Callback function to execute
+   * @brief Set one-shot timer callback.
+   * @param timeout Timeout in milliseconds.
+   * @param fn Callback.
    */
   void SetTimer(std::size_t timeout, std::function<void()> fn);
 
   /**
-   * @brief Set a timer with function and arguments, returning a future
-   * @tparam Fn Function type
-   * @tparam Args Argument types
-   * @param timeout Timeout in milliseconds
-   * @param fn Function to execute
-   * @param args Arguments to forward to function
-   * @return Future containing function result
-   *
-   * @code
-   * // Example: Set timeout for external API call
-   * auto future = task->SetTimer(5000, &ExternalAPI::Call, api, params);
-   * auto result = future.get();  // Throws if timeout occurs
-   * @endcode
+   * @brief Set one-shot timer callback and get future result.
+   * @tparam Fn Callable type.
+   * @tparam Args Argument types.
+   * @param timeout Timeout in milliseconds.
+   * @param fn Callable.
+   * @param args Callable arguments.
+   * @return Future of callable return value.
    */
   template <typename Fn, typename... Args>
   auto SetTimer(std::size_t timeout, Fn fn, Args&&... args)
@@ -285,98 +249,205 @@ class HttpServerTask : public NonCopyableNonMovable<HttpServerTask>,
   }
 
   /**
-   * @brief Check if the underlying connection is still available
-   * @return true if connection is open and operational
+   * @brief Check whether connection and server are still available.
+   * @return true if task can still perform I/O operations.
    */
   bool IsAvailable() noexcept;
 
   /**
-   * @brief Get the current_location of the task
-   * @return The current location
+   * @brief Get matched route location string.
+   * @return Route location.
    */
   const std::string& GetCurrentLocation();
 
   /**
-   * @brief Get the cookie of the request by name
-   * @param key The name of the cookie.
-   * @return The value of the cookie.
+   * @brief Get cookie by key from request.
+   * @param key Cookie name.
+   * @return Cookie value reference (empty string if not found).
    */
   const std::string& GetCookie(const std::string& key);
 
   /**
-   * @brief Get the reference to the path parameters
-   * @return The path parameters of the task
+   * @brief Get path parameters extracted by router.
+   * @return Path parameter vector reference.
    */
   const std::vector<std::string>& GetPathParameters();
 
   /**
-   * @brief Add a cookie to the response.
-   * @param cookie The cookie.
-   * @return Whether the operation success.
+   * @brief Add Set-Cookie entry to final response.
+   * @param cookie Cookie object.
+   * @return true if cookie is accepted.
    */
   bool AddCookie(ServerSetCookie cookie);
 
   /**
-   * @brief Close the connection.
+   * @brief Close underlying connection.
    */
   void DoClose();
 
   /**
-   * @brief Close the connection.
+   * @brief Trigger connection to enter next read cycle.
    */
   void DoCycle();
 
   /**
-   * @brief Constructor of the server task
-   * @param req The request of this http request.
-   * @param route_result The route result of the request according to the target
-   *    of the request.
-   * @param conn The connection of this task.
+   * @brief Get existing sessionId or create one and emit Set-Cookie.
+   * @return SessionId string.
+   */
+  const std::string& GetSessionId();
+
+ protected:
+  /**
+   * @brief Construct with shared lifecycle state.
+   * @param state Shared task state.
+   */
+  explicit HttpTaskBase(std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
+  /**
+   * @brief Virtual destructor for derived phases.
+   */
+  virtual ~HttpTaskBase() = default;
+
+  /**
+   * @brief Access mutable shared state.
+   * @return Shared state reference.
+   */
+  task_internal::HttpTaskSharedState& GetState() noexcept;
+
+  /**
+   * @brief Access const shared state.
+   * @return Shared state const reference.
+   */
+  const task_internal::HttpTaskSharedState& GetState() const noexcept;
+
+  /**
+   * @brief Access shared-state smart pointer.
+   * @return Shared-state pointer.
+   */
+  std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState() const noexcept;
+
+ private:
+  void GenerateCookiePairs();
+  std::shared_ptr<task_internal::HttpTaskSharedState> state_;
+};
+
+/**
+ * @brief Pre-aspect phase task
+ *
+ * Executes all registered `PreService` hooks in registration order.
+ */
+class HttpPreServerTask
+    : public HttpTaskBase,
+      public NonCopyableNonMovable<HttpPreServerTask>,
+      public std::enable_shared_from_this<HttpPreServerTask> {
+ public:
+  /**
+   * @brief Create pre-phase task with lifecycle-managed deleter chain.
+   * @param req Incoming HTTP request.
+   * @param route_result Routing result.
+   * @param conn Connection for this request.
+   * @return Shared pointer to pre-phase task.
+   */
+  static std::shared_ptr<HttpPreServerTask> Create(
+      HttpRequest req, HttpRouteResult route_result,
+      std::shared_ptr<HttpServerConnection> conn);
+
+  /**
+   * @brief Construct pre-phase task from shared state.
+   * @param state Shared lifecycle state.
+   *
+   * @note Usually called internally by lifecycle orchestration.
+   */
+  explicit HttpPreServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
+  /**
+   * @brief Start pre-aspect execution.
+   */
+  void Start();
+
+  /**
+   * @brief Destructor.
+   */
+  ~HttpPreServerTask();
+
+ private:
+  void DoPreService(std::size_t curr_idx);
+};
+
+/**
+ * @brief Route handler phase task
+ *
+ * Executes route `HttpRequestHandler::Service`.
+ */
+class HttpServerTask
+    : public HttpTaskBase,
+      public NonCopyableNonMovable<HttpServerTask>,
+      public std::enable_shared_from_this<HttpServerTask> {
+ public:
+  /**
+   * @brief Construct standalone service task.
+   * @param req Incoming HTTP request.
+   * @param route_result Routing result.
+   * @param conn Connection for this request.
+   *
+   * @note This constructor keeps backward-compatible direct usage.
    */
   HttpServerTask(HttpRequest req, HttpRouteResult route_result,
                  std::shared_ptr<HttpServerConnection> conn);
 
   /**
-   * @brief Get the sessionid of the request or generate a new sessionid to be
-   * the sessionid of the id of the session.
-   * @return The session id gotten or generated.
+   * @brief Construct service task from shared state.
+   * @param state Shared lifecycle state.
+   *
+   * @note Usually called internally by lifecycle orchestration.
    */
-  const std::string& GetSessionId();
+  explicit HttpServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
   /**
-   * @brief Start the life cycle of the task.
+   * @brief Start route handler execution.
    */
   void Start();
 
   /**
-   * @brief Destructor of the HttpServerTask
+   * @brief Destructor.
    */
   ~HttpServerTask();
 
  private:
-  void GenerateCookiePairs();
-
-  void DoPreService(std::size_t curr_idx);
-
   void DoService();
+};
 
+/**
+ * @brief Post-aspect phase task
+ *
+ * Executes all registered `PostService` hooks in reverse order.
+ */
+class HttpPostServerTask
+    : public HttpTaskBase,
+      public NonCopyableNonMovable<HttpPostServerTask>,
+      public std::enable_shared_from_this<HttpPostServerTask> {
+ public:
+  /**
+   * @brief Construct post-phase task from shared state.
+   * @param state Shared lifecycle state.
+   */
+  explicit HttpPostServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
+  /**
+   * @brief Start post-aspect execution.
+   */
+  void Start();
+
+  /**
+   * @brief Destructor.
+   */
+  ~HttpPostServerTask();
+
+ private:
   void DoPostService(std::size_t curr_idx);
-
-  HttpRequest req_;    ///< HTTP request data
-  HttpResponse resp_;  ///< HTTP response data
-  std::unordered_map<std::string, std::string>
-      cookies_;                               ///< Cookies of the request.
-  std::optional<std::string> sessionid_;      ///< SessionId of the request.
-  std::vector<ServerSetCookie> set_cookies_;  ///< Set-Cookie
-  std::atomic<std::shared_ptr<HttpServerConnection>>
-      conn_;  ///< Associated connection
-  HttpRouteResult route_result_;
-  HttpServer* srv_;
-  bool keep_alive_;  ///< Keep-alive flag
-  bool
-      manual_connection_management_;  ///< Manual connection lifetime management
-  bool
-      is_cookie_parsed_;  ///< Determine if the cookie of the request is parsed.
 };
 
 }  // namespace bsrvcore

@@ -2,7 +2,7 @@
  * @file http_server_task.cc
  * @brief
  * @author Haoming Bai <haomingbai@hotmail.com>
- * @date   2025-10-02
+ * @date   2025-10-06
  *
  * Copyright © 2025 Haoming Bai
  * SPDX-License-Identifier: MIT
@@ -17,6 +17,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <cassert>
+#include <cctype>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -30,13 +31,55 @@
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
 
-using bsrvcore::HttpRequest;
-using bsrvcore::HttpResponse;
-using bsrvcore::HttpServerTask;
-
 namespace bsrvcore {
+
+namespace task_internal {
+
+struct HttpTaskSharedState {
+  HttpTaskSharedState(HttpRequest in_req, HttpRouteResult in_route_result,
+                      std::shared_ptr<HttpServerConnection> in_conn)
+      : req(std::move(in_req)),
+        resp(),
+        conn(std::move(in_conn)),
+        route_result(std::move(in_route_result)),
+        srv(conn.load() ? conn.load()->GetServer() : nullptr),
+        keep_alive(true),
+        manual_connection_management(false),
+        is_cookie_parsed(false),
+        pre_completed(false),
+        service_completed(false),
+        post_completed(false),
+        lifecycle_managed(false),
+        response_committed(false) {}
+
+  HttpRequest req;
+  HttpResponse resp;
+  std::unordered_map<std::string, std::string> cookies;
+  std::optional<std::string> sessionid;
+  std::vector<ServerSetCookie> set_cookies;
+  std::atomic<std::shared_ptr<HttpServerConnection>> conn;
+  HttpRouteResult route_result;
+  HttpServer* srv;
+  std::atomic_bool keep_alive;
+  std::atomic_bool manual_connection_management;
+  bool is_cookie_parsed;
+  std::atomic_bool pre_completed;
+  std::atomic_bool service_completed;
+  std::atomic_bool post_completed;
+  std::atomic_bool lifecycle_managed;
+  std::atomic_bool response_committed;
+};
+
+}  // namespace task_internal
+
 namespace connection_internal {
 namespace helper {
+
+using task_internal::HttpTaskSharedState;
+
+struct HttpPreTaskDeleter;
+struct HttpServerTaskDeleter;
+struct HttpPostTaskDeleter;
 
 inline std::string_view TrimView(std::string_view sv) {
   constexpr std::string_view ws = " \t\r\n";
@@ -60,14 +103,12 @@ inline std::pair<std::string_view, std::string_view> ParseCookiePairView(
   auto eq = token.find('=');
 
   if (eq == std::string_view::npos) {
-    // If there is only name and have no value
     return {TrimView(token), std::string_view{}};
   }
 
   auto name = TrimView(token.substr(0, eq));
   auto value = TrimView(token.substr(eq + 1));
 
-  // Remove the embrace
   if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
     value = value.substr(1, value.size() - 2);
   }
@@ -78,22 +119,24 @@ inline std::pair<std::string_view, std::string_view> ParseCookiePairView(
 inline std::string ToLowerString(const std::string_view sv) {
   std::string out;
   out.reserve(sv.size());
-  for (unsigned char c : sv) out.push_back(static_cast<char>(std::tolower(c)));
+  for (unsigned char c : sv) {
+    out.push_back(static_cast<char>(std::tolower(c)));
+  }
   return out;
 }
 
 inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
     std::string_view header) {
-  namespace views = std::views;
   namespace ranges = std::ranges;
+  namespace views = std::views;
 
-  // Split with C++ 20
   auto tokens = header | views::split(';') |
                 views::transform([](auto subrange) -> std::string_view {
                   auto it = ranges::begin(subrange);
                   auto it_end = ranges::end(subrange);
-                  if (it == it_end) return std::string_view{};
-                  //  Transform it to string_view
+                  if (it == it_end) {
+                    return std::string_view{};
+                  }
                   auto len =
                       static_cast<std::size_t>(ranges::distance(it, it_end));
                   std::string_view sv{it, len};
@@ -101,95 +144,251 @@ inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
                 });
 
   std::vector<std::string_view> out(tokens.begin(), tokens.end());
-
   return out;
 }
 
 inline std::string GenerateSessionId() noexcept {
-  // thread-local generator -> no global locking, good for concurrency
   static thread_local boost::uuids::random_generator tls_uuid_gen{};
-  boost::uuids::uuid u = tls_uuid_gen();
-  return boost::uuids::to_string(u);
+  boost::uuids::uuid uuid = tls_uuid_gen();
+  return boost::uuids::to_string(uuid);
+}
+
+inline std::shared_ptr<HttpServerConnection> GetConnection(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
+  if (!state) {
+    return nullptr;
+  }
+  return state->conn.load();
+}
+
+inline bool IsTaskEnvironmentAvailable(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
+  if (!state || state->srv == nullptr || !state->srv->IsRunning()) {
+    return false;
+  }
+
+  auto conn = GetConnection(state);
+  return conn && conn->IsStreamAvailable();
+}
+
+inline void TryCloseConnection(const std::shared_ptr<HttpTaskSharedState>& state) {
+  auto conn = GetConnection(state);
+  if (!conn) {
+    return;
+  }
+
+  if (conn->IsStreamAvailable()) {
+    conn->DoClose();
+  }
+  state->conn.store(nullptr);
+}
+
+inline void ShortCircuitLifecycle(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
+  if (!state) {
+    return;
+  }
+
+  if (state->response_committed.exchange(true)) {
+    return;
+  }
+
+  TryCloseConnection(state);
+}
+
+inline void FinalizeResponse(const std::shared_ptr<HttpTaskSharedState>& state) {
+  if (!state || state->response_committed.exchange(true)) {
+    return;
+  }
+
+  auto conn = GetConnection(state);
+  if (!conn) {
+    return;
+  }
+
+  if (state->manual_connection_management.load()) {
+    return;
+  }
+
+  for (const auto& it : state->set_cookies) {
+    auto set_cookie_string = it.ToString();
+    if (!set_cookie_string.empty()) {
+      state->resp.insert(boost::beast::http::field::set_cookie,
+                         set_cookie_string);
+    }
+  }
+
+  conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load());
+}
+
+struct HttpPreTaskDeleter {
+  std::shared_ptr<HttpTaskSharedState> state;
+
+  void operator()(HttpPreServerTask* ptr) const;
+};
+
+struct HttpServerTaskDeleter {
+  std::shared_ptr<HttpTaskSharedState> state;
+
+  void operator()(HttpServerTask* ptr) const;
+};
+
+struct HttpPostTaskDeleter {
+  std::shared_ptr<HttpTaskSharedState> state;
+
+  void operator()(HttpPostServerTask* ptr) const;
+};
+
+void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
+  delete ptr;
+
+  if (!state || !state->lifecycle_managed.load()) {
+    return;
+  }
+
+  if (!state->pre_completed.load()) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  if (state->route_result.handler == nullptr || !IsTaskEnvironmentAvailable(state)) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  auto task = std::shared_ptr<HttpServerTask>(
+      new HttpServerTask(state), HttpServerTaskDeleter{state});
+  task->Start();
+}
+
+void HttpServerTaskDeleter::operator()(HttpServerTask* ptr) const {
+  delete ptr;
+
+  if (!state || !state->lifecycle_managed.load()) {
+    return;
+  }
+
+  if (!state->service_completed.load()) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  if (!IsTaskEnvironmentAvailable(state)) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  auto task = std::shared_ptr<HttpPostServerTask>(
+      new HttpPostServerTask(state), HttpPostTaskDeleter{state});
+  task->Start();
+}
+
+void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
+  delete ptr;
+
+  if (!state || !state->lifecycle_managed.load()) {
+    return;
+  }
+
+  if (!state->post_completed.load()) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  if (!IsTaskEnvironmentAvailable(state)) {
+    ShortCircuitLifecycle(state);
+    return;
+  }
+
+  FinalizeResponse(state);
 }
 
 }  // namespace helper
 }  // namespace connection_internal
-}  // namespace bsrvcore
 
-HttpRequest &HttpServerTask::GetRequest() noexcept { return req_; }
+HttpTaskBase::HttpTaskBase(
+    std::shared_ptr<task_internal::HttpTaskSharedState> state)
+    : state_(std::move(state)) {}
 
-HttpResponse &HttpServerTask::GetResponse() noexcept { return resp_; }
+task_internal::HttpTaskSharedState& HttpTaskBase::GetState() noexcept {
+  return *state_;
+}
 
-HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
-                               std::shared_ptr<HttpServerConnection> conn)
-    : req_(std::move(req)),
-      resp_(),
-      conn_(std::move(conn)),
-      route_result_(std::move(route_result)),
-      srv_(conn_.load()->GetServer()),
-      keep_alive_(true),
-      manual_connection_management_(false),  // Initialize the new flag
-      is_cookie_parsed_(false) {}
+const task_internal::HttpTaskSharedState& HttpTaskBase::GetState() const noexcept {
+  return *state_;
+}
 
-void HttpServerTask::GenerateCookiePairs() {
-  if (is_cookie_parsed_) {
+std::shared_ptr<task_internal::HttpTaskSharedState>
+HttpTaskBase::GetSharedState() const noexcept {
+  return state_;
+}
+
+HttpRequest& HttpTaskBase::GetRequest() noexcept { return state_->req; }
+
+HttpResponse& HttpTaskBase::GetResponse() noexcept { return state_->resp; }
+
+void HttpTaskBase::GenerateCookiePairs() {
+  if (state_->is_cookie_parsed) {
     return;
   }
 
-  auto cookie_raw = req_[boost::beast::http::field::cookie];
+  auto cookie_raw = state_->req[boost::beast::http::field::cookie];
+  using bsrvcore::connection_internal::helper::ParseCookiePairView;
   using bsrvcore::connection_internal::helper::SplitCookieHeaderUsingSplit;
   auto cookie_strs = SplitCookieHeaderUsingSplit(cookie_raw);
   for (const auto it : cookie_strs) {
-    using bsrvcore::connection_internal::helper::ParseCookiePairView;
     auto cookie_pair = ParseCookiePairView(it);
     if (!cookie_pair.first.empty()) {
-      cookies_[std::string(cookie_pair.first)] = cookie_pair.second;
+      state_->cookies[std::string(cookie_pair.first)] = cookie_pair.second;
     }
   }
+
+  state_->is_cookie_parsed = true;
 }
 
-const std::string &HttpServerTask::GetCookie(const std::string &key) {
+const std::string& HttpTaskBase::GetCookie(const std::string& key) {
   GenerateCookiePairs();
 
-  return cookies_[key];
+  return state_->cookies[key];
 }
 
-const std::string &HttpServerTask::GetSessionId() {
+const std::string& HttpTaskBase::GetSessionId() {
   GenerateCookiePairs();
 
-  for (const auto &it : cookies_) {
+  for (const auto& it : state_->cookies) {
     using bsrvcore::connection_internal::helper::ToLowerString;
     if (ToLowerString(it.first) == "sessionid") {
-      sessionid_ = it.second;
+      state_->sessionid = it.second;
       break;
     }
   }
 
-  if (!sessionid_.has_value()) {
+  if (!state_->sessionid.has_value()) {
     using bsrvcore::connection_internal::helper::GenerateSessionId;
-    sessionid_ = GenerateSessionId();
+    state_->sessionid = GenerateSessionId();
 
-    if (sessionid_.has_value()) {
+    if (state_->sessionid.has_value()) {
       ServerSetCookie session_cookie;
-      session_cookie.SetName("sessionId").SetValue(sessionid_.value_or(""));
+      session_cookie.SetName("sessionId").SetValue(state_->sessionid.value_or(""));
       AddCookie(std::move(session_cookie));
     }
   }
 
-  return sessionid_.value();
+  return state_->sessionid.value();
 }
 
-std::shared_ptr<bsrvcore::Context> HttpServerTask::GetSession() {
-  auto conn = conn_.load();
+std::shared_ptr<Context> HttpTaskBase::GetSession() {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return nullptr;
   }
+
   return conn->GetSession(GetSessionId());
 }
 
-std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
-  auto conn = conn_.load();
+std::shared_ptr<Context> HttpTaskBase::GetContext() noexcept {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return nullptr;
@@ -198,8 +397,8 @@ std::shared_ptr<bsrvcore::Context> HttpServerTask::GetContext() noexcept {
   return conn->GetContext();
 }
 
-bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
-  auto conn = conn_.load();
+bool HttpTaskBase::SetSessionTimeout(std::size_t timeout) {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return false;
@@ -208,172 +407,225 @@ bool HttpServerTask::SetSessionTimeout(std::size_t timeout) {
   return conn->SetSessionTimeout(GetSessionId(), timeout);
 }
 
-void HttpServerTask::SetBody(std::string body) {
-  resp_.body() = std::move(body);
+void HttpTaskBase::SetBody(std::string body) {
+  state_->resp.body() = std::move(body);
 }
 
-void HttpServerTask::AppendBody(const std::string_view body) {
-  resp_.body() += body;
+void HttpTaskBase::AppendBody(const std::string_view body) {
+  state_->resp.body() += body;
 }
 
-void HttpServerTask::SetField(const std::string_view key,
-                              const std::string_view value) {
-  resp_.set(key, value);
+void HttpTaskBase::SetField(const std::string_view key,
+                            const std::string_view value) {
+  state_->resp.set(key, value);
 }
 
-void HttpServerTask::SetField(boost::beast::http::field key,
-                              const std::string_view value) {
-  resp_.set(key, value);
+void HttpTaskBase::SetField(boost::beast::http::field key,
+                            const std::string_view value) {
+  state_->resp.set(key, value);
 }
 
-void HttpServerTask::SetKeepAlive(bool value) noexcept {
-  keep_alive_ = value ? true : false;
+void HttpTaskBase::SetKeepAlive(bool value) noexcept {
+  state_->keep_alive.store(value ? true : false);
 }
 
-void HttpServerTask::SetManualConnectionManagement(bool value) noexcept {
-  if (!manual_connection_management_) {
-    manual_connection_management_ = value ? true : false;
+void HttpTaskBase::SetManualConnectionManagement(bool value) noexcept {
+  if (!state_->manual_connection_management.load()) {
+    state_->manual_connection_management.store(value ? true : false);
   }
 }
 
-void HttpServerTask::Log(bsrvcore::LogLevel level, const std::string message) {
-  srv_->Log(level, std::move(message));
+void HttpTaskBase::Log(bsrvcore::LogLevel level, const std::string message) {
+  if (state_->srv) {
+    state_->srv->Log(level, std::move(message));
+  }
 }
 
-void HttpServerTask::WriteBody(std::string body) {
-  auto conn = conn_.load();
+void HttpTaskBase::WriteBody(std::string body) {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return;
   }
+
   conn->DoFlushResponseBody(std::move(body));
 }
 
-void HttpServerTask::WriteHeader(bsrvcore::HttpResponseHeader header) {
-  auto conn = conn_.load();
+void HttpTaskBase::WriteHeader(bsrvcore::HttpResponseHeader header) {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return;
   }
+
   conn->DoFlushResponseHeader(std::move(header));
 }
 
-void HttpServerTask::Post(std::function<void()> fn) {
-  if (srv_->IsRunning()) {
-    srv_->Post(fn);
+void HttpTaskBase::Post(std::function<void()> fn) {
+  if (state_->srv != nullptr && state_->srv->IsRunning()) {
+    state_->srv->Post(std::move(fn));
   }
 }
 
-void HttpServerTask::SetTimer(std::size_t timeout, std::function<void()> fn) {
-  srv_->SetTimer(timeout, fn);
-}
-
-bool HttpServerTask::IsAvailable() noexcept {
-  auto conn = conn_.load();
-  return conn && srv_->IsRunning() && conn->IsStreamAvailable();
-}
-
-const std::string &HttpServerTask::GetCurrentLocation() {
-  return route_result_.current_location;
-}
-
-const std::vector<std::string> &HttpServerTask::GetPathParameters() {
-  return route_result_.parameters;
-}
-
-HttpServerTask::~HttpServerTask() {
-  // If connection lifetime is managed manually (e.g., for SSE),
-  // the destructor should do nothing to the connection.
-  if (manual_connection_management_) {
-    return;
+void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
+  if (state_->srv != nullptr) {
+    state_->srv->SetTimer(timeout, std::move(fn));
   }
-
-  auto conn = conn_.load();
-
-  if (!conn) {
-    return;
-  }
-
-  for (const auto &it : set_cookies_) {
-    auto set_cookie_string = it.ToString();
-    if (!set_cookie_string.empty()) {
-      resp_.insert(boost::beast::http::field::set_cookie, set_cookie_string);
-    }
-  }
-
-  conn->DoWriteResponse(std::move(resp_), keep_alive_);
 }
 
-bool HttpServerTask::AddCookie(bsrvcore::ServerSetCookie cookie) try {
-  set_cookies_.emplace_back(std::move(cookie));
+bool HttpTaskBase::IsAvailable() noexcept {
+  auto conn = state_->conn.load();
+  return conn && state_->srv != nullptr && state_->srv->IsRunning() &&
+         conn->IsStreamAvailable();
+}
+
+const std::string& HttpTaskBase::GetCurrentLocation() {
+  return state_->route_result.current_location;
+}
+
+const std::vector<std::string>& HttpTaskBase::GetPathParameters() {
+  return state_->route_result.parameters;
+}
+
+bool HttpTaskBase::AddCookie(bsrvcore::ServerSetCookie cookie) try {
+  state_->set_cookies.emplace_back(std::move(cookie));
   return true;
 } catch (...) {
   return false;
 }
 
-void HttpServerTask::DoClose() {
-  auto conn = conn_.load();
+void HttpTaskBase::DoClose() {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return;
   }
 
   conn->DoClose();
-  conn_.load().reset();
+  state_->conn.store(nullptr);
 }
 
-void HttpServerTask::DoCycle() {
-  auto conn = conn_.load();
+void HttpTaskBase::DoCycle() {
+  auto conn = state_->conn.load();
 
   if (!conn) {
     return;
   }
 
   conn->DoCycle();
-  conn_.load().reset();
+  state_->conn.store(nullptr);
+}
+
+std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
+    HttpRequest req, HttpRouteResult route_result,
+    std::shared_ptr<HttpServerConnection> conn) {
+  auto state = std::make_shared<task_internal::HttpTaskSharedState>(
+      std::move(req), std::move(route_result), std::move(conn));
+  state->lifecycle_managed.store(true);
+
+  return std::shared_ptr<HttpPreServerTask>(
+      new HttpPreServerTask(state),
+      connection_internal::helper::HttpPreTaskDeleter{state});
+}
+
+HttpPreServerTask::HttpPreServerTask(
+    std::shared_ptr<task_internal::HttpTaskSharedState> state)
+    : HttpTaskBase(std::move(state)) {}
+
+HttpPreServerTask::~HttpPreServerTask() = default;
+
+void HttpPreServerTask::Start() {
+  Post([self = shared_from_this()] { self->DoPreService(0); });
+}
+
+void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
+  auto& state = GetState();
+  if (curr_idx > state.route_result.aspects.size()) {
+    assert(0);
+    state.pre_completed.store(true);
+    return;
+  }
+
+  if (curr_idx == state.route_result.aspects.size()) {
+    state.pre_completed.store(true);
+    return;
+  }
+
+  auto self = shared_from_this();
+  state.route_result.aspects[curr_idx]->PreService(self);
+  Post([self, curr_idx] { self->DoPreService(curr_idx + 1); });
+}
+
+HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
+                               std::shared_ptr<HttpServerConnection> conn)
+    : HttpTaskBase(std::make_shared<task_internal::HttpTaskSharedState>(
+          std::move(req), std::move(route_result), std::move(conn))) {}
+
+HttpServerTask::HttpServerTask(
+    std::shared_ptr<task_internal::HttpTaskSharedState> state)
+    : HttpTaskBase(std::move(state)) {}
+
+HttpServerTask::~HttpServerTask() {
+  if (!GetState().lifecycle_managed.load()) {
+    connection_internal::helper::FinalizeResponse(GetSharedState());
+  }
 }
 
 void HttpServerTask::Start() {
-  Post([self = shared_from_this(), this] { DoPreService(0); });
-}
-
-void HttpServerTask::DoPreService(std::size_t curr_idx) {
-  if (curr_idx > route_result_.aspects.size()) {
-    assert(0);
-    return;
-  }
-
-  if (curr_idx == route_result_.aspects.size()) {
-    Post([self = shared_from_this(), this] { DoService(); });
-  } else {
-    route_result_.aspects[curr_idx]->PreService(shared_from_this());
-    Post([self = shared_from_this(), this, curr_idx] {
-      DoPreService(curr_idx + 1);
-    });
-  }
+  Post([self = shared_from_this()] { self->DoService(); });
 }
 
 void HttpServerTask::DoService() {
-  route_result_.handler->Service(shared_from_this());
-
-  if (!route_result_.aspects.empty()) {
-    Post([self = shared_from_this(), this] {
-      DoPostService(route_result_.aspects.size() - 1);
-    });
-  }
-}
-
-void HttpServerTask::DoPostService(std::size_t curr_idx) {
-  if (curr_idx >= route_result_.aspects.size()) {
-    assert(0);
+  auto& state = GetState();
+  if (state.route_result.handler == nullptr) {
+    state.service_completed.store(true);
     return;
   }
 
-  route_result_.aspects[curr_idx]->PostService(shared_from_this());
+  auto self = shared_from_this();
+  state.route_result.handler->Service(self);
+  state.service_completed.store(true);
+}
 
-  if (curr_idx != 0) {
-    Post([self = shared_from_this(), this, curr_idx] {
-      DoPostService(curr_idx - 1);
-    });
+HttpPostServerTask::HttpPostServerTask(
+    std::shared_ptr<task_internal::HttpTaskSharedState> state)
+    : HttpTaskBase(std::move(state)) {}
+
+HttpPostServerTask::~HttpPostServerTask() {
+  if (!GetState().lifecycle_managed.load()) {
+    connection_internal::helper::FinalizeResponse(GetSharedState());
   }
 }
+
+void HttpPostServerTask::Start() {
+  auto& state = GetState();
+  if (state.route_result.aspects.empty()) {
+    state.post_completed.store(true);
+    return;
+  }
+
+  Post([self = shared_from_this()] {
+    self->DoPostService(self->GetState().route_result.aspects.size() - 1);
+  });
+}
+
+void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
+  auto& state = GetState();
+  if (curr_idx >= state.route_result.aspects.size()) {
+    assert(0);
+    state.post_completed.store(true);
+    return;
+  }
+
+  auto self = shared_from_this();
+  state.route_result.aspects[curr_idx]->PostService(self);
+
+  if (curr_idx == 0) {
+    state.post_completed.store(true);
+    return;
+  }
+
+  Post([self, curr_idx] { self->DoPostService(curr_idx - 1); });
+}
+
+}  // namespace bsrvcore

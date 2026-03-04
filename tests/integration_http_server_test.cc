@@ -48,18 +48,18 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
 
   server
       ->AddGlobalAspect(
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->AppendBody("preG|");
           },
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->AppendBody("postG|");
           })
       ->AddGlobalAspect(
           bsrvcore::HttpRequestMethod::kGet,
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->AppendBody("preM|");
           },
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->AppendBody("postM|");
           })
       ->AddRouteEntry(
@@ -69,10 +69,10 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
           })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/order",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->AppendBody("preR|");
           },
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->AppendBody("postR|");
           });
 
@@ -82,4 +82,33 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
   auto res = DoRequestWithRetry(http::verb::get, port, "/order", "");
   EXPECT_EQ(res.result(), http::status::ok);
   EXPECT_EQ(res.body(), "preG|preM|preR|handler|postR|postM|postG|");
+}
+
+// Verify post phase starts only after service task references are released.
+TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto held_task = std::make_shared<std::shared_ptr<bsrvcore::HttpServerTask>>();
+
+  server
+      ->AddGlobalAspect(
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("pre|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("post|");
+          })
+      ->AddRouteEntry(
+          bsrvcore::HttpRequestMethod::kGet, "/defer",
+          [held_task](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+            task->AppendBody("handler|");
+            *held_task = task;
+            task->SetTimer(10, [held_task] { held_task->reset(); });
+          });
+
+  ServerGuard guard(std::move(server));
+  auto port = StartServerWithRoutes(guard);
+
+  auto res = DoRequestWithRetry(http::verb::get, port, "/defer", "");
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "pre|handler|post|");
 }

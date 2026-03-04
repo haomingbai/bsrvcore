@@ -25,10 +25,10 @@ int main() {
   auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddGlobalAspect(
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->SetField("X-Request-Start", "1");
           },
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->SetField("X-Request-End", "1");
           })
       ->AddRouteEntry(
@@ -41,10 +41,10 @@ int main() {
           })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/ping",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->SetField("X-Route-Aspect", "pre");
           },
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->SetField("X-Route-Aspect", "post");
           })
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8083});

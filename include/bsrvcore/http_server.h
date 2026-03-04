@@ -251,14 +251,16 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @tparam F2 Post-service function type
    * @param method HTTP method
    * @param url Route pattern
-   * @param f1 Pre-service function
-   * @param f2 Post-service function
+   * @param f1 Pre-service function (HttpPreServerTask)
+   * @param f2 Post-service function (HttpPostServerTask)
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
-      { fn1(task) };
-      { fn2(task) };
+    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                      F2 fn2) {
+      { fn1(pre_task) };
+      { fn2(post_task) };
     }
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
                         F1 f1, F2 f2) {
@@ -289,14 +291,16 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @tparam F1 Pre-service function type
    * @tparam F2 Post-service function type
    * @param method HTTP method
-   * @param f1 Pre-service function
-   * @param f2 Post-service function
+   * @param f1 Pre-service function (HttpPreServerTask)
+   * @param f2 Post-service function (HttpPostServerTask)
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
-      { fn1(task) };
-      { fn2(task) };
+    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                      F2 fn2) {
+      { fn1(pre_task) };
+      { fn2(post_task) };
     }
   HttpServer* AddGlobalAspect(HttpRequestMethod method, F1 f1, F2 f2) {
     auto aspect =
@@ -309,14 +313,16 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @brief Add a global aspect with functions for all HTTP methods
    * @tparam F1 Pre-service function type
    * @tparam F2 Post-service function type
-   * @param f1 Pre-service function
-   * @param f2 Post-service function
+   * @param f1 Pre-service function (HttpPreServerTask)
+   * @param f2 Post-service function (HttpPostServerTask)
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpServerTask> task, F1 fn1, F2 fn2) {
-      { fn1(task) };
-      { fn2(task) };
+    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                      F2 fn2) {
+      { fn1(pre_task) };
+      { fn2(post_task) };
     }
   HttpServer* AddGlobalAspect(F1 f1, F2 f2) {
     auto aspect =
@@ -477,8 +483,8 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Set the background cleaner of the session map.
-   * @param Whether the sessionmap need a background cleaner.
-   * @return The pointer of the server.
+   * @param use_cleaner true to enable background session cleanup.
+   * @return Pointer to server for method chaining.
    */
   HttpServer* SetSessionCleaner(bool use_cleaner);
 

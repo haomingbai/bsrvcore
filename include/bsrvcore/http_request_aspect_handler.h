@@ -24,7 +24,8 @@
 
 namespace bsrvcore {
 
-class HttpServerTask;
+class HttpPreServerTask;
+class HttpPostServerTask;
 
 /**
  * @brief Interface for HTTP request aspect handlers (AOP)
@@ -41,15 +42,17 @@ class HttpServerTask;
  * // Example authentication aspect
  * class AuthAspect : public HttpRequestAspectHandler {
  * public:
- *   void PreService(std::shared_ptr<HttpServerTask> task) override {
- *     if (!task->GetRequest().headers.contains("Authorization")) {
- *       task->SetResponse(401, "Unauthorized");
+ *   void PreService(std::shared_ptr<HttpPreServerTask> task) override {
+ *     if (task->GetRequest().find(boost::beast::http::field::authorization) ==
+ *         task->GetRequest().end()) {
+ *       task->GetResponse().result(boost::beast::http::status::unauthorized);
+ *       task->SetBody("Unauthorized");
  *       return; // Stop further processing
  *     }
  *     // Continue to main handler
  *   }
  *
- *   void PostService(std::shared_ptr<HttpServerTask> task) override {
+ *   void PostService(std::shared_ptr<HttpPostServerTask> task) override {
  *     // Log successful authentication
  *     task->Log(LogLevel::Info, "Request authenticated successfully");
  *   }
@@ -60,20 +63,20 @@ class HttpRequestAspectHandler {
  public:
   /**
    * @brief Execute before the main request handler
-   * @param task HTTP server task being processed
+   * @param task Pre-phase task being processed
    *
    * @note Can modify the request or short-circuit processing by setting
    *       a response early (e.g., for authentication failures)
    */
-  virtual void PreService(std::shared_ptr<HttpServerTask> task) = 0;
+  virtual void PreService(std::shared_ptr<HttpPreServerTask> task) = 0;
 
   /**
    * @brief Execute after the main request handler
-   * @param task HTTP server task that was processed
+   * @param task Post-phase task that was processed
    *
    * @note Can modify the response, log results, or clean up resources
    */
-  virtual void PostService(std::shared_ptr<HttpServerTask> task) = 0;
+  virtual void PostService(std::shared_ptr<HttpPostServerTask> task) = 0;
 
   /**
    * @brief Virtual destructor for proper cleanup
@@ -89,15 +92,15 @@ class HttpRequestAspectHandler {
  * implementations for simple aspect logic.
  *
  * @tparam F1 Type of pre-service function (should accept
- * std::shared_ptr<HttpServerTask>)
+ * std::shared_ptr<HttpPreServerTask>)
  * @tparam F2 Type of post-service function (should accept
- * std::shared_ptr<HttpServerTask>)
+ * std::shared_ptr<HttpPostServerTask>)
  *
  * @code
  * // Example using lambda functions
  * auto logging_aspect = std::make_unique<FunctionRequestAspectHandler<
- *   std::function<void(std::shared_ptr<HttpServerTask>)>,
- *   std::function<void(std::shared_ptr<HttpServerTask>)>
+ *   std::function<void(std::shared_ptr<HttpPreServerTask>)>,
+ *   std::function<void(std::shared_ptr<HttpPostServerTask>)>
  * >>(
  *   [](auto task) { // Pre-service
  *     std::cout << "Request: " << task->GetRequest().path << std::endl;
@@ -118,15 +121,19 @@ class FunctionRequestAspectHandler
  public:
   /**
    * @brief Execute pre-service function
-   * @param task HTTP server task being processed
+   * @param task Pre-phase task being processed
    */
-  void PreService(std::shared_ptr<HttpServerTask> task) override { f1_(task); }
+  void PreService(std::shared_ptr<HttpPreServerTask> task) override {
+    f1_(task);
+  }
 
   /**
    * @brief Execute post-service function
-   * @param task HTTP server task that was processed
+   * @param task Post-phase task that was processed
    */
-  void PostService(std::shared_ptr<HttpServerTask> task) override { f2_(task); }
+  void PostService(std::shared_ptr<HttpPostServerTask> task) override {
+    f2_(task);
+  }
 
   /**
    * @brief Construct function-based aspect handler
