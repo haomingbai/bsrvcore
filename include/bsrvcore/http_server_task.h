@@ -22,7 +22,8 @@
 #ifndef BSRVCORE_HTTP_SERVER_TASK_H_
 #define BSRVCORE_HTTP_SERVER_TASK_H_
 
-#include <atomic>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/thread_pool.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/fields.hpp>
@@ -32,10 +33,8 @@
 #include <functional>
 #include <future>
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -151,6 +150,18 @@ class HttpTaskBase {
    * @return Context pointer, or nullptr if unavailable.
    */
   std::shared_ptr<Context> GetContext() noexcept;
+
+  /**
+   * @brief Get the IO context of the executor to post IO tasks.
+   * @return The IO context of the server.
+   */
+  boost::asio::io_context& GetIoContext() noexcept;
+
+  /**
+   * @brief Get the thread pool of the executor to post IO tasks.
+   * @return The IO context of the server.
+   */
+  boost::asio::thread_pool& GetExecutionContext() noexcept;
 
   /**
    * @brief Log message through server logger.
@@ -301,7 +312,8 @@ class HttpTaskBase {
    * @brief Construct with shared lifecycle state.
    * @param state Shared task state.
    */
-  explicit HttpTaskBase(std::shared_ptr<task_internal::HttpTaskSharedState> state);
+  explicit HttpTaskBase(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
   /**
    * @brief Virtual destructor for derived phases.
@@ -324,7 +336,8 @@ class HttpTaskBase {
    * @brief Access shared-state smart pointer.
    * @return Shared-state pointer.
    */
-  std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState() const noexcept;
+  std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState()
+      const noexcept;
 
  private:
   void GenerateCookiePairs();
@@ -380,10 +393,9 @@ class HttpPreServerTask
  *
  * Executes route `HttpRequestHandler::Service`.
  */
-class HttpServerTask
-    : public HttpTaskBase,
-      public NonCopyableNonMovable<HttpServerTask>,
-      public std::enable_shared_from_this<HttpServerTask> {
+class HttpServerTask : public HttpTaskBase,
+                       public NonCopyableNonMovable<HttpServerTask>,
+                       public std::enable_shared_from_this<HttpServerTask> {
  public:
   /**
    * @brief Construct standalone service task.

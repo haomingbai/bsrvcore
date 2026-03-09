@@ -171,7 +171,8 @@ inline bool IsTaskEnvironmentAvailable(
   return conn && conn->IsStreamAvailable();
 }
 
-inline void TryCloseConnection(const std::shared_ptr<HttpTaskSharedState>& state) {
+inline void TryCloseConnection(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
   auto conn = GetConnection(state);
   if (!conn) {
     return;
@@ -196,7 +197,8 @@ inline void ShortCircuitLifecycle(
   TryCloseConnection(state);
 }
 
-inline void FinalizeResponse(const std::shared_ptr<HttpTaskSharedState>& state) {
+inline void FinalizeResponse(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
   if (!state || state->response_committed.exchange(true)) {
     return;
   }
@@ -251,13 +253,14 @@ void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
     return;
   }
 
-  if (state->route_result.handler == nullptr || !IsTaskEnvironmentAvailable(state)) {
+  if (state->route_result.handler == nullptr ||
+      !IsTaskEnvironmentAvailable(state)) {
     ShortCircuitLifecycle(state);
     return;
   }
 
-  auto task = std::shared_ptr<HttpServerTask>(
-      new HttpServerTask(state), HttpServerTaskDeleter{state});
+  auto task = std::shared_ptr<HttpServerTask>(new HttpServerTask(state),
+                                              HttpServerTaskDeleter{state});
   task->Start();
 }
 
@@ -278,8 +281,8 @@ void HttpServerTaskDeleter::operator()(HttpServerTask* ptr) const {
     return;
   }
 
-  auto task = std::shared_ptr<HttpPostServerTask>(
-      new HttpPostServerTask(state), HttpPostTaskDeleter{state});
+  auto task = std::shared_ptr<HttpPostServerTask>(new HttpPostServerTask(state),
+                                                  HttpPostTaskDeleter{state});
   task->Start();
 }
 
@@ -314,7 +317,8 @@ task_internal::HttpTaskSharedState& HttpTaskBase::GetState() noexcept {
   return *state_;
 }
 
-const task_internal::HttpTaskSharedState& HttpTaskBase::GetState() const noexcept {
+const task_internal::HttpTaskSharedState& HttpTaskBase::GetState()
+    const noexcept {
   return *state_;
 }
 
@@ -369,7 +373,8 @@ const std::string& HttpTaskBase::GetSessionId() {
 
     if (state_->sessionid.has_value()) {
       ServerSetCookie session_cookie;
-      session_cookie.SetName("sessionId").SetValue(state_->sessionid.value_or(""));
+      session_cookie.SetName("sessionId")
+          .SetValue(state_->sessionid.value_or(""));
       AddCookie(std::move(session_cookie));
     }
   }
@@ -626,6 +631,14 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
   }
 
   Post([self, curr_idx] { self->DoPostService(curr_idx - 1); });
+}
+
+boost::asio::io_context& HttpTaskBase::GetIoContext() noexcept {
+  return state_->conn.load()->GetServer()->GetIoContext();
+}
+
+boost::asio::thread_pool& HttpTaskBase::GetExecutionContext() noexcept {
+  return state_->conn.load()->GetServer()->GetExecutionContext();
 }
 
 }  // namespace bsrvcore

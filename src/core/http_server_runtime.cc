@@ -13,6 +13,7 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -91,6 +92,12 @@ std::shared_ptr<Context> HttpServer::GetSession(const std::string& sessionid) {
 
 std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
   return sessions_->GetSession(std::move(sessionid));
+}
+
+boost::asio::io_context& HttpServer::GetIoContext() noexcept { return ioc_; }
+
+boost::asio::thread_pool& HttpServer::GetExecutionContext() noexcept {
+  return *thread_pool_;
 }
 
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,

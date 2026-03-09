@@ -19,6 +19,7 @@
 #define BSRVCORE_HTTP_SERVER_H_
 
 #include <algorithm>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/thread_pool.hpp>
@@ -515,6 +516,18 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Keep-alive timeout in milliseconds
    */
   std::size_t GetKeepAliveTimeout();
+
+  /**
+   * @brief Get the IO context of the executor to post IO tasks.
+   * @return The IO context of the server.
+   */
+  boost::asio::io_context& GetIoContext() noexcept;
+
+  /**
+   * @brief Get the thread pool of the executor to post IO tasks.
+   * @return The IO context of the server.
+   */
+  boost::asio::thread_pool& GetExecutionContext() noexcept;
 
   /**
    * @brief Check if server is running
