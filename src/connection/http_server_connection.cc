@@ -12,6 +12,7 @@
 
 #include "bsrvcore/internal/http_server_connection.h"
 
+#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
@@ -74,17 +75,22 @@ void HttpServerConnection::Run() {
     return;
   }
 
-  boost::asio::post(strand_, [self = shared_from_this(), this] {
+  boost::asio::post(
+      strand_,
+      boost::asio::bind_allocator(GetHandlerAllocator(),
+                                 [self = shared_from_this(), this] {
     if (header_read_expiry_) {
       timer_.expires_after(std::chrono::milliseconds(header_read_expiry_));
-      timer_.async_wait([self, this](boost::system::error_code ec) {
-        if (!ec) {
-          DoClose();
-        }
-      });
+      timer_.async_wait(boost::asio::bind_allocator(
+          GetHandlerAllocator(),
+          [self, this](boost::system::error_code ec) {
+            if (!ec) {
+              DoClose();
+            }
+          }));
     }
     DoReadHeader();
-  });
+  }));
 }
 
 void HttpServerConnection::DoRoute() {
@@ -113,12 +119,13 @@ void HttpServerConnection::DoRoute() {
 
   if (route_result_.read_expiry) {
     timer_.expires_after(std::chrono::milliseconds(route_result_.read_expiry));
-    timer_.async_wait(
+    timer_.async_wait(boost::asio::bind_allocator(
+        GetHandlerAllocator(),
         [self = shared_from_this(), this](boost::system::error_code ec) {
           if (!ec) {
             DoClose();
           }
-        });
+        }));
   }
 
   if (route_result_.max_body_size) {
@@ -149,12 +156,13 @@ void HttpServerConnection::DoCycle() {
     if (header_read_expiry_ + keep_alive_timeout_) {
       timer_.expires_after(
           std::chrono::milliseconds(header_read_expiry_ + keep_alive_timeout_));
-      timer_.async_wait(
-          [self = shared_from_this(), this](boost::system::error_code ec) {
-            if (!ec) {
-              DoClose();
-            }
-          });
+        timer_.async_wait(boost::asio::bind_allocator(
+            GetHandlerAllocator(),
+            [self = shared_from_this(), this](boost::system::error_code ec) {
+              if (!ec) {
+                DoClose();
+              }
+            }));
     }
 
     Run();
@@ -174,7 +182,9 @@ HttpServerConnection::HttpServerConnection(
       parser_(std::make_unique<boost::beast::http::request_parser<
                   boost::beast::http::string_body>>()),
       header_read_expiry_(header_read_expiry),
-      keep_alive_timeout_(keep_alive_timeout) {}
+  keep_alive_timeout_(keep_alive_timeout),
+  handler_mem_(std::make_shared<bsrvcore::internal::HandlerMemory>()),
+  handler_alloc_(handler_mem_) {}
 
 bool HttpServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();

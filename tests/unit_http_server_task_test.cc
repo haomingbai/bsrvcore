@@ -96,8 +96,9 @@ TEST(HttpServerTaskTest, UsesExistingSessionCookie) {
   req.set(boost::beast::http::field::cookie, "a=1; sessionId=abc; b=2");
 
   {
-    auto task = std::make_shared<bsrvcore::HttpServerTask>(
-        std::move(req), MakeRouteResult(&handler), conn);
+    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
+                                                 MakeRouteResult(&handler),
+                                                 conn);
     EXPECT_EQ(task->GetCookie("a"), "1");
     EXPECT_EQ(task->GetSessionId(), "abc");
   }
@@ -123,8 +124,9 @@ TEST(HttpServerTaskTest, GeneratesSessionCookieWhenMissing) {
 
   std::string session_id;
   {
-    auto task = std::make_shared<bsrvcore::HttpServerTask>(
-        std::move(req), MakeRouteResult(&handler), conn);
+    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
+                                                 MakeRouteResult(&handler),
+                                                 conn);
     session_id = task->GetSessionId();
     EXPECT_FALSE(session_id.empty());
   }
@@ -156,8 +158,9 @@ TEST(HttpServerTaskTest, ManualConnectionManagementSkipsAutoWrite) {
   bsrvcore::HttpRequest req;
 
   {
-    auto task = std::make_shared<bsrvcore::HttpServerTask>(
-        std::move(req), MakeRouteResult(&handler), conn);
+    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
+                                                 MakeRouteResult(&handler),
+                                                 conn);
     task->SetManualConnectionManagement(true);
   }
 

@@ -35,6 +35,7 @@
 #include "bsrvcore/http_route_result.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
+#include "bsrvcore/internal/asio_allocator.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/trait.h"
 
@@ -91,6 +92,16 @@ class HttpServerConnection
     : public NonCopyableNonMovable<HttpServerConnection>,
       public std::enable_shared_from_this<HttpServerConnection> {
  public:
+  /**
+   * @brief Get per-connection handler allocator (copy).
+   *
+   * @note Internal API: intended for binding Boost.Asio handlers and for
+   *       task factories to allocate request-lifecycle objects.
+   */
+  internal::HandlerAllocator GetHandlerAllocator() const noexcept {
+    return handler_alloc_;
+  }
+
   /**
    * @brief Post a function to be executed on the connection's strand
    * @param fn Function to execute asynchronously
@@ -351,6 +362,10 @@ class HttpServerConnection
       parser_;                      ///< HTTP request parser
   std::size_t header_read_expiry_;  ///< Header read timeout in ms
   std::size_t keep_alive_timeout_;  ///< Keep-alive timeout in ms
+
+  // Per-connection allocator used for all Asio/Beast handlers.
+  std::shared_ptr<internal::HandlerMemory> handler_mem_;
+  internal::HandlerAllocator handler_alloc_;
 };
 
 }  // namespace bsrvcore

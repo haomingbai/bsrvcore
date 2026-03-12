@@ -33,6 +33,7 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <memory_resource>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -53,6 +54,9 @@ class HttpPostServerTask;
 
 namespace task_internal {
 struct HttpTaskSharedState;
+struct HttpPreTaskDeleter;
+struct HttpServerTaskDeleter;
+struct HttpPostTaskDeleter;
 }  // namespace task_internal
 
 // Type aliases for Boost.Beast HTTP types
@@ -202,7 +206,10 @@ class HttpTaskBase {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = std::allocate_shared<std::packaged_task<RT()>>(
+      std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
+        GetMemoryResource()),
+      binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -250,7 +257,10 @@ class HttpTaskBase {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = std::allocate_shared<std::packaged_task<RT()>>(
+      std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
+        GetMemoryResource()),
+      binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -339,6 +349,11 @@ class HttpTaskBase {
   std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState()
       const noexcept;
 
+  // Allocator hook for template helpers in this header.
+  //
+  // Implemented in the .cc file and backed by the per-connection allocator.
+  std::pmr::memory_resource* GetMemoryResource() const noexcept;
+
  private:
   void GenerateCookiePairs();
   std::shared_ptr<task_internal::HttpTaskSharedState> state_;
@@ -366,15 +381,6 @@ class HttpPreServerTask
       std::shared_ptr<HttpServerConnection> conn);
 
   /**
-   * @brief Construct pre-phase task from shared state.
-   * @param state Shared lifecycle state.
-   *
-   * @note Usually called internally by lifecycle orchestration.
-   */
-  explicit HttpPreServerTask(
-      std::shared_ptr<task_internal::HttpTaskSharedState> state);
-
-  /**
    * @brief Start pre-aspect execution.
    */
   void Start();
@@ -385,6 +391,13 @@ class HttpPreServerTask
   ~HttpPreServerTask();
 
  private:
+  friend struct task_internal::HttpPreTaskDeleter;
+  friend struct task_internal::HttpServerTaskDeleter;
+  friend struct task_internal::HttpPostTaskDeleter;
+
+  explicit HttpPreServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
   void DoPreService(std::size_t curr_idx);
 };
 
@@ -398,24 +411,14 @@ class HttpServerTask : public HttpTaskBase,
                        public std::enable_shared_from_this<HttpServerTask> {
  public:
   /**
-   * @brief Construct standalone service task.
-   * @param req Incoming HTTP request.
-   * @param route_result Routing result.
-   * @param conn Connection for this request.
+   * @brief Create standalone service task.
    *
-   * @note This constructor keeps backward-compatible direct usage.
+   * Prefer this factory over constructors to ensure allocations are bound to
+   * Boost.Asio's allocator mechanism.
    */
-  HttpServerTask(HttpRequest req, HttpRouteResult route_result,
-                 std::shared_ptr<HttpServerConnection> conn);
-
-  /**
-   * @brief Construct service task from shared state.
-   * @param state Shared lifecycle state.
-   *
-   * @note Usually called internally by lifecycle orchestration.
-   */
-  explicit HttpServerTask(
-      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+  static std::shared_ptr<HttpServerTask> Create(
+      HttpRequest req, HttpRouteResult route_result,
+      std::shared_ptr<HttpServerConnection> conn);
 
   /**
    * @brief Start route handler execution.
@@ -428,6 +431,16 @@ class HttpServerTask : public HttpTaskBase,
   ~HttpServerTask();
 
  private:
+  friend struct task_internal::HttpPreTaskDeleter;
+  friend struct task_internal::HttpServerTaskDeleter;
+  friend struct task_internal::HttpPostTaskDeleter;
+
+  HttpServerTask(HttpRequest req, HttpRouteResult route_result,
+                 std::shared_ptr<HttpServerConnection> conn);
+
+  explicit HttpServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
   void DoService();
 };
 
@@ -442,13 +455,6 @@ class HttpPostServerTask
       public std::enable_shared_from_this<HttpPostServerTask> {
  public:
   /**
-   * @brief Construct post-phase task from shared state.
-   * @param state Shared lifecycle state.
-   */
-  explicit HttpPostServerTask(
-      std::shared_ptr<task_internal::HttpTaskSharedState> state);
-
-  /**
    * @brief Start post-aspect execution.
    */
   void Start();
@@ -459,6 +465,13 @@ class HttpPostServerTask
   ~HttpPostServerTask();
 
  private:
+  friend struct task_internal::HttpPreTaskDeleter;
+  friend struct task_internal::HttpServerTaskDeleter;
+  friend struct task_internal::HttpPostTaskDeleter;
+
+  explicit HttpPostServerTask(
+      std::shared_ptr<task_internal::HttpTaskSharedState> state);
+
   void DoPostService(std::size_t curr_idx);
 };
 

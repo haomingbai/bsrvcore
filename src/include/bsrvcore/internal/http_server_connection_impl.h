@@ -20,6 +20,7 @@
 #define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
 
 #include <atomic>
+#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -107,7 +108,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     // Now conn is owned by shared_ptr; create message_queue_ with weak ref.
     conn->message_queue_ =
         std::make_shared<typename HttpServerConnectionImpl<S>::MessageQueue>(
-            conn->weak_from_this());
+            std::weak_ptr<HttpServerConnectionImpl<S>>(conn));
     return conn;
   }
 
@@ -120,17 +121,23 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     if constexpr (helper::IsBeastSslStream<S>::value) {
       stream_.async_shutdown(boost::asio::bind_executor(
           GetExecutor(),
-          [self = this->shared_from_this(), this]([[maybe_unused]] auto ec) {
-            boost::system::error_code socket_ec;
-            helper::GetLowestSocket(stream_).close(socket_ec);
-          }));
+          boost::asio::bind_allocator(
+              GetHandlerAllocator(),
+              [self = this->shared_from_this(), this]([[maybe_unused]] auto ec) {
+                boost::system::error_code socket_ec;
+                helper::GetLowestSocket(stream_).close(socket_ec);
+              })));
     } else {
-      boost::asio::post(GetStrand(), [self = this->shared_from_this(), this] {
-        boost::system::error_code ec;
-        helper::GetLowestSocket(stream_).shutdown(
-            boost::asio::ip::tcp::socket::shutdown_both, ec);
-        helper::GetLowestSocket(stream_).close(ec);
-      });
+      boost::asio::post(
+          GetStrand(),
+          boost::asio::bind_allocator(
+              GetHandlerAllocator(),
+              [self = this->shared_from_this(), this] {
+                boost::system::error_code ec;
+                helper::GetLowestSocket(stream_).shutdown(
+                    boost::asio::ip::tcp::socket::shutdown_both, ec);
+                helper::GetLowestSocket(stream_).close(ec);
+              }));
     }
   }
 
@@ -151,19 +158,22 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     boost::beast::http::async_write(
         stream_, resp_,
         boost::asio::bind_executor(
-            GetExecutor(), [self = this->shared_from_this(), this, keep_alive](
-                               boost::system::error_code ec,
-                               [[maybe_unused]] std::size_t bytes_transfered) {
-              if (ec) {
-                DoClose();
-              } else {
-                if (!keep_alive) {
-                  DoClose();
-                } else {
-                  DoCycle();
-                }
-              }
-            }));
+            GetExecutor(),
+            boost::asio::bind_allocator(
+                GetHandlerAllocator(),
+                [self = this->shared_from_this(), this, keep_alive](
+                    boost::system::error_code ec,
+                    [[maybe_unused]] std::size_t bytes_transfered) {
+                  if (ec) {
+                    DoClose();
+                  } else {
+                    if (!keep_alive) {
+                      DoClose();
+                    } else {
+                      DoCycle();
+                    }
+                  }
+                })));
   }
 
   void DoFlushResponseHeader(
@@ -189,15 +199,18 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     boost::beast::http::async_read_header(
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
-            GetExecutor(), [self = this->shared_from_this(), this](
-                               boost::system::error_code ec,
-                               [[maybe_unused]] std::size_t bytes_transfered) {
-              if (ec) {
-                DoClose();
-              } else {
-                DoRoute();
-              }
-            }));
+            GetExecutor(),
+            boost::asio::bind_allocator(
+                GetHandlerAllocator(),
+                [self = this->shared_from_this(), this](
+                    boost::system::error_code ec,
+                    [[maybe_unused]] std::size_t bytes_transfered) {
+                  if (ec) {
+                    DoClose();
+                  } else {
+                    DoRoute();
+                  }
+                })));
   }
 
   void DoReadBody() override {
@@ -208,15 +221,18 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     boost::beast::http::async_read(
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
-            GetExecutor(), [self = this->shared_from_this(), this](
-                               boost::system::error_code ec,
-                               [[maybe_unused]] std::size_t bytes_transfered) {
-              if (ec) {
-                DoClose();
-              } else {
-                DoForwardRequest();
-              }
-            }));
+            GetExecutor(),
+            boost::asio::bind_allocator(
+                GetHandlerAllocator(),
+                [self = this->shared_from_this(), this](
+                    boost::system::error_code ec,
+                    [[maybe_unused]] std::size_t bytes_transfered) {
+                  if (ec) {
+                    DoClose();
+                  } else {
+                    DoForwardRequest();
+                  }
+                })));
   }
 
   void ClearMessage() override {
@@ -261,9 +277,11 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       if (auto conn_sp = conn_wp_.lock()) {
         boost::asio::post(
             conn_sp->GetExecutor(),
-            [conn_sp, self_sp, message = std::move(message)]() mutable {
-              self_sp->EnqueueBodyOnStrand(std::move(message));
-            });
+            boost::asio::bind_allocator(
+                conn_sp->GetHandlerAllocator(),
+                [conn_sp, self_sp, message = std::move(message)]() mutable {
+                  self_sp->EnqueueBodyOnStrand(std::move(message));
+                }));
       } else {
         MarkConnectionDeadAndNotify();
       }
@@ -278,9 +296,11 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       if (auto conn_sp = conn_wp_.lock()) {
         boost::asio::post(
             conn_sp->GetExecutor(),
-            [conn_sp, self_sp, message = std::move(message)]() mutable {
-              self_sp->EnqueueHeaderOnStrand(std::move(message));
-            });
+            boost::asio::bind_allocator(
+                conn_sp->GetHandlerAllocator(),
+                [conn_sp, self_sp, message = std::move(message)]() mutable {
+                  self_sp->EnqueueHeaderOnStrand(std::move(message));
+                }));
       } else {
         MarkConnectionDeadAndNotify();
       }
@@ -363,10 +383,13 @@ class HttpServerConnectionImpl : public HttpServerConnection {
           conn_sp->stream_, buf,
           boost::asio::bind_executor(
               conn_sp->GetExecutor(),
-              [conn_sp, mq = this->shared_from_this(), msg_sp](
-                  boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-                mq->HandleBodyWriteComplete(ec);
-              }));
+              boost::asio::bind_allocator(
+                  conn_sp->GetHandlerAllocator(),
+                  [conn_sp, mq = this->shared_from_this(), msg_sp](
+                      boost::system::error_code ec,
+                      [[maybe_unused]] std::size_t) {
+                    mq->HandleBodyWriteComplete(ec);
+                  })));
     }
 
     void StartWriteHeader(HeaderMessage& task) {
@@ -384,10 +407,13 @@ class HttpServerConnectionImpl : public HttpServerConnection {
           conn_sp->stream_, task.sr,
           boost::asio::bind_executor(
               conn_sp->GetExecutor(),
-              [conn_sp, mq = this->shared_from_this(), resp_keeper](
-                  boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-                mq->HandleHeaderWriteComplete(ec);
-              }));
+              boost::asio::bind_allocator(
+                  conn_sp->GetHandlerAllocator(),
+                  [conn_sp, mq = this->shared_from_this(), resp_keeper](
+                      boost::system::error_code ec,
+                      [[maybe_unused]] std::size_t) {
+                    mq->HandleHeaderWriteComplete(ec);
+                  })));
     }
 
     // ---- completion handlers (run on strand) ----

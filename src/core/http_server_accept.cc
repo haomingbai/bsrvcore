@@ -11,6 +11,7 @@
  */
 
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
 #include <boost/asio/ip/tcp.hpp>
@@ -33,6 +34,7 @@
 
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
+#include "bsrvcore/internal/asio_allocator.h"
 #include "bsrvcore/internal/http_server_connection_impl.h"
 #include "bsrvcore/internal/session_map.h"
 
@@ -110,35 +112,41 @@ void HttpServer::Stop() {
 }
 
 void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
+  static auto accept_mem =
+    std::make_shared<bsrvcore::internal::HandlerMemory>();
+  bsrvcore::internal::HandlerAllocator accept_alloc(accept_mem);
+
   acc.async_accept(
       boost::asio::make_strand(ioc_),
+    boost::asio::bind_allocator(
+      accept_alloc,
       [this, &acc](boost::system::error_code ec,
-                   boost::asio::ip::tcp::socket skt) {
+             boost::asio::ip::tcp::socket skt) {
         if (!ec) {
           boost::beast::tcp_stream stream(std::move(skt));
           if (ssl_ctx_.has_value()) {
             boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
                 std::move(stream), ssl_ctx_.value());
-            std::make_shared<connection_internal::HttpServerConnectionImpl<
-                boost::beast::ssl_stream<boost::beast::tcp_stream>>>(
-                std::move(sstream),
-                boost::asio::strand<boost::asio::any_io_executor>(
-                    sstream.get_executor()),
-                this, header_read_expiry_, keep_alive_timeout_)
-                ->Run();
+      connection_internal::HttpServerConnectionImpl<
+        boost::beast::ssl_stream<boost::beast::tcp_stream>>
+        ::Create(std::move(sstream),
+             boost::asio::strand<boost::asio::any_io_executor>(
+               sstream.get_executor()),
+             this, header_read_expiry_, keep_alive_timeout_)
+          ->Run();
           } else {
-            std::make_shared<connection_internal::HttpServerConnectionImpl<
-                boost::beast::tcp_stream>>(
-                std::move(stream),
-                boost::asio::strand<boost::asio::any_io_executor>(
-                    stream.get_executor()),
-                this, header_read_expiry_, keep_alive_timeout_)
-                ->Run();
+      connection_internal::HttpServerConnectionImpl<
+        boost::beast::tcp_stream>::Create(
+        std::move(stream),
+        boost::asio::strand<boost::asio::any_io_executor>(
+          stream.get_executor()),
+        this, header_read_expiry_, keep_alive_timeout_)
+        ->Run();
           }
         }
 
         if (is_running_) {
           DoAccept(acc);
         }
-      });
+    }));
 }
