@@ -350,7 +350,8 @@ void HttpClientSession::UpsertFromSetCookieLocked(
   incoming.path = DefaultPathFromTarget(target);
 
   bool has_max_age = false;
-  std::optional<long long> max_age_secs;
+  bool max_age_valid = false;
+  long long max_age_secs = 0;
   std::optional<std::chrono::system_clock::time_point> expires_tp;
 
   for (std::size_t i = 1; i < tokens.size(); ++i) {
@@ -391,8 +392,9 @@ void HttpClientSession::UpsertFromSetCookieLocked(
       has_max_age = true;
       try {
         max_age_secs = std::stoll(std::string(v));
+        max_age_valid = true;
       } catch (...) {
-        max_age_secs = std::nullopt;
+        max_age_valid = false;
       }
       continue;
     }
@@ -406,13 +408,13 @@ void HttpClientSession::UpsertFromSetCookieLocked(
   // - Max-Age takes precedence when present and parseable.
   // - Max-Age <= 0 means deletion.
   // - Expires that is already past is treated as deletion.
-  if (has_max_age && max_age_secs.has_value()) {
-    if (max_age_secs.value() <= 0) {
+  if (has_max_age && max_age_valid) {
+    if (max_age_secs <= 0) {
       erase_cookie(incoming);
       return;
     }
     incoming.expiry = std::chrono::system_clock::now() +
-                      std::chrono::seconds(max_age_secs.value());
+                      std::chrono::seconds(max_age_secs);
   } else if (expires_tp.has_value()) {
     incoming.expiry = expires_tp;
     if (incoming.expiry.value() <= std::chrono::system_clock::now()) {
