@@ -49,6 +49,8 @@ bsrvcore_add_test(unit_cookie_test unit_cookie_test.cc unit)
 bsrvcore_add_test(unit_route_table_test unit_route_table_test.cc unit)
 bsrvcore_add_test(unit_http_server_task_test unit_http_server_task_test.cc unit)
 bsrvcore_add_test(unit_logger_test unit_logger_test.cc unit)
+bsrvcore_add_test(unit_http_client_task_test unit_http_client_task_test.cc unit)
+bsrvcore_add_test(unit_http_sse_client_task_test unit_http_sse_client_task_test.cc unit)
 
 # Integration tests
 bsrvcore_add_test(integration_http_server_test integration_http_server_test.cc integration)

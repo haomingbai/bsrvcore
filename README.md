@@ -58,6 +58,86 @@ int main() {
 }
 ```
 
+## Client Tasks (HTTP/HTTPS + SSE)
+
+bsrvcore now provides asynchronous client-side tasks with stage-based callbacks:
+
+- `HttpClientTask`: regular HTTP/HTTPS requests.
+- `HttpSseClientTask`: SSE stream consumption with pull-based `Start/Next`.
+- `SseEventParser`: optional helper to parse raw SSE chunks into events.
+
+### HttpClientTask example
+
+```cpp
+#include <bsrvcore/http_client_task.h>
+
+#include <boost/asio/io_context.hpp>
+#include <iostream>
+
+int main() {
+    boost::asio::io_context ioc;
+
+    auto task = bsrvcore::HttpClientTask::CreateFromUrl(
+            ioc.get_executor(), "http://127.0.0.1:8080/ping",
+            boost::beast::http::verb::get);
+
+    task->OnDone([](const bsrvcore::HttpClientResult& result) {
+        if (result.ec || result.cancelled) {
+            std::cerr << "request failed: " << result.ec.message() << std::endl;
+            return;
+        }
+        std::cout << "status=" << result.response.result_int()
+                  << " body=" << result.response.body() << std::endl;
+    });
+
+    task->Start();
+    ioc.run();
+}
+```
+
+### HttpSseClientTask example (pull with Next)
+
+```cpp
+#include <bsrvcore/http_sse_client_task.h>
+#include <bsrvcore/sse_event_parser.h>
+
+#include <boost/asio/io_context.hpp>
+#include <iostream>
+#include <memory>
+
+int main() {
+    boost::asio::io_context ioc;
+    auto parser = std::make_shared<bsrvcore::SseEventParser>();
+
+    auto task = bsrvcore::HttpSseClientTask::CreateFromUrl(
+            ioc.get_executor(), "http://127.0.0.1:8080/events");
+
+    auto pull_next = std::make_shared<std::function<void()>>();
+    *pull_next = [task, parser, pull_next]() {
+        task->Next([parser, pull_next](const bsrvcore::HttpSseClientResult& result) {
+            if (result.cancelled || result.ec || result.eof) {
+                return;
+            }
+
+            auto events = parser->Feed(result.chunk);
+            for (const auto& event : events) {
+                std::cout << "event=" << event.event << " data=" << event.data << std::endl;
+            }
+
+            (*pull_next)();
+        });
+    };
+
+    task->Start([pull_next](const bsrvcore::HttpSseClientResult& result) {
+        if (!result.ec && !result.cancelled) {
+            (*pull_next)();
+        }
+    });
+
+    ioc.run();
+}
+```
+
 ## Core Concepts
 
 ### Configuration defaults
@@ -159,6 +239,7 @@ int main() {
 ### Aspects (pre/post hooks)
 
 Aspect callbacks now run in three lifecycle phases:
+
 - `HttpPreServerTask`: executes `PreService` in registration order.
 - `HttpServerTask`: executes route `Service`; users may extend its lifetime by
   posting async work that retains the task.

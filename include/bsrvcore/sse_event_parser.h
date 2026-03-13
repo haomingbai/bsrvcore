@@ -1,0 +1,67 @@
+/**
+ * @file sse_event_parser.h
+ * @brief Utility parser for text/event-stream chunks.
+ * @author Haoming Bai <haomingbai@hotmail.com>
+ * @date   2026-03-13
+ *
+ * Copyright (c) 2026 Haoming Bai
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#ifndef BSRVCORE_SSE_EVENT_PARSER_H_
+#define BSRVCORE_SSE_EVENT_PARSER_H_
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace bsrvcore {
+
+/**
+ * @brief Parsed SSE event object.
+ */
+struct SseEvent {
+  /** @brief Event id field (`id:`). */
+  std::string id{};
+  /** @brief Event type field (`event:`). */
+  std::string event{};
+  /** @brief Event payload field (`data:`), joined by '\n' for multiline data. */
+  std::string data{};
+  /** @brief Retry field (`retry:`) in milliseconds when provided and valid. */
+  std::optional<int> retry_ms{};
+};
+
+/**
+ * @brief Incremental parser for `text/event-stream` chunks.
+ *
+ * Feed() accepts arbitrary chunk boundaries and returns zero or more fully
+ * parsed events. Incomplete lines are buffered across calls.
+ */
+class SseEventParser {
+ public:
+  /**
+   * @brief Feed raw bytes and collect parsed SSE events.
+   * @param chunk Raw bytes from transport.
+   * @return Zero or more parsed events.
+   */
+  std::vector<SseEvent> Feed(std::string_view chunk);
+
+  /**
+   * @brief Reset internal parser state.
+   */
+  void Reset();
+
+ private:
+  void ConsumeLine(std::string_view line, std::vector<SseEvent>& out);
+
+  std::string pending_{};
+  SseEvent current_{};
+  bool has_field_{false};
+};
+
+}  // namespace bsrvcore
+
+#endif  // BSRVCORE_SSE_EVENT_PARSER_H_

@@ -2,17 +2,16 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
-#include <boost/beast/version.hpp>
 #include <chrono>
+#include <future>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
 
+#include "bsrvcore/http_client_task.h"
 #include "bsrvcore/http_server.h"
 
 namespace bsrvcore::test {
@@ -41,55 +40,68 @@ struct ServerGuard {
   std::unique_ptr<bsrvcore::HttpServer> server;
 };
 
-// Send a single HTTP request to the test server.
-inline http::response<http::string_body> DoRequest(http::verb method,
-                                                   unsigned short port,
-                                                   const std::string& target,
-                                                   const std::string& body = "") {
+inline http::response<http::string_body> DoRequestTask(
+    http::verb method, unsigned short port, const std::string& target,
+    const std::string& body = "") {
   boost::asio::io_context ioc;
-  tcp::resolver resolver(ioc);
-  boost::beast::tcp_stream stream(ioc);
 
-  stream.expires_after(std::chrono::seconds(2));
-  auto const results = resolver.resolve("127.0.0.1", std::to_string(port));
-  boost::system::error_code ec;
-  stream.connect(results, ec);
-  if (ec) {
-    throw boost::system::system_error(ec);
-  }
+  HttpClientOptions options;
+  options.resolve_timeout = std::chrono::seconds(2);
+  options.connect_timeout = std::chrono::seconds(2);
+  options.write_timeout = std::chrono::seconds(2);
+  options.read_header_timeout = std::chrono::seconds(2);
+  options.read_body_timeout = std::chrono::seconds(2);
+  options.user_agent = "bsrvcore-test-client-task";
 
-  http::request<http::string_body> req{method, target, 11};
-  req.set(http::field::host, "127.0.0.1");
-  req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-  req.body() = body;
-  req.keep_alive(false);
-  req.prepare_payload();
+  auto task = HttpClientTask::CreateHttp(
+      ioc.get_executor(), "127.0.0.1", std::to_string(port), target, method,
+      options);
 
-  stream.expires_after(std::chrono::seconds(2));
-  http::write(stream, req);
+  task->Request().body() = body;
 
-  boost::beast::flat_buffer buffer;
-  http::response<http::string_body> res;
-  stream.expires_after(std::chrono::seconds(2));
-  http::read(stream, buffer, res);
+  std::promise<http::response<http::string_body>> promise;
+  auto future = promise.get_future();
 
-  stream.socket().shutdown(tcp::socket::shutdown_both, ec);
-  return res;
+  task->OnDone([&promise](const HttpClientResult& result) mutable {
+    if (result.ec) {
+      promise.set_exception(
+          std::make_exception_ptr(boost::system::system_error(result.ec)));
+      return;
+    }
+    if (result.cancelled) {
+      promise.set_exception(std::make_exception_ptr(
+          std::runtime_error("request cancelled unexpectedly")));
+      return;
+    }
+    promise.set_value(result.response);
+  });
+
+  task->Start();
+  ioc.run();
+
+  return future.get();
 }
 
 // Retry connection attempts for short startup races.
-inline http::response<http::string_body> DoRequestWithRetry(
+inline http::response<http::string_body> DoRequestTaskWithRetry(
     http::verb method, unsigned short port, const std::string& target,
     const std::string& body) {
   constexpr int kMaxAttempts = 5;
   for (int i = 0; i < kMaxAttempts; ++i) {
     try {
-      return DoRequest(method, port, target, body);
-    } catch (const boost::system::system_error&) {
+      return DoRequestTask(method, port, target, body);
+    } catch (const std::exception&) {
       std::this_thread::yield();
     }
   }
   throw std::runtime_error("Failed to connect to test server after retries");
+}
+
+// Keep compatibility with existing tests that use old helper function names.
+inline http::response<http::string_body> DoRequestWithRetry(
+    http::verb method, unsigned short port, const std::string& target,
+    const std::string& body) {
+  return DoRequestTaskWithRetry(method, port, target, body);
 }
 
 // Start server and retry if binding fails.

@@ -21,9 +21,12 @@
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
+#include "bsrvcore/http_client_task.h"
+#include "bsrvcore/http_sse_client_task.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
+#include "bsrvcore/sse_event_parser.h"
 
 #endif

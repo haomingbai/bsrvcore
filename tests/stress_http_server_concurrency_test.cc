@@ -16,7 +16,7 @@
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
-#include "test_http_client.h"
+#include "test_http_client_task.h"
 
 namespace {
 
