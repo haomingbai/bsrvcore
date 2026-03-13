@@ -1,6 +1,6 @@
 /**
  * @file http_server_connection.cc
- * @brief
+ * @brief HttpServerConnection base implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-30
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements common connection orchestration for request parsing and response
+ * writing.
  */
 
 #include "bsrvcore/internal/http_server_connection.h"

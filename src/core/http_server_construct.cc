@@ -1,6 +1,6 @@
 /**
  * @file http_server_construct.cc
- * @brief
+ * @brief HttpServer construction and destruction.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements HttpServer constructors and destructor.
  */
 
 #include <boost/asio/any_io_executor.hpp>

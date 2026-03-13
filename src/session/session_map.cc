@@ -1,6 +1,6 @@
 /**
  * @file session_map.cc
- * @brief
+ * @brief SessionMap implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-27
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements session lookup, creation, and expiration scheduling.
  */
 
 #include "bsrvcore/internal/session_map.h"

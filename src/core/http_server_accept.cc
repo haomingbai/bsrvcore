@@ -1,6 +1,6 @@
 /**
  * @file http_server_accept.cc
- * @brief
+ * @brief HttpServer accept loop implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements start/stop and asynchronous acceptor loop.
  */
 
 #include <boost/asio/any_io_executor.hpp>

@@ -1,6 +1,6 @@
 /**
  * @file session_key_heap_entry.cc
- * @brief
+ * @brief SessionKeyHeapEntry implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-27
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements a heap entry used for ordering sessions by expiry time.
  */
 
 #include "bsrvcore/internal/session_key_heap_entry.h"

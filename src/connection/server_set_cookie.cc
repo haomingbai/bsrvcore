@@ -1,6 +1,6 @@
 /**
  * @file server_set_cookie.cc
- * @brief
+ * @brief ServerSetCookie implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-02
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements cookie attribute setters and serialization utilities.
  */
 
 #include "bsrvcore/server_set_cookie.h"

@@ -74,19 +74,20 @@ class SessionMap;
  *
  * server->AddRouteEntry(HttpRequestMethod::kGet, "/",
  *                      [](auto task) {
- *                        task->SetBody(200, "Hello World");
+ *                        task->GetResponse().result(boost::beast::http::status::ok);
+ *                        task->SetBody("Hello World");
  *                      })
  *      ->AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
  *                      [](auto task) {
- *                        auto id = task->GetRouteParameters()[0];
- *                        task->SetBody(200, "User: " + id);
+ *                        auto id = task->GetPathParameters()[0];
+ *                        task->GetResponse().result(boost::beast::http::status::ok);
+ *                        task->SetBody("User: " + id);
  *                      })
  *      ->AddGlobalAspect([](auto task) { // Pre-service
- *                        std::cout << "Request: " << task->GetRequest().path;
+ *                        std::cout << "Request: " << task->GetRequest().target();
  *                      },
  *                      [](auto task) { // Post-service
- *                        std::cout << "Response: " <<
- * task->GetResponse().status;
+ *                        std::cout << "Response: " << task->GetResponse().result();
  *                      })
  *      ->SetDefaultReadExpiry(30000)    // 30 seconds
  *      ->SetDefaultMaxBodySize(1024*1024) // 1MB

@@ -1,6 +1,6 @@
 /**
  * @file bsrvcore.h
- * @brief
+ * @brief Umbrella header for bsrvcore public API.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-04
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Include this header to access the full set of public bsrvcore types.
+ * It re-exports all installed headers under `include/bsrvcore/`.
  */
 
 #pragma once

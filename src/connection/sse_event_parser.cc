@@ -29,18 +29,22 @@ inline std::string_view TrimLeadingSingleSpace(std::string_view sv) {
 }  // namespace
 
 std::vector<SseEvent> SseEventParser::Feed(std::string_view chunk) {
+  // The transport may split data arbitrarily; we keep a pending buffer so that
+  // incomplete lines at the end of the chunk can be completed by the next Feed().
   pending_.append(chunk.data(), chunk.size());
 
   std::vector<SseEvent> events;
   std::size_t line_start = 0;
 
   while (line_start < pending_.size()) {
+    // SSE is line-oriented. We only process complete lines (ending with '\n').
     std::size_t line_end = pending_.find('\n', line_start);
     if (line_end == std::string::npos) {
       break;
     }
 
     std::string_view line{pending_.data() + line_start, line_end - line_start};
+    // Normalize CRLF -> LF by stripping a trailing '\r'.
     if (!line.empty() && line.back() == '\r') {
       line.remove_suffix(1);
     }
@@ -50,6 +54,7 @@ std::vector<SseEvent> SseEventParser::Feed(std::string_view chunk) {
   }
 
   if (line_start > 0) {
+    // Remove consumed complete lines; keep the last incomplete line (if any).
     pending_.erase(0, line_start);
   }
 
@@ -65,6 +70,7 @@ void SseEventParser::Reset() {
 void SseEventParser::ConsumeLine(std::string_view line,
                                  std::vector<SseEvent>& out) {
   if (line.empty()) {
+    // A blank line terminates an event. Only emit when we have seen at least one field.
     if (has_field_) {
       out.push_back(current_);
       current_ = SseEvent{};
@@ -73,10 +79,12 @@ void SseEventParser::ConsumeLine(std::string_view line,
     return;
   }
 
+  // Comment line per SSE spec (ignored, no state changes).
   if (line.front() == ':') {
     return;
   }
 
+  // Parse "field:value" (value may be empty). A single leading space in value is trimmed.
   std::size_t colon = line.find(':');
   std::string_view field = line.substr(0, colon);
   std::string_view value{};
@@ -85,6 +93,7 @@ void SseEventParser::ConsumeLine(std::string_view line,
   }
 
   if (field == "data") {
+    // Multiple data lines are concatenated with '\n'.
     if (!current_.data.empty()) {
       current_.data.push_back('\n');
     }
@@ -106,6 +115,7 @@ void SseEventParser::ConsumeLine(std::string_view line,
   }
 
   if (field == "retry") {
+    // retry: must be a non-negative integer (milliseconds).
     int retry = 0;
     const char* begin = value.data();
     const char* end = value.data() + value.size();

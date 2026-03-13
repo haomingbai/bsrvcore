@@ -1,6 +1,6 @@
 /**
  * @file heap.h
- * @brief
+ * @brief Internal binary heap container.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-25
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Provides a 1-indexed binary heap used internally for scheduling.
  */
 
 #pragma once
@@ -26,8 +27,23 @@
 namespace bsrvcore {
 
 template <typename T, typename C = std::less<T>>
+/**
+ * @brief A simple 1-indexed binary heap.
+ *
+ * @tparam T Value type.
+ * @tparam C Comparator. The heap property is defined by `C`.
+ *
+ * @note This is an internal utility. The container keeps an unused sentinel
+ *       element at index 0, so the first valid element is at index 1.
+ */
 class Heap : CopyableMovable<Heap<T>> {
  public:
+  /**
+  * @brief Push a new element into the heap.
+  * @tparam Args Constructor argument types forwarded to T.
+  * @param val Arguments to construct the element.
+  * @return true on success.
+  */
   template <typename... Args>
   bool Push(Args&&... val) {
     auto curr_idx = container_.size();
@@ -55,6 +71,12 @@ class Heap : CopyableMovable<Heap<T>> {
     return true;
   }
 
+  /**
+   * @brief Remove and return the top element.
+   * @return The previous top element.
+   *
+   * @note Precondition: heap is not empty.
+   */
   T Pop() noexcept {
     constexpr std::size_t root = 1;
     auto last_idx = container_.size() - 1;
@@ -102,36 +124,66 @@ class Heap : CopyableMovable<Heap<T>> {
     return result;
   }
 
+  /**
+   * @brief Read the current top element.
+   * @return Reference to the top element.
+   *
+   * @note Precondition: heap is not empty.
+   */
   const T& Top() const noexcept {
     assert(!IsEmpty());
     return container_[1];
   }
 
+  /**
+   * @brief Shrink internal storage capacity to fit size.
+   * @return true on success.
+   */
   bool ShrinkToFit() {
     container_.shrink_to_fit();
     return true;
   }
 
+  /**
+   * @brief Get number of elements in the heap.
+   * @return Element count.
+   */
   std::size_t GetSize() const noexcept {
     assert(container_.size());
     return container_.size() - 1;
   }
 
+  /**
+   * @brief Get current capacity (in elements) of the heap.
+   * @return Capacity.
+   */
   std::size_t GetCapacity() const noexcept {
     assert(container_.capacity());
     return container_.capacity() - 1;
   }
 
+  /**
+   * @brief Whether the heap has no elements.
+   * @return true if empty.
+   */
   bool IsEmpty() const noexcept {
     assert(container_.size());
     return (container_.size() <= 1);
   }
 
+  /**
+   * @brief Reserve space for at least n elements.
+   * @param n Number of elements to reserve.
+   * @return true on success.
+   */
   bool Reserve(std::size_t n) {
     container_.reserve(n + 1);
     return true;
   }
 
+  /**
+   * @brief Construct an empty heap.
+   */
   Heap() : container_(1) {}
 
   template <typename... Comp>

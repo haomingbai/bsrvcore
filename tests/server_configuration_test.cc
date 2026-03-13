@@ -1,6 +1,6 @@
 /**
- * @file test_dummy.cpp
- * @brief
+ * @file server_configuration_test.cc
+ * @brief HttpServer configuration behavior tests.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-07
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Verifies configuration calls are rejected/disabled while the server is
+ * running.
  */
 
 #include <gtest/gtest.h>

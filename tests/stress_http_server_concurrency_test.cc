@@ -94,6 +94,7 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
   std::condition_variable cv;
   std::vector<std::string> errors;
 
+  // Start all workers at roughly the same time to maximize contention.
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   std::vector<std::jthread> workers;
   workers.reserve(cfg.threads);
@@ -105,6 +106,7 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
 
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
         try {
+          // Mix GET and POST to exercise both routing and request body handling.
           if ((rng() & 1U) == 0U) {
             auto res = bsrvcore::test::DoRequestWithRetry(
                 bsrvcore::test::http::verb::get, port, "/ping", "");
@@ -126,6 +128,7 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
             }
           }
         } catch (const std::exception& ex) {
+          // Network failures should be rare; capture a few to help debug flakes.
           std::lock_guard<std::mutex> lock(mtx);
           errors.emplace_back(std::string("request failed: ") + ex.what());
           failures.fetch_add(1, std::memory_order_relaxed);
@@ -133,6 +136,7 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
       }
 
       finished.fetch_add(1, std::memory_order_relaxed);
+      // Notify the main thread: one worker has completed.
       cv.notify_one();
     });
   }
@@ -143,6 +147,8 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
   });
 
   if (!ok) {
+    // Ask workers to stop and report a test failure; leaving threads running would
+    // make CI timing nondeterministic.
     for (auto& th : workers) {
       th.request_stop();
     }

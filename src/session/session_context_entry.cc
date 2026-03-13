@@ -1,6 +1,6 @@
 /**
  * @file session_context_entry.cc
- * @brief
+ * @brief SessionContextEntry implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-27
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements storage of a session Context together with its expiry time.
  */
 
 #include "bsrvcore/internal/session_context_entry.h"

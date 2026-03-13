@@ -1,6 +1,6 @@
 /**
  * @file empty_logger.cc
- * @brief
+ * @brief EmptyLogger implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Discards log messages when no real logger is configured.
  */
 
 #include "bsrvcore/internal/empty_logger.h"

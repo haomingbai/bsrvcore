@@ -1,6 +1,6 @@
 /**
  * @file empty_route_handler.cc
- * @brief
+ * @brief EmptyRouteHandler implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-01
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Provides the default fallback response when no route matches.
  */
 
 #include "bsrvcore/internal/empty_route_handler.h"

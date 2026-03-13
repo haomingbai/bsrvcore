@@ -99,6 +99,10 @@ class HttpTaskBase {
   /**
    * @brief Get current session by request sessionId.
    * @return Session context pointer, or nullptr if unavailable.
+    *
+    * @note If the request does not carry a valid session id cookie, this call
+    *       will generate one via GetSessionId() and schedule a Set-Cookie to be
+    *       written in the final response.
    */
   std::shared_ptr<Context> GetSession();
 
@@ -146,6 +150,8 @@ class HttpTaskBase {
    * @param value true to enable manual mode.
    *
    * @note Once enabled, later phase completion does not auto-write response.
+    *       Manual mode is a one-way switch for a task instance: calling this
+    *       API with false after it has been enabled has no effect.
    */
   void SetManualConnectionManagement(bool value) noexcept;
 
@@ -163,7 +169,7 @@ class HttpTaskBase {
 
   /**
    * @brief Get the thread pool of the executor to post IO tasks.
-   * @return The IO context of the server.
+    * @return The execution thread pool of the server.
    */
   boost::asio::thread_pool& GetExecutionContext() noexcept;
 
@@ -285,6 +291,9 @@ class HttpTaskBase {
    * @brief Get cookie by key from request.
    * @param key Cookie name.
    * @return Cookie value reference (empty string if not found).
+    *
+    * @note When the cookie is not present, this call returns an empty string
+    *       and may insert the key into the internal cookie map.
    */
   const std::string& GetCookie(const std::string& key);
 

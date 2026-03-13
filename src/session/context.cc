@@ -1,6 +1,6 @@
 /**
  * @file context.cc
- * @brief
+ * @brief Context implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-02-04
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements the thread-safe attribute container used for request and session
+ * scoped storage.
  */
 
 #include "bsrvcore/context.h"

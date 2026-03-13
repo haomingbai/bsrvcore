@@ -1,6 +1,6 @@
 /**
  * @file http_server_util.cc
- * @brief
+ * @brief HttpServer utility helpers.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements helper conversions and small utilities used by HttpServer.
  */
 
 #include <boost/asio/any_io_executor.hpp>

@@ -1,6 +1,6 @@
 /**
  * @file http_route_result.h
- * @brief
+ * @brief Routing result container returned by the router.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-30
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Defines HttpRouteResult, a lightweight struct that carries the matched route
+ * handler, aspect chain, extracted path parameters, and per-route limits.
  */
 
 #pragma once

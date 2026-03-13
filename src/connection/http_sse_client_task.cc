@@ -47,6 +47,8 @@ struct ParsedUrl {
 };
 
 std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
+  // Parse absolute URI like: http(s)://host[:port]/path?query.
+  // We intentionally accept only http/https schemes here.
   auto parsed = boost::urls::parse_uri(url);
   if (!parsed) {
     return std::nullopt;
@@ -65,8 +67,10 @@ std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
   ParsedUrl out;
   out.https = (scheme == "https");
   out.host = std::string(u.host());
+  // If port is absent, pick the scheme default.
   out.port = u.has_port() ? std::string(u.port()) : (out.https ? "443" : "80");
 
+  // Rebuild request-target (path + optional query). Keep encoded bytes as-is.
   std::string target = std::string(u.encoded_path());
   if (target.empty()) {
     target = "/";
@@ -119,6 +123,7 @@ class HttpSseClientTask::Impl
 
   void Start(Callback cb) {
     auto self = shared_from_this();
+    // Serialize task state changes onto the strand.
     boost::asio::post(strand_, [self, cb = std::move(cb)]() mutable {
       self->start_callback_ = std::move(cb);
       self->DoStart();
@@ -127,8 +132,10 @@ class HttpSseClientTask::Impl
 
   void Next(Callback cb) {
     auto self = shared_from_this();
+    // Next() is a pull model: at most one Next() can be in-flight.
     boost::asio::post(strand_, [self, cb = std::move(cb)]() mutable {
       if (!self->started_ || self->done_) {
+        // Next() is only valid after Start() succeeded and before completion.
         HttpSseClientResult result;
         result.stage = HttpSseClientStage::kNext;
         result.error_stage = HttpSseClientErrorStage::kReadBody;
@@ -138,6 +145,7 @@ class HttpSseClientTask::Impl
       }
 
       if (self->next_pending_) {
+        // Protect against overlapping reads: the body buffer grows monotonically.
         HttpSseClientResult result;
         result.stage = HttpSseClientStage::kNext;
         result.error_stage = HttpSseClientErrorStage::kReadBody;
@@ -154,6 +162,7 @@ class HttpSseClientTask::Impl
 
   void Cancel() {
     auto self = shared_from_this();
+    // Cancellation is best-effort and closes underlying transport.
     boost::asio::post(strand_, [self]() { self->DoCancel(); });
   }
 
@@ -170,6 +179,7 @@ class HttpSseClientTask::Impl
  private:
   void DoStart() {
     if (started_ || done_) {
+      // Idempotent start: ignore repeated calls.
       return;
     }
     started_ = true;
@@ -180,6 +190,7 @@ class HttpSseClientTask::Impl
     }
 
     if (use_ssl_ && ssl_ctx_ == nullptr) {
+      // HTTPS requires an SSL context; without it we fail fast.
       FailStart(HttpSseClientErrorStage::kCreate,
                 make_error_code(boost::system::errc::invalid_argument));
       return;
@@ -193,6 +204,7 @@ class HttpSseClientTask::Impl
     }
     request_.keep_alive(options_.keep_alive);
 
+    // Kick off: resolve -> connect -> (optional TLS) -> write -> read header.
     resolver_.async_resolve(
         host_, port_,
         boost::asio::bind_executor(
@@ -209,6 +221,7 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // Construct the appropriate stream type, then async_connect.
     if (use_ssl_) {
       ssl_stream_.emplace(executor_, *ssl_ctx_);
       boost::beast::get_lowest_layer(*ssl_stream_)
@@ -242,6 +255,7 @@ class HttpSseClientTask::Impl
     }
 
     if (use_ssl_) {
+      // For TLS, set SNI first so the server can pick the right certificate.
       if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
           1) {
         boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
@@ -250,6 +264,7 @@ class HttpSseClientTask::Impl
         return;
       }
 
+      // Peer verification is optional to support self-signed endpoints in tests.
       if (options_.verify_peer) {
         ssl_stream_->set_verify_mode(boost::asio::ssl::verify_peer);
         ssl_stream_->set_verify_callback(
@@ -269,6 +284,7 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // Plain TCP connected.
     DoWriteRequest();
   }
 
@@ -278,10 +294,12 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // TLS handshake complete.
     DoWriteRequest();
   }
 
   void DoWriteRequest() {
+    // Prepare and write the SSE GET request.
     request_.prepare_payload();
 
     if (use_ssl_) {
@@ -313,6 +331,7 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // Read header first to validate SSE response properties before streaming.
     parser_.emplace();
 
     if (use_ssl_) {
@@ -345,6 +364,7 @@ class HttpSseClientTask::Impl
     }
 
     const auto& msg = parser_->get();
+    // Minimal validation: SSE must respond with 200 OK and event-stream content-type.
     if (msg.result() != http::status::ok) {
       FailStart(HttpSseClientErrorStage::kReadHeader,
                 make_error_code(boost::system::errc::protocol_error));
@@ -371,6 +391,7 @@ class HttpSseClientTask::Impl
   }
 
   void DoReadNextChunk() {
+    // Pull one incremental body read. The parser keeps an internal growing body string.
     if (use_ssl_) {
       boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
           options_.read_body_timeout);
@@ -399,6 +420,7 @@ class HttpSseClientTask::Impl
     result.stage = HttpSseClientStage::kNext;
 
     if (ec) {
+      // Cancellation path: expose the cancellation and converge task.
       if (cancelled_ || ec == boost::asio::error::operation_aborted) {
         result.cancelled = true;
         result.ec = ec;
@@ -410,6 +432,7 @@ class HttpSseClientTask::Impl
         return;
       }
 
+      // Normal stream end / remote close is surfaced as eof=true (not a failure).
       if (ec == http::error::end_of_stream || ec == boost::asio::error::eof) {
         result.eof = true;
         next_pending_ = false;
@@ -420,6 +443,7 @@ class HttpSseClientTask::Impl
         return;
       }
 
+      // Transport error.
       failed_ = true;
       error_code_ = ec;
       error_stage_ = HttpSseClientErrorStage::kReadBody;
@@ -433,6 +457,7 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // Body is an ever-growing string; only return the delta since last callback.
     const auto& body = parser_->get().body();
     if (body.size() > last_emitted_body_size_) {
       result.chunk = body.substr(last_emitted_body_size_);
@@ -463,6 +488,7 @@ class HttpSseClientTask::Impl
     result.stage = HttpSseClientStage::kStart;
     result.error_stage = error_stage;
     result.ec = ec;
+    // "Cancelled" is derived both from explicit Cancel() and asio's abort code.
     result.cancelled = cancelled_ ||
                        (ec == boost::asio::error::operation_aborted);
 
@@ -477,6 +503,7 @@ class HttpSseClientTask::Impl
       return;
     }
 
+    // Cancellation is best-effort: cancel resolve and close sockets.
     cancelled_ = true;
     resolver_.cancel();
 

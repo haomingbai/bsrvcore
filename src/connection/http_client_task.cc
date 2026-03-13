@@ -47,6 +47,8 @@ struct ParsedUrl {
 };
 
 std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
+  // Parse absolute URI like: http(s)://host[:port]/path?query.
+  // We intentionally accept only http/https schemes here.
   auto parsed = boost::urls::parse_uri(url);
   if (!parsed) {
     return std::nullopt;
@@ -65,8 +67,10 @@ std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
   ParsedUrl out;
   out.https = (scheme == "https");
   out.host = std::string(u.host());
+  // If port is absent, pick the scheme default.
   out.port = u.has_port() ? std::string(u.port()) : (out.https ? "443" : "80");
 
+  // Rebuild request-target (path + optional query). Keep encoded bytes as-is.
   std::string target = std::string(u.encoded_path());
   if (target.empty()) {
     target = "/";
@@ -130,11 +134,13 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
   void Start() {
     auto self = shared_from_this();
+    // Serialize all state transitions onto the strand.
     boost::asio::post(strand_, [self]() { self->DoStart(); });
   }
 
   void Cancel() {
     auto self = shared_from_this();
+    // Cancellation is also serialized onto the strand to avoid races.
     boost::asio::post(strand_, [self]() { self->DoCancel(); });
   }
 
@@ -153,16 +159,19 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
  private:
   void DoStart() {
     if (started_ || done_) {
+        // Idempotent start: ignore repeated calls.
       return;
     }
     started_ = true;
 
     if (create_error_) {
+        // Creation-time validation failure (e.g. invalid URL).
       Fail(create_error_stage_, *create_error_);
       return;
     }
 
     if (use_ssl_ && ssl_ctx_ == nullptr) {
+        // HTTPS requires an SSL context; without it we fail fast.
       Fail(HttpClientErrorStage::kCreate,
            make_error_code(boost::system::errc::invalid_argument));
       return;
@@ -176,8 +185,10 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       request_.set(http::field::user_agent, options_.user_agent);
     }
     request_.keep_alive(options_.keep_alive);
+    // Ensure Content-Length/Transfer-Encoding is consistent with the body.
     request_.prepare_payload();
 
+    // Kick off: resolve -> connect -> (optional TLS) -> write -> read header -> read body.
     resolver_.async_resolve(
         host_, port_,
         boost::asio::bind_executor(
@@ -194,6 +205,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Construct the appropriate stream type, then async_connect.
+    // Note: we set per-operation deadlines via beast stream expires_after().
     if (use_ssl_) {
       ssl_stream_.emplace(executor_, *ssl_ctx_);
       boost::beast::get_lowest_layer(*ssl_stream_)
@@ -227,6 +240,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     }
 
     if (use_ssl_) {
+      // For TLS, set SNI first so the server can pick the right certificate.
       if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
           1) {
         boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
@@ -235,6 +249,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
         return;
       }
 
+      // Peer verification is optional to support self-signed endpoints in tests.
       if (options_.verify_peer) {
         ssl_stream_->set_verify_mode(boost::asio::ssl::verify_peer);
         ssl_stream_->set_verify_callback(
@@ -254,6 +269,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Plain TCP connected.
     EmitConnected(boost::system::error_code{});
     DoWriteRequest();
   }
@@ -264,11 +280,13 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // TLS handshake complete.
     EmitConnected(boost::system::error_code{});
     DoWriteRequest();
   }
 
   void DoWriteRequest() {
+    // Send request bytes. Errors here are classified as kWriteRequest.
     if (use_ssl_) {
       boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
           options_.write_timeout);
@@ -298,9 +316,11 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Use a response parser so we can set body size limits and support read_some.
     parser_.emplace();
     parser_->body_limit(options_.max_response_body_bytes);
 
+    // Read header first so we can publish it early and decide the body read mode.
     if (use_ssl_) {
       boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
           options_.read_header_timeout);
@@ -330,6 +350,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Snapshot the header into a lightweight object for callbacks.
     HttpResponseHeader header;
     const auto& msg = parser_->get();
     header.version(msg.version());
@@ -341,11 +362,13 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     EmitHeader(header, boost::system::error_code{});
 
     if (HasChunkCallback()) {
+      // Streaming mode: emit only newly appended body bytes on each read_some.
       last_emitted_body_size_ = parser_->get().body().size();
       DoReadBodySome();
       return;
     }
 
+    // Non-streaming mode: read entire body then deliver final done result.
     DoReadBodyAll();
   }
 
@@ -379,6 +402,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Full response successfully assembled.
     auto response = parser_->release();
     Succeed(std::move(response));
   }
@@ -409,6 +433,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
   void OnReadBodySome(boost::system::error_code ec) {
     if (ec) {
+      // Beast uses need_buffer as a hint that it needs more octets to continue;
+      // treat it as success when the parser reports completion.
       if (ec == http::error::need_buffer && parser_->is_done()) {
         ec = {};
       } else {
@@ -417,6 +443,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       }
     }
 
+    // Emit incremental bytes since last callback.
     const auto& body = parser_->get().body();
     if (body.size() > last_emitted_body_size_) {
       EmitChunk(body.substr(last_emitted_body_size_));
@@ -424,11 +451,13 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     }
 
     if (parser_->is_done()) {
+      // Body complete; release parsed response and converge at Done.
       auto response = parser_->release();
       Succeed(std::move(response));
       return;
     }
 
+    // Continue pulling more bytes.
     DoReadBodySome();
   }
 
@@ -437,6 +466,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Cancellation is best-effort: cancel resolve and close sockets.
     cancelled_ = true;
     resolver_.cancel();
 
@@ -463,6 +493,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     error_stage_ = error_stage;
     error_code_ = ec;
 
+  // "Cancelled" is derived both from explicit Cancel() and asio's abort code.
     const bool cancelled = cancelled_ ||
                            (ec == boost::asio::error::operation_aborted);
 
@@ -485,6 +516,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
+    // Success always converges at Done.
     HttpClientResult done_result;
     done_result.stage = HttpClientStage::kDone;
     done_result.error_stage = HttpClientErrorStage::kNone;
@@ -496,6 +528,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     done_ = true;
 
     if (!options_.keep_alive) {
+      // If keep-alive is disabled, proactively close the transport.
       DoCancel();
     }
   }
@@ -560,6 +593,7 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
   }
 
   Callback GetCallbackCopy(HttpClientStage stage) const {
+    // Copy the callback under lock, then invoke outside the lock.
     std::lock_guard<std::mutex> lock(callback_mutex_);
     switch (stage) {
       case HttpClientStage::kConnected:

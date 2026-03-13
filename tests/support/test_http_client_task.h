@@ -22,6 +22,8 @@ namespace http = boost::beast::http;
 // Bind to port 0 to get an available ephemeral port.
 inline unsigned short FindFreePort() {
   boost::asio::io_context ioc;
+  // Bind to port 0 so the OS selects a free ephemeral port. Note there is still
+  // a race window between releasing this port and binding the real server.
   tcp::acceptor acceptor(ioc, {boost::asio::ip::make_address("127.0.0.1"), 0});
   return acceptor.local_endpoint().port();
 }
@@ -32,6 +34,7 @@ struct ServerGuard {
       : server(std::move(srv)) {}
 
   ~ServerGuard() {
+    // Stop is expected to be safe to call multiple times.
     if (server) {
       server->Stop();
     }
@@ -57,12 +60,15 @@ inline http::response<http::string_body> DoRequestTask(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), target, method,
       options);
 
+  // Populate request body before Start(). prepare_payload() is called internally.
   task->Request().body() = body;
 
+  // Bridge the async task API into a synchronous helper used by tests.
   std::promise<http::response<http::string_body>> promise;
   auto future = promise.get_future();
 
   task->OnDone([&promise](const HttpClientResult& result) mutable {
+    // OnDone is the single convergence point (success/failure/cancel).
     if (result.ec) {
       promise.set_exception(
           std::make_exception_ptr(boost::system::system_error(result.ec)));
@@ -77,6 +83,7 @@ inline http::response<http::string_body> DoRequestTask(
   });
 
   task->Start();
+  // Run the event loop until the request reaches OnDone.
   ioc.run();
 
   return future.get();
@@ -91,6 +98,8 @@ inline http::response<http::string_body> DoRequestTaskWithRetry(
     try {
       return DoRequestTask(method, port, target, body);
     } catch (const std::exception&) {
+      // A short startup race can happen between server thread start and accept.
+      // Yield to avoid busy-spinning and to give the server time to bind.
       std::this_thread::yield();
     }
   }
@@ -109,6 +118,7 @@ inline unsigned short StartServerWithRoutes(ServerGuard& guard) {
   constexpr int kMaxAttempts = 5;
   for (int i = 0; i < kMaxAttempts; ++i) {
     unsigned short port = FindFreePort();
+    // Bind may still fail due to the race window (or OS reuse); retry a few times.
     guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
     if (guard.server->Start(1)) {
       return port;

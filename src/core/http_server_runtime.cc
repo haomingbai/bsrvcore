@@ -1,6 +1,6 @@
 /**
- * @file http_server.cc
- * @brief
+ * @file http_server_runtime.cc
+ * @brief HttpServer runtime API implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements runtime methods such as timers, executor posting, logging,
+ * routing and session access.
  */
 
 #include <boost/asio/any_io_executor.hpp>

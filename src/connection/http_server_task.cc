@@ -1,6 +1,6 @@
 /**
  * @file http_server_task.cc
- * @brief
+ * @brief HTTP server lifecycle task implementations.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-06
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements HttpTaskBase and request phase tasks (pre/service/post),
+ * including cookie/session handling, posting helpers, and timers.
  */
 
 #include "bsrvcore/http_server_task.h"

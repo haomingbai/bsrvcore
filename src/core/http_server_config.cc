@@ -1,6 +1,6 @@
 /**
  * @file http_server_config.cc
- * @brief
+ * @brief HttpServer configuration API implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-10-03
  *
@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements configuration methods such as routes, aspects, timeouts and
+ * limits.
  */
 
 #include <boost/asio/any_io_executor.hpp>

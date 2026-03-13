@@ -1,6 +1,6 @@
 /**
- * @file http_route_table.cc
- * @brief
+ * @file http_route_table_layer.cc
+ * @brief HttpRouteTableLayer implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-25
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements a routing tree node that stores handlers, aspects, and children.
  */
 
 #include "bsrvcore/internal/http_route_table_layer.h"

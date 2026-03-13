@@ -1,6 +1,6 @@
 /**
  * @file http_route_table.cc
- * @brief
+ * @brief HttpRouteTable implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-28
  *
@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
+ * Implements route registration and request path matching.
  */
 
 #include "bsrvcore/internal/http_route_table.h"

@@ -103,10 +103,10 @@ class HttpRequestAspectHandler {
  *   std::function<void(std::shared_ptr<HttpPostServerTask>)>
  * >>(
  *   [](auto task) { // Pre-service
- *     std::cout << "Request: " << task->GetRequest().path << std::endl;
+ *     std::cout << "Request: " << task->GetRequest().target() << std::endl;
  *   },
  *   [](auto task) { // Post-service
- *     std::cout << "Response: " << task->GetResponse().status << std::endl;
+ *     std::cout << "Response: " << task->GetResponse().result() << std::endl;
  *   }
  * );
  *
