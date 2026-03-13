@@ -1,6 +1,6 @@
 /**
- * @file http_client_session.cc
- * @brief HttpClientSession implementation.
+ * @file http_client_session_cookie.cc
+ * @brief HttpClientSession cookie jar implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-13
  *
@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace bsrvcore {
 
@@ -59,9 +60,27 @@ inline std::pair<std::string_view, std::string_view> SplitOnce(
   return {s.substr(0, pos), s.substr(pos + 1)};
 }
 
+inline std::vector<std::string_view> SplitSetCookieTokens(
+    std::string_view set_cookie_value) {
+  // Split by ';' and trim each token.
+  std::vector<std::string_view> tokens;
+  std::size_t start = 0;
+  while (start < set_cookie_value.size()) {
+    auto semi = set_cookie_value.find(';', start);
+    if (semi == std::string_view::npos) {
+      tokens.push_back(TrimView(set_cookie_value.substr(start)));
+      break;
+    }
+    tokens.push_back(TrimView(set_cookie_value.substr(start, semi - start)));
+    start = semi + 1;
+  }
+  return tokens;
+}
+
 inline std::optional<std::chrono::system_clock::time_point> ParseImfFixdate(
     std::string_view v) {
-  // IMF-fixdate: "Sun, 06 Nov 1994 08:49:37 GMT"
+  // IMF-fixdate: "Sun, 06 Nov 1994 08:49:37 GMT".
+  //
   // For portability we parse only this common format; failures fall back to
   // session cookie semantics.
   std::tm tm{};
@@ -73,9 +92,9 @@ inline std::optional<std::chrono::system_clock::time_point> ParseImfFixdate(
   }
 
   // Convert tm (treated as UTC) to time_t.
-  // timegm is non-standard; emulate using std::chrono by adjusting from mktime
-  // in UTC assumption is not portable. For our "medium" cookie support we keep
-  // Expires best-effort: interpret via timegm when available, otherwise skip.
+  // NOTE: timegm is non-standard; we treat Expires as best-effort:
+  // - on glibc we use timegm;
+  // - otherwise Expires is ignored (keeps as a session cookie).
 #if defined(_GNU_SOURCE) || defined(__GLIBC__)
   time_t t = timegm(&tm);
   if (t == static_cast<time_t>(-1)) {
@@ -106,49 +125,9 @@ struct HttpClientSession::Cookie {
 };
 
 std::shared_ptr<HttpClientSession> HttpClientSession::Create() {
+  // Keep the shared_ptr control block (and deletion logic) instantiated in
+  // this translation unit where Cookie is complete.
   return std::shared_ptr<HttpClientSession>(new HttpClientSession());
-}
-
-std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
-    boost::asio::any_io_executor executor, std::string host, std::string port,
-    std::string target, boost::beast::http::verb method,
-    HttpClientOptions options) {
-  auto task = HttpClientTask::CreateHttp(std::move(executor), std::move(host),
-                                         std::move(port), std::move(target),
-                                         method, std::move(options));
-  task->AttachSession(weak_from_this());
-  return task;
-}
-
-std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target,
-    boost::beast::http::verb method, HttpClientOptions options) {
-  auto task = HttpClientTask::CreateHttps(
-      std::move(executor), ssl_ctx, std::move(host), std::move(port),
-      std::move(target), method, std::move(options));
-  task->AttachSession(weak_from_this());
-  return task;
-}
-
-std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
-    boost::asio::any_io_executor executor, std::string url,
-    boost::beast::http::verb method, HttpClientOptions options) {
-  auto task = HttpClientTask::CreateFromUrl(std::move(executor), std::move(url),
-                                            method, std::move(options));
-  task->AttachSession(weak_from_this());
-  return task;
-}
-
-std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string url, boost::beast::http::verb method,
-    HttpClientOptions options) {
-  auto task = HttpClientTask::CreateFromUrl(std::move(executor), ssl_ctx,
-                                            std::move(url), method,
-                                            std::move(options));
-  task->AttachSession(weak_from_this());
-  return task;
 }
 
 void HttpClientSession::ClearCookies() {
@@ -221,7 +200,8 @@ std::string HttpClientSession::NormalizeDomain(std::string_view domain) {
 std::string HttpClientSession::DefaultPathFromTarget(std::string_view target) {
   // Target could include query. Only the path part is used.
   auto q = target.find('?');
-  std::string_view path = (q == std::string_view::npos) ? target : target.substr(0, q);
+  std::string_view path =
+      (q == std::string_view::npos) ? target : target.substr(0, q);
   if (path.empty() || path.front() != '/') {
     return "/";
   }
@@ -251,6 +231,7 @@ bool HttpClientSession::DomainMatches(std::string_view host,
 
 bool HttpClientSession::PathMatches(std::string_view request_path,
                                     std::string_view cookie_path) {
+  // RFC-style prefix matching with boundary checks.
   if (cookie_path.empty() || cookie_path.front() != '/') {
     cookie_path = "/";
   }
@@ -332,23 +313,22 @@ std::string HttpClientSession::BuildCookieHeaderLocked(
 void HttpClientSession::UpsertFromSetCookieLocked(
     std::string_view host, std::string_view target,
     std::string_view set_cookie_value) {
+  auto erase_cookie = [&](const Cookie& key) {
+    cookies_.erase(
+        std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
+          return c.name == key.name && c.domain == key.domain &&
+                 c.host_only == key.host_only && c.path == key.path;
+        }),
+        cookies_.end());
+  };
+
   set_cookie_value = TrimView(set_cookie_value);
   if (set_cookie_value.empty()) {
     return;
   }
 
-  // Split by ';'
-  std::vector<std::string_view> tokens;
-  std::size_t start = 0;
-  while (start < set_cookie_value.size()) {
-    auto semi = set_cookie_value.find(';', start);
-    if (semi == std::string_view::npos) {
-      tokens.push_back(TrimView(set_cookie_value.substr(start)));
-      break;
-    }
-    tokens.push_back(TrimView(set_cookie_value.substr(start, semi - start)));
-    start = semi + 1;
-  }
+  const std::vector<std::string_view> tokens =
+      SplitSetCookieTokens(set_cookie_value);
   if (tokens.empty() || tokens[0].empty()) {
     return;
   }
@@ -369,8 +349,6 @@ void HttpClientSession::UpsertFromSetCookieLocked(
   incoming.host_only = true;
   incoming.path = DefaultPathFromTarget(target);
 
-  bool has_domain_attr = false;
-  bool has_path_attr = false;
   bool has_max_age = false;
   std::optional<long long> max_age_secs;
   std::optional<std::chrono::system_clock::time_point> expires_tp;
@@ -397,7 +375,6 @@ void HttpClientSession::UpsertFromSetCookieLocked(
       if (!dom.empty() && DomainMatches(host_norm, dom)) {
         incoming.domain = dom;
         incoming.host_only = false;
-        has_domain_attr = true;
       } else {
         // Domain attribute invalid for this host; ignore the whole cookie.
         return;
@@ -407,7 +384,6 @@ void HttpClientSession::UpsertFromSetCookieLocked(
     if (IEquals(k, "Path")) {
       if (!v.empty() && v.front() == '/') {
         incoming.path = std::string(v);
-        has_path_attr = true;
       }
       continue;
     }
@@ -426,34 +402,21 @@ void HttpClientSession::UpsertFromSetCookieLocked(
     }
   }
 
-  // Ensure default path if Path attr was absent.
-  (void)has_path_attr;
-  (void)has_domain_attr;
-
   // Compute expiry.
+  // - Max-Age takes precedence when present and parseable.
+  // - Max-Age <= 0 means deletion.
+  // - Expires that is already past is treated as deletion.
   if (has_max_age && max_age_secs.has_value()) {
     if (max_age_secs.value() <= 0) {
-      // Deletion.
-      cookies_.erase(
-          std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
-            return c.name == incoming.name && c.domain == incoming.domain &&
-                   c.host_only == incoming.host_only && c.path == incoming.path;
-          }),
-          cookies_.end());
+      erase_cookie(incoming);
       return;
     }
-    incoming.expiry =
-        std::chrono::system_clock::now() + std::chrono::seconds(max_age_secs.value());
+    incoming.expiry = std::chrono::system_clock::now() +
+                      std::chrono::seconds(max_age_secs.value());
   } else if (expires_tp.has_value()) {
     incoming.expiry = expires_tp;
     if (incoming.expiry.value() <= std::chrono::system_clock::now()) {
-      // Treat already-expired as deletion.
-      cookies_.erase(
-          std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
-            return c.name == incoming.name && c.domain == incoming.domain &&
-                   c.host_only == incoming.host_only && c.path == incoming.path;
-          }),
-          cookies_.end());
+      erase_cookie(incoming);
       return;
     }
   }

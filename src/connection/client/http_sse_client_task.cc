@@ -10,6 +10,8 @@
 
 #include "bsrvcore/http_sse_client_task.h"
 
+#include "impl/http_url_parser.h"
+
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
@@ -20,7 +22,6 @@
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <boost/url.hpp>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
@@ -39,50 +40,8 @@ namespace {
 namespace http = boost::beast::http;
 using tcp = boost::asio::ip::tcp;
 
-struct ParsedUrl {
-  bool https{false};
-  std::string host;
-  std::string port;
-  std::string target;
-};
-
-std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
-  // Parse absolute URI like: http(s)://host[:port]/path?query.
-  // We intentionally accept only http/https schemes here.
-  auto parsed = boost::urls::parse_uri(url);
-  if (!parsed) {
-    return std::nullopt;
-  }
-
-  const auto& u = parsed.value();
-  const auto scheme = u.scheme();
-  if (scheme != "http" && scheme != "https") {
-    return std::nullopt;
-  }
-
-  if (u.host().empty()) {
-    return std::nullopt;
-  }
-
-  ParsedUrl out;
-  out.https = (scheme == "https");
-  out.host = std::string(u.host());
-  // If port is absent, pick the scheme default.
-  out.port = u.has_port() ? std::string(u.port()) : (out.https ? "443" : "80");
-
-  // Rebuild request-target (path + optional query). Keep encoded bytes as-is.
-  std::string target = std::string(u.encoded_path());
-  if (target.empty()) {
-    target = "/";
-  }
-  if (u.has_query()) {
-    target.push_back('?');
-    target.append(u.encoded_query());
-  }
-  out.target = std::move(target);
-
-  return out;
-}
+using connection_internal::ParseHttpUrl;
+using connection_internal::ParsedUrl;
 
 std::string ToLower(std::string value) {
   std::transform(value.begin(), value.end(), value.begin(),

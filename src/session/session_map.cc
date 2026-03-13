@@ -29,7 +29,6 @@
 using bsrvcore::SessionMap;
 
 constexpr size_t kMinSessionTimeout = 1000;
-constexpr size_t kMinShrinkSize = 256;
 
 std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
     const std::string& sessionid) {
@@ -260,48 +259,4 @@ void SessionMap::SetSessionTimeout(std::string&& sessionid,
   }
 
   ShortClean();
-}
-
-void SessionMap::ShortClean() {
-  auto now = std::chrono::steady_clock::now();
-
-  if (pqueue_.GetSize() > map_.size() * 2) {
-    constexpr std::size_t max_clean_num = 8;
-    size_t clean_cnt = 0;
-
-    while (clean_cnt < max_clean_num && !pqueue_.IsEmpty() &&
-           pqueue_.Top().GetExpiry() <= now) {
-      auto key_entry = pqueue_.Pop();
-
-      auto it = map_.find(key_entry.GetId());
-      if (it != map_.end() && it->second.GetExpiry() == key_entry.GetExpiry()) {
-        map_.erase(it);
-      }
-
-      clean_cnt++;
-    }
-
-    if (pqueue_.GetSize() > kMinShrinkSize &&
-        pqueue_.GetCapacity() > pqueue_.GetSize() * 8) {
-      pqueue_.ShrinkToFit();
-    }
-  }
-}
-
-void SessionMap::ThoroughClean() {
-  auto now = std::chrono::steady_clock::now();
-
-  while (!pqueue_.IsEmpty() && pqueue_.Top().GetExpiry() <= now) {
-    auto key_entry = pqueue_.Pop();
-
-    auto it = map_.find(key_entry.GetId());
-    if (it != map_.end() && it->second.GetExpiry() == key_entry.GetExpiry()) {
-      map_.erase(it);
-    }
-  }
-
-  if (pqueue_.GetSize() > kMinShrinkSize &&
-      pqueue_.GetCapacity() > pqueue_.GetSize() * 8) {
-    pqueue_.ShrinkToFit();
-  }
 }

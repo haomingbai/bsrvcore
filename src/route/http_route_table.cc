@@ -13,7 +13,6 @@
 
 #include "bsrvcore/internal/http_route_table.h"
 
-#include <boost/regex.hpp>
 #include <boost/url/parse.hpp>
 #include <cstddef>
 #include <iterator>
@@ -29,6 +28,7 @@
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/internal/empty_route_handler.h"
 #include "bsrvcore/internal/http_route_table_layer.h"
+#include "impl/http_route_target_validator.h"
 
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestHandler;
@@ -36,65 +36,6 @@ using bsrvcore::HttpRequestMethod;
 using bsrvcore::HttpRouteResult;
 using bsrvcore::HttpRouteTable;
 using bsrvcore::route_internal::HttpRouteTableLayer;
-
-namespace bsrvcore {
-
-namespace route_internal {
-inline bool IsValidParametricTarget(const std::string_view target) {
-  // Basic check.
-  if (target.empty() || target.length() > 2048 || target[0] != '/') {
-    return false;
-  }
-
-  // Regex: allow embrace as parameter/
-  // There can be only one layer of parameter.
-  static const boost::regex valid_target_regex(
-      R"(^/([a-zA-Z0-9\-._~!$&'()*+,;=:@/?%#\[\]]|\{[a-zA-Z0-9_\-]*\})*$)",
-      boost::regex::ECMAScript);
-
-  if (!boost::regex_match(target.begin(), target.end(), valid_target_regex)) {
-    return false;
-  }
-
-  // Extra check.
-  // Check whether the embraces pair.
-  int brace_count = 0;
-  for (char c : target) {
-    if (c == '{') {
-      brace_count++;
-    } else if (c == '}') {
-      brace_count--;
-      if (brace_count < 0) {
-        return false;  // Right more than left.
-      }
-    }
-  }
-  if (brace_count != 0) {
-    return false;  // Cannot pair.
-  }
-
-  // Check the parameter on the path.
-  std::string non_param_target;
-  bool in_brace = false;
-  for (char c : target) {
-    if (c == '{') {
-      in_brace = true;
-    } else if (c == '}') {
-      in_brace = false;
-    } else if (!in_brace) {
-      non_param_target += c;
-    }
-  }
-
-  if (non_param_target.find("..") != std::string::npos) {
-    return false;
-  }
-
-  return true;
-}
-}  // namespace route_internal
-
-}  // namespace bsrvcore
 
 HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                                       std::string_view target) noexcept {
