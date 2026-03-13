@@ -10,6 +10,8 @@
 
 #include "bsrvcore/http_client_task.h"
 
+#include "bsrvcore/http_client_session.h"
+
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
@@ -112,6 +114,11 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
   HttpClientRequest& Request() noexcept { return request_; }
 
+  void SetSession(std::weak_ptr<HttpClientSession> session) {
+    std::lock_guard<std::mutex> lock(callback_mutex_);
+    session_ = std::move(session);
+  }
+
   void SetOnConnected(Callback cb) {
     std::lock_guard<std::mutex> lock(callback_mutex_);
     on_connected_ = std::move(cb);
@@ -185,6 +192,20 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       request_.set(http::field::user_agent, options_.user_agent);
     }
     request_.keep_alive(options_.keep_alive);
+
+    // Session cookie injection (opt-in): only when attached and user didn't
+    // provide an explicit Cookie header.
+    {
+      std::weak_ptr<HttpClientSession> weak;
+      {
+        std::lock_guard<std::mutex> lock(callback_mutex_);
+        weak = session_;
+      }
+      if (auto session = weak.lock()) {
+        session->MaybeInjectCookies(request_, host_, target_, use_ssl_);
+      }
+    }
+
     // Ensure Content-Length/Transfer-Encoding is consistent with the body.
     request_.prepare_payload();
 
@@ -348,6 +369,23 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     if (ec) {
       Fail(HttpClientErrorStage::kReadHeader, ec);
       return;
+    }
+
+    // Sync Set-Cookie entries back into the attached session before delivering
+    // header callbacks.
+    {
+      std::weak_ptr<HttpClientSession> weak;
+      {
+        std::lock_guard<std::mutex> lock(callback_mutex_);
+        weak = session_;
+      }
+      if (auto session = weak.lock()) {
+        const auto& base = parser_->get().base();
+        auto range = base.equal_range(boost::beast::http::field::set_cookie);
+        for (auto it = range.first; it != range.second; ++it) {
+          session->SyncSetCookie(host_, target_, it->value());
+        }
+      }
     }
 
     // Snapshot the header into a lightweight object for callbacks.
@@ -668,6 +706,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
   Callback on_header_;
   Callback on_chunk_;
   Callback on_done_;
+
+  std::weak_ptr<HttpClientSession> session_;
 };
 
 HttpClientTask::HttpClientTask(std::shared_ptr<Impl> impl)
@@ -757,6 +797,10 @@ HttpClientTask& HttpClientTask::OnDone(Callback cb) {
 }
 
 HttpClientRequest& HttpClientTask::Request() noexcept { return impl_->Request(); }
+
+void HttpClientTask::AttachSession(std::weak_ptr<HttpClientSession> session) {
+  impl_->SetSession(std::move(session));
+}
 
 void HttpClientTask::Start() { impl_->Start(); }
 

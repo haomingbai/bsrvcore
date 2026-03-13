@@ -24,6 +24,8 @@
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_route_result.h"
 #include "bsrvcore/http_client_task.h"
+#include "bsrvcore/http_client_session.h"
+#include "bsrvcore/http_client_session_attribute.h"
 #include "bsrvcore/http_sse_client_task.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"

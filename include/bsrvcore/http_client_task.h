@@ -27,6 +27,8 @@
 
 namespace bsrvcore {
 
+class HttpClientSession;
+
 /**
  * @brief Alias of request message type used by HttpClientTask.
  */
@@ -177,6 +179,15 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * @brief Access mutable request before Start().
    */
   HttpClientRequest& Request() noexcept;
+
+  /**
+   * @brief Attach a client session to this task.
+   *
+   * This is an optional API mainly intended for HttpClientSession factories.
+   * Tasks created via the original static Create* factories remain lightweight
+   * and session-free unless explicitly attached.
+   */
+  void AttachSession(std::weak_ptr<HttpClientSession> session);
 
   /**
    * @brief Start asynchronous execution.
