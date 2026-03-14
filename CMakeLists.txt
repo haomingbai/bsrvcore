@@ -40,7 +40,7 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG 5f1ae05
+  GIT_TAG 60e5c14
 )
 
 FetchContent_GetProperties(bthpool)
