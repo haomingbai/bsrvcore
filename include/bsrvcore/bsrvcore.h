@@ -32,5 +32,6 @@
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
 #include "bsrvcore/sse_event_parser.h"
+#include "bsrvcore/trait.h"
 
 #endif
