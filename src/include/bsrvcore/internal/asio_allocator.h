@@ -19,9 +19,7 @@
 #ifndef BSRVCORE_INTERNAL_ASIO_ALLOCATOR_H_
 #define BSRVCORE_INTERNAL_ASIO_ALLOCATOR_H_
 
-#include <atomic>
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <new>
