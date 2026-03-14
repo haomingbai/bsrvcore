@@ -112,6 +112,7 @@ TEST(StressServerPostTest, FloodPostTasks) {
   bool ok = cv.wait_for(lock, cfg.timeout, [&] {
     return executed.load(std::memory_order_relaxed) >= total;
   });
+  lock.unlock();
 
   if (!ok) {
     for (auto& th : producers) {
@@ -119,6 +120,11 @@ TEST(StressServerPostTest, FloodPostTasks) {
     }
     ADD_FAILURE() << "Timeout waiting for posted tasks. executed="
                   << executed.load() << "/" << total;
+  }
+
+  // Ensure all producer-side expected accumulation is visible before compare.
+  for (auto& th : producers) {
+    th.join();
   }
 
   EXPECT_EQ(executed.load(), total);
