@@ -1,0 +1,31 @@
+server:
+  thread_count: 4
+
+listeners:
+  - address: "0.0.0.0"
+    port: 8080
+
+global:
+  default_handler:
+    factory: "./plugins/libexample_bsrvrun_demo_handler_plugin.so"
+    params:
+      body: "default|"
+  aspects:
+    - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
+      params:
+        pre: "gpre|"
+        post: "gpost|"
+
+routes:
+  - method: "GET"
+    path: "/demo"
+    ignore_default_route: false
+    handler:
+      factory: "./plugins/libexample_bsrvrun_demo_handler_plugin.so"
+      params:
+        body: "handler|"
+    aspects:
+      - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
+        params:
+          pre: "rpre|"
+          post: "rpost|"

@@ -18,6 +18,10 @@
 #define BSRVCORE_BSRVCORE_H_
 
 #include "bsrvcore/attribute.h"
+#include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
+#include "bsrvcore/bsrvrun/http_request_handler_factory.h"
+#include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/string.h"
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"

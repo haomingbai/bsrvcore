@@ -82,6 +82,26 @@ int main() {
 - Learn sessions/context: [docs/manual/sessions-context-cookies.md](docs/manual/sessions-context-cookies.md)
 - Client tasks (HTTP/HTTPS + SSE): [docs/manual/client-tasks.md](docs/manual/client-tasks.md)
 
+## bsrvrun (runtime executable)
+
+`bsrvrun` is installed in the runtime package and starts a server from YAML.
+
+Config path resolution order:
+
+1. `-c/--config <path>`
+2. `./bsrvrun.yaml`
+3. `/etc/bsrvrun/bsrvrun.yaml`
+
+Run:
+
+```bash
+bsrvrun -c ./bsrvrun.yaml
+```
+
+For full schema and plugin ABI contract, see:
+
+- [docs/manual/bsrvrun.md](docs/manual/bsrvrun.md)
+
 ## Examples
 
 The `examples/` folder contains runnable programs:

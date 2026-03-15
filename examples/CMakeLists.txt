@@ -43,4 +43,8 @@ target_link_libraries(example_logger_custom PRIVATE bsrvcore)
 add_executable(example_session_context example_session_context.cc)
 target_link_libraries(example_session_context PRIVATE bsrvcore)
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bsrvrun/plugins")
+  add_subdirectory(bsrvrun/plugins)
+endif()
+
 message(STATUS "Added bsrvcore examples")

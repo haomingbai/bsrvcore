@@ -25,10 +25,13 @@ else()
 endif()
 
 # Add the subdirectories in this project.
+option(BSRVCORE_BUILD_TOOLS "Build bsrvcore runtime tools. Default: ON" ON)
+
 add_subdirectory(route)
 add_subdirectory(session)
 add_subdirectory(connection)
 add_subdirectory(core)
+add_subdirectory(bsrvrun)
 
 # List source files explicitly for better incremental builds
 set(BSRVCORE_SOURCES
@@ -36,6 +39,7 @@ set(BSRVCORE_SOURCES
   ${SESSION_SOURCES}
   ${CONNECTION_SOURCES}
   ${CORE_SOURCES}
+  ${BSRVRUN_COMMON_SOURCES}
 )
 
 # Create library (static or shared follows BUILD_SHARED_LIBS)

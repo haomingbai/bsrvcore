@@ -16,8 +16,8 @@ endif()
 # Generate compile_commands.json to help LSP server
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Require Boost.Beast and Boost.Asio (header-only; Boost.System required, Boost.url required)
-find_package(Boost 1.75 COMPONENTS system url CONFIG REQUIRED)
+# Require Boost.Beast/Asio (header-only) and program_options for bsrvrun CLI.
+find_package(Boost 1.75 COMPONENTS system url program_options CONFIG REQUIRED)
 
 # Require OpenSSL for running.
 find_package(OpenSSL REQUIRED)
