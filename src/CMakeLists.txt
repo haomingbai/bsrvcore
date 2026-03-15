@@ -4,6 +4,8 @@
 # - devel: headers, static libs, CMake export/config files
 
 # Add code check and optimization
+option(BSRVCORE_ENABLE_ASAN "Enable AddressSanitizer for Debug builds. Default: OFF" OFF)
+
 if(MSVC)
   add_compile_options(/W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
   # MSVC: Debug/Release small tweaks
@@ -13,15 +15,20 @@ if(MSVC)
 else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror) # GCC/Clang
 
-  # Debug: ASan + frame pointers
   # Release: -O3；RelWithDebInfo: -O2
   add_compile_options(
-    "$<$<CONFIG:Debug>:-fsanitize=address>"
-    "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>"
     "$<$<CONFIG:Release>:-O3>"
     "$<$<CONFIG:RelWithDebInfo>:-O2>"
   )
-  add_link_options("$<$<CONFIG:Debug>:-fsanitize=address>")
+
+  if(BSRVCORE_ENABLE_ASAN)
+    # ASan requires frame pointers for high-quality stacks.
+    add_compile_options(
+      "$<$<CONFIG:Debug>:-fsanitize=address>"
+      "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>"
+    )
+    add_link_options("$<$<CONFIG:Debug>:-fsanitize=address>")
+  endif()
 endif()
 
 # Add the subdirectories in this project.
