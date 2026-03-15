@@ -111,16 +111,15 @@ install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLU
 )
 
 # ------------------------ pkg-config generation ------------------------
-# Generate a pkg-config file for bsrvcore and install it with the devel component.
-# We avoid requiring a source-level .pc.in by generating the template at configure time.
-if(NOT DEFINED PROJECT_DESCRIPTION)
-  set(PROJECT_DESCRIPTION "${PROJECT_NAME} library")
+# Generate a relocatable pkg-config file for bsrvcore and install it with
+# the devel component.
+if(NOT DEFINED PROJECT_DESCRIPTION OR PROJECT_DESCRIPTION STREQUAL "")
+  set(BSRVCORE_PC_DESCRIPTION "${PROJECT_NAME} HTTP server library")
+else()
+  set(BSRVCORE_PC_DESCRIPTION "${PROJECT_DESCRIPTION}")
 endif()
 
-# Write a small .pc.in template into the build tree, then configure it.
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc.in "prefix=@CMAKE_INSTALL_PREFIX@\nexec_prefix=\\${prefix}\nlibdir=\\${exec_prefix}/@CMAKE_INSTALL_LIBDIR@\nincludedir=\\${prefix}/@CMAKE_INSTALL_INCLUDEDIR@\n\nName: ${PROJECT_NAME}\nDescription: ${PROJECT_DESCRIPTION}\nVersion: ${PROJECT_VERSION}\nLibs: -L\\${libdir} -l${PROJECT_NAME}\nCflags: -I\\${includedir}\n")
-
-configure_file(${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc.in
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bsrvcore.pc.in
                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc

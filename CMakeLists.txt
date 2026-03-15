@@ -73,7 +73,10 @@ if(BSRVCORE_BUILD_EXAMPLES)
 endif()
 
 # Install public headers
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  COMPONENT devel
+)
 
 # Directory to install config files
 set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/bsrvcore)
@@ -97,6 +100,7 @@ install(FILES
   ${CMAKE_CURRENT_BINARY_DIR}/bsrvcoreConfig.cmake
   ${CMAKE_CURRENT_BINARY_DIR}/bsrvcoreConfigVersion.cmake
   DESTINATION ${INSTALL_CONFIGDIR}
+  COMPONENT devel
 )
 
 # Optional Doxygen: generate docs only if Doxygen is found

@@ -33,6 +33,19 @@ cmake --build build --parallel
 sudo cmake --install build
 ```
 
+Compile a standalone program against installed `bsrvcore`:
+
+```bash
+g++ a.cpp -std=c++23 $(pkg-config --cflags --libs bsrvcore)
+```
+
+If you install shared libraries manually (without `dnf/apt/rpm/dpkg`), refresh the
+dynamic linker cache once:
+
+```bash
+sudo ldconfig
+```
+
 ## Quick Start
 
 Source: [examples/getting-started/quick_start.cc](examples/getting-started/quick_start.cc)
