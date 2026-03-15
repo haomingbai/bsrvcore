@@ -1,0 +1,1 @@
+bsrvcore_add_test(stress_session_map_test stress_session_map_test.cc stress)

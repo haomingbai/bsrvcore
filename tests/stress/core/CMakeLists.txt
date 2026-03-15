@@ -1,0 +1,1 @@
+bsrvcore_add_test(stress_context_test stress_context_test.cc stress)

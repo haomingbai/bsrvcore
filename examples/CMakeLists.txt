@@ -19,29 +19,13 @@ else()
   add_link_options("$<$<CONFIG:Debug>:-fsanitize=address>")
 endif()
 
-# example_quick_start
-add_executable(example_quick_start example_quick_start.cc)
-target_link_libraries(example_quick_start PRIVATE bsrvcore)
-
-# example_configuration
-add_executable(example_configuration example_configuration.cc)
-target_link_libraries(example_configuration PRIVATE bsrvcore)
-
-# example_oop_handler
-add_executable(example_oop_handler example_oop_handler.cc)
-target_link_libraries(example_oop_handler PRIVATE bsrvcore)
-
-# example_aspect_basic
-add_executable(example_aspect_basic example_aspect_basic.cc)
-target_link_libraries(example_aspect_basic PRIVATE bsrvcore)
-
-# example_logger_custom
-add_executable(example_logger_custom example_logger_custom.cc)
-target_link_libraries(example_logger_custom PRIVATE bsrvcore)
-
-# example_session_context
-add_executable(example_session_context example_session_context.cc)
-target_link_libraries(example_session_context PRIVATE bsrvcore)
+add_subdirectory(getting-started)
+add_subdirectory(http-server)
+add_subdirectory(routing)
+add_subdirectory(aspects)
+add_subdirectory(sessions-context)
+add_subdirectory(logging)
+add_subdirectory(client-tasks)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bsrvrun/plugins")
   add_subdirectory(bsrvrun/plugins)

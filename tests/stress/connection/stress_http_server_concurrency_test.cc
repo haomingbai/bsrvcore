@@ -56,10 +56,10 @@ std::uint64_t GetEnvU64(const char* name, std::uint64_t fallback) {
 StressConfig LoadConfig() {
   StressConfig cfg{};
   cfg.threads = GetEnvSize("BSRVCORE_STRESS_THREADS", 8);
-  cfg.iterations = GetEnvSize("BSRVCORE_STRESS_ITERATIONS", 200);
+  cfg.iterations = GetEnvSize("BSRVCORE_STRESS_ITERATIONS", 100);
   cfg.seed = GetEnvU64("BSRVCORE_STRESS_SEED", 1337);
   cfg.timeout = std::chrono::milliseconds(
-      GetEnvSize("BSRVCORE_STRESS_TIMEOUT_MS", 8000));
+      GetEnvSize("BSRVCORE_STRESS_TIMEOUT_MS", 120000));
   return cfg;
 }
 

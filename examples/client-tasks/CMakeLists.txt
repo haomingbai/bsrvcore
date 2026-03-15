@@ -1,0 +1,5 @@
+add_executable(example_client_http_request http_request.cc)
+target_link_libraries(example_client_http_request PRIVATE bsrvcore)
+
+add_executable(example_client_sse_events sse_events.cc)
+target_link_libraries(example_client_sse_events PRIVATE bsrvcore)

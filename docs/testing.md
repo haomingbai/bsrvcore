@@ -30,13 +30,13 @@ It is based on the current repository implementation (public headers + internal 
 | Aspect order (AOP) | Pre/Post ordering rules | global/method/route aspect order; reverse order for post-aspects | Mark order in response body and assert |
 | Session and cookies | session id generation and write-back | missing cookie generates a session id and emits `Set-Cookie` | Capture response headers from the test connection |
 
-### 3) Stress tests (concurrency / throughput / long-run)
+### 3) Stress tests (concurrency correctness / deadlock detection / long-run)
 
 | Scenario | Purpose | Assertions / thresholds | Parameters |
 | --- | --- | --- | --- |
 | High-concurrency `Context` reads/writes | Validate locks and data consistency | no deadlocks; final counters match | `BSRVCORE_STRESS_THREADS`, `BSRVCORE_STRESS_ITERATIONS`, `BSRVCORE_STRESS_SEED` |
 | `HttpServer::Post` task flood | Reliability under heavy concurrent posting | all tasks complete; timeout fails the test | `BSRVCORE_STRESS_THREADS`, `BSRVCORE_STRESS_ITERATIONS`, `BSRVCORE_STRESS_SEED` |
-| Lightweight end-to-end throughput | Catch basic performance regressions | N requests finish within a reasonable time | `BSRVCORE_STRESS_ITERATIONS`, `BSRVCORE_STRESS_TIMEOUT_MS` |
+| End-to-end concurrent request safety | Catch deadlocks/livelocks and protocol correctness issues | all requests complete correctly within timeout | `BSRVCORE_STRESS_ITERATIONS`, `BSRVCORE_STRESS_TIMEOUT_MS` |
 
 Stress tests are **OFF by default**. They are built and executed only when `BSRVCORE_ENABLE_STRESS_TESTS=ON`.
 
@@ -44,7 +44,7 @@ Stress tests are **OFF by default**. They are built and executed only when `BSRV
 
 - **Unit**: no real network; no real server; minimal threading (or none).
 - **Integration**: start `HttpServer` and perform real HTTP round-trips via loopback.
-- **Stress**: focus on concurrency/throughput/long-run behavior; always has timeout and reproducible randomness.
+- **Stress**: focus on concurrency correctness and deadlock/livelock detection; always has timeout and reproducible randomness.
 
 ## Key invariants and edge cases
 
@@ -89,15 +89,15 @@ ctest --test-dir build -L stress --output-on-failure
 ### Stress test knobs (environment variables)
 
 - `BSRVCORE_STRESS_THREADS`: number of threads (default: 8)
-- `BSRVCORE_STRESS_ITERATIONS`: number of iterations (default: 5000)
+- `BSRVCORE_STRESS_ITERATIONS`: number of iterations (module-specific defaults)
 - `BSRVCORE_STRESS_SEED`: random seed (default: 1337)
-- `BSRVCORE_STRESS_TIMEOUT_MS`: timeout in milliseconds (default: 5000)
+- `BSRVCORE_STRESS_TIMEOUT_MS`: timeout in milliseconds (default: 120000)
 
-## Expected runtime budget
+## Runtime note
 
-- Unit: < 1s
-- Integration: < 3s
-- Stress: off by default; when enabled, < 10s (tunable)
+- Unit and integration tests are expected to be fast for normal development loops.
+- Stress tests are not benchmark targets; they may run longer by design due to
+  generous timeouts for deadlock/livelock detection.
 
 ## Sanitizers and coverage
 

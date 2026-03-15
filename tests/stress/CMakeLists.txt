@@ -1,0 +1,6 @@
+add_subdirectory(core)
+add_subdirectory(session)
+add_subdirectory(route)
+add_subdirectory(connection)
+add_subdirectory(client)
+add_subdirectory(runtime)

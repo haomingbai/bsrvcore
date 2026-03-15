@@ -1,0 +1,2 @@
+add_executable(example_session_context basic.cc)
+target_link_libraries(example_session_context PRIVATE bsrvcore)

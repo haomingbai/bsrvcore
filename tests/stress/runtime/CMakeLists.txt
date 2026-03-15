@@ -1,0 +1,1 @@
+bsrvcore_add_test(stress_server_runtime_test stress_server_runtime_test.cc stress)

@@ -1,0 +1,2 @@
+add_executable(example_logger_custom custom_logger.cc)
+target_link_libraries(example_logger_custom PRIVATE bsrvcore)

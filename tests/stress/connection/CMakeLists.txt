@@ -1,0 +1,3 @@
+bsrvcore_add_test(stress_http_server_concurrency_test stress_http_server_concurrency_test.cc stress)
+bsrvcore_add_test(stress_server_post_test stress_server_post_test.cc stress)
+bsrvcore_add_test(stress_connection_management_test stress_connection_management_test.cc stress)

@@ -1,0 +1,1 @@
+bsrvcore_add_test(unit_route_table_test unit_route_table_test.cc unit)

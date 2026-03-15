@@ -1,0 +1,1 @@
+bsrvcore_add_test(stress_client_session_test stress_client_session_test.cc stress)

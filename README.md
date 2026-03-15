@@ -35,7 +35,7 @@ sudo cmake --install build
 
 ## Quick Start
 
-Source: [examples/example_quick_start.cc](examples/example_quick_start.cc)
+Source: [examples/getting-started/quick_start.cc](examples/getting-started/quick_start.cc)
 
 ```cpp
 #include <bsrvcore/bsrvcore.h>
@@ -105,6 +105,15 @@ For full schema and plugin ABI contract, see:
 ## Examples
 
 The `examples/` folder contains runnable programs:
+
+- `examples/getting-started/`
+- `examples/http-server/`
+- `examples/routing/`
+- `examples/aspects/`
+- `examples/sessions-context/`
+- `examples/logging/`
+- `examples/client-tasks/`
+- `examples/bsrvrun/`
 
 - See [docs/manual/examples.md](docs/manual/examples.md)
 

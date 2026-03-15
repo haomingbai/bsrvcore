@@ -1,0 +1,2 @@
+add_executable(example_configuration configuration.cc)
+target_link_libraries(example_configuration PRIVATE bsrvcore)

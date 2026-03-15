@@ -1,0 +1,1 @@
+bsrvcore_add_test(unit_http_client_session_test unit_http_client_session_test.cc unit)

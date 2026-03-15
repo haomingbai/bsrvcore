@@ -1,0 +1,2 @@
+add_executable(example_oop_handler oop_handler.cc)
+target_link_libraries(example_oop_handler PRIVATE bsrvcore)

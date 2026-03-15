@@ -5,6 +5,12 @@ set(BSRVRUN_COMMON_SOURCES ${BSRVRUN_COMMON_SOURCES} PARENT_SCOPE)
 
 find_package(yaml-cpp QUIET)
 if(NOT yaml-cpp_FOUND)
+  # yaml-cpp upstream releases may still declare old CMake minima; this keeps
+  # configure compatible on newer CMake versions that removed old policy ranges.
+  if(NOT DEFINED CMAKE_POLICY_VERSION_MINIMUM)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+  endif()
+
   set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
   set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
   set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)

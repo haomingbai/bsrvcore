@@ -119,4 +119,9 @@ Both tasks support `Cancel()`.
 Cancel is best-effort and closes the socket.
 After you cancel, callbacks may still fire once with `cancelled=true`.
 
+## Example sources
+
+- `examples/client-tasks/http_request.cc`
+- `examples/client-tasks/sse_events.cc`
+
 Next: [Examples](examples.md).

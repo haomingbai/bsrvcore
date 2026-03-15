@@ -1,0 +1,1 @@
+bsrvcore_add_test(stress_route_table_test stress_route_table_test.cc stress)

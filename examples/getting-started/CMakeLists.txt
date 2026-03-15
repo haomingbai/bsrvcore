@@ -1,0 +1,2 @@
+add_executable(example_quick_start quick_start.cc)
+target_link_libraries(example_quick_start PRIVATE bsrvcore)

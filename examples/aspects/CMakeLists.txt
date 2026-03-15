@@ -1,0 +1,2 @@
+add_executable(example_aspect_basic basic.cc)
+target_link_libraries(example_aspect_basic PRIVATE bsrvcore)

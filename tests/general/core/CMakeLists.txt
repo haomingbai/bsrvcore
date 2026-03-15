@@ -1,0 +1,4 @@
+bsrvcore_add_test(server_configuration_test server_configuration_test.cc unit)
+bsrvcore_add_test(unit_context_test unit_context_test.cc unit)
+bsrvcore_add_test(unit_attribute_test unit_attribute_test.cc unit)
+bsrvcore_add_test(unit_logger_test unit_logger_test.cc unit)
