@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 0.5.1 LANGUAGES CXX)
+project(bsrvcore VERSION 0.5.3 LANGUAGES CXX)
 
 # Use C++23
 if(NOT DEFINED CMAKE_CXX_STANDARD)
@@ -166,9 +166,28 @@ set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
 
+# Ensure devel package metadata pulls required development dependencies.
+# - Runtime package is required for SONAME files.
+# - Boost/OpenSSL development headers are required by public API usage.
+set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
+  "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libssl-dev"
+)
+
 # RPM naming: typical rpm convention uses "-devel"
 set(CPACK_RPM_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_RPM_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
+
+# Ensure devel RPM declares toolchain-level development dependencies.
+set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}, boost-devel, openssl-devel")
+
+# Refresh linker cache on install/uninstall so newly installed libbsrvcore.so.N
+# can be found immediately by runtime loaders.
+set(CPACK_RPM_RUNTIME_POST_INSTALL_SCRIPT_FILE
+  "${CMAKE_SOURCE_DIR}/cmake/cpack/rpm/runtime-post.sh"
+)
+set(CPACK_RPM_RUNTIME_POST_UNINSTALL_SCRIPT_FILE
+  "${CMAKE_SOURCE_DIR}/cmake/cpack/rpm/runtime-postun.sh"
+)
 
 # Optional: short summaries for each RPM package
 set(CPACK_RPM_RUNTIME_PACKAGE_SUMMARY "Runtime libraries for ${PROJECT_NAME}")

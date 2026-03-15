@@ -14,6 +14,7 @@ if(NOT yaml-cpp_FOUND)
   set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
   set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "" FORCE)
   set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
+  set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
   FetchContent_Declare(
     yaml-cpp
     GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
@@ -49,6 +50,13 @@ if(BSRVCORE_BUILD_TOOLS)
   add_executable(
     bsrvrun
     ${CMAKE_CURRENT_SOURCE_DIR}/bsrvrun_main.cc
+  )
+
+  # Make installed bsrvrun robust in environments where loader cache is stale.
+  # Example: /usr/bin/bsrvrun -> /usr/lib64/libbsrvcore.so.N via $ORIGIN/../lib64
+  set_target_properties(bsrvrun PROPERTIES
+    BUILD_RPATH ""
+    INSTALL_RPATH "$ORIGIN/../${CMAKE_INSTALL_LIBDIR}"
   )
 
   target_link_libraries(bsrvrun PRIVATE bsrvrun_runtime Boost::program_options)
