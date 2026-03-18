@@ -9,6 +9,7 @@ manual learning path.
 | --- | --- | --- |
 | Getting started | `examples/getting-started/` | `example_quick_start` |
 | HTTP server | `examples/http-server/` | `example_configuration` |
+| SSE server | `examples/sse/` | `example_sse_stream` |
 | Routing | `examples/routing/` | `example_oop_handler` |
 | Aspects | `examples/aspects/` | `example_aspect_basic` |
 | Sessions and context | `examples/sessions-context/` | `example_session_context` |
@@ -30,6 +31,7 @@ cmake --build build --parallel
 ```bash
 ./build/examples/example_quick_start
 ./build/examples/example_configuration
+./build/examples/example_sse_stream
 ./build/examples/example_oop_handler
 ./build/examples/example_aspect_basic
 ./build/examples/example_logger_custom

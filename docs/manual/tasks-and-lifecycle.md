@@ -43,4 +43,4 @@ When manual mode is **off** (default), the normal flow is:
 2. bsrvcore writes the response
 3. Post aspects run
 
-Next: [Aspects (AOP)](aspects.md).
+Next: [SSE server](sse-server.md).

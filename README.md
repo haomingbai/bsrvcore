@@ -91,6 +91,7 @@ int main() {
 
 - Start here: [docs/manual/getting-started.md](docs/manual/getting-started.md)
 - Learn routing: [docs/manual/routing.md](docs/manual/routing.md)
+- Serve SSE streams: [docs/manual/sse-server.md](docs/manual/sse-server.md)
 - Learn aspects (middleware style): [docs/manual/aspects.md](docs/manual/aspects.md)
 - Learn sessions/context: [docs/manual/sessions-context-cookies.md](docs/manual/sessions-context-cookies.md)
 - Client tasks (HTTP/HTTPS + SSE): [docs/manual/client-tasks.md](docs/manual/client-tasks.md)
@@ -121,6 +122,7 @@ The `examples/` folder contains runnable programs:
 
 - `examples/getting-started/`
 - `examples/http-server/`
+- `examples/sse/`
 - `examples/routing/`
 - `examples/aspects/`
 - `examples/sessions-context/`

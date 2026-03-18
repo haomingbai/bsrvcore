@@ -21,6 +21,7 @@ endif()
 
 add_subdirectory(getting-started)
 add_subdirectory(http-server)
+add_subdirectory(sse)
 add_subdirectory(routing)
 add_subdirectory(aspects)
 add_subdirectory(sessions-context)
