@@ -1,5 +1,5 @@
 # Ignore the build directory of the project.
-build/
+*build*/
 
 # Ignore the clangd cache and vscode project file.
 .cache/
