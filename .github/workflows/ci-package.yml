@@ -40,37 +40,54 @@ jobs:
             rpm                 # For generating RPMs with CPack
             ca-certificates     # network certs (safe)
             libssl-dev          # OpenSSL (headers + libcrypto) — project depends on openssl/crypto
-            libyaml-cpp-dev     # Prefer system yaml-cpp to avoid fallback fetch policy issues
+            libyaml-cpp-dev     # Use the system static archive when available; otherwise vendored static yaml-cpp is used
           )
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
 
-      # 4) Configure (out-of-source build)
-      - name: Configure with CMake
+      # 4) Configure a dedicated test build
+      - name: Configure test build
         run: |
-          # Enable testing so CTest can discover tests (requires your CMakeLists to call enable_testing/add_test)
-          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -S . -B build-test -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
-      # 5) Build
-      - name: Build
-        run: cmake --build build --parallel
+      # 5) Build and test once before packaging
+      - name: Build test tree
+        run: cmake --build build-test --parallel
 
       # 5.1) Run tests with CTest (fail the job if tests fail)
       - name: Run tests with CTest
         run: |
-          cd build
+          cd build-test
           # run tests with output on failure and parallelism
           ctest --output-on-failure --parallel $(nproc)
 
-      # 6) Package: Run CPack to generate DEB/RPM/TGZ (try multiple generators)
-      - name: Package with CPack (DEB, RPM, TGZ)
+      # 6) Configure a Debian-native package tree.
+      - name: Configure DEB/TGZ package build
         run: |
-          cd build
-          # try each generator; failures won't stop the job (they'll be echoed)
-          cpack -G DEB || echo "DEB generation failed or produced no packages"
-          cpack -G RPM || echo "RPM generation failed or produced no packages"
-          cpack -G TGZ || echo "TGZ generation failed or produced no packages"
+          cmake -S . -B build-deb -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
-      # 6.1) Collect all produced packages into a single folder for upload
+      - name: Build DEB/TGZ package tree
+        run: cmake --build build-deb --parallel
+
+      - name: Package with CPack (DEB, TGZ)
+        run: |
+          cd build-deb
+          cpack -G DEB
+          cpack -G TGZ
+
+      # 7) Configure an RPM-oriented package tree with an RPM-style libdir.
+      - name: Configure RPM package build
+        run: |
+          cmake -S . -B build-rpm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib64 -DBSRVCORE_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+      - name: Build RPM package tree
+        run: cmake --build build-rpm --parallel
+
+      - name: Package with CPack (RPM)
+        run: |
+          cd build-rpm
+          cpack -G RPM
+
+      # 7.1) Collect all produced packages into a single folder for upload
       - name: Collect generated packages
         run: |
           mkdir -p packages
@@ -80,14 +97,14 @@ jobs:
           echo "Collected files:"
           ls -lah packages || true
 
-      # 7) Upload the built packages as workflow artifacts (for debugging)
+      # 8) Upload the built packages as workflow artifacts (for debugging)
       - name: Upload packages as workflow artifact (for debugging)
         uses: actions/upload-artifact@v4
         with:
           name: packages
           path: packages/*
 
-      # 8) Create GitHub Release and upload packages if this is a tag starting with 'v'
+      # 9) Create GitHub Release and upload packages if this is a tag starting with 'v'
       - name: Create GitHub Release and upload packages (tags like v1.2.3)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -96,4 +113,3 @@ jobs:
             packages/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

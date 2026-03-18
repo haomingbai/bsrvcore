@@ -57,11 +57,12 @@ target_compile_features(bsrvcore PUBLIC cxx_std_23)
 
 # Link libraries
 target_link_libraries(bsrvcore
-    PRIVATE 
+    PRIVATE
         Boost::system
         Boost::url
-    bthpool_headers
+        bthpool_headers
     PUBLIC
+        Boost::headers
         OpenSSL::SSL
         OpenSSL::Crypto
 )
@@ -107,7 +108,7 @@ install(TARGETS bsrvcore
   # Static archives (.a) and import libraries go to devel (developer package)
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT devel
   # headers and INCLUDE location hint (the actual headers are installed below)
-  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT devel
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
 # Install public headers into devel component
@@ -155,4 +156,3 @@ install(EXPORT bsrvcoreTargets
 # install(FILES ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc
 #   DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig COMPONENT devel)
 # ------------------------------------------------------------------
-

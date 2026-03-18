@@ -16,8 +16,9 @@ endif()
 # Generate compile_commands.json to help LSP server
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Require Boost.Beast/Asio (header-only) and program_options for bsrvrun CLI.
-find_package(Boost 1.75 COMPONENTS system url program_options CONFIG REQUIRED)
+# Require Boost headers for the public API, plus linkable components used
+# internally and by the bsrvrun CLI.
+find_package(Boost 1.75 COMPONENTS headers system url program_options CONFIG REQUIRED)
 
 # Require OpenSSL for running.
 find_package(OpenSSL REQUIRED)
@@ -168,9 +169,10 @@ set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
 
 # Ensure devel package metadata pulls required development dependencies.
 # - Runtime package is required for SONAME files.
-# - Boost/OpenSSL development headers are required by public API usage.
+# - Public headers expose Boost.Asio/Beast and OpenSSL types.
+# - Linking against bsrvcore also needs Boost.System and Boost.URL dev files.
 set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
-  "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libssl-dev"
+  "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
 )
 
 # RPM naming: typical rpm convention uses "-devel"
@@ -178,6 +180,7 @@ set(CPACK_RPM_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_RPM_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
 
 # Ensure devel RPM declares toolchain-level development dependencies.
+# boost-devel provides the public Boost.Asio/Beast headers and component libs.
 set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}, boost-devel, openssl-devel")
 
 # Refresh linker cache on install/uninstall so newly installed libbsrvcore.so.N
@@ -228,4 +231,3 @@ if(BSRVCORE_BUILD_TESTS)
   # add tests subdir (create tests/CMakeLists.txt below)
   add_subdirectory(tests)
 endif()
-
