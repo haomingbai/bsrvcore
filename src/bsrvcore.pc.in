@@ -6,6 +6,6 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 Name: @PROJECT_NAME@
 Description: @BSRVCORE_PC_DESCRIPTION@
 Version: @PROJECT_VERSION@
-Libs: -L${libdir} -lbsrvcore
-Libs.private: -lboost_system -lboost_url -lssl -lcrypto
+Libs: -L${libdir} -lbsrvcore @BSRVCORE_PC_PUBLIC_LIBS@
+Libs.private: @BSRVCORE_PC_PRIVATE_LIBS@
 Cflags: -I${includedir}

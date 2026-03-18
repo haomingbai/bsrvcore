@@ -20,8 +20,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # internally and by the bsrvrun CLI.
 find_package(Boost 1.75 COMPONENTS headers system url program_options CONFIG REQUIRED)
 
-# Require OpenSSL for running.
-find_package(OpenSSL REQUIRED)
+# OpenSSL is part of the public developer-facing dependency surface because
+# installed headers expose boost::asio::ssl::context in public APIs.
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 # --------------------------------------------------------
 # bthpool (header-only, build-time only)

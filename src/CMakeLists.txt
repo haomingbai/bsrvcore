@@ -55,7 +55,8 @@ add_library(bsrvcore SHARED ${BSRVCORE_SOURCES})
 # Ensure the library is built with C++23 (required by our internal bthpool usage).
 target_compile_features(bsrvcore PUBLIC cxx_std_23)
 
-# Link libraries
+# OpenSSL stays PUBLIC because installed headers expose
+# boost::asio::ssl::context in server/client APIs.
 target_link_libraries(bsrvcore
     PRIVATE
         Boost::system
@@ -126,6 +127,11 @@ if(NOT DEFINED PROJECT_DESCRIPTION OR PROJECT_DESCRIPTION STREQUAL "")
 else()
   set(BSRVCORE_PC_DESCRIPTION "${PROJECT_DESCRIPTION}")
 endif()
+
+# pkg-config must expose TLS libraries publicly because consumer translation
+# units can directly instantiate boost::asio::ssl::context from public headers.
+set(BSRVCORE_PC_PUBLIC_LIBS "-lssl -lcrypto")
+set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bsrvcore.pc.in
                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)
