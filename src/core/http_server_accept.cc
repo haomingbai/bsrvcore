@@ -41,6 +41,22 @@
 
 using namespace bsrvcore;
 
+namespace {
+
+bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
+    const HttpServerExecutorOptions& options) {
+  bthpool::detail::BThreadPoolParam param;
+  param.core_thread_num = options.core_thread_num;
+  param.max_thread_num = options.max_thread_num;
+  param.fast_queue_capacity = options.fast_queue_capacity;
+  param.thread_clean_interval = options.thread_clean_interval;
+  param.task_scan_interval = options.task_scan_interval;
+  param.suspend_time = options.suspend_time;
+  return param;
+}
+
+}  // namespace
+
 bool HttpServer::Start(std::size_t thread_cnt) {
   if (thread_cnt == 0) {
     return false;
@@ -85,24 +101,13 @@ void HttpServer::Stop() {
     ec2 = acc.close(ec1);
   }
 
-  if (bth_pool_) {
-    bth_pool_->join();
-  }
   thread_pool_->join();
   for (auto& it : io_threads_) {
     it.join();
   }
 
-  if (thread_cnt_) {
-    thread_pool_ = std::make_unique<boost::asio::thread_pool>(thread_cnt_);
-    bthpool::detail::BThreadPoolParam param;
-    param.core_thread_num = thread_cnt_;
-    param.max_thread_num = thread_cnt_;
-    bth_pool_ = std::make_unique<bthpool::detail::BThreadPool>(param);
-  } else {
-    thread_pool_ = std::make_unique<boost::asio::thread_pool>();
-    bth_pool_ = std::make_unique<bthpool::detail::BThreadPool>();
-  }
+  thread_pool_ = std::make_unique<bthpool::detail::BThreadPool>(
+      ToBThreadPoolParam(executor_options_));
   io_threads_.clear();
   acceptors_.clear();
   for (auto ep : eps) {

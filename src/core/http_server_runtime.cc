@@ -12,7 +12,6 @@
  * routing and session access.
  */
 
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
 #include <boost/asio/io_context.hpp>
@@ -55,12 +54,16 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer =
-      std::make_shared<boost::asio::steady_timer>(thread_pool_->get_executor());
+  auto timer = std::make_shared<boost::asio::steady_timer>(ioc_);
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
-  timer->async_wait([fn, timer](boost::system::error_code ec) {
+  timer->async_wait([this, fn = std::move(fn),
+                     timer](boost::system::error_code ec) mutable {
     if (!ec) {
-      fn();
+      std::shared_lock<std::shared_mutex> callback_lock(mtx_);
+      if (!is_running_) {
+        return;
+      }
+      thread_pool_->post(std::move(fn));
     }
   });
 }
@@ -72,11 +75,7 @@ void HttpServer::Post(std::function<void()> fn) {
     return;
   }
 
-  if (bth_pool_) {
-    bth_pool_->post(std::move(fn));
-  } else {
-    boost::asio::post(thread_pool_->get_executor(), std::move(fn));
-  }
+  thread_pool_->post(std::move(fn));
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {
@@ -97,10 +96,6 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
 }
 
 boost::asio::io_context& HttpServer::GetIoContext() noexcept { return ioc_; }
-
-boost::asio::thread_pool& HttpServer::GetExecutionContext() noexcept {
-  return *thread_pool_;
-}
 
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {

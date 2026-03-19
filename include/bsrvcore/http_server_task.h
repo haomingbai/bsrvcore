@@ -23,7 +23,6 @@
 #define BSRVCORE_HTTP_SERVER_TASK_H_
 
 #include <boost/asio/io_context.hpp>
-#include <boost/asio/thread_pool.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/fields.hpp>
@@ -166,12 +165,6 @@ class HttpTaskBase {
    * @return The IO context of the server.
    */
   boost::asio::io_context& GetIoContext() noexcept;
-
-  /**
-   * @brief Get the thread pool of the executor to post IO tasks.
-    * @return The execution thread pool of the server.
-   */
-  boost::asio::thread_pool& GetExecutionContext() noexcept;
 
   /**
    * @brief Log message through server logger.

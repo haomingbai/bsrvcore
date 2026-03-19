@@ -19,8 +19,22 @@ if (!server->Start(2)) {
 server->Stop();
 ```
 
-- `HttpServer(thread_num)` sets the size of the server's worker pool.
+- `HttpServer(thread_num)` sets worker thread count (core=max=thread_num).
 - `Start(thread_count)` starts I/O threads (accept + read/write).
+
+To fully control worker executor behavior, use `HttpServerExecutorOptions`:
+
+```cpp
+bsrvcore::HttpServerExecutorOptions options;
+options.core_thread_num = 4;
+options.max_thread_num = 8;
+options.fast_queue_capacity = 256;
+options.thread_clean_interval = 60000;
+options.task_scan_interval = 100;
+options.suspend_time = 1;
+
+auto server = std::make_unique<bsrvcore::HttpServer>(options);
+```
 
 ## Configuration
 
@@ -62,5 +76,11 @@ The server can also run background work:
 
 These are useful when you want to do work on the server's executors.
 For example: update shared state, schedule cleanup, or run a periodic task.
+
+Execution model:
+
+- `SetTimer` uses `io_context` for timing, then dispatches callback to worker pool.
+- `Post` always dispatches callback to worker pool.
+- For I/O-related operations, use `GetIoContext()`.
 
 Next: [Routing](routing.md).

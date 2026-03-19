@@ -61,6 +61,7 @@ Source: [examples/getting-started/quick_start.cc](examples/getting-started/quick
 #include <memory>
 
 int main() {
+    // Worker threads for Post/SetTimer callbacks.
     auto server = std::make_unique<bsrvcore::HttpServer>(4);
     server
             ->AddRouteEntry(
@@ -73,6 +74,7 @@ int main() {
                     })
             ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080});
 
+    // I/O threads for accept/read/write.
     if (!server->Start(2)) {
         std::cerr << "Failed to start server." << std::endl;
         return 1;

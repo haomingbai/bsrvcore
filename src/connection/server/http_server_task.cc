@@ -95,9 +95,7 @@ struct HttpTaskSharedState {
         response_committed(false),
         handler_mem(in_handler_alloc.memory()),
         handler_alloc(std::move(in_handler_alloc)),
-        pmr(handler_mem),
-        exec(srv ? srv->GetExecutionContext().get_executor()
-                 : boost::asio::any_io_executor{}) {}
+        pmr(handler_mem) {}
 
   HttpRequest req;
   HttpResponse resp;
@@ -120,7 +118,6 @@ struct HttpTaskSharedState {
   std::shared_ptr<bsrvcore::internal::HandlerMemory> handler_mem;
   bsrvcore::internal::HandlerAllocator handler_alloc;
   PmrMemoryResource pmr;
-  boost::asio::any_io_executor exec;
 };
 
 }  // namespace task_internal
@@ -561,11 +558,9 @@ void HttpTaskBase::Post(std::function<void()> fn) {
     return;
   }
 
-  boost::asio::post(state_->exec,
-                   boost::asio::bind_allocator(state_->handler_alloc,
-                                              [fn = std::move(fn)]() mutable {
-                                                fn();
-                                              }));
+  state_->srv->Post(boost::asio::bind_allocator(
+      state_->handler_alloc,
+      [fn = std::move(fn)]() { fn(); }));
 }
 
 void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
@@ -573,18 +568,9 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer = std::allocate_shared<boost::asio::steady_timer>(
-      std::pmr::polymorphic_allocator<boost::asio::steady_timer>(
-          &state_->pmr),
-      state_->exec);
-  timer->expires_after(boost::asio::chrono::milliseconds(timeout));
-  timer->async_wait(boost::asio::bind_allocator(
+  state_->srv->SetTimer(timeout, boost::asio::bind_allocator(
       state_->handler_alloc,
-      [fn = std::move(fn), timer](boost::system::error_code ec) mutable {
-        if (!ec) {
-          fn();
-        }
-      }));
+      [fn = std::move(fn)]() { fn(); }));
 }
 
 std::pmr::memory_resource* HttpTaskBase::GetMemoryResource() const noexcept {
@@ -793,10 +779,6 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
 
 boost::asio::io_context& HttpTaskBase::GetIoContext() noexcept {
   return state_->conn.load()->GetServer()->GetIoContext();
-}
-
-boost::asio::thread_pool& HttpTaskBase::GetExecutionContext() noexcept {
-  return state_->conn.load()->GetServer()->GetExecutionContext();
 }
 
 }  // namespace bsrvcore

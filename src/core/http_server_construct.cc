@@ -38,37 +38,49 @@
 
 using namespace bsrvcore;
 
+namespace {
+
+bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
+    const HttpServerExecutorOptions& options) {
+  bthpool::detail::BThreadPoolParam param;
+  param.core_thread_num = options.core_thread_num;
+  param.max_thread_num = options.max_thread_num;
+  param.fast_queue_capacity = options.fast_queue_capacity;
+  param.thread_clean_interval = options.thread_clean_interval;
+  param.task_scan_interval = options.task_scan_interval;
+  param.suspend_time = options.suspend_time;
+  return param;
+}
+
+HttpServerExecutorOptions MakeExecutorOptionsFromThreadNum(
+    std::size_t thread_num) {
+  HttpServerExecutorOptions options;
+  if (thread_num != 0) {
+    options.core_thread_num = thread_num;
+    options.max_thread_num = thread_num;
+  }
+  return options;
+}
+
+}  // namespace
+
 HttpServer::HttpServer(std::size_t thread_num)
+    : HttpServer(MakeExecutorOptionsFromThreadNum(thread_num)) {}
+
+HttpServer::HttpServer(HttpServerExecutorOptions executor_options)
     : context_(std::make_shared<Context>()),
       logger_(std::make_shared<internal::EmptyLogger>()),
-      thread_pool_(std::make_unique<boost::asio::thread_pool>(thread_num)),
-      bth_pool_([thread_num] {
-        bthpool::detail::BThreadPoolParam param;
-        if (thread_num != 0) {
-          param.core_thread_num = thread_num;
-          param.max_thread_num = thread_num;
-        }
-        return std::make_unique<bthpool::detail::BThreadPool>(param);
-      }()),
+      thread_pool_(std::make_unique<bthpool::detail::BThreadPool>(
+          ToBThreadPoolParam(executor_options))),
       route_table_(std::make_unique<HttpRouteTable>()),
       sessions_(
-          std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),
+          std::make_unique<SessionMap>(ioc_.get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
-      thread_cnt_(thread_num),
+      executor_options_(std::move(executor_options)),
       is_running_(false) {}
 
 HttpServer::HttpServer()
-    : context_(std::make_shared<Context>()),
-      logger_(std::make_shared<internal::EmptyLogger>()),
-      thread_pool_(std::make_unique<boost::asio::thread_pool>()),
-      bth_pool_(std::make_unique<bthpool::detail::BThreadPool>()),
-      route_table_(std::make_unique<HttpRouteTable>()),
-      sessions_(
-          std::make_unique<SessionMap>(thread_pool_->get_executor(), this)),
-      header_read_expiry_(3000),
-      keep_alive_timeout_(4000),
-      thread_cnt_(0),
-      is_running_(false) {}
+    : HttpServer(HttpServerExecutorOptions{}) {}
 
 HttpServer::~HttpServer() { Stop(); }

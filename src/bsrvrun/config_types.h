@@ -15,8 +15,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -47,8 +49,21 @@ struct GlobalConfig {
   std::vector<FactoryConfig> aspects;
 };
 
+struct ExecutorConfig {
+  bool configured{false};
+  std::size_t core_thread_num{std::thread::hardware_concurrency()};
+  std::size_t max_thread_num{std::numeric_limits<int>::max()};
+  std::size_t fast_queue_capacity{0};
+  std::size_t thread_clean_interval{60000};
+  std::size_t task_scan_interval{100};
+  std::size_t suspend_time{1};
+};
+
 struct ServerConfig {
+  // Number of I/O threads passed to HttpServer::Start().
   std::size_t thread_count;
+  // Optional worker executor configuration for HttpServer construction.
+  ExecutorConfig executor;
   std::vector<ListenerConfig> listeners;
   GlobalConfig global;
   std::vector<RouteConfig> routes;

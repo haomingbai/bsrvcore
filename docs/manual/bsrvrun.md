@@ -19,7 +19,16 @@ If none exists, startup fails.
 
 ```yaml
 server:
+  # Number of I/O threads (used by HttpServer::Start)
   thread_count: 4
+  # Optional worker executor settings (used by HttpServer constructor)
+  executor:
+    core_thread_num: 4
+    max_thread_num: 8
+    fast_queue_capacity: 256
+    thread_clean_interval: 60000
+    task_scan_interval: 100
+    suspend_time: 1
 
 listeners:
   - address: "0.0.0.0"
@@ -50,6 +59,12 @@ routes:
 ```
 
 ## Route behavior notes
+
+## Server threading notes
+
+- `server.thread_count` controls I/O thread count for accept/read/write.
+- `server.executor` controls worker pool behavior for `Post` and timer callbacks.
+- If `server.executor` is omitted, worker core/max thread count falls back to `server.thread_count` for backward compatibility.
 
 - `method` supports only existing `HttpRequestMethod` values:
   - `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`

@@ -23,6 +23,12 @@ The task gives access to:
 - Async helpers: `Post()`, `FuturedPost()`, `SetTimer()`
 - Connection control: `IsAvailable()`, `DoClose()`, `DoCycle()`
 
+Async execution semantics:
+
+- `Post()` callbacks run on the server worker pool.
+- `SetTimer()` uses server I/O context for timeout tracking, then runs callback on the worker pool.
+- For I/O-only operations, use `GetIoContext()`.
+
 ## Extending a request lifetime
 
 `HttpServerTask` is a `std::shared_ptr`. If you keep that shared pointer and do work later (for example with `Post()` or `SetTimer()`), you can finish the response asynchronously.

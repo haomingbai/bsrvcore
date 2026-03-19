@@ -1,5 +1,14 @@
 server:
+  # Number of I/O threads (passed to HttpServer::Start).
   thread_count: 4
+  # Optional: full worker executor configuration.
+  executor:
+    core_thread_num: 4
+    max_thread_num: 8
+    fast_queue_capacity: 256
+    thread_clean_interval: 60000
+    task_scan_interval: 100
+    suspend_time: 1
 
 listeners:
   - address: "0.0.0.0"

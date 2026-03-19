@@ -22,11 +22,11 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
-#include <boost/asio/thread_pool.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cstddef>
 #include <functional>
 #include <future>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <shared_mutex>
@@ -53,6 +53,21 @@ namespace bsrvcore {
 class HttpRouteTable;
 
 class SessionMap;
+
+/**
+ * @brief Parameters used to create the server worker executor.
+ *
+ * These fields map one-to-one to bthpool parameters so users can fully
+ * control executor behavior at creation time.
+ */
+struct HttpServerExecutorOptions {
+  std::size_t core_thread_num{std::thread::hardware_concurrency()};
+  std::size_t max_thread_num{std::numeric_limits<int>::max()};
+  std::size_t fast_queue_capacity{0};
+  std::size_t thread_clean_interval{60000};
+  std::size_t task_scan_interval{100};
+  std::size_t suspend_time{1};
+};
 
 /**
  * @brief Main HTTP server with comprehensive web service capabilities
@@ -525,12 +540,6 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   boost::asio::io_context& GetIoContext() noexcept;
 
   /**
-   * @brief Get the thread pool of the executor to post IO tasks.
-   * @return The IO context of the server.
-   */
-  boost::asio::thread_pool& GetExecutionContext() noexcept;
-
-  /**
    * @brief Check if server is running
    * @return true if server is running, false otherwise
    */
@@ -571,6 +580,12 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   HttpServer(std::size_t thread_num);
 
   /**
+   * @brief Construct HttpServer with full executor options.
+   * @param executor_options Full worker executor configuration.
+   */
+  explicit HttpServer(HttpServerExecutorOptions executor_options);
+
+  /**
    * @brief Construct HttpServer with default thread pool size
    */
   HttpServer();
@@ -592,16 +607,15 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_mutex mtx_;             ///< Mutex for thread synchronization
   std::shared_ptr<Context> context_;  ///< Global server context
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
-  std::unique_ptr<boost::asio::thread_pool>
-      thread_pool_;  ///< Thread pool executor
   std::unique_ptr<bthpool::detail::BThreadPool>
-      bth_pool_;  ///< Internal background pool (build-time only dependency)
+      thread_pool_;  ///< Worker executor backed by bthpool
   std::unique_ptr<HttpRouteTable>
       route_table_;                       ///< Route table for request routing
   std::unique_ptr<SessionMap> sessions_;  ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
-  std::size_t thread_cnt_;          ///< Number of threads in thread pool
+  HttpServerExecutorOptions
+      executor_options_;           ///< Worker executor options (persistent)
   std::atomic<bool> is_running_;    ///< Flag indicating if server is running
 };
 

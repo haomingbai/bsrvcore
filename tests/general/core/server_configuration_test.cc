@@ -14,6 +14,8 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <future>
 #include <memory>
 #include <thread>
 #include <utility>
@@ -67,4 +69,46 @@ TEST(Server, DisableConfigurationWhenRunning) {
       server->Route(bsrvcore::HttpRequestMethod::kGet, "/");
 
   ASSERT_EQ(route_result_after.handler, handler_raw);
+}
+
+TEST(Server, ConstructWithExecutorOptionsAndPost) {
+  using namespace bsrvcore;
+
+  HttpServerExecutorOptions options;
+  options.core_thread_num = 2;
+  options.max_thread_num = 2;
+  options.fast_queue_capacity = 128;
+  options.thread_clean_interval = 5000;
+  options.task_scan_interval = 20;
+  options.suspend_time = 1;
+
+  HttpServer server(options);
+  ASSERT_TRUE(server.Start(1));
+
+  auto promise = std::make_shared<std::promise<bool>>();
+  auto future = promise->get_future();
+  server.Post([promise] { promise->set_value(true); });
+
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  EXPECT_TRUE(future.get());
+
+  server.Stop();
+}
+
+TEST(Server, SetTimerDispatchesCallback) {
+  using namespace bsrvcore;
+
+  HttpServer server(1);
+  ASSERT_TRUE(server.Start(1));
+
+  auto promise = std::make_shared<std::promise<std::thread::id>>();
+  auto future = promise->get_future();
+  auto caller_id = std::this_thread::get_id();
+
+  server.SetTimer(10, [promise] { promise->set_value(std::this_thread::get_id()); });
+
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  EXPECT_NE(future.get(), caller_id);
+
+  server.Stop();
 }
