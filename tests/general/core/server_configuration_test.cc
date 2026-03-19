@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <boost/asio/post.hpp>
 #include <future>
 #include <memory>
 #include <thread>
@@ -109,6 +110,23 @@ TEST(Server, SetTimerDispatchesCallback) {
 
   ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
   EXPECT_NE(future.get(), caller_id);
+
+  server.Stop();
+}
+
+TEST(Server, GetExecutorSupportsAsioPost) {
+  using namespace bsrvcore;
+
+  HttpServer server(1);
+  ASSERT_TRUE(server.Start(1));
+
+  auto promise = std::make_shared<std::promise<bool>>();
+  auto future = promise->get_future();
+
+  boost::asio::post(server.GetExecutor(), [promise] { promise->set_value(true); });
+
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  EXPECT_TRUE(future.get());
 
   server.Stop();
 }

@@ -27,6 +27,7 @@ Async execution semantics:
 
 - `Post()` callbacks run on the server worker pool.
 - `SetTimer()` uses server I/O context for timeout tracking, then runs callback on the worker pool.
+- `GetExecutor()` can be used when integrating with APIs that require `boost::asio::any_io_executor`.
 - For I/O-only operations, use `GetIoContext()`.
 
 ## Extending a request lifetime

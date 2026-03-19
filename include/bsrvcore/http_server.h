@@ -19,6 +19,7 @@
 #define BSRVCORE_HTTP_SERVER_H_
 
 #include <algorithm>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -538,6 +539,12 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return The IO context of the server.
    */
   boost::asio::io_context& GetIoContext() noexcept;
+
+  /**
+   * @brief Get a type-erased worker executor for background tasks.
+   * @return Any-IO executor backed by the server worker pool.
+   */
+  boost::asio::any_io_executor GetExecutor() noexcept;
 
   /**
    * @brief Check if server is running

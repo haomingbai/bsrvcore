@@ -14,6 +14,7 @@
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
@@ -96,6 +97,10 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
 }
 
 boost::asio::io_context& HttpServer::GetIoContext() noexcept { return ioc_; }
+
+boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
+  return thread_pool_->get_executor();
+}
 
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {

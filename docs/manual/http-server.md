@@ -81,6 +81,7 @@ Execution model:
 
 - `SetTimer` uses `io_context` for timing, then dispatches callback to worker pool.
 - `Post` always dispatches callback to worker pool.
+- `GetExecutor()` returns a type-erased `boost::asio::any_io_executor` backed by the worker pool.
 - For I/O-related operations, use `GetIoContext()`.
 
 Next: [Routing](routing.md).

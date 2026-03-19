@@ -42,7 +42,7 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG 60e5c14
+  GIT_TAG d00e6a8cd913f16b314cf02d7b82a1c93bd345a1
 )
 
 FetchContent_GetProperties(bthpool)
@@ -53,6 +53,10 @@ endif()
 add_library(bthpool_headers INTERFACE)
 add_library(bthpool::headers ALIAS bthpool_headers)
 target_include_directories(bthpool_headers SYSTEM INTERFACE ${bthpool_SOURCE_DIR}/include)
+target_compile_definitions(bthpool_headers INTERFACE
+  BTHPOOL_HAS_BOOST_ASIO=1
+  USE_BOOST_ASIO_EXECUTOR
+)
 
 # Standard install directories
 include(GNUInstallDirs)
