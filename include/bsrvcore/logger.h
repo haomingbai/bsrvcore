@@ -102,7 +102,7 @@ enum class LogLevel : std::uint8_t {
  * };
  *
  * // Usage in application
- * auto logger = std::make_unique<FileLogger>("server.log");
+ * auto logger = AllocateUnique<FileLogger>("server.log");
  * server->SetLogger(std::move(logger));
  * @endcode
  */

@@ -22,7 +22,7 @@
 #include <memory>
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(4);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(4);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/hello",

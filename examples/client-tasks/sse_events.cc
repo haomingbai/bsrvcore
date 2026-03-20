@@ -1,3 +1,4 @@
+#include <bsrvcore/allocator.h>
 #include <bsrvcore/http_sse_client_task.h>
 #include <bsrvcore/sse_event_parser.h>
 
@@ -16,10 +17,10 @@ int main() {
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "8080", "/events");
 
-  auto parser = std::make_shared<bsrvcore::SseEventParser>();
-  auto events = std::make_shared<std::vector<bsrvcore::SseEvent>>();
-  auto done = std::make_shared<bool>(false);
-  auto completion = std::make_shared<std::promise<void>>();
+  auto parser = bsrvcore::AllocateShared<bsrvcore::SseEventParser>();
+  auto events = bsrvcore::AllocateShared<std::vector<bsrvcore::SseEvent>>();
+  auto done = bsrvcore::AllocateShared<bool>(false);
+  auto completion = bsrvcore::AllocateShared<std::promise<void>>();
   auto future = completion->get_future();
 
   std::function<void()> pull_next;

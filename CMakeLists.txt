@@ -24,40 +24,6 @@ find_package(Boost 1.75 COMPONENTS headers system url program_options CONFIG REQ
 # installed headers expose boost::asio::ssl::context in public APIs.
 find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
-# --------------------------------------------------------
-# bthpool (header-only, build-time only)
-#
-# We use bthpool internally in .cc files, but public headers only forward
-# declare the type and store it behind a std::unique_ptr. To keep distribution
-# clean, we DO NOT add bthpool as a subdirectory (which would register install
-# rules). Instead we just fetch/populate headers and create an INTERFACE target
-# that is linked PRIVATE.
-# --------------------------------------------------------
-include(FetchContent)
-
-if(POLICY CMP0169)
-  cmake_policy(SET CMP0169 OLD)
-endif()
-
-FetchContent_Declare(
-  bthpool
-  GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG d00e6a8cd913f16b314cf02d7b82a1c93bd345a1
-)
-
-FetchContent_GetProperties(bthpool)
-if(NOT bthpool_POPULATED)
-  FetchContent_Populate(bthpool)
-endif()
-
-add_library(bthpool_headers INTERFACE)
-add_library(bthpool::headers ALIAS bthpool_headers)
-target_include_directories(bthpool_headers SYSTEM INTERFACE ${bthpool_SOURCE_DIR}/include)
-target_compile_definitions(bthpool_headers INTERFACE
-  BTHPOOL_HAS_BOOST_ASIO=1
-  USE_BOOST_ASIO_EXECUTOR
-)
-
 # Standard install directories
 include(GNUInstallDirs)
 
@@ -232,15 +198,6 @@ option(BSRVCORE_ENABLE_STRESS_TESTS "Enable bsrvcore stress tests. Default: ON" 
 
 if(BSRVCORE_BUILD_TESTS)
   enable_testing()
-  include(FetchContent)
-
-  # Fetch GoogleTest only when tests are enabled
-  FetchContent_Declare(
-    googletest
-    URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
-  )
-  # Make available adds targets GTest::gtest and GTest::gtest_main
-  FetchContent_MakeAvailable(googletest)
 
   # add tests subdir (create tests/CMakeLists.txt below)
   add_subdirectory(tests)

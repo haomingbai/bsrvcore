@@ -50,8 +50,8 @@ class ConsoleLogger : public bsrvcore::Logger {
 };
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
-  auto logger = std::make_shared<ConsoleLogger>();
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto logger = bsrvcore::AllocateShared<ConsoleLogger>();
 
   server
       ->SetLogger(logger)

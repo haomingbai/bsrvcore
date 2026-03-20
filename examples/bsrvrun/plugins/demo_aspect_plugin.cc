@@ -28,7 +28,7 @@ class DemoAspect : public bsrvcore::HttpRequestAspectHandler {
 class DemoAspectFactory
     : public bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory {
  public:
-  std::unique_ptr<bsrvcore::HttpRequestAspectHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
       bsrvcore::bsrvrun::ParameterMap* params) override {
     std::string pre = "demo-pre|";
     std::string post = "demo-post|";
@@ -46,7 +46,7 @@ class DemoAspectFactory
       }
     }
 
-    return std::make_unique<DemoAspect>(pre, post);
+    return bsrvcore::AllocateUnique<DemoAspect>(pre, post);
   }
 };
 

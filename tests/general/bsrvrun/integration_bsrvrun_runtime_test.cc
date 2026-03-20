@@ -76,7 +76,8 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
 
   const auto config = bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
+  auto server =
+      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start(1));
@@ -124,7 +125,8 @@ TEST(BsrvRunRuntimeIntegrationTest, IgnoreDefaultRouteMapsToExclusiveRoute) {
 
   const auto config = bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
+  auto server =
+      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start(1));

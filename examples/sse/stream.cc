@@ -114,7 +114,7 @@ void ScheduleHeartbeat(const std::shared_ptr<bsrvcore::HttpServerTask>& task,
 }  // namespace
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/events",
@@ -132,7 +132,7 @@ int main() {
             task->WriteHeader(std::move(header));
             task->WriteBody(": stream opened\n\n");
 
-            auto state = std::make_shared<SseStreamState>();
+            auto state = bsrvcore::AllocateShared<SseStreamState>();
             ScheduleCounter(task, state);
             ScheduleHeartbeat(task, state);
           })

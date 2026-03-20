@@ -23,6 +23,8 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
+
 namespace bsrvcore {
 
 namespace {
@@ -127,7 +129,15 @@ struct HttpClientSession::Cookie {
 std::shared_ptr<HttpClientSession> HttpClientSession::Create() {
   // Keep the shared_ptr control block (and deletion logic) instantiated in
   // this translation unit where Cookie is complete.
-  return std::shared_ptr<HttpClientSession>(new HttpClientSession());
+  void* raw = Allocate(sizeof(HttpClientSession), alignof(HttpClientSession));
+  try {
+    auto* session = new (raw) HttpClientSession();
+    return std::shared_ptr<HttpClientSession>(
+        session, [](HttpClientSession* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientSession), alignof(HttpClientSession));
+    throw;
+  }
 }
 
 void HttpClientSession::ClearCookies() {

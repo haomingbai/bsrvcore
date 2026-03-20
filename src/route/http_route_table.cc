@@ -105,7 +105,7 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
 bool HttpRouteTable::AddRouteEntry(
     HttpRequestMethod method, const std::string_view target,
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   {
     using route_internal::IsValidParametricTarget;
 
@@ -131,7 +131,7 @@ bool HttpRouteTable::AddRouteEntry(
 
 bool HttpRouteTable::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view target,
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   {
     using route_internal::IsValidParametricTarget;
 
@@ -176,7 +176,7 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
         route_layer = current_layer;
       } else {
         // Layer not exists.
-        auto new_layer = std::make_unique<HttpRouteTableLayer>();
+        auto new_layer = AllocateUnique<HttpRouteTableLayer>();
         current_layer = new_layer.get();
         route_layer->SetDefaultRoute(std::move(new_layer));
         route_layer = current_layer;
@@ -188,7 +188,7 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
         route_layer = current_layer;
       } else {
         // Layer not exists.
-        auto new_layer = std::make_unique<HttpRouteTableLayer>();
+        auto new_layer = AllocateUnique<HttpRouteTableLayer>();
         current_layer = new_layer.get();
         route_layer->SetRoute(std::string(word), std::move(new_layer));
         route_layer = current_layer;
@@ -292,7 +292,7 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
 
 bool HttpRouteTable::AddAspect(
     HttpRequestMethod method, const std::string_view target,
-    std::unique_ptr<HttpRequestAspectHandler> aspect) {
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
   auto method_idx = static_cast<size_t>(method);
   if (method_idx > kHttpRequestMethodNum) {
     return false;
@@ -313,7 +313,7 @@ bool HttpRouteTable::AddAspect(
 
 bool HttpRouteTable::AddGlobalAspect(
     HttpRequestMethod method,
-    std::unique_ptr<HttpRequestAspectHandler> aspect) try {
+    OwnedPtr<HttpRequestAspectHandler> aspect) try {
   auto method_idx = static_cast<size_t>(method);
   if (method_idx > kHttpRequestMethodNum) {
     return false;
@@ -326,7 +326,7 @@ bool HttpRouteTable::AddGlobalAspect(
 }
 
 bool HttpRouteTable::AddGlobalAspect(
-    std::unique_ptr<HttpRequestAspectHandler> aspect) try {
+    OwnedPtr<HttpRequestAspectHandler> aspect) try {
   global_aspects_.emplace_back(std::move(aspect));
   return true;
 } catch (...) {
@@ -409,16 +409,16 @@ void HttpRouteTable::SetDefaultMaxBodySize(std::size_t max_body_size) noexcept {
 }
 
 void HttpRouteTable::SetDefaultHandler(
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   default_handler_ = std::move(handler);
 }
 
 HttpRouteTable::HttpRouteTable() noexcept
-    : default_handler_(std::make_unique<route_internal::EmptyRouteHandler>()),
+    : default_handler_(AllocateUnique<route_internal::EmptyRouteHandler>()),
       default_max_body_size_(16384),
       default_read_expiry_(4000),
       default_write_expiry_(4000) {
   for (auto& it : entrance_) {
-    it = std::make_unique<HttpRouteTableLayer>();
+    it = AllocateUnique<HttpRouteTableLayer>();
   }
 }

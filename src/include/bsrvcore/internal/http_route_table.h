@@ -26,6 +26,7 @@
 #include <string_view>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/internal/http_route_table_layer.h"
 #include "bsrvcore/http_route_result.h"
@@ -48,18 +49,18 @@ class HttpRequestAspectHandler;
  *
  * @code
  * // Example usage
- * auto route_table = std::make_unique<HttpRouteTable>();
+ * auto route_table = AllocateUnique<HttpRouteTable>();
  *
  * // Add a regular route
  * route_table->AddRouteEntry(HttpRequestMethod::GET, "/users/{id}",
- *                           std::make_unique<UserHandler>());
+ *                           AllocateUnique<UserHandler>());
  *
  * // Add an exclusive route (static file serving)
  * route_table->AddExclusiveRouteEntry(HttpRequestMethod::GET, "/static",
- *                                    std::make_unique<StaticFileHandler>());
+ *                                    AllocateUnique<StaticFileHandler>());
  *
  * // Add a global aspect (authentication)
- * route_table->AddGlobalAspect(std::make_unique<AuthAspect>());
+ * route_table->AddGlobalAspect(AllocateUnique<AuthAspect>());
  *
  * // Route a request
  * auto result = route_table->Route(HttpRequestMethod::GET, "/users/123");
@@ -84,7 +85,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @return true if route was added successfully
    */
   bool AddRouteEntry(HttpRequestMethod method, const std::string_view target,
-                     std::unique_ptr<HttpRequestHandler> handler);
+                     OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Add an aspect handler to a specific route
@@ -94,7 +95,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @return true if aspect was added successfully
    */
   bool AddAspect(HttpRequestMethod method, const std::string_view target,
-                 std::unique_ptr<HttpRequestAspectHandler> aspect);
+                 OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect for a specific HTTP method
@@ -103,14 +104,14 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @return true if aspect was added successfully
    */
   bool AddGlobalAspect(HttpRequestMethod method,
-                       std::unique_ptr<HttpRequestAspectHandler> aspect);
+                       OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect for all HTTP methods
    * @param aspect Aspect handler to add
    * @return true if aspect was added successfully
    */
-  bool AddGlobalAspect(std::unique_ptr<HttpRequestAspectHandler> aspect);
+  bool AddGlobalAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add an exclusive route that bypasses parameter routes
@@ -137,7 +138,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    */
   bool AddExclusiveRouteEntry(HttpRequestMethod method,
                               const std::string_view target,
-                              std::unique_ptr<HttpRequestHandler> handler);
+                              OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Set read timeout for a specific route
@@ -191,7 +192,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @brief Set fallback request handler for all routes
    * @param handler The fallback handler to be set
    */
-  void SetDefaultHandler(std::unique_ptr<HttpRequestHandler> handler);
+  void SetDefaultHandler(OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Construct an empty routing table
@@ -254,15 +255,15 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
 
   static constexpr size_t kHttpRequestMethodNum = 9;
   std::shared_mutex mtx_;  ///< Read-write lock for thread safety
-  std::array<std::unique_ptr<route_internal::HttpRouteTableLayer>,
+  std::array<OwnedPtr<route_internal::HttpRouteTableLayer>,
              kHttpRequestMethodNum>
       entrance_;  ///< Routing layers per HTTP method
-  std::array<std::vector<std::unique_ptr<HttpRequestAspectHandler>>,
+  std::array<std::vector<OwnedPtr<HttpRequestAspectHandler>>,
              kHttpRequestMethodNum>
       global_specific_aspects_;  ///< Method-specific global aspects
-  std::vector<std::unique_ptr<HttpRequestAspectHandler>>
+  std::vector<OwnedPtr<HttpRequestAspectHandler>>
       global_aspects_;  ///< Global aspects for all methods
-  std::unique_ptr<HttpRequestHandler>
+  OwnedPtr<HttpRequestHandler>
       default_handler_;  ///< Fallback handler for unmatched routes
   std::size_t default_max_body_size_;  ///< Default maximum request body size
   std::size_t default_read_expiry_;    ///< Default read timeout

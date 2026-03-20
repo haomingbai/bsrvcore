@@ -239,17 +239,17 @@ class HttpServerConnectionImpl : public HttpServerConnection {
 // Keep the MessageQueue definition out of the main header to reduce size.
 // It remains a nested class (HttpServerConnectionImpl<S>::MessageQueue), so
 // it keeps access to the outer class' private members.
-#include "bsrvcore/internal/connection/http_server_connection_message_queue.h"
+#include "bsrvcore/internal/http_server_connection_message_queue.h"
 
 template <ValidStream S>
 template <typename... Args>
 std::shared_ptr<HttpServerConnectionImpl<S>>
 HttpServerConnectionImpl<S>::Create(Args&&... args) {
   auto conn =
-      std::make_shared<HttpServerConnectionImpl<S>>(std::forward<Args>(args)...);
+      AllocateShared<HttpServerConnectionImpl<S>>(std::forward<Args>(args)...);
   // Now conn is owned by shared_ptr; create message_queue_ with weak ref.
   conn->message_queue_ =
-      std::make_shared<typename HttpServerConnectionImpl<S>::MessageQueue>(
+      AllocateShared<typename HttpServerConnectionImpl<S>::MessageQueue>(
           std::weak_ptr<HttpServerConnectionImpl<S>>(conn));
   return conn;
 }
@@ -289,7 +289,7 @@ void HttpServerConnectionImpl<S>::EnsureMessageQueueCreated() {
     if (!message_queue_) {
       auto conn_sp = std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked);
       message_queue_ =
-          std::make_shared<typename HttpServerConnectionImpl<S>::MessageQueue>(
+          AllocateShared<typename HttpServerConnectionImpl<S>::MessageQueue>(
               std::weak_ptr<HttpServerConnectionImpl<S>>(conn_sp));
     }
   }

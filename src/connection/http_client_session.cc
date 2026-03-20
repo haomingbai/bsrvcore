@@ -22,6 +22,8 @@
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator.h"
+
 namespace bsrvcore {
 
 namespace {
@@ -106,7 +108,15 @@ struct HttpClientSession::Cookie {
 };
 
 std::shared_ptr<HttpClientSession> HttpClientSession::Create() {
-  return std::shared_ptr<HttpClientSession>(new HttpClientSession());
+  void* raw = Allocate(sizeof(HttpClientSession), alignof(HttpClientSession));
+  try {
+    auto* session = new (raw) HttpClientSession();
+    return std::shared_ptr<HttpClientSession>(
+        session, [](HttpClientSession* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientSession), alignof(HttpClientSession));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(

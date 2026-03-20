@@ -62,7 +62,7 @@ void* PluginLoader::GetOrOpenLibrary(const std::string& path) const {
   return handle;
 }
 
-std::unique_ptr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
+bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
     const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
 
@@ -91,7 +91,7 @@ std::unique_ptr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
   return handler;
 }
 
-std::unique_ptr<bsrvcore::HttpRequestAspectHandler> PluginLoader::CreateAspect(
+bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> PluginLoader::CreateAspect(
     const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
 

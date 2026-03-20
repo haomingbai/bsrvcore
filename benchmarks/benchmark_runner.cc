@@ -73,7 +73,7 @@ unsigned short FindFreePort() {
 
 class ServerGuard {
  public:
-  explicit ServerGuard(std::unique_ptr<bsrvcore::HttpServer> server)
+  explicit ServerGuard(bsrvcore::OwnedPtr<bsrvcore::HttpServer> server)
       : server_(std::move(server)) {}
 
   ~ServerGuard() {
@@ -83,22 +83,22 @@ class ServerGuard {
   }
 
  private:
-  std::unique_ptr<bsrvcore::HttpServer> server_;
+  bsrvcore::OwnedPtr<bsrvcore::HttpServer> server_;
 };
 
 struct StartedServer {
-  std::unique_ptr<ServerGuard> guard;
+  bsrvcore::OwnedPtr<ServerGuard> guard;
   unsigned short port = 0;
 };
 
-std::unique_ptr<bsrvcore::HttpServer> BuildServer(
+bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
     std::size_t server_threads) {
   bsrvcore::HttpServerExecutorOptions options;
   options.core_thread_num = server_threads;
   options.max_thread_num = server_threads;
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(options);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server->SetHeaderReadExpiry(5000)
       ->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
@@ -123,7 +123,7 @@ StartedServer StartServerWithRetry(
         server->Stop();
         continue;
       }
-      return {std::make_unique<ServerGuard>(std::move(server)), port};
+      return {bsrvcore::AllocateUnique<ServerGuard>(std::move(server)), port};
     } catch (const std::exception& ex) {
       last_error = ex.what();
       if (server) {

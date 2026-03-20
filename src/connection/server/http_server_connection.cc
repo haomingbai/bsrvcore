@@ -153,7 +153,7 @@ void HttpServerConnection::DoCycle() {
   ClearMessage();
   if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
-    parser_ = std::make_unique<
+    parser_ = AllocateUnique<
         boost::beast::http::request_parser<boost::beast::http::string_body>>();
     if (header_read_expiry_ + keep_alive_timeout_) {
       timer_.expires_after(
@@ -181,18 +181,17 @@ HttpServerConnection::HttpServerConnection(
       timer_(strand_),
       buf_(4096),
       srv_(srv),
-      parser_(std::make_unique<boost::beast::http::request_parser<
+      parser_(AllocateUnique<boost::beast::http::request_parser<
                   boost::beast::http::string_body>>()),
       header_read_expiry_(header_read_expiry),
-  keep_alive_timeout_(keep_alive_timeout),
-  handler_mem_(std::make_shared<bsrvcore::internal::HandlerMemory>()),
-  handler_alloc_(handler_mem_) {}
+      keep_alive_timeout_(keep_alive_timeout),
+      handler_alloc_() {}
 
 bool HttpServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();
 }
 
-std::unique_ptr<
+bsrvcore::OwnedPtr<
     boost::beast::http::request_parser<boost::beast::http::string_body>> &
 HttpServerConnection::GetParser() noexcept {
   return parser_;

@@ -23,6 +23,8 @@
 #include <string>
 #include <typeindex>
 
+#include "bsrvcore/allocator.h"
+
 namespace bsrvcore {
 
 /**
@@ -53,7 +55,7 @@ namespace bsrvcore {
  * };
  * 
  * // Usage in container
- * std::unique_ptr<Attribute> attr = std::make_unique<UserAttribute>();
+ * std::unique_ptr<Attribute> attr = AllocateUnique<UserAttribute>();
  * auto cloned = attr->Clone();  // Deep copy
  * @endcode
  */
@@ -65,7 +67,7 @@ class Attribute {
    * 
    * @note Pure virtual - must be implemented by derived classes
    */
-  virtual std::unique_ptr<Attribute> Clone() const = 0;
+  virtual OwnedPtr<Attribute> Clone() const = 0;
 
   /**
    * @brief Convert attribute to string representation
@@ -126,7 +128,7 @@ class Attribute {
  *   std::string data;
  * };
  * 
- * auto original = std::make_unique<MyAttribute>();
+ * auto original = AllocateUnique<MyAttribute>();
  * auto copy = original->Clone();  // Returns std::unique_ptr<Attribute>
  * @endcode
  */
@@ -136,8 +138,8 @@ struct CloneableAttribute : Attribute {
    * @brief Automatically implemented clone method
    * @return Unique pointer to a copy of the derived attribute
    */
-  std::unique_ptr<Attribute> Clone() const override {
-    return std::make_unique<Derived>(static_cast<const Derived &>(*this));
+  OwnedPtr<Attribute> Clone() const override {
+    return AllocateUnique<Derived>(static_cast<const Derived&>(*this));
   }
 };
 

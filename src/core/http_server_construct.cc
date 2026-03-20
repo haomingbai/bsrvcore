@@ -29,6 +29,7 @@
 #include <cstring>
 #include <memory>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
@@ -49,6 +50,7 @@ bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
   param.thread_clean_interval = options.thread_clean_interval;
   param.task_scan_interval = options.task_scan_interval;
   param.suspend_time = options.suspend_time;
+  param.memory_resource = bsrvcore::GetDefaultMemoryResource();
   return param;
 }
 
@@ -68,13 +70,12 @@ HttpServer::HttpServer(std::size_t thread_num)
     : HttpServer(MakeExecutorOptionsFromThreadNum(thread_num)) {}
 
 HttpServer::HttpServer(HttpServerExecutorOptions executor_options)
-    : context_(std::make_shared<Context>()),
-      logger_(std::make_shared<internal::EmptyLogger>()),
-      thread_pool_(std::make_unique<bthpool::detail::BThreadPool>(
+    : context_(bsrvcore::AllocateShared<Context>()),
+      logger_(bsrvcore::AllocateShared<internal::EmptyLogger>()),
+      thread_pool_(bsrvcore::AllocateUnique<bthpool::detail::BThreadPool>(
           ToBThreadPoolParam(executor_options))),
-      route_table_(std::make_unique<HttpRouteTable>()),
-      sessions_(
-          std::make_unique<SessionMap>(ioc_.get_executor(), this)),
+      route_table_(bsrvcore::AllocateUnique<HttpRouteTable>()),
+      sessions_(bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
       executor_options_(std::move(executor_options)),

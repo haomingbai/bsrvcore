@@ -91,7 +91,7 @@ inline std::shared_ptr<HttpClientSession> GetOrCreateHttpClientSession(
 
   auto created = HttpClientSession::Create();
   ctx->SetAttribute(std::move(key),
-                    std::make_shared<HttpClientSessionAttribute>(created));
+                    AllocateShared<HttpClientSessionAttribute>(created));
   return created;
 }
 

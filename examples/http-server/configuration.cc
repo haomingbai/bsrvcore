@@ -32,7 +32,7 @@ int main() {
   options.task_scan_interval = 100;
   options.suspend_time = 1;
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(options);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server
       ->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)

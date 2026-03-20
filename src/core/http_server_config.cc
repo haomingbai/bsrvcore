@@ -47,7 +47,7 @@ using namespace bsrvcore;
 
 HttpServer* HttpServer::AddRouteEntry(
     HttpRequestMethod method, const std::string_view url,
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
@@ -60,7 +60,7 @@ HttpServer* HttpServer::AddRouteEntry(
 
 HttpServer* HttpServer::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view url,
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
@@ -73,7 +73,7 @@ HttpServer* HttpServer::AddExclusiveRouteEntry(
 
 HttpServer* HttpServer::AddAspect(
     HttpRequestMethod method, const std::string_view url,
-    std::unique_ptr<HttpRequestAspectHandler> aspect) {
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
@@ -86,7 +86,7 @@ HttpServer* HttpServer::AddAspect(
 
 HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method,
-    std::unique_ptr<HttpRequestAspectHandler> aspect) {
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
@@ -98,7 +98,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 }
 
 HttpServer* HttpServer::AddGlobalAspect(
-    std::unique_ptr<HttpRequestAspectHandler> aspect) {
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {
@@ -214,7 +214,7 @@ HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
 }
 
 HttpServer* HttpServer::SetDefaultHandler(
-    std::unique_ptr<HttpRequestHandler> handler) {
+    OwnedPtr<HttpRequestHandler> handler) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
 
   if (is_running_) {

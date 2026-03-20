@@ -43,7 +43,7 @@ class HttpServer;
  * removed when they expire.
  *
  * @code
- * auto session_map = std::make_shared<SessionMap>(executor, http_server);
+ * auto session_map = AllocateShared<SessionMap>(executor, http_server);
  * session_map->SetDefaultSessionTimeout(3600000); // 1 hour
  * session_map->SetBackgroundCleaner(true);
  * @endcode
@@ -125,8 +125,8 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    * @code
    * // Example construction
    * boost::asio::io_context io;
-   * auto http_server = std::make_shared<HttpServer>();
-   * auto session_map = std::make_shared<SessionMap>(io.get_executor(),
+   * auto http_server = AllocateShared<HttpServer>();
+   * auto session_map = AllocateShared<SessionMap>(io.get_executor(),
    * http_server);
    * @endcode
    */

@@ -22,7 +22,7 @@ using bsrvcore::test::StartServerWithRoutes;
 }  // namespace
 
 TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/events",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -37,12 +37,12 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 
-  auto parser = std::make_shared<bsrvcore::SseEventParser>();
-  auto events = std::make_shared<std::vector<bsrvcore::SseEvent>>();
-  auto completion = std::make_shared<std::promise<void>>();
+  auto parser = bsrvcore::AllocateShared<bsrvcore::SseEventParser>();
+  auto events = bsrvcore::AllocateShared<std::vector<bsrvcore::SseEvent>>();
+  auto completion = bsrvcore::AllocateShared<std::promise<void>>();
   auto future = completion->get_future();
-  auto done = std::make_shared<bool>(false);
-  auto saw_next = std::make_shared<bool>(false);
+  auto done = bsrvcore::AllocateShared<bool>(false);
+  auto saw_next = bsrvcore::AllocateShared<bool>(false);
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, completion, done, saw_next, &pull_next]() {

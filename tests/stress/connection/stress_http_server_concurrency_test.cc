@@ -73,7 +73,7 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
                << " iterations=" << cfg.iterations << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

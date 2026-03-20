@@ -21,7 +21,7 @@ class DemoHandler : public bsrvcore::HttpRequestHandler {
 
 class DemoHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  std::unique_ptr<bsrvcore::HttpRequestHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
       bsrvcore::bsrvrun::ParameterMap* params) override {
     std::string body = "demo-handler|";
     if (params != nullptr) {
@@ -31,7 +31,7 @@ class DemoHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
         body = body_value;
       }
     }
-    return std::make_unique<DemoHandler>(body);
+    return bsrvcore::AllocateUnique<DemoHandler>(body);
   }
 };
 

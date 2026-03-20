@@ -13,11 +13,11 @@
 #ifndef BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 #define BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 
@@ -33,10 +33,10 @@ class PluginLoader {
   PluginLoader(const PluginLoader&) = delete;
   PluginLoader& operator=(const PluginLoader&) = delete;
 
-  std::unique_ptr<bsrvcore::HttpRequestHandler> CreateHandler(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> CreateHandler(
       const FactoryConfig& config) const;
 
-  std::unique_ptr<bsrvcore::HttpRequestAspectHandler> CreateAspect(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> CreateAspect(
       const FactoryConfig& config) const;
 
  private:

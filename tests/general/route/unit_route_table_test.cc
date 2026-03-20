@@ -30,14 +30,14 @@ class DummyAspect : public bsrvcore::HttpRequestAspectHandler {
 TEST(RouteTableTest, RejectsInvalidTarget) {
   bsrvcore::HttpRouteTable table;
   auto ok = table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "abc",
-                                std::make_unique<DummyHandler>());
+                                bsrvcore::AllocateUnique<DummyHandler>());
   EXPECT_FALSE(ok);
 }
 
 // Parametric routes should capture parameters correctly.
 TEST(RouteTableTest, MatchesParametricRoute) {
   bsrvcore::HttpRouteTable table;
-  auto handler = std::make_unique<DummyHandler>();
+  auto handler = bsrvcore::AllocateUnique<DummyHandler>();
   auto* handler_ptr = handler.get();
 
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
@@ -53,10 +53,10 @@ TEST(RouteTableTest, MatchesParametricRoute) {
 // Exclusive routes should bypass parametric matches.
 TEST(RouteTableTest, ExclusiveRouteBypassesParameterRoutes) {
   bsrvcore::HttpRouteTable table;
-  auto handler_exclusive = std::make_unique<DummyHandler>();
+  auto handler_exclusive = bsrvcore::AllocateUnique<DummyHandler>();
   auto* exclusive_ptr = handler_exclusive.get();
 
-  auto handler_param = std::make_unique<DummyHandler>();
+  auto handler_param = bsrvcore::AllocateUnique<DummyHandler>();
 
   ASSERT_TRUE(table.AddExclusiveRouteEntry(bsrvcore::HttpRequestMethod::kGet,
                                            "/static",
@@ -73,20 +73,20 @@ TEST(RouteTableTest, ExclusiveRouteBypassesParameterRoutes) {
 TEST(RouteTableTest, AspectOrderIsGlobalMethodThenRoute) {
   bsrvcore::HttpRouteTable table;
 
-  auto handler = std::make_unique<DummyHandler>();
+  auto handler = bsrvcore::AllocateUnique<DummyHandler>();
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/a",
                                   std::move(handler)));
 
-  auto global = std::make_unique<DummyAspect>();
+  auto global = bsrvcore::AllocateUnique<DummyAspect>();
   auto* global_ptr = global.get();
   ASSERT_TRUE(table.AddGlobalAspect(std::move(global)));
 
-  auto method = std::make_unique<DummyAspect>();
+  auto method = bsrvcore::AllocateUnique<DummyAspect>();
   auto* method_ptr = method.get();
   ASSERT_TRUE(
       table.AddGlobalAspect(bsrvcore::HttpRequestMethod::kGet, std::move(method)));
 
-  auto route = std::make_unique<DummyAspect>();
+  auto route = bsrvcore::AllocateUnique<DummyAspect>();
   auto* route_ptr = route.get();
   ASSERT_TRUE(
       table.AddAspect(bsrvcore::HttpRequestMethod::kGet, "/a", std::move(route)));

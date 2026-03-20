@@ -39,7 +39,7 @@ inline bsrvcore::HttpClientResponse DoSessionRequest(
 }  // namespace
 
 TEST(HttpClientSessionTest, CookieRoundTripIsInjectedOnNextRequest) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -69,7 +69,7 @@ TEST(HttpClientSessionTest, CookieRoundTripIsInjectedOnNextRequest) {
 }
 
 TEST(HttpClientSessionTest, SecureCookieNotSentOverHttp) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set_secure",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -97,7 +97,7 @@ TEST(HttpClientSessionTest, SecureCookieNotSentOverHttp) {
 }
 
 TEST(HttpClientSessionTest, PathPrefixMatchingWorks) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set_path",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

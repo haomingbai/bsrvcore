@@ -18,7 +18,7 @@ namespace http = boost::beast::http;
 
 // Verify basic GET/POST handling end-to-end.
 TEST(HttpServerIntegrationTest, BasicGetAndPost) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(4);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(4);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -44,7 +44,7 @@ TEST(HttpServerIntegrationTest, BasicGetAndPost) {
 
 // Verify aspect order across global/method/route hooks.
 TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
 
   server
       ->AddGlobalAspect(
@@ -86,8 +86,9 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
 
 // Verify post phase starts only after service task references are released.
 TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
-  auto held_task = std::make_shared<std::shared_ptr<bsrvcore::HttpServerTask>>();
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto held_task =
+      bsrvcore::AllocateShared<std::shared_ptr<bsrvcore::HttpServerTask>>();
 
   server
       ->AddGlobalAspect(

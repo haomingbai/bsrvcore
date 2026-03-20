@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {
@@ -92,7 +93,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @param handler HTTP request handler
    * @return true if handler was set successfully
    */
-  bool SetHandler(std::unique_ptr<HttpRequestHandler> handler) noexcept;
+  bool SetHandler(OwnedPtr<HttpRequestHandler> handler) noexcept;
 
   /**
    * @brief Set the default sub-route for parameter matching
@@ -101,7 +102,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    *
    * @note The default route is used for parameter captures like {id}
    */
-  bool SetDefaultRoute(std::unique_ptr<HttpRouteTableLayer> route) noexcept;
+  bool SetDefaultRoute(OwnedPtr<HttpRouteTableLayer> route) noexcept;
 
   /**
    * @brief Add a sub-route for a specific path segment
@@ -109,7 +110,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @param link Sub-route layer for this segment
    * @return true if sub-route was added successfully
    */
-  bool SetRoute(std::string key, std::unique_ptr<HttpRouteTableLayer> link);
+  bool SetRoute(std::string key, OwnedPtr<HttpRouteTableLayer> link);
 
   /**
    * @brief Enable/disable default route matching for exclusive routes
@@ -151,7 +152,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @param aspect Aspect handler to add
    * @return true if aspect was added successfully
    */
-  bool AddAspect(std::unique_ptr<HttpRequestAspectHandler> aspect);
+  bool AddAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Get the number of aspect handlers attached to this layer
@@ -177,13 +178,13 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   HttpRouteTableLayer();
 
  private:
-  std::unordered_map<std::string, std::unique_ptr<HttpRouteTableLayer>>
+  std::unordered_map<std::string, OwnedPtr<HttpRouteTableLayer>>
       map_;  ///< Sub-routes by path segment
-  std::vector<std::unique_ptr<HttpRequestAspectHandler>>
+  std::vector<OwnedPtr<HttpRequestAspectHandler>>
       aspects_;  ///< Aspect handlers for this layer
-  std::unique_ptr<HttpRouteTableLayer>
+  OwnedPtr<HttpRouteTableLayer>
       default_route_;  ///< Default route for parameter matching
-  std::unique_ptr<HttpRequestHandler>
+  OwnedPtr<HttpRequestHandler>
       handler_;                ///< Request handler for this layer
   std::size_t max_body_size_;  ///< Maximum request body size
   std::size_t read_expiry_;    ///< Read operation timeout

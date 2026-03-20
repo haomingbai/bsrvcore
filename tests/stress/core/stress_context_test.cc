@@ -82,7 +82,7 @@ TEST(StressContextTest, ConcurrentSetGet) {
   constexpr int kKeys = 128;
   for (int i = 0; i < kKeys; ++i) {
     ctx.SetAttribute("k" + std::to_string(i),
-                     std::make_shared<IntAttribute>(i));
+                     bsrvcore::AllocateShared<IntAttribute>(i));
   }
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
@@ -101,7 +101,7 @@ TEST(StressContextTest, ConcurrentSetGet) {
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
         int idx = static_cast<int>(rng() % kKeys);
         auto key = "k" + std::to_string(idx);
-        ctx.SetAttribute(key, std::make_shared<IntAttribute>(idx + 1));
+        ctx.SetAttribute(key, bsrvcore::AllocateShared<IntAttribute>(idx + 1));
         auto got = ctx.GetAttribute(key);
         if (!got) {
           ADD_FAILURE() << "Missing attribute for key=" << key;

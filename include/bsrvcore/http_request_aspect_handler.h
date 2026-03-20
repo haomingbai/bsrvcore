@@ -98,7 +98,7 @@ class HttpRequestAspectHandler {
  *
  * @code
  * // Example using lambda functions
- * auto logging_aspect = std::make_unique<FunctionRequestAspectHandler<
+ * auto logging_aspect = AllocateUnique<FunctionRequestAspectHandler<
  *   std::function<void(std::shared_ptr<HttpPreServerTask>)>,
  *   std::function<void(std::shared_ptr<HttpPostServerTask>)>
  * >>(

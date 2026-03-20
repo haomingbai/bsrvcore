@@ -32,11 +32,11 @@ namespace bsrvcore {
  * @code
  * // Example usage in route registration
  * route_table->AddRouteEntry(HttpRequestMethod::kGet, "/users", 
- *                           std::make_unique<UserListHandler>());
+ *                           AllocateUnique<UserListHandler>());
  * route_table->AddRouteEntry(HttpRequestMethod::kPost, "/users",
- *                           std::make_unique<UserCreateHandler>());
+ *                           AllocateUnique<UserCreateHandler>());
  * route_table->AddRouteEntry(HttpRequestMethod::kPut, "/users/{id}",
- *                           std::make_unique<UserUpdateHandler>());
+ *                           AllocateUnique<UserUpdateHandler>());
  * 
  * @endcode
  */

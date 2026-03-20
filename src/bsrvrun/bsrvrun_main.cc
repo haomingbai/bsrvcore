@@ -94,7 +94,7 @@ int RunMain(int argc, char** argv) {
     }
 
     PluginLoader loader;
-    auto server = std::make_unique<bsrvcore::HttpServer>(executor_options);
+    auto server = AllocateUnique<bsrvcore::HttpServer>(executor_options);
     ApplyConfigToServer(config, &loader, server.get());
 
     std::signal(SIGINT, HandleSignal);

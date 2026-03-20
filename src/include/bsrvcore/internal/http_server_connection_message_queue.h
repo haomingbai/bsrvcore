@@ -53,7 +53,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
   // Threading: may be called from arbitrary threads; internally posts work to
   // the connection executor/strand.
   void AddBody(std::string body) {
-    BodyMessage message{std::make_shared<std::string>(std::move(body))};
+    BodyMessage message{AllocateShared<std::string>(std::move(body))};
     auto self_sp = this->shared_from_this();
 
     if (auto conn_sp = conn_wp_.lock()) {
@@ -117,7 +117,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
     explicit HeaderMessage(
         boost::beast::http::response_header<boost::beast::http::fields>&&
             header)
-        : resp_sp(std::make_shared<boost::beast::http::response<
+        : resp_sp(AllocateShared<boost::beast::http::response<
                       boost::beast::http::empty_body>>(std::move(header))),
           sr(*resp_sp) {}
   };

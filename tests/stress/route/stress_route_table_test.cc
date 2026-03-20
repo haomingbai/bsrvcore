@@ -39,9 +39,9 @@ TEST(StressRouteTableTest, ConcurrentRouteQueryKeepsExactAndParamRules) {
                << " timeout_ms=" << cfg.timeout.count());
 
   bsrvcore::HttpRouteTable table;
-  auto exact_handler = std::make_unique<DummyHandler>("exact");
+  auto exact_handler = bsrvcore::AllocateUnique<DummyHandler>("exact");
   auto* exact_ptr = exact_handler.get();
-  auto param_handler = std::make_unique<DummyHandler>("param");
+  auto param_handler = bsrvcore::AllocateUnique<DummyHandler>("param");
   auto* param_ptr = param_handler.get();
 
   ASSERT_TRUE(table.AddExclusiveRouteEntry(bsrvcore::HttpRequestMethod::kGet,
@@ -93,7 +93,7 @@ TEST(StressRouteTableTest, RouteTableHandlesManyDistinctParamTargets) {
   const auto cfg = LoadStressConfig(8, 500, 120000);
 
   bsrvcore::HttpRouteTable table;
-  auto handler = std::make_unique<DummyHandler>("param");
+  auto handler = bsrvcore::AllocateUnique<DummyHandler>("param");
   auto* handler_ptr = handler.get();
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
                                   "/v/{x}/items/{y}",

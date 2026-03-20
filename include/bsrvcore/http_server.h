@@ -37,6 +37,7 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
@@ -86,7 +87,7 @@ struct HttpServerExecutorOptions {
  *
  * @code
  * // Example server setup
- * auto server = std::make_unique<HttpServer>();
+ * auto server = AllocateUnique<HttpServer>();
  *
  * server->AddRouteEntry(HttpRequestMethod::kGet, "/",
  *                      [](auto task) {
@@ -136,7 +137,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -165,7 +166,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -200,7 +201,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    */
   HttpServer* AddRouteEntry(HttpRequestMethod method,
                             const std::string_view url,
-                            std::unique_ptr<HttpRequestHandler> handler);
+                            OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Add a route with a function object (lambda or function pointer)
@@ -216,7 +217,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     }
   HttpServer* AddRouteEntry(HttpRequestMethod method,
                             const std::string_view str, Func&& func) {
-    auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
+    auto handler = AllocateUnique<FunctionRouteHandler<Func>>(func);
 
     return AddRouteEntry(method, str, std::move(handler));
   }
@@ -232,7 +233,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    */
   HttpServer* AddExclusiveRouteEntry(
       HttpRequestMethod method, const std::string_view url,
-      std::unique_ptr<HttpRequestHandler> handler);
+      OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Add an exclusive route with a function object
@@ -248,7 +249,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     }
   HttpServer* AddExclusiveRouteEntry(HttpRequestMethod method,
                                      const std::string_view str, Func&& func) {
-    auto handler = std::make_unique<FunctionRouteHandler<Func>>(func);
+    auto handler = AllocateUnique<FunctionRouteHandler<Func>>(func);
 
     return AddExclusiveRouteEntry(method, str, std::move(handler));
   }
@@ -261,7 +262,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
-                        std::unique_ptr<HttpRequestAspectHandler> aspect);
+                        OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add an aspect with function objects for pre/post processing
@@ -283,7 +284,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
                         F1 f1, F2 f2) {
     auto aspect =
-        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddAspect(method, url, std::move(aspect));
   }
@@ -295,14 +296,14 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   HttpServer* AddGlobalAspect(HttpRequestMethod method,
-                              std::unique_ptr<HttpRequestAspectHandler> aspect);
+                              OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect for all HTTP methods
    * @param aspect Aspect handler
    * @return Pointer to server for method chaining
    */
-  HttpServer* AddGlobalAspect(std::unique_ptr<HttpRequestAspectHandler> aspect);
+  HttpServer* AddGlobalAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect with functions for specific HTTP method
@@ -322,7 +323,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     }
   HttpServer* AddGlobalAspect(HttpRequestMethod method, F1 f1, F2 f2) {
     auto aspect =
-        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddGlobalAspect(method, std::move(aspect));
   }
@@ -344,7 +345,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     }
   HttpServer* AddGlobalAspect(F1 f1, F2 f2) {
     auto aspect =
-        std::make_unique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddGlobalAspect(std::move(aspect));
   }
@@ -426,7 +427,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @param handler Global fallback handler for requests
    * @return Pointer to server for method chaining
    */
-  HttpServer* SetDefaultHandler(std::unique_ptr<HttpRequestHandler> handler);
+  HttpServer* SetDefaultHandler(OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Set default request handler with function object
@@ -439,8 +440,8 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       { f(task) };
     }
   HttpServer* SetDefaultHandler(F f) {
-    std::unique_ptr<HttpRequestHandler> handler =
-        std::make_unique<FunctionRouteHandler<F>>(f);
+    OwnedPtr<HttpRequestHandler> handler =
+        AllocateUnique<FunctionRouteHandler<F>>(f);
     return SetDefaultHandler(std::move(handler));
   }
 
@@ -614,11 +615,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_mutex mtx_;             ///< Mutex for thread synchronization
   std::shared_ptr<Context> context_;  ///< Global server context
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
-  std::unique_ptr<bthpool::detail::BThreadPool>
+  OwnedPtr<bthpool::detail::BThreadPool>
       thread_pool_;  ///< Worker executor backed by bthpool
-  std::unique_ptr<HttpRouteTable>
+  OwnedPtr<HttpRouteTable>
       route_table_;                       ///< Route table for request routing
-  std::unique_ptr<SessionMap> sessions_;  ///< Session manager
+  OwnedPtr<SessionMap> sessions_;  ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
   HttpServerExecutorOptions

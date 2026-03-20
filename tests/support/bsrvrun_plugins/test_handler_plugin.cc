@@ -21,7 +21,7 @@ class TestHandler : public bsrvcore::HttpRequestHandler {
 
 class TestHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  std::unique_ptr<bsrvcore::HttpRequestHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
       bsrvcore::bsrvrun::ParameterMap* parameters) override {
     std::string body = "handler|";
     if (parameters != nullptr) {
@@ -32,7 +32,7 @@ class TestHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
       }
     }
 
-    return std::make_unique<TestHandler>(body);
+    return bsrvcore::AllocateUnique<TestHandler>(body);
   }
 };
 

@@ -47,7 +47,7 @@ bsrvcore::HttpClientResponse DoSessionRequest(
 TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
   const auto cfg = LoadStressConfig(8, 120, 120000);
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -90,7 +90,7 @@ TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
 TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   const auto cfg = LoadStressConfig(6, 100, 120000);
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/events",
       [cfg](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -112,11 +112,11 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 
-  auto parser = std::make_shared<bsrvcore::SseEventParser>();
-  auto events = std::make_shared<std::vector<bsrvcore::SseEvent>>();
-  auto completion = std::make_shared<std::promise<void>>();
+  auto parser = bsrvcore::AllocateShared<bsrvcore::SseEventParser>();
+  auto events = bsrvcore::AllocateShared<std::vector<bsrvcore::SseEvent>>();
+  auto completion = bsrvcore::AllocateShared<std::promise<void>>();
   auto future = completion->get_future();
-  auto done = std::make_shared<bool>(false);
+  auto done = bsrvcore::AllocateShared<bool>(false);
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, completion, done, &pull_next]() {

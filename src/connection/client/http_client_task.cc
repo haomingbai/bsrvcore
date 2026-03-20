@@ -10,6 +10,7 @@
 
 #include "bsrvcore/http_client_task.h"
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_client_session.h"
 
 #include "impl/http_url_parser.h"
@@ -677,20 +678,36 @@ HttpClientTask::~HttpClientTask() = default;
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
     boost::asio::any_io_executor executor, std::string host, std::string port,
     std::string target, http::verb method, HttpClientOptions options) {
-  auto impl = std::make_shared<Impl>(std::move(executor), std::move(host),
+  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                      std::move(port), std::move(target), method,
                                      std::move(options), false, nullptr);
-  return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+  try {
+    auto* task = new (raw) HttpClientTask(std::move(impl));
+    return std::shared_ptr<HttpClientTask>(
+        task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
     boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
     std::string host, std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
-  auto impl = std::make_shared<Impl>(std::move(executor), std::move(host),
+  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                      std::move(port), std::move(target), method,
                                      std::move(options), true, &ssl_ctx);
-  return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+  try {
+    auto* task = new (raw) HttpClientTask(std::move(impl));
+    return std::shared_ptr<HttpClientTask>(
+        task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
@@ -698,14 +715,22 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = std::make_shared<Impl>(std::move(executor), "", "", "/", method,
+    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,
                                        std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpClientErrorStage::kCreate);
-    return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+    void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+    try {
+      auto* task = new (raw) HttpClientTask(std::move(impl));
+      return std::shared_ptr<HttpClientTask>(
+          task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+    } catch (...) {
+      Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+      throw;
+    }
   }
 
-  auto impl = std::make_shared<Impl>(
+  auto impl = AllocateShared<Impl>(
       std::move(executor), parsed->host, parsed->port, parsed->target, method,
       std::move(options), parsed->https, nullptr);
 
@@ -714,7 +739,15 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
                          HttpClientErrorStage::kCreate);
   }
 
-  return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+  try {
+    auto* task = new (raw) HttpClientTask(std::move(impl));
+    return std::shared_ptr<HttpClientTask>(
+        task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
@@ -722,17 +755,33 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     std::string url, http::verb method, HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = std::make_shared<Impl>(std::move(executor), "", "", "/", method,
+    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,
                                        std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpClientErrorStage::kCreate);
-    return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+    void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+    try {
+      auto* task = new (raw) HttpClientTask(std::move(impl));
+      return std::shared_ptr<HttpClientTask>(
+          task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+    } catch (...) {
+      Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+      throw;
+    }
   }
 
-  auto impl = std::make_shared<Impl>(
+  auto impl = AllocateShared<Impl>(
       std::move(executor), parsed->host, parsed->port, parsed->target, method,
       std::move(options), parsed->https, parsed->https ? &ssl_ctx : nullptr);
-  return std::shared_ptr<HttpClientTask>(new HttpClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
+  try {
+    auto* task = new (raw) HttpClientTask(std::move(impl));
+    return std::shared_ptr<HttpClientTask>(
+        task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
+    throw;
+  }
 }
 
 HttpClientTask& HttpClientTask::OnConnected(Callback cb) {

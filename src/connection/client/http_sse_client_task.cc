@@ -10,6 +10,7 @@
 
 #include "bsrvcore/http_sse_client_task.h"
 
+#include "bsrvcore/allocator.h"
 #include "impl/http_url_parser.h"
 
 #include <boost/asio/bind_executor.hpp>
@@ -525,20 +526,36 @@ HttpSseClientTask::~HttpSseClientTask() = default;
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
     boost::asio::any_io_executor executor, std::string host, std::string port,
     std::string target, HttpSseClientOptions options) {
-  auto impl = std::make_shared<Impl>(std::move(executor), std::move(host),
+  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                      std::move(port), std::move(target),
                                      std::move(options), false, nullptr);
-  return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+  try {
+    auto* task = new (raw) HttpSseClientTask(std::move(impl));
+    return std::shared_ptr<HttpSseClientTask>(
+        task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
     boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
     std::string host, std::string port, std::string target,
     HttpSseClientOptions options) {
-  auto impl = std::make_shared<Impl>(std::move(executor), std::move(host),
+  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                      std::move(port), std::move(target),
                                      std::move(options), true, &ssl_ctx);
-  return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+  try {
+    auto* task = new (raw) HttpSseClientTask(std::move(impl));
+    return std::shared_ptr<HttpSseClientTask>(
+        task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
@@ -546,14 +563,22 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
     HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = std::make_shared<Impl>(std::move(executor), "", "", "/",
+    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/",
                                        std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpSseClientErrorStage::kCreate);
-    return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+    void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    try {
+      auto* task = new (raw) HttpSseClientTask(std::move(impl));
+      return std::shared_ptr<HttpSseClientTask>(
+          task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+    } catch (...) {
+      Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+      throw;
+    }
   }
 
-  auto impl = std::make_shared<Impl>(
+  auto impl = AllocateShared<Impl>(
       std::move(executor), parsed->host, parsed->port, parsed->target,
       std::move(options), parsed->https, nullptr);
 
@@ -562,7 +587,15 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
                          HttpSseClientErrorStage::kCreate);
   }
 
-  return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+  try {
+    auto* task = new (raw) HttpSseClientTask(std::move(impl));
+    return std::shared_ptr<HttpSseClientTask>(
+        task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    throw;
+  }
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
@@ -570,17 +603,33 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
     std::string url, HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = std::make_shared<Impl>(std::move(executor), "", "", "/",
+    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/",
                                        std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpSseClientErrorStage::kCreate);
-    return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+    void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    try {
+      auto* task = new (raw) HttpSseClientTask(std::move(impl));
+      return std::shared_ptr<HttpSseClientTask>(
+          task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+    } catch (...) {
+      Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+      throw;
+    }
   }
 
-  auto impl = std::make_shared<Impl>(
+  auto impl = AllocateShared<Impl>(
       std::move(executor), parsed->host, parsed->port, parsed->target,
       std::move(options), parsed->https, parsed->https ? &ssl_ctx : nullptr);
-  return std::shared_ptr<HttpSseClientTask>(new HttpSseClientTask(std::move(impl)));
+  void* raw = Allocate(sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+  try {
+    auto* task = new (raw) HttpSseClientTask(std::move(impl));
+    return std::shared_ptr<HttpSseClientTask>(
+        task, [](HttpSseClientTask* ptr) { DestroyDeallocate(ptr); });
+  } catch (...) {
+    Deallocate(raw, sizeof(HttpSseClientTask), alignof(HttpSseClientTask));
+    throw;
+  }
 }
 
 HttpRequest& HttpSseClientTask::Request() noexcept { return impl_->Request(); }

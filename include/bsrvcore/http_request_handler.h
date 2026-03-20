@@ -53,7 +53,7 @@ class HttpServerTask;
  *
  * // Register with route table
  * route_table->AddRouteEntry(HttpRequestMethod::GET, "/users",
- *                           std::make_unique<UserHandler>());
+ *                           AllocateUnique<UserHandler>());
  * @endcode
  */
 class HttpRequestHandler {
@@ -86,7 +86,7 @@ class HttpRequestHandler {
  *
  * @code
  * // Example using lambda function
- * auto handler = std::make_unique<FunctionRouteHandler<
+ * auto handler = AllocateUnique<FunctionRouteHandler<
  *   std::function<void(std::shared_ptr<HttpServerTask>)>
  * >>(
  *   [](std::shared_ptr<HttpServerTask> task) {
@@ -99,7 +99,7 @@ class HttpRequestHandler {
  *   // ... process request
  * }
  *
- * auto handler2 = std::make_unique<FunctionRouteHandler<
+ * auto handler2 = AllocateUnique<FunctionRouteHandler<
  *   decltype(&HandleRequest)
  * >>(&HandleRequest);
  * @endcode

@@ -29,7 +29,7 @@
 TEST(Server, DisableConfigurationWhenRunning) {
   using namespace bsrvcore;
 
-  auto server = std::make_unique<HttpServer>();
+  auto server = AllocateUnique<HttpServer>();
 
   auto start_res = server->Start(1);
   ASSERT_TRUE(start_res);
@@ -43,7 +43,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   HttpRequestHandler* handler_raw = nullptr;
 
   auto th = std::thread([&server, &handler_raw] {
-    auto handler = std::make_unique<MyRouteHandler>();
+    auto handler = AllocateUnique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
   });
@@ -59,7 +59,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   server->Stop();
 
   th = std::thread([&server, &handler_raw] {
-    auto handler = std::make_unique<MyRouteHandler>();
+    auto handler = AllocateUnique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
   });
@@ -86,7 +86,7 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   HttpServer server(options);
   ASSERT_TRUE(server.Start(1));
 
-  auto promise = std::make_shared<std::promise<bool>>();
+  auto promise = AllocateShared<std::promise<bool>>();
   auto future = promise->get_future();
   server.Post([promise] { promise->set_value(true); });
 
@@ -102,7 +102,7 @@ TEST(Server, SetTimerDispatchesCallback) {
   HttpServer server(1);
   ASSERT_TRUE(server.Start(1));
 
-  auto promise = std::make_shared<std::promise<std::thread::id>>();
+  auto promise = AllocateShared<std::promise<std::thread::id>>();
   auto future = promise->get_future();
   auto caller_id = std::this_thread::get_id();
 
@@ -120,7 +120,7 @@ TEST(Server, GetExecutorSupportsAsioPost) {
   HttpServer server(1);
   ASSERT_TRUE(server.Start(1));
 
-  auto promise = std::make_shared<std::promise<bool>>();
+  auto promise = AllocateShared<std::promise<bool>>();
   auto future = promise->get_future();
 
   boost::asio::post(server.GetExecutor(), [promise] { promise->set_value(true); });

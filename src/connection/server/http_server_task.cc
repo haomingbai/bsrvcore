@@ -36,8 +36,8 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/context.h"
-#include "bsrvcore/internal/asio_allocator.h"
 #include "bsrvcore/internal/http_server_connection.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
@@ -47,33 +47,19 @@ namespace bsrvcore {
 namespace task_internal {
 
 class PmrMemoryResource final : public std::pmr::memory_resource {
- public:
-  explicit PmrMemoryResource(std::shared_ptr<bsrvcore::internal::HandlerMemory> mem)
-      : mem_(std::move(mem)) {}
-
  private:
   void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-    if (mem_) {
-      return mem_->Allocate(bytes, alignment);
-    }
-    return ::operator new(bytes);
+    return bsrvcore::Allocate(bytes, alignment);
   }
 
-  void do_deallocate(void* p, std::size_t bytes, std::size_t alignment) override {
-    if (mem_) {
-      mem_->Deallocate(p, bytes, alignment);
-      return;
-    }
-    (void)bytes;
-    (void)alignment;
-    ::operator delete(p);
+  void do_deallocate(void* p, std::size_t bytes,
+                     std::size_t alignment) override {
+    bsrvcore::Deallocate(p, bytes, alignment);
   }
 
   bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override {
     return this == &other;
   }
-
-  std::shared_ptr<bsrvcore::internal::HandlerMemory> mem_;
 };
 
 struct HttpTaskSharedState {
@@ -93,9 +79,8 @@ struct HttpTaskSharedState {
         post_completed(false),
         lifecycle_managed(false),
         response_committed(false),
-        handler_mem(in_handler_alloc.memory()),
         handler_alloc(std::move(in_handler_alloc)),
-        pmr(handler_mem) {}
+        pmr() {}
 
   HttpRequest req;
   HttpResponse resp;
@@ -114,8 +99,7 @@ struct HttpTaskSharedState {
   std::atomic_bool lifecycle_managed;
   std::atomic_bool response_committed;
 
-  // Per-request memory + executor, derived from the owning connection/server.
-  std::shared_ptr<bsrvcore::internal::HandlerMemory> handler_mem;
+  // Per-request allocator + executor, derived from the owning connection/server.
   bsrvcore::internal::HandlerAllocator handler_alloc;
   PmrMemoryResource pmr;
 };
@@ -130,22 +114,15 @@ using task_internal::HttpTaskSharedState;
 inline void DestroyTaskObject(const std::shared_ptr<HttpTaskSharedState>& state,
                               void* ptr, std::size_t size,
                               std::size_t alignment) {
+  (void)state;
   if (!ptr) return;
-  if (state && state->handler_mem) {
-    state->handler_mem->Deallocate(ptr, size, alignment);
-  } else {
-    (void)size;
-    (void)alignment;
-    ::operator delete(ptr);
-  }
+  bsrvcore::Deallocate(ptr, size, alignment);
 }
 
 template <typename T>
 inline T* AllocateTaskObject(const std::shared_ptr<HttpTaskSharedState>& state) {
-  if (state && state->handler_mem) {
-    return static_cast<T*>(state->handler_mem->Allocate(sizeof(T), alignof(T)));
-  }
-  return static_cast<T*>(::operator new(sizeof(T)));
+  (void)state;
+  return static_cast<T*>(bsrvcore::Allocate(sizeof(T), alignof(T)));
 }
 
 inline std::string_view TrimView(std::string_view sv) {
@@ -627,19 +604,19 @@ std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<HttpServerConnection> conn) {
   auto handler_alloc = conn ? conn->GetHandlerAllocator()
-              : bsrvcore::internal::HandlerAllocator{};
-  bsrvcore::internal::TaskAllocator<task_internal::HttpTaskSharedState>
-    state_alloc(handler_alloc.memory());
+                            : bsrvcore::internal::HandlerAllocator{};
+  bsrvcore::Allocator<task_internal::HttpTaskSharedState> state_alloc;
   auto state = std::allocate_shared<task_internal::HttpTaskSharedState>(
-    state_alloc, std::move(req), std::move(route_result), std::move(conn),
-    handler_alloc);
+      state_alloc, std::move(req), std::move(route_result), std::move(conn),
+      handler_alloc);
   state->lifecycle_managed.store(true);
 
-    auto* raw = connection_internal::helper::AllocateTaskObject<HttpPreServerTask>(
+  auto* raw =
+      connection_internal::helper::AllocateTaskObject<HttpPreServerTask>(
       state);
   new (raw) HttpPreServerTask(state);
-  return std::shared_ptr<HttpPreServerTask>(raw, task_internal::HttpPreTaskDeleter{state},
-                      state->handler_alloc);
+  return std::shared_ptr<HttpPreServerTask>(
+      raw, task_internal::HttpPreTaskDeleter{state}, state->handler_alloc);
 }
 
 HttpPreServerTask::HttpPreServerTask(
@@ -676,8 +653,7 @@ HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
     auto handler_alloc =
       conn ? conn->GetHandlerAllocator()
          : bsrvcore::internal::HandlerAllocator{};
-    bsrvcore::internal::TaskAllocator<task_internal::HttpTaskSharedState>
-      state_alloc(handler_alloc.memory());
+    bsrvcore::Allocator<task_internal::HttpTaskSharedState> state_alloc;
     return std::allocate_shared<task_internal::HttpTaskSharedState>(
       state_alloc, std::move(req), std::move(route_result), std::move(conn),
       handler_alloc);
@@ -714,8 +690,7 @@ std::shared_ptr<HttpServerTask> HttpServerTask::Create(
     std::shared_ptr<HttpServerConnection> conn) {
   auto handler_alloc = conn ? conn->GetHandlerAllocator()
                             : bsrvcore::internal::HandlerAllocator{};
-  bsrvcore::internal::TaskAllocator<task_internal::HttpTaskSharedState>
-      state_alloc(handler_alloc.memory());
+  bsrvcore::Allocator<task_internal::HttpTaskSharedState> state_alloc;
   auto state = std::allocate_shared<task_internal::HttpTaskSharedState>(
       state_alloc, std::move(req), std::move(route_result), std::move(conn),
       handler_alloc);

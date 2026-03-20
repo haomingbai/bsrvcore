@@ -20,7 +20,7 @@ class MockLogger : public bsrvcore::Logger {
 // Verify server forwards Log calls to the configured logger.
 TEST(LoggerTest, SetLoggerAndLog) {
   bsrvcore::HttpServer server(1);
-  auto logger = std::make_shared<MockLogger>();
+  auto logger = bsrvcore::AllocateShared<MockLogger>();
 
   server.SetLogger(logger);
 

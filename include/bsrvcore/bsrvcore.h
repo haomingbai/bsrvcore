@@ -17,6 +17,7 @@
 #ifndef BSRVCORE_BSRVCORE_H_
 #define BSRVCORE_BSRVCORE_H_
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/attribute.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"

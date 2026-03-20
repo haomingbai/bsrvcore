@@ -25,7 +25,7 @@ using bsrvcore::test::stress::WaitCounter;
 TEST(StressConnectionManagementTest, ConcurrentConnectionEstablishAndClose) {
   const auto cfg = LoadStressConfig(8, 80, 120000);
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/ping",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) { task->SetBody("pong"); });
@@ -70,7 +70,7 @@ TEST(StressConnectionManagementTest, ConcurrentConnectionEstablishAndClose) {
 TEST(StressConnectionManagementTest, ConcurrentLargePostPayloads) {
   const auto cfg = LoadStressConfig(6, 60, 120000);
 
-  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/echo-size",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

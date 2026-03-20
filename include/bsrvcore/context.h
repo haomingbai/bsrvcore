@@ -37,10 +37,10 @@ class Attribute;
  *
  * @code
  * // Example usage in request handler
- * auto context = std::make_shared<Context>();
+ * auto context = AllocateShared<Context>();
  *
  * // Store user authentication info
- * auto user_attr = std::make_shared<UserAttribute>();
+ * auto user_attr = AllocateShared<UserAttribute>();
  * context->SetAttribute("user", user_attr);
  *
  * // Retrieve in another handler
@@ -51,7 +51,7 @@ class Attribute;
  *
  * // Thread-safe for concurrent access
  * std::thread t1([&]() {
- *     context->SetAttribute("data1", std::make_shared<DataAttribute>());
+ *     context->SetAttribute("data1", AllocateShared<DataAttribute>());
  * });
  * std::thread t2([&]() {
  *     auto data = context->GetAttribute("data2");

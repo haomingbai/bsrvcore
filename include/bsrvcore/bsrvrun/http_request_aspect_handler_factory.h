@@ -15,6 +15,7 @@
 
 #include <memory>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 
@@ -25,10 +26,10 @@ namespace bsrvcore::bsrvrun {
  */
 class HttpRequestAspectHandlerFactory {
  public:
-  virtual std::unique_ptr<bsrvcore::HttpRequestAspectHandler> Ger(
+  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
       ParameterMap* parameters) = 0;
 
-  virtual std::unique_ptr<bsrvcore::HttpRequestAspectHandler> Create(
+  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Create(
       ParameterMap* parameters) {
     return Ger(parameters);
   }

@@ -5,6 +5,11 @@
 
 # Add code check and optimization
 option(BSRVCORE_ENABLE_ASAN "Enable AddressSanitizer for Debug builds. Default: OFF" OFF)
+include(FetchContent)
+
+if(POLICY CMP0169)
+  cmake_policy(SET CMP0169 OLD)
+endif()
 
 if(MSVC)
   add_compile_options(/W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
@@ -31,9 +36,33 @@ else()
   endif()
 endif()
 
+# --------------------------------------------------------
+# Internal build-time dependencies (src scope only)
+# --------------------------------------------------------
+FetchContent_Declare(
+  bthpool
+  GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
+  GIT_TAG eacf74a6a767c1dd12a12a8e473d78f3346b9005
+)
+FetchContent_GetProperties(bthpool)
+if(NOT bthpool_POPULATED)
+  FetchContent_Populate(bthpool)
+endif()
+
+add_library(bthpool_headers INTERFACE)
+add_library(bthpool::headers ALIAS bthpool_headers)
+target_include_directories(bthpool_headers SYSTEM INTERFACE
+  ${bthpool_SOURCE_DIR}/include
+)
+target_compile_definitions(bthpool_headers INTERFACE
+  BTHPOOL_HAS_BOOST_ASIO=1
+  USE_BOOST_ASIO_EXECUTOR
+)
+
 # Add the subdirectories in this project.
 option(BSRVCORE_BUILD_TOOLS "Build bsrvcore runtime tools. Default: ON" ON)
 
+add_subdirectory(allocator)
 add_subdirectory(route)
 add_subdirectory(session)
 add_subdirectory(connection)
@@ -42,6 +71,7 @@ add_subdirectory(bsrvrun)
 
 # List source files explicitly for better incremental builds
 set(BSRVCORE_SOURCES
+  ${ALLOCATOR_SOURCES}
   ${ROUTE_SOURCES}
   ${SESSION_SOURCES}
   ${CONNECTION_SOURCES}
@@ -62,6 +92,7 @@ target_link_libraries(bsrvcore
         Boost::system
         Boost::url
         bthpool_headers
+        ${ALLOCATOR_DEP_LIBS}
     PUBLIC
         Boost::headers
         OpenSSL::SSL

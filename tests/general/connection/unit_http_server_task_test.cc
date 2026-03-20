@@ -89,7 +89,8 @@ TEST(HttpServerTaskTest, UsesExistingSessionCookie) {
   boost::asio::any_io_executor exec = ioc.get_executor();
   boost::asio::strand<boost::asio::any_io_executor> strand(exec);
 
-  auto conn = std::make_shared<FakeConnection>(std::move(strand), &server);
+  auto conn =
+      bsrvcore::AllocateShared<FakeConnection>(std::move(strand), &server);
   DummyHandler handler;
 
   bsrvcore::HttpRequest req;
@@ -117,7 +118,8 @@ TEST(HttpServerTaskTest, GeneratesSessionCookieWhenMissing) {
   boost::asio::any_io_executor exec = ioc.get_executor();
   boost::asio::strand<boost::asio::any_io_executor> strand(exec);
 
-  auto conn = std::make_shared<FakeConnection>(std::move(strand), &server);
+  auto conn =
+      bsrvcore::AllocateShared<FakeConnection>(std::move(strand), &server);
   DummyHandler handler;
 
   bsrvcore::HttpRequest req;
@@ -152,7 +154,8 @@ TEST(HttpServerTaskTest, ManualConnectionManagementSkipsAutoWrite) {
   boost::asio::any_io_executor exec = ioc.get_executor();
   boost::asio::strand<boost::asio::any_io_executor> strand(exec);
 
-  auto conn = std::make_shared<FakeConnection>(std::move(strand), &server);
+  auto conn =
+      bsrvcore::AllocateShared<FakeConnection>(std::move(strand), &server);
   DummyHandler handler;
 
   bsrvcore::HttpRequest req;

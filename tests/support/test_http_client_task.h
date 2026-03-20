@@ -30,7 +30,7 @@ inline unsigned short FindFreePort() {
 
 // RAII guard to stop the server on scope exit.
 struct ServerGuard {
-  explicit ServerGuard(std::unique_ptr<bsrvcore::HttpServer> srv)
+  explicit ServerGuard(bsrvcore::OwnedPtr<bsrvcore::HttpServer> srv)
       : server(std::move(srv)) {}
 
   ~ServerGuard() {
@@ -40,7 +40,7 @@ struct ServerGuard {
     }
   }
 
-  std::unique_ptr<bsrvcore::HttpServer> server;
+  bsrvcore::OwnedPtr<bsrvcore::HttpServer> server;
 };
 
 inline http::response<http::string_body> DoRequestTask(

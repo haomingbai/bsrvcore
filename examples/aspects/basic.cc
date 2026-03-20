@@ -22,7 +22,7 @@
 #include <memory>
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server
       ->AddGlobalAspect(
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {

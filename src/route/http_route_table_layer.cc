@@ -48,7 +48,7 @@ void HttpRouteTableLayer::SetWriteExpiry(std::size_t expiry) noexcept {
 }
 
 bool HttpRouteTableLayer::SetHandler(
-    std::unique_ptr<HttpRequestHandler> handler) noexcept {
+    OwnedPtr<HttpRequestHandler> handler) noexcept {
   if (handler == nullptr) {
     return false;
   }
@@ -59,7 +59,7 @@ bool HttpRouteTableLayer::SetHandler(
 }
 
 bool HttpRouteTableLayer::SetDefaultRoute(
-    std::unique_ptr<HttpRouteTableLayer> route) noexcept {
+    OwnedPtr<HttpRouteTableLayer> route) noexcept {
   if (route == nullptr) {
     return false;
   }
@@ -70,7 +70,7 @@ bool HttpRouteTableLayer::SetDefaultRoute(
 }
 
 bool HttpRouteTableLayer::SetRoute(
-    std::string key, std::unique_ptr<HttpRouteTableLayer> link) try {
+    std::string key, OwnedPtr<HttpRouteTableLayer> link) try {
   if (key.empty()) {
     return false;
   }
@@ -128,7 +128,7 @@ bool HttpRouteTableLayer::GetIgnoreDefaultRoute() noexcept {
 }
 
 bool HttpRouteTableLayer::AddAspect(
-    std::unique_ptr<HttpRequestAspectHandler> aspect) try {
+    OwnedPtr<HttpRequestAspectHandler> aspect) try {
   aspects_.emplace_back(std::move(aspect));
   return true;
 } catch (...) {

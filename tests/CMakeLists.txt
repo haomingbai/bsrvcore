@@ -1,6 +1,13 @@
 # tests/CMakeLists.txt - bsrvcore tests
 # Expect bsrvcore target to exist (we build tests after add_subdirectory(src))
 
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
+)
+FetchContent_MakeAvailable(googletest)
+
 function(bsrvcore_add_test target_name source_file label)
   add_executable(${target_name} ${source_file})
 
@@ -60,4 +67,3 @@ add_subdirectory(general)
 if(BSRVCORE_ENABLE_STRESS_TESTS)
   add_subdirectory(stress)
 endif()
-

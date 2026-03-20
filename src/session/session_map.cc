@@ -52,7 +52,7 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
 
     map_entry.SetExpiry(new_expiry);
   } else {
-    result = std::make_shared<Context>();
+    result = AllocateShared<Context>();
     auto new_expiry = now + std::chrono::milliseconds(std::max<size_t>(
                                 kMinSessionTimeout, default_timeout_));
 
@@ -88,7 +88,7 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
 
     map_entry.SetExpiry(new_expiry);
   } else {
-    result = std::make_shared<Context>();
+    result = AllocateShared<Context>();
     auto new_expiry = now + std::chrono::milliseconds(std::max<size_t>(
                                 kMinSessionTimeout, default_timeout_));
 
@@ -220,7 +220,7 @@ void SessionMap::SetSessionTimeout(const std::string& sessionid,
       it->second.SetExpiry(new_expiry);
     }
   } else {
-    auto result = std::make_shared<Context>();
+    auto result = AllocateShared<Context>();
     auto new_expiry =
         now + std::chrono::milliseconds(std::max(kMinSessionTimeout, timeout));
 
@@ -249,7 +249,7 @@ void SessionMap::SetSessionTimeout(std::string&& sessionid,
       it->second.SetExpiry(new_expiry);
     }
   } else {
-    auto result = std::make_shared<Context>();
+    auto result = AllocateShared<Context>();
     auto new_expiry =
         now + std::chrono::milliseconds(std::max(kMinSessionTimeout, timeout));
 

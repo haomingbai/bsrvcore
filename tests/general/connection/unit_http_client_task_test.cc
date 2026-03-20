@@ -19,7 +19,7 @@ using bsrvcore::test::StartServerWithRoutes;
 }  // namespace
 
 TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("pong");
@@ -52,7 +52,7 @@ TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
 }
 
 TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/chunk",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("chunked-body-data");

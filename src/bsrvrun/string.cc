@@ -13,12 +13,15 @@
 #include <cstring>
 #include <utility>
 
+#include "bsrvcore/allocator.h"
+
 namespace bsrvcore::bsrvrun {
 
 namespace {
 
 char* DuplicateBuffer(const char* data, std::size_t size) {
-  char* copied = new char[size + 1];
+  auto* copied = static_cast<char*>(
+      bsrvcore::Allocate(size + 1, alignof(char)));
   if (size > 0) {
     std::memcpy(copied, data, size);
   }
@@ -28,11 +31,11 @@ char* DuplicateBuffer(const char* data, std::size_t size) {
 
 }  // namespace
 
-String::String() noexcept : data_(new char[1]{'\0'}), size_(0) {}
+String::String() noexcept : data_(DuplicateBuffer("", 0)), size_(0) {}
 
 String::String(const char* str) : data_(nullptr), size_(0) {
   if (str == nullptr) {
-    data_ = new char[1]{'\0'};
+    data_ = DuplicateBuffer("", 0);
     return;
   }
 
@@ -43,7 +46,7 @@ String::String(const char* str) : data_(nullptr), size_(0) {
 String::String(const char* data, std::size_t size) : data_(nullptr), size_(size) {
   if (data == nullptr && size != 0) {
     size_ = 0;
-    data_ = new char[1]{'\0'};
+    data_ = DuplicateBuffer("", 0);
     return;
   }
 
@@ -57,7 +60,7 @@ String::String(const String& other)
     : data_(DuplicateBuffer(other.data_, other.size_)), size_(other.size_) {}
 
 String::String(String&& other) noexcept : data_(other.data_), size_(other.size_) {
-  other.data_ = new char[1]{'\0'};
+  other.data_ = DuplicateBuffer("", 0);
   other.size_ = 0;
 }
 
@@ -67,7 +70,7 @@ String& String::operator=(const String& other) {
   }
 
   char* copied = DuplicateBuffer(other.data_, other.size_);
-  delete[] data_;
+  bsrvcore::Deallocate(data_, size_ + 1, alignof(char));
   data_ = copied;
   size_ = other.size_;
   return *this;
@@ -78,15 +81,15 @@ String& String::operator=(String&& other) noexcept {
     return *this;
   }
 
-  delete[] data_;
+  bsrvcore::Deallocate(data_, size_ + 1, alignof(char));
   data_ = other.data_;
   size_ = other.size_;
-  other.data_ = new char[1]{'\0'};
+  other.data_ = DuplicateBuffer("", 0);
   other.size_ = 0;
   return *this;
 }
 
-String::~String() { delete[] data_; }
+String::~String() { bsrvcore::Deallocate(data_, size_ + 1, alignof(char)); }
 
 const char* String::Data() const noexcept { return data_; }
 

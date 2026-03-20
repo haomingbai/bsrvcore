@@ -33,7 +33,7 @@ class UserAttribute : public bsrvcore::CloneableAttribute<UserAttribute> {
 };
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/session",
@@ -43,7 +43,8 @@ int main() {
 
             if (session && !session->HasAttribute("user")) {
               session->SetAttribute("user",
-                                    std::make_shared<UserAttribute>("guest"));
+                                    bsrvcore::AllocateShared<UserAttribute>(
+                                        "guest"));
             }
 
             std::string user_name = "unknown";

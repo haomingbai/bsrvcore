@@ -33,9 +33,9 @@
 
 #include <bthpool/bthpool.hpp>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/internal/empty_logger.h"
-#include "bsrvcore/internal/asio_allocator.h"
 #include "bsrvcore/internal/http_server_connection_impl.h"
 #include "bsrvcore/internal/session_map.h"
 
@@ -52,6 +52,7 @@ bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
   param.thread_clean_interval = options.thread_clean_interval;
   param.task_scan_interval = options.task_scan_interval;
   param.suspend_time = options.suspend_time;
+  param.memory_resource = bsrvcore::GetDefaultMemoryResource();
   return param;
 }
 
@@ -106,7 +107,7 @@ void HttpServer::Stop() {
     it.join();
   }
 
-  thread_pool_ = std::make_unique<bthpool::detail::BThreadPool>(
+  thread_pool_ = bsrvcore::AllocateUnique<bthpool::detail::BThreadPool>(
       ToBThreadPoolParam(executor_options_));
   io_threads_.clear();
   acceptors_.clear();
@@ -118,9 +119,7 @@ void HttpServer::Stop() {
 }
 
 void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
-  static auto accept_mem =
-    std::make_shared<bsrvcore::internal::HandlerMemory>();
-  bsrvcore::internal::HandlerAllocator accept_alloc(accept_mem);
+  static bsrvcore::Allocator<std::byte> accept_alloc{};
 
   acc.async_accept(
       boost::asio::make_strand(ioc_),

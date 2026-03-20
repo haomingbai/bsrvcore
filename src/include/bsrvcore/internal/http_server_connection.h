@@ -32,14 +32,18 @@
 #include <memory>
 #include <string>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_route_result.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
-#include "bsrvcore/internal/asio_allocator.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {
+
+namespace internal {
+using HandlerAllocator = bsrvcore::Allocator<std::byte>;
+}  // namespace internal
 
 class HttpServer;
 class Context;
@@ -122,7 +126,7 @@ class HttpServerConnection
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -170,7 +174,7 @@ class HttpServerConnection
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::make_shared<std::packaged_task<RT()>>(binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -309,8 +313,7 @@ class HttpServerConnection
    * @brief Get the HTTP request parser
    * @return Reference to unique pointer holding the request parser
    */
-  std::unique_ptr<
-      boost::beast::http::request_parser<boost::beast::http::string_body>>&
+  OwnedPtr<boost::beast::http::request_parser<boost::beast::http::string_body>>&
   GetParser() noexcept;
 
   /**
@@ -357,14 +360,12 @@ class HttpServerConnection
   boost::beast::flat_buffer buf_;    ///< Buffer for reading requests
   HttpRouteResult route_result_;     ///< Result of routing the current request
   HttpServer* srv_;                  ///< Reference to HTTP server
-  std::unique_ptr<
-      boost::beast::http::request_parser<boost::beast::http::string_body>>
+  OwnedPtr<boost::beast::http::request_parser<boost::beast::http::string_body>>
       parser_;                      ///< HTTP request parser
   std::size_t header_read_expiry_;  ///< Header read timeout in ms
   std::size_t keep_alive_timeout_;  ///< Keep-alive timeout in ms
 
   // Per-connection allocator used for all Asio/Beast handlers.
-  std::shared_ptr<internal::HandlerMemory> handler_mem_;
   internal::HandlerAllocator handler_alloc_;
 };
 

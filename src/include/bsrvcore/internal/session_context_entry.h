@@ -35,7 +35,7 @@ namespace session_internal {
  *
  * @code
  * // Example usage in SessionMap
- * auto context = std::make_shared<Context>();
+ * auto context = AllocateShared<Context>();
  * auto expiry = std::chrono::steady_clock::now() + std::chrono::hours(1);
  * SessionContextEntry entry(context, expiry);
  *

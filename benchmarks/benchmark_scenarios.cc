@@ -229,7 +229,8 @@ std::vector<ScenarioDefinition> BuildScenarios() {
 
                              session->SetAttribute(
                                  "counter",
-                                 std::make_shared<CounterAttribute>(next_value));
+                                 bsrvcore::AllocateShared<CounterAttribute>(
+                                     next_value));
                              task->SetBody(std::to_string(next_value));
                            });
     };

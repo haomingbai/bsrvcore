@@ -55,7 +55,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer = std::make_shared<boost::asio::steady_timer>(ioc_);
+  auto timer = AllocateShared<boost::asio::steady_timer>(ioc_);
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
   timer->async_wait([this, fn = std::move(fn),
                      timer](boost::system::error_code ec) mutable {

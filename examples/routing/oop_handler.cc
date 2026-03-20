@@ -36,10 +36,10 @@ class HelloHandler : public bsrvcore::HttpRequestHandler {
 };
 
 int main() {
-  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/hello/{name}",
-                      std::make_unique<HelloHandler>())
+                      bsrvcore::AllocateUnique<HelloHandler>())
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8082});
 
   if (!server->Start(1)) {
