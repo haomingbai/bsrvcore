@@ -137,3 +137,27 @@ The `examples/` folder contains runnable programs:
 ## Testing
 
 - See [docs/manual/testing.md](docs/manual/testing.md)
+
+## Benchmarking
+
+Build the standalone benchmark suite:
+
+```bash
+cmake -S . -B build-bench \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBSRVCORE_BUILD_EXAMPLES=OFF \
+  -DBSRVCORE_BUILD_TESTS=OFF \
+  -DBSRVCORE_BUILD_BENCHMARKS=ON
+cmake --build build-bench --target bsrvcore_http_benchmark --parallel
+```
+
+Run a short sweep:
+
+```bash
+./build-bench/benchmarks/bsrvcore_http_benchmark --profile quick
+```
+
+For benchmark methodology and shipped snapshots, see:
+
+- [docs/manual/benchmarking.md](docs/manual/benchmarking.md)
+- [docs/benchmark-results/](docs/benchmark-results)

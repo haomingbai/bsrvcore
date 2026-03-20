@@ -69,12 +69,21 @@ add_subdirectory(src)
 
 # Optional: Build examples
 option(BSRVCORE_BUILD_EXAMPLES "Build bsrvcore examples. Default: ON" ON)
+option(BSRVCORE_BUILD_BENCHMARKS "Build bsrvcore benchmarks. Default: OFF" OFF)
 
 if(BSRVCORE_BUILD_EXAMPLES)
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples")
     add_subdirectory(examples)
   else()
     message(STATUS "BSRVCORE_BUILD_EXAMPLES is ON but the 'examples' directory does not exist.")
+  endif()
+endif()
+
+if(BSRVCORE_BUILD_BENCHMARKS)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks")
+    add_subdirectory(benchmarks)
+  else()
+    message(STATUS "BSRVCORE_BUILD_BENCHMARKS is ON but the 'benchmarks' directory does not exist.")
   endif()
 endif()
 

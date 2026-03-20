@@ -1,0 +1,57 @@
+#include <filesystem>
+#include <iostream>
+#include <vector>
+
+#include "benchmark_cli.h"
+#include "benchmark_report.h"
+#include "benchmark_runner.h"
+#include "benchmark_scenarios.h"
+#include "benchmark_subprocess.h"
+#include "benchmark_types.h"
+#include "benchmark_util.h"
+
+int main(int argc, char** argv) try {
+  using namespace bsrvcore::benchmark;
+
+  std::string help_text;
+  const CliConfig cli = ParseCli(argc, argv, help_text);
+  if (cli.show_help) {
+    std::cout << help_text << "\n";
+    return 0;
+  }
+
+  const auto scenarios = BuildScenarios();
+  if (cli.internal_run_cell) {
+    return RunInternalCell(cli, scenarios);
+  }
+  if (cli.list_scenarios) {
+    PrintScenarioList(scenarios);
+    return 0;
+  }
+
+  const auto selected_scenarios = ResolveSelectedScenarios(scenarios, cli);
+  const auto run_settings = ResolveRunSettings(cli);
+  const auto environment = DetectEnvironment();
+  const auto executable_path = std::filesystem::absolute(argv[0]);
+  const auto cells =
+      RunBenchmarks(executable_path, selected_scenarios, run_settings,
+                    cli.profile);
+
+  bool has_errors = false;
+  for (const auto& cell : cells) {
+    PrintCellSummary(cell);
+    if (cell.aggregate.error_count.max > 0.0) {
+      has_errors = true;
+    }
+  }
+
+  const auto json = BuildJson(environment, cli, run_settings, cells);
+  if (cli.output_json.has_value()) {
+    WriteJsonFile(*cli.output_json, json);
+  }
+
+  return has_errors ? 1 : 0;
+} catch (const std::exception& ex) {
+  std::cerr << "benchmark failed: " << ex.what() << "\n";
+  return 1;
+}

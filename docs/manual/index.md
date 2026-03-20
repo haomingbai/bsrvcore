@@ -21,7 +21,8 @@ Read in this order:
 9. [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md) — Goal: call other services (HTTP) or consume SSE streams.
 10. [Examples](examples.md) — Goal: run the sample programs.
 11. [Testing](testing.md) — Goal: build and run tests locally and in CI.
-12. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
+12. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
+13. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
 
 ## Public umbrella header
 

@@ -1,0 +1,144 @@
+#include "benchmark_cli.h"
+
+#include <boost/program_options.hpp>
+
+#include <sstream>
+#include <stdexcept>
+#include <string>
+
+namespace po = boost::program_options;
+
+namespace bsrvcore::benchmark {
+
+CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
+  CliConfig cli;
+
+  po::options_description options("bsrvcore_http_benchmark options");
+  options.add_options()("help,h", "Show help")(
+      "list-scenarios", po::bool_switch(&cli.list_scenarios),
+      "List available scenarios")("scenario",
+                                  po::value<std::string>(&cli.scenario_name)
+                                      ->default_value("all"),
+                                  "Scenario name or 'all'")(
+      "profile", po::value<std::string>()->default_value("quick"),
+      "Profile: quick or full")(
+      "pressure", po::value<std::string>(),
+      "Pressure: light|balanced|saturated|overload|all")(
+      "server-threads", po::value<std::size_t>(), "Override server threads")(
+      "client-concurrency", po::value<std::size_t>(),
+      "Override client concurrency")(
+      "warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
+      "duration-ms", po::value<std::size_t>(), "Measure duration in ms")(
+      "repetitions", po::value<std::size_t>(), "Number of repetitions")(
+      "cooldown-ms", po::value<std::size_t>(), "Cooldown duration in ms")(
+      "output-json", po::value<std::string>(), "Write JSON output to path");
+
+  po::options_description hidden("Internal benchmark options");
+  hidden.add_options()(
+      "internal-run-cell", po::bool_switch(&cli.internal_run_cell),
+      "Run one benchmark cell in internal mode")(
+      "internal-scenario", po::value<std::string>(),
+      "Scenario name for internal cell mode")(
+      "internal-pressure-name", po::value<std::string>(),
+      "Pressure name for internal cell mode")(
+      "internal-server-threads", po::value<std::size_t>(),
+      "Server threads for internal cell mode")(
+      "internal-client-concurrency", po::value<std::size_t>(),
+      "Client concurrency for internal cell mode")(
+      "internal-warmup-ms", po::value<std::size_t>(),
+      "Warmup duration for internal cell mode")(
+      "internal-duration-ms", po::value<std::size_t>(),
+      "Measure duration for internal cell mode")(
+      "internal-cooldown-ms", po::value<std::size_t>(),
+      "Cooldown duration for internal cell mode")(
+      "internal-repetition", po::value<std::size_t>(),
+      "Repetition number for internal cell mode")(
+      "internal-result-path", po::value<std::string>(),
+      "Result path for internal cell mode");
+
+  po::options_description all_options;
+  all_options.add(options).add(hidden);
+
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, all_options), vm);
+  po::notify(vm);
+
+  std::ostringstream out;
+  out << options;
+  help_text = out.str();
+
+  cli.show_help = vm.count("help") != 0;
+  if (cli.show_help) {
+    return cli;
+  }
+
+  const std::string profile = vm["profile"].as<std::string>();
+  if (profile == "quick") {
+    cli.profile = ProfileKind::kQuick;
+  } else if (profile == "full") {
+    cli.profile = ProfileKind::kFull;
+  } else {
+    throw std::invalid_argument("Unknown profile: " + profile);
+  }
+
+  if (vm.count("pressure") != 0) {
+    cli.pressure_name = vm["pressure"].as<std::string>();
+  }
+  if (vm.count("server-threads") != 0) {
+    cli.server_threads_override = vm["server-threads"].as<std::size_t>();
+  }
+  if (vm.count("client-concurrency") != 0) {
+    cli.client_concurrency_override = vm["client-concurrency"].as<std::size_t>();
+  }
+  if (vm.count("warmup-ms") != 0) {
+    cli.warmup_ms_override = vm["warmup-ms"].as<std::size_t>();
+  }
+  if (vm.count("duration-ms") != 0) {
+    cli.duration_ms_override = vm["duration-ms"].as<std::size_t>();
+  }
+  if (vm.count("repetitions") != 0) {
+    cli.repetitions_override = vm["repetitions"].as<std::size_t>();
+  }
+  if (vm.count("cooldown-ms") != 0) {
+    cli.cooldown_ms_override = vm["cooldown-ms"].as<std::size_t>();
+  }
+  if (vm.count("output-json") != 0) {
+    cli.output_json =
+        std::filesystem::path(vm["output-json"].as<std::string>());
+  }
+  if (vm.count("internal-scenario") != 0) {
+    cli.internal_scenario_name = vm["internal-scenario"].as<std::string>();
+  }
+  if (vm.count("internal-pressure-name") != 0) {
+    cli.internal_pressure_name =
+        vm["internal-pressure-name"].as<std::string>();
+  }
+  if (vm.count("internal-server-threads") != 0) {
+    cli.internal_server_threads =
+        vm["internal-server-threads"].as<std::size_t>();
+  }
+  if (vm.count("internal-client-concurrency") != 0) {
+    cli.internal_client_concurrency =
+        vm["internal-client-concurrency"].as<std::size_t>();
+  }
+  if (vm.count("internal-warmup-ms") != 0) {
+    cli.internal_warmup_ms = vm["internal-warmup-ms"].as<std::size_t>();
+  }
+  if (vm.count("internal-duration-ms") != 0) {
+    cli.internal_duration_ms = vm["internal-duration-ms"].as<std::size_t>();
+  }
+  if (vm.count("internal-cooldown-ms") != 0) {
+    cli.internal_cooldown_ms = vm["internal-cooldown-ms"].as<std::size_t>();
+  }
+  if (vm.count("internal-repetition") != 0) {
+    cli.internal_repetition = vm["internal-repetition"].as<std::size_t>();
+  }
+  if (vm.count("internal-result-path") != 0) {
+    cli.internal_result_path =
+        std::filesystem::path(vm["internal-result-path"].as<std::string>());
+  }
+
+  return cli;
+}
+
+}  // namespace bsrvcore::benchmark
