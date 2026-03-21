@@ -15,6 +15,7 @@
 #include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -69,6 +70,8 @@ bool HttpServer::Start(std::size_t thread_cnt) {
   }
 
   is_running_ = true;
+  ioc_.restart();
+  io_work_guard_.emplace(boost::asio::make_work_guard(ioc_));
 
   for (auto& acc : acceptors_) {
     DoAccept(acc);
@@ -99,6 +102,11 @@ void HttpServer::Stop() {
     boost::system::error_code ec1;
     boost::system::error_code ec2;
     ec2 = acc.close(ec1);
+  }
+
+  if (io_work_guard_.has_value()) {
+    io_work_guard_->reset();
+    io_work_guard_.reset();
   }
 
   thread_pool_->join();

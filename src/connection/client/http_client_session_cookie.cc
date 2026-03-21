@@ -9,6 +9,7 @@
  */
 
 #include <algorithm>
+#include <cstdint>
 #include <boost/beast/http/field.hpp>
 #include <cctype>
 #include <chrono>

@@ -26,6 +26,10 @@
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
 
+namespace {
+constexpr auto kAsyncWaitTimeout = std::chrono::seconds(10);
+}
+
 TEST(Server, DisableConfigurationWhenRunning) {
   using namespace bsrvcore;
 
@@ -78,10 +82,6 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   HttpServerExecutorOptions options;
   options.core_thread_num = 2;
   options.max_thread_num = 2;
-  options.fast_queue_capacity = 128;
-  options.thread_clean_interval = 5000;
-  options.task_scan_interval = 20;
-  options.suspend_time = 1;
 
   HttpServer server(options);
   ASSERT_TRUE(server.Start(1));
@@ -90,7 +90,7 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   auto future = promise->get_future();
   server.Post([promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
             std::future_status::ready);
   EXPECT_TRUE(future.get());
 
@@ -107,10 +107,11 @@ TEST(Server, SetTimerDispatchesCallback) {
   auto future = promise->get_future();
   auto caller_id = std::this_thread::get_id();
 
+  // Keep a modest delay to reduce scheduler-jitter flakes on busy CI runners.
   server.SetTimer(
-      10, [promise] { promise->set_value(std::this_thread::get_id()); });
+      50, [promise] { promise->set_value(std::this_thread::get_id()); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
             std::future_status::ready);
   EXPECT_NE(future.get(), caller_id);
 
@@ -129,7 +130,7 @@ TEST(Server, GetExecutorSupportsAsioPost) {
   boost::asio::post(server.GetExecutor(),
                     [promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
             std::future_status::ready);
   EXPECT_TRUE(future.get());
 

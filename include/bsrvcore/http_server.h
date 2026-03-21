@@ -20,6 +20,7 @@
 
 #include <algorithm>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -608,6 +609,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::optional<boost::asio::ssl::context>
       ssl_ctx_;                          ///< The SSL context of the server
   boost::asio::io_context ioc_;          ///< The I/O context of the server
+  std::optional<boost::asio::executor_work_guard<
+      boost::asio::io_context::executor_type>>
+      io_work_guard_;                    ///< Keeps io_context alive while running
   std::vector<std::thread> io_threads_;  ///< Threads to run I/O context
   std::vector<boost::asio::ip::tcp::acceptor>
       acceptors_;                     ///< Acceptors to accept sockets
