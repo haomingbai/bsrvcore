@@ -28,7 +28,8 @@ struct SseEvent {
   std::string id{};
   /** @brief Event type field (`event:`). */
   std::string event{};
-  /** @brief Event payload field (`data:`), joined by '\n' for multiline data. */
+  /** @brief Event payload field (`data:`), joined by '\n' for multiline data.
+   */
   std::string data{};
   /** @brief Retry field (`retry:`) in milliseconds when provided and valid. */
   std::optional<int> retry_ms{};

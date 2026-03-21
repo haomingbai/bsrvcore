@@ -16,11 +16,10 @@
 // BEGIN README_SNIPPET: sse_stream
 #include <bsrvcore/bsrvcore.h>
 
+#include <atomic>
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
-
-#include <atomic>
 #include <cstdint>
 #include <iostream>
 #include <memory>
@@ -69,8 +68,9 @@ void StopStream(const std::shared_ptr<bsrvcore::HttpServerTask>& task,
     return;
   }
 
-  task->WriteBody("event: done\n"
-                  "data: counter limit reached\n\n");
+  task->WriteBody(
+      "event: done\n"
+      "data: counter limit reached\n\n");
   task->SetTimer(kCloseDelayMs, [task] {
     if (task->IsAvailable()) {
       task->DoClose();
@@ -86,9 +86,11 @@ void ScheduleCounter(const std::shared_ptr<bsrvcore::HttpServerTask>& task,
     }
 
     const std::uint64_t value = state->next_value++;
-    task->WriteBody("id: " + std::to_string(value) + "\n"
+    task->WriteBody("id: " + std::to_string(value) +
+                    "\n"
                     "event: counter\n"
-                    "data: " + std::to_string(value) + "\n\n");
+                    "data: " +
+                    std::to_string(value) + "\n\n");
 
     if (value >= kMaxCounterEvents) {
       StopStream(task, state);

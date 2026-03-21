@@ -40,7 +40,8 @@ class HttpRequestAspectHandlerFactory {
 /**
  * @brief Symbol type of plugin-exported aspect factory function.
  *
- * Plugins should export `extern "C" HttpRequestAspectHandlerFactory* GetAspectFactory();`
+ * Plugins should export `extern "C" HttpRequestAspectHandlerFactory*
+ * GetAspectFactory();`
  */
 using GetAspectFactoryFn = HttpRequestAspectHandlerFactory* (*)();
 

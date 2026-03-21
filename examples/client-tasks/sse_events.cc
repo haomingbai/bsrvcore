@@ -3,7 +3,6 @@
 #include <bsrvcore/sse_event_parser.h>
 
 #include <boost/asio/io_context.hpp>
-
 #include <functional>
 #include <future>
 #include <iostream>
@@ -25,8 +24,8 @@ int main() {
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, done, completion, &pull_next]() {
-    client->Next([parser, events, done, completion, &pull_next](
-                     const bsrvcore::HttpSseClientResult& result) {
+    client->Next([parser, events, done, completion,
+                  &pull_next](const bsrvcore::HttpSseClientResult& result) {
       if (*done) {
         return;
       }
@@ -53,8 +52,8 @@ int main() {
     });
   };
 
-  client->Start([done, completion, &pull_next](
-                    const bsrvcore::HttpSseClientResult& result) {
+  client->Start([done, completion,
+                 &pull_next](const bsrvcore::HttpSseClientResult& result) {
     if (result.ec || result.cancelled) {
       if (!*done) {
         *done = true;

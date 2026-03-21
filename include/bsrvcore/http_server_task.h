@@ -98,10 +98,10 @@ class HttpTaskBase {
   /**
    * @brief Get current session by request sessionId.
    * @return Session context pointer, or nullptr if unavailable.
-    *
-    * @note If the request does not carry a valid session id cookie, this call
-    *       will generate one via GetSessionId() and schedule a Set-Cookie to be
-    *       written in the final response.
+   *
+   * @note If the request does not carry a valid session id cookie, this call
+   *       will generate one via GetSessionId() and schedule a Set-Cookie to be
+   *       written in the final response.
    */
   std::shared_ptr<Context> GetSession();
 
@@ -149,8 +149,8 @@ class HttpTaskBase {
    * @param value true to enable manual mode.
    *
    * @note Once enabled, later phase completion does not auto-write response.
-    *       Manual mode is a one-way switch for a task instance: calling this
-    *       API with false after it has been enabled has no effect.
+   *       Manual mode is a one-way switch for a task instance: calling this
+   *       API with false after it has been enabled has no effect.
    */
   void SetManualConnectionManagement(bool value) noexcept;
 
@@ -206,9 +206,9 @@ class HttpTaskBase {
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
     auto task = std::allocate_shared<std::packaged_task<RT()>>(
-      std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
-        GetMemoryResource()),
-      binded_fn);
+        std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
+            GetMemoryResource()),
+        binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -257,9 +257,9 @@ class HttpTaskBase {
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
     auto task = std::allocate_shared<std::packaged_task<RT()>>(
-      std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
-        GetMemoryResource()),
-      binded_fn);
+        std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
+            GetMemoryResource()),
+        binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -284,9 +284,9 @@ class HttpTaskBase {
    * @brief Get cookie by key from request.
    * @param key Cookie name.
    * @return Cookie value reference (empty string if not found).
-    *
-    * @note When the cookie is not present, this call returns an empty string
-    *       and may insert the key into the internal cookie map.
+   *
+   * @note When the cookie is not present, this call returns an empty string
+   *       and may insert the key into the internal cookie map.
    */
   const std::string& GetCookie(const std::string& key);
 

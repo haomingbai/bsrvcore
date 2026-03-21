@@ -21,47 +21,47 @@
 using bsrvcore::SameSite;
 using bsrvcore::ServerSetCookie;
 
-ServerSetCookie &ServerSetCookie::SetName(std::string name) {
+ServerSetCookie& ServerSetCookie::SetName(std::string name) {
   name_ = std::move(name);
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetValue(std::string value) {
+ServerSetCookie& ServerSetCookie::SetValue(std::string value) {
   value_ = std::move(value);
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetExpires(std::string expiry) {
+ServerSetCookie& ServerSetCookie::SetExpires(std::string expiry) {
   expiry_ = std::move(expiry);
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetMaxAge(int64_t max_age) {
+ServerSetCookie& ServerSetCookie::SetMaxAge(int64_t max_age) {
   max_age_ = max_age;
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetPath(std::string path) {
+ServerSetCookie& ServerSetCookie::SetPath(std::string path) {
   path_ = std::move(path);
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetDomain(std::string domain) {
+ServerSetCookie& ServerSetCookie::SetDomain(std::string domain) {
   domain_ = std::move(domain);
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetSameSite(SameSite same_site) {
+ServerSetCookie& ServerSetCookie::SetSameSite(SameSite same_site) {
   same_site_ = same_site;
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetSecure(bool secure) {
+ServerSetCookie& ServerSetCookie::SetSecure(bool secure) {
   secure_ = secure;
   return *this;
 }
 
-ServerSetCookie &ServerSetCookie::SetHttpOnly(bool http_only) {
+ServerSetCookie& ServerSetCookie::SetHttpOnly(bool http_only) {
   http_only_ = http_only;
   return *this;
 }
@@ -75,7 +75,8 @@ std::string ServerSetCookie::ToString() const {
     return "";
   }
 
-  std::string result = std::move(name_.value()) + "=" + std::move(value_.value());
+  std::string result =
+      std::move(name_.value()) + "=" + std::move(value_.value());
   result.push_back(';');
 
   if (expiry_.has_value() && !expiry_.value().empty()) {

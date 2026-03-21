@@ -1,7 +1,6 @@
 #include "benchmark_cli.h"
 
 #include <boost/program_options.hpp>
-
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -16,27 +15,27 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   po::options_description options("bsrvcore_http_benchmark options");
   options.add_options()("help,h", "Show help")(
       "list-scenarios", po::bool_switch(&cli.list_scenarios),
-      "List available scenarios")("scenario",
-                                  po::value<std::string>(&cli.scenario_name)
-                                      ->default_value("all"),
-                                  "Scenario name or 'all'")(
+      "List available scenarios")(
+      "scenario",
+      po::value<std::string>(&cli.scenario_name)->default_value("all"),
+      "Scenario name or 'all'")(
       "profile", po::value<std::string>()->default_value("quick"),
       "Profile: quick or full")(
       "pressure", po::value<std::string>(),
       "Pressure: light|balanced|saturated|overload|all")(
       "server-threads", po::value<std::size_t>(), "Override server threads")(
       "client-concurrency", po::value<std::size_t>(),
-      "Override client concurrency")(
-      "warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
+      "Override client concurrency")("warmup-ms", po::value<std::size_t>(),
+                                     "Warmup duration in ms")(
       "duration-ms", po::value<std::size_t>(), "Measure duration in ms")(
       "repetitions", po::value<std::size_t>(), "Number of repetitions")(
       "cooldown-ms", po::value<std::size_t>(), "Cooldown duration in ms")(
       "output-json", po::value<std::string>(), "Write JSON output to path");
 
   po::options_description hidden("Internal benchmark options");
-  hidden.add_options()(
-      "internal-run-cell", po::bool_switch(&cli.internal_run_cell),
-      "Run one benchmark cell in internal mode")(
+  hidden.add_options()("internal-run-cell",
+                       po::bool_switch(&cli.internal_run_cell),
+                       "Run one benchmark cell in internal mode")(
       "internal-scenario", po::value<std::string>(),
       "Scenario name for internal cell mode")(
       "internal-pressure-name", po::value<std::string>(),
@@ -88,7 +87,8 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     cli.server_threads_override = vm["server-threads"].as<std::size_t>();
   }
   if (vm.count("client-concurrency") != 0) {
-    cli.client_concurrency_override = vm["client-concurrency"].as<std::size_t>();
+    cli.client_concurrency_override =
+        vm["client-concurrency"].as<std::size_t>();
   }
   if (vm.count("warmup-ms") != 0) {
     cli.warmup_ms_override = vm["warmup-ms"].as<std::size_t>();
@@ -110,8 +110,7 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     cli.internal_scenario_name = vm["internal-scenario"].as<std::string>();
   }
   if (vm.count("internal-pressure-name") != 0) {
-    cli.internal_pressure_name =
-        vm["internal-pressure-name"].as<std::string>();
+    cli.internal_pressure_name = vm["internal-pressure-name"].as<std::string>();
   }
   if (vm.count("internal-server-threads") != 0) {
     cli.internal_server_threads =

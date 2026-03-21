@@ -5,7 +5,6 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
-
 #include <cstdint>
 #include <map>
 #include <string>

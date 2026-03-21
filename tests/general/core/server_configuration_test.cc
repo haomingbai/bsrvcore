@@ -14,8 +14,8 @@
 
 #include <gtest/gtest.h>
 
-#include <chrono>
 #include <boost/asio/post.hpp>
+#include <chrono>
 #include <future>
 #include <memory>
 #include <thread>
@@ -90,7 +90,8 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   auto future = promise->get_future();
   server.Post([promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+            std::future_status::ready);
   EXPECT_TRUE(future.get());
 
   server.Stop();
@@ -106,9 +107,11 @@ TEST(Server, SetTimerDispatchesCallback) {
   auto future = promise->get_future();
   auto caller_id = std::this_thread::get_id();
 
-  server.SetTimer(10, [promise] { promise->set_value(std::this_thread::get_id()); });
+  server.SetTimer(
+      10, [promise] { promise->set_value(std::this_thread::get_id()); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+            std::future_status::ready);
   EXPECT_NE(future.get(), caller_id);
 
   server.Stop();
@@ -123,9 +126,11 @@ TEST(Server, GetExecutorSupportsAsioPost) {
   auto promise = AllocateShared<std::promise<bool>>();
   auto future = promise->get_future();
 
-  boost::asio::post(server.GetExecutor(), [promise] { promise->set_value(true); });
+  boost::asio::post(server.GetExecutor(),
+                    [promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+  ASSERT_EQ(future.wait_for(std::chrono::seconds(2)),
+            std::future_status::ready);
   EXPECT_TRUE(future.get());
 
   server.Stop();

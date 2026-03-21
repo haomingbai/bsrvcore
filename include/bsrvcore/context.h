@@ -65,14 +65,14 @@ class Context : NonCopyableNonMovable<Context> {
    * @param key Attribute key to look up
    * @return Shared pointer to attribute, nullptr if not found
    */
-  std::shared_ptr<Attribute> GetAttribute(const std::string &key) noexcept;
+  std::shared_ptr<Attribute> GetAttribute(const std::string& key) noexcept;
 
   /**
    * @brief Retrieve an attribute by key (move version)
    * @param key Attribute key to look up (will be moved)
    * @return Shared pointer to attribute, nullptr if not found
    */
-  std::shared_ptr<Attribute> GetAttribute(std::string &&key) noexcept;
+  std::shared_ptr<Attribute> GetAttribute(std::string&& key) noexcept;
 
   /**
    * @brief Store an attribute with the specified key
@@ -88,14 +88,14 @@ class Context : NonCopyableNonMovable<Context> {
    * @param key Attribute key to check
    * @return true if attribute exists, false otherwise
    */
-  bool HasAttribute(const std::string &key) noexcept;
+  bool HasAttribute(const std::string& key) noexcept;
 
   /**
    * @brief Check if an attribute exists (move version)
    * @param key Attribute key to check (will be moved)
    * @return true if attribute exists, false otherwise
    */
-  bool HasAttribute(std::string &&key) noexcept;
+  bool HasAttribute(std::string&& key) noexcept;
 
   /**
    * @brief Construct an empty context

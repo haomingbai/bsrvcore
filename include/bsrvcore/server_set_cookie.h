@@ -77,14 +77,14 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    * @param name Cookie name (should not contain spaces or special characters)
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetName(std::string name);
+  ServerSetCookie& SetName(std::string name);
 
   /**
    * @brief Set the cookie value
    * @param value Cookie value (will be URL-encoded if necessary)
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetValue(std::string value);
+  ServerSetCookie& SetValue(std::string value);
 
   /**
    * @brief Set cookie expiration using HTTP date format
@@ -95,7 +95,7 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    * @note Mutually exclusive with Max-Age. If both are set, Max-Age takes
    * precedence.
    */
-  ServerSetCookie &SetExpires(std::string expiry);
+  ServerSetCookie& SetExpires(std::string expiry);
 
   /**
    * @brief Set cookie lifetime in seconds
@@ -105,14 +105,15 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    * @note Mutually exclusive with Expires. If both are set, Max-Age takes
    * precedence.
    */
-  ServerSetCookie &SetMaxAge(int64_t max_age);
+  ServerSetCookie& SetMaxAge(int64_t max_age);
 
   /**
    * @brief Set the path scope for the cookie
-   * @param path URL path prefix (e.g., "/api" makes cookie available to /api/ *)
+   * @param path URL path prefix (e.g., "/api" makes cookie available to /api/
+   * *)
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetPath(std::string path);
+  ServerSetCookie& SetPath(std::string path);
 
   /**
    * @brief Set the domain scope for the cookie
@@ -120,7 +121,7 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    * subdomains)
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetDomain(std::string domain);
+  ServerSetCookie& SetDomain(std::string domain);
 
   /**
    * @brief Set the SameSite attribute for CSRF protection
@@ -129,21 +130,21 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    *
    * @note SameSite=None requires Secure flag to be set
    */
-  ServerSetCookie &SetSameSite(SameSite same_site);
+  ServerSetCookie& SetSameSite(SameSite same_site);
 
   /**
    * @brief Set the Secure flag for HTTPS-only transmission
    * @param secure true to restrict cookie to HTTPS connections
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetSecure(bool secure);
+  ServerSetCookie& SetSecure(bool secure);
 
   /**
    * @brief Set the HttpOnly flag for JavaScript protection
    * @param http_only true to prevent JavaScript access to cookie
    * @return Reference to self for method chaining
    */
-  ServerSetCookie &SetHttpOnly(bool http_only);
+  ServerSetCookie& SetHttpOnly(bool http_only);
 
   /**
    * @brief Generate the Set-Cookie header value string

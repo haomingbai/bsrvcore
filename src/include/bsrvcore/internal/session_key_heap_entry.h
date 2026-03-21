@@ -57,7 +57,7 @@ class SessionKeyHeapEntry : CopyableMovable<SessionKeyHeapEntry> {
    *
    * @note This creates a min-heap where the earliest expiration is at the top
    */
-  bool operator<(const SessionKeyHeapEntry &other) const noexcept;
+  bool operator<(const SessionKeyHeapEntry& other) const noexcept;
 
   /**
    * @brief Get the expiration time of this session
@@ -69,7 +69,7 @@ class SessionKeyHeapEntry : CopyableMovable<SessionKeyHeapEntry> {
    * @brief Get the session identifier
    * @return Constant reference to the session ID string
    */
-  const std::string &GetId() const noexcept;
+  const std::string& GetId() const noexcept;
 
   SessionKeyHeapEntry() = default;
 

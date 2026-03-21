@@ -106,16 +106,16 @@ struct HttpSseClientResult {
 /**
  * @brief Asynchronous SSE client task using pull-based Start/Next model.
  */
-class HttpSseClientTask : public std::enable_shared_from_this<HttpSseClientTask> {
+class HttpSseClientTask
+    : public std::enable_shared_from_this<HttpSseClientTask> {
  public:
   /** @brief Callback type for Start()/Next(). */
   using Callback = std::function<void(const HttpSseClientResult&)>;
 
   /** @brief Create plain HTTP SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttp(
-      boost::asio::any_io_executor executor, std::string host,
-      std::string port, std::string target,
-      HttpSseClientOptions options = {});
+      boost::asio::any_io_executor executor, std::string host, std::string port,
+      std::string target, HttpSseClientOptions options = {});
 
   /** @brief Create HTTPS SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(

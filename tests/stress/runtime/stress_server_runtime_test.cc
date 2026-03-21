@@ -49,9 +49,10 @@ TEST(StressServerRuntimeTest, MultipleListenersUnderConcurrentLoad) {
   const auto cfg = LoadStressConfig(6, 60, 120000);
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/ping",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) { task->SetBody("pong"); });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody("pong");
+                        });
 
   std::vector<unsigned short> ports;
   for (int i = 0; i < 3; ++i) {
@@ -129,8 +130,7 @@ TEST(StressServerRuntimeTest, PostQueueCompletesAllTasks) {
       th.request_stop();
     }
     ADD_FAILURE() << "Timeout waiting for posted tasks. executed="
-                  << executed.load(std::memory_order_relaxed)
-                  << "/" << total;
+                  << executed.load(std::memory_order_relaxed) << "/" << total;
   }
 
   for (auto& th : producers) {

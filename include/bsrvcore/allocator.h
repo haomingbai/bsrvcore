@@ -29,9 +29,8 @@ namespace bsrvcore {
  *
  * @note This declaration is part of the public ABI.
  */
-[[nodiscard]] void* Allocate(
-    std::size_t size,
-    std::size_t alignment = alignof(std::max_align_t));
+[[nodiscard]] void* Allocate(std::size_t size,
+                             std::size_t alignment = alignof(std::max_align_t));
 
 /**
  * @brief Deallocate memory allocated by Allocate().
@@ -52,7 +51,8 @@ class AllocatorMemoryResource final : public std::pmr::memory_resource {
   void* do_allocate(std::size_t bytes, std::size_t alignment) override;
   void do_deallocate(void* p, std::size_t bytes,
                      std::size_t alignment) override;
-  bool do_is_equal(const std::pmr::memory_resource& other) const noexcept override;
+  bool do_is_equal(
+      const std::pmr::memory_resource& other) const noexcept override;
 };
 
 /**

@@ -33,9 +33,8 @@ int main(int argc, char** argv) try {
   const auto run_settings = ResolveRunSettings(cli);
   const auto environment = DetectEnvironment();
   const auto executable_path = std::filesystem::absolute(argv[0]);
-  const auto cells =
-      RunBenchmarks(executable_path, selected_scenarios, run_settings,
-                    cli.profile);
+  const auto cells = RunBenchmarks(executable_path, selected_scenarios,
+                                   run_settings, cli.profile);
 
   bool has_errors = false;
   for (const auto& cell : cells) {

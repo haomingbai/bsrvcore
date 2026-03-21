@@ -16,7 +16,8 @@ class DemoAspect : public bsrvcore::HttpRequestAspectHandler {
     task->AppendBody(pre_);
   }
 
-  void PostService(std::shared_ptr<bsrvcore::HttpPostServerTask> task) override {
+  void PostService(
+      std::shared_ptr<bsrvcore::HttpPostServerTask> task) override {
     task->AppendBody(post_);
   }
 
@@ -54,6 +55,7 @@ DemoAspectFactory g_factory;
 
 }  // namespace
 
-extern "C" bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory* GetAspectFactory() {
+extern "C" bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
+GetAspectFactory() {
   return &g_factory;
 }

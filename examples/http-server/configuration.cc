@@ -19,7 +19,6 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
-
 #include <iostream>
 #include <memory>
 
@@ -33,8 +32,7 @@ int main() {
   options.suspend_time = 1;
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
-  server
-      ->SetDefaultReadExpiry(5000)
+  server->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
       ->SetDefaultMaxBodySize(1024 * 1024)
       ->SetKeepAliveTimeout(15000)

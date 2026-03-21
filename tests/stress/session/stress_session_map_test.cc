@@ -1,10 +1,9 @@
 #include <gtest/gtest.h>
 
-#include <boost/asio/io_context.hpp>
-
 #include <barrier>
-#include <mutex>
+#include <boost/asio/io_context.hpp>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <stop_token>
 #include <string>
@@ -22,8 +21,7 @@ using bsrvcore::test::stress::WaitCounter;
 TEST(StressSessionMapTest, ConcurrentGetSessionForSameIdReturnsStableContext) {
   const auto cfg = LoadStressConfig(8, 400, 120000);
   SCOPED_TRACE(::testing::Message()
-               << "threads=" << cfg.threads
-               << " iterations=" << cfg.iterations
+               << "threads=" << cfg.threads << " iterations=" << cfg.iterations
                << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
@@ -79,8 +77,7 @@ TEST(StressSessionMapTest, ConcurrentGetSessionForSameIdReturnsStableContext) {
 TEST(StressSessionMapTest, ConcurrentCreateAndRemoveSessions) {
   const auto cfg = LoadStressConfig(8, 300, 120000);
   SCOPED_TRACE(::testing::Message()
-               << "threads=" << cfg.threads
-               << " iterations=" << cfg.iterations
+               << "threads=" << cfg.threads << " iterations=" << cfg.iterations
                << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 

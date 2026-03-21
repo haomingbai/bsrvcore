@@ -39,11 +39,11 @@ template <typename T, typename C = std::less<T>>
 class Heap : CopyableMovable<Heap<T>> {
  public:
   /**
-  * @brief Push a new element into the heap.
-  * @tparam Args Constructor argument types forwarded to T.
-  * @param val Arguments to construct the element.
-  * @return true on success.
-  */
+   * @brief Push a new element into the heap.
+   * @tparam Args Constructor argument types forwarded to T.
+   * @param val Arguments to construct the element.
+   * @return true on success.
+   */
   template <typename... Args>
   bool Push(Args&&... val) {
     auto curr_idx = container_.size();

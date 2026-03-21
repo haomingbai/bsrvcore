@@ -103,9 +103,9 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   return result;
 }
 
-bool HttpRouteTable::AddRouteEntry(
-    HttpRequestMethod method, const std::string_view target,
-    OwnedPtr<HttpRequestHandler> handler) {
+bool HttpRouteTable::AddRouteEntry(HttpRequestMethod method,
+                                   const std::string_view target,
+                                   OwnedPtr<HttpRequestHandler> handler) {
   {
     using route_internal::IsValidParametricTarget;
 
@@ -290,9 +290,9 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
   return aspects;
 }
 
-bool HttpRouteTable::AddAspect(
-    HttpRequestMethod method, const std::string_view target,
-    OwnedPtr<HttpRequestAspectHandler> aspect) {
+bool HttpRouteTable::AddAspect(HttpRequestMethod method,
+                               const std::string_view target,
+                               OwnedPtr<HttpRequestAspectHandler> aspect) {
   auto method_idx = static_cast<size_t>(method);
   if (method_idx > kHttpRequestMethodNum) {
     return false;
@@ -312,8 +312,7 @@ bool HttpRouteTable::AddAspect(
 }
 
 bool HttpRouteTable::AddGlobalAspect(
-    HttpRequestMethod method,
-    OwnedPtr<HttpRequestAspectHandler> aspect) try {
+    HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) try {
   auto method_idx = static_cast<size_t>(method);
   if (method_idx > kHttpRequestMethodNum) {
     return false;
@@ -408,8 +407,7 @@ void HttpRouteTable::SetDefaultMaxBodySize(std::size_t max_body_size) noexcept {
   default_max_body_size_ = max_body_size;
 }
 
-void HttpRouteTable::SetDefaultHandler(
-    OwnedPtr<HttpRequestHandler> handler) {
+void HttpRouteTable::SetDefaultHandler(OwnedPtr<HttpRequestHandler> handler) {
   default_handler_ = std::move(handler);
 }
 

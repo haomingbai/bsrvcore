@@ -28,8 +28,8 @@
 
 #include "bsrvcore/allocator.h"
 #include "bsrvcore/http_request_method.h"
-#include "bsrvcore/internal/http_route_table_layer.h"
 #include "bsrvcore/http_route_result.h"
+#include "bsrvcore/internal/http_route_table_layer.h"
 #include "bsrvcore/trait.h"
 
 namespace bsrvcore {
@@ -206,7 +206,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @param target The url target to find
    * @return The route table layer found.
    */
-  route_internal::HttpRouteTableLayer *GetOrCreateRouteTableLayer(
+  route_internal::HttpRouteTableLayer* GetOrCreateRouteTableLayer(
       HttpRequestMethod method, const std::string_view target);
 
   /**
@@ -233,10 +233,10 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * layer; false otherwise.
    * @note This function is noexcept and will not throw.
    */
-  bool MatchSegments(const boost::urls::url_view &url,
-                     route_internal::HttpRouteTableLayer *&route_layer,
-                     std::string &out_location,
-                     std::vector<std::string> &out_parameters) const noexcept;
+  bool MatchSegments(const boost::urls::url_view& url,
+                     route_internal::HttpRouteTableLayer*& route_layer,
+                     std::string& out_location,
+                     std::vector<std::string>& out_parameters) const noexcept;
 
   /**
    * @brief Collect aspect handlers in order: global, method-specific, then
@@ -249,8 +249,8 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @note Returned pointers are non-owning; lifetime is bound to the stored
    * handlers.
    */
-  std::vector<HttpRequestAspectHandler *> CollectAspects(
-      route_internal::HttpRouteTableLayer *route_layer,
+  std::vector<HttpRequestAspectHandler*> CollectAspects(
+      route_internal::HttpRouteTableLayer* route_layer,
       HttpRequestMethod method) const noexcept;
 
   static constexpr size_t kHttpRequestMethodNum = 9;

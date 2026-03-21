@@ -11,7 +11,6 @@
 #include "http_route_target_validator.h"
 
 #include <boost/regex.hpp>
-
 #include <string>
 #include <string_view>
 

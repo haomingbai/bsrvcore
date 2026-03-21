@@ -24,29 +24,29 @@ namespace bsrvcore {
 
 /**
  * @brief HTTP request methods for RESTful APIs
- * 
+ *
  * Represents the core HTTP methods used in RESTful web services.
  * This enumeration includes only the methods typically needed for
  * REST API implementations, not the complete HTTP method set.
- * 
+ *
  * @code
  * // Example usage in route registration
- * route_table->AddRouteEntry(HttpRequestMethod::kGet, "/users", 
+ * route_table->AddRouteEntry(HttpRequestMethod::kGet, "/users",
  *                           AllocateUnique<UserListHandler>());
  * route_table->AddRouteEntry(HttpRequestMethod::kPost, "/users",
  *                           AllocateUnique<UserCreateHandler>());
  * route_table->AddRouteEntry(HttpRequestMethod::kPut, "/users/{id}",
  *                           AllocateUnique<UserUpdateHandler>());
- * 
+ *
  * @endcode
  */
 enum class HttpRequestMethod : std::uint8_t {
-  kGet = 0,     ///< Retrieve a resource (READ operation)
-  kPost,        ///< Create a new resource (CREATE operation)
-  kPut,         ///< Update/replace an existing resource (UPDATE operation)
-  kDelete,      ///< Remove a resource (DELETE operation)
-  kPatch,       ///< Partially update a resource (PARTIAL UPDATE operation)
-  kHead         ///< Retrieve resource headers only (no body)
+  kGet = 0,  ///< Retrieve a resource (READ operation)
+  kPost,     ///< Create a new resource (CREATE operation)
+  kPut,      ///< Update/replace an existing resource (UPDATE operation)
+  kDelete,   ///< Remove a resource (DELETE operation)
+  kPatch,    ///< Partially update a resource (PARTIAL UPDATE operation)
+  kHead      ///< Retrieve resource headers only (no body)
 };
 
 }  // namespace bsrvcore

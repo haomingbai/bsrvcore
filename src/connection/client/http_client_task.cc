@@ -10,10 +10,8 @@
 
 #include "bsrvcore/http_client_task.h"
 
-#include "bsrvcore/allocator.h"
-#include "bsrvcore/http_client_session.h"
-
-#include "impl/http_url_parser.h"
+#include <openssl/err.h>
+#include <openssl/ssl.h>
 
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/dispatch.hpp>
@@ -26,15 +24,16 @@
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-
 #include <cstddef>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <utility>
+
+#include "bsrvcore/allocator.h"
+#include "bsrvcore/http_client_session.h"
+#include "impl/http_url_parser.h"
 
 namespace bsrvcore {
 
@@ -43,16 +42,18 @@ namespace {
 namespace http = boost::beast::http;
 using tcp = boost::asio::ip::tcp;
 
-using connection_internal::ParseHttpUrl;
 using connection_internal::ParsedUrl;
+using connection_internal::ParseHttpUrl;
 
 }  // namespace
 
-class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask::Impl> {
+class HttpClientTask::Impl
+    : public std::enable_shared_from_this<HttpClientTask::Impl> {
  public:
-  Impl(boost::asio::any_io_executor executor, std::string host, std::string port,
-       std::string target, http::verb method, HttpClientOptions options,
-       bool use_ssl, boost::asio::ssl::context* ssl_ctx)
+  Impl(boost::asio::any_io_executor executor, std::string host,
+       std::string port, std::string target, http::verb method,
+       HttpClientOptions options, bool use_ssl,
+       boost::asio::ssl::context* ssl_ctx)
       : executor_(std::move(executor)),
         strand_(executor_),
         resolver_(executor_),
@@ -126,19 +127,19 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
  private:
   void DoStart() {
     if (started_ || done_) {
-        // Idempotent start: ignore repeated calls.
+      // Idempotent start: ignore repeated calls.
       return;
     }
     started_ = true;
 
     if (create_error_) {
-        // Creation-time validation failure (e.g. invalid URL).
+      // Creation-time validation failure (e.g. invalid URL).
       Fail(create_error_stage_, *create_error_);
       return;
     }
 
     if (use_ssl_ && ssl_ctx_ == nullptr) {
-        // HTTPS requires an SSL context; without it we fail fast.
+      // HTTPS requires an SSL context; without it we fail fast.
       Fail(HttpClientErrorStage::kCreate,
            make_error_code(boost::system::errc::invalid_argument));
       return;
@@ -169,12 +170,14 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     // Ensure Content-Length/Transfer-Encoding is consistent with the body.
     request_.prepare_payload();
 
-    // Kick off: resolve -> connect -> (optional TLS) -> write -> read header -> read body.
+    // Kick off: resolve -> connect -> (optional TLS) -> write -> read header ->
+    // read body.
     resolver_.async_resolve(
         host_, port_,
         boost::asio::bind_executor(
-            strand_, [self = shared_from_this()](boost::system::error_code ec,
-                                                 tcp::resolver::results_type results) {
+            strand_,
+            [self = shared_from_this()](boost::system::error_code ec,
+                                        tcp::resolver::results_type results) {
               self->OnResolve(ec, std::move(results));
             }));
   }
@@ -193,25 +196,24 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       boost::beast::get_lowest_layer(*ssl_stream_)
           .expires_after(options_.connect_timeout);
       boost::beast::get_lowest_layer(*ssl_stream_)
-          .async_connect(results, boost::asio::bind_executor(
-                                      strand_,
-                                      [self = shared_from_this()](
+          .async_connect(results,
+                         boost::asio::bind_executor(
+                             strand_, [self = shared_from_this()](
                                           boost::system::error_code conn_ec,
                                           const tcp::endpoint&) {
-                                        self->OnConnect(conn_ec);
-                                      }));
+                               self->OnConnect(conn_ec);
+                             }));
       return;
     }
 
     tcp_stream_.emplace(executor_);
     tcp_stream_->expires_after(options_.connect_timeout);
     tcp_stream_->async_connect(
-        results, boost::asio::bind_executor(
-                     strand_,
-                     [self = shared_from_this()](boost::system::error_code conn_ec,
-                                                 const tcp::endpoint&) {
-                       self->OnConnect(conn_ec);
-                     }));
+        results,
+        boost::asio::bind_executor(
+            strand_, [self = shared_from_this()](
+                         boost::system::error_code conn_ec,
+                         const tcp::endpoint&) { self->OnConnect(conn_ec); }));
   }
 
   void OnConnect(boost::system::error_code ec) {
@@ -222,15 +224,17 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
     if (use_ssl_) {
       // For TLS, set SNI first so the server can pick the right certificate.
-      if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
-          1) {
-        boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
-                                         boost::asio::error::get_ssl_category()};
+      if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(),
+                                   host_.c_str()) != 1) {
+        boost::system::error_code sni_ec{
+            static_cast<int>(::ERR_get_error()),
+            boost::asio::error::get_ssl_category()};
         Fail(HttpClientErrorStage::kTlsHandshake, sni_ec);
         return;
       }
 
-      // Peer verification is optional to support self-signed endpoints in tests.
+      // Peer verification is optional to support self-signed endpoints in
+      // tests.
       if (options_.verify_peer) {
         ssl_stream_->set_verify_mode(boost::asio::ssl::verify_peer);
         ssl_stream_->set_verify_callback(
@@ -244,7 +248,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       ssl_stream_->async_handshake(
           boost::asio::ssl::stream_base::client,
           boost::asio::bind_executor(
-              strand_, [self = shared_from_this()](boost::system::error_code hs_ec) {
+              strand_,
+              [self = shared_from_this()](boost::system::error_code hs_ec) {
                 self->OnHandshake(hs_ec);
               }));
       return;
@@ -269,8 +274,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
   void DoWriteRequest() {
     // Send request bytes. Errors here are classified as kWriteRequest.
     if (use_ssl_) {
-      boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
-          options_.write_timeout);
+      boost::beast::get_lowest_layer(*ssl_stream_)
+          .expires_after(options_.write_timeout);
       http::async_write(
           *ssl_stream_, request_,
           boost::asio::bind_executor(
@@ -297,19 +302,21 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
       return;
     }
 
-    // Use a response parser so we can set body size limits and support read_some.
+    // Use a response parser so we can set body size limits and support
+    // read_some.
     parser_.emplace();
     parser_->body_limit(options_.max_response_body_bytes);
 
-    // Read header first so we can publish it early and decide the body read mode.
+    // Read header first so we can publish it early and decide the body read
+    // mode.
     if (use_ssl_) {
-      boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
-          options_.read_header_timeout);
+      boost::beast::get_lowest_layer(*ssl_stream_)
+          .expires_after(options_.read_header_timeout);
       http::async_read_header(
           *ssl_stream_, buffer_, *parser_,
           boost::asio::bind_executor(
-              strand_, [self = shared_from_this()](boost::system::error_code hdr_ec,
-                                                   std::size_t) {
+              strand_, [self = shared_from_this()](
+                           boost::system::error_code hdr_ec, std::size_t) {
                 self->OnReadHeader(hdr_ec);
               }));
       return;
@@ -319,8 +326,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     http::async_read_header(
         *tcp_stream_, buffer_, *parser_,
         boost::asio::bind_executor(
-            strand_, [self = shared_from_this()](boost::system::error_code hdr_ec,
-                                                 std::size_t) {
+            strand_, [self = shared_from_this()](
+                         boost::system::error_code hdr_ec, std::size_t) {
               self->OnReadHeader(hdr_ec);
             }));
   }
@@ -372,8 +379,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
   void DoReadBodyAll() {
     if (use_ssl_) {
-      boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
-          options_.read_body_timeout);
+      boost::beast::get_lowest_layer(*ssl_stream_)
+          .expires_after(options_.read_body_timeout);
       http::async_read(
           *ssl_stream_, buffer_, *parser_,
           boost::asio::bind_executor(
@@ -407,8 +414,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
 
   void DoReadBodySome() {
     if (use_ssl_) {
-      boost::beast::get_lowest_layer(*ssl_stream_).expires_after(
-          options_.read_body_timeout);
+      boost::beast::get_lowest_layer(*ssl_stream_)
+          .expires_after(options_.read_body_timeout);
       http::async_read_some(
           *ssl_stream_, buffer_, *parser_,
           boost::asio::bind_executor(
@@ -491,9 +498,9 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     error_stage_ = error_stage;
     error_code_ = ec;
 
-  // "Cancelled" is derived both from explicit Cancel() and asio's abort code.
-    const bool cancelled = cancelled_ ||
-                           (ec == boost::asio::error::operation_aborted);
+    // "Cancelled" is derived both from explicit Cancel() and asio's abort code.
+    const bool cancelled =
+        cancelled_ || (ec == boost::asio::error::operation_aborted);
 
     HttpClientResult stage_result;
     stage_result.ec = ec;
@@ -544,7 +551,8 @@ class HttpClientTask::Impl : public std::enable_shared_from_this<HttpClientTask:
     }
   }
 
-  void EmitHeader(const HttpResponseHeader& header, boost::system::error_code ec) {
+  void EmitHeader(const HttpResponseHeader& header,
+                  boost::system::error_code ec) {
     HttpClientResult result;
     result.ec = ec;
     result.stage = HttpClientStage::kHeader;
@@ -679,8 +687,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
     boost::asio::any_io_executor executor, std::string host, std::string port,
     std::string target, http::verb method, HttpClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
-                                     std::move(port), std::move(target), method,
-                                     std::move(options), false, nullptr);
+                                   std::move(port), std::move(target), method,
+                                   std::move(options), false, nullptr);
   void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
   try {
     auto* task = new (raw) HttpClientTask(std::move(impl));
@@ -697,8 +705,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
     std::string host, std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
-                                     std::move(port), std::move(target), method,
-                                     std::move(options), true, &ssl_ctx);
+                                   std::move(port), std::move(target), method,
+                                   std::move(options), true, &ssl_ctx);
   void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
   try {
     auto* task = new (raw) HttpClientTask(std::move(impl));
@@ -716,7 +724,7 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,
-                                       std::move(options), false, nullptr);
+                                     std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpClientErrorStage::kCreate);
     void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
@@ -730,9 +738,9 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     }
   }
 
-  auto impl = AllocateShared<Impl>(
-      std::move(executor), parsed->host, parsed->port, parsed->target, method,
-      std::move(options), parsed->https, nullptr);
+  auto impl = AllocateShared<Impl>(std::move(executor), parsed->host,
+                                   parsed->port, parsed->target, method,
+                                   std::move(options), parsed->https, nullptr);
 
   if (parsed->https) {
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
@@ -756,7 +764,7 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,
-                                       std::move(options), false, nullptr);
+                                     std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpClientErrorStage::kCreate);
     void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
@@ -804,7 +812,9 @@ HttpClientTask& HttpClientTask::OnDone(Callback cb) {
   return *this;
 }
 
-HttpClientRequest& HttpClientTask::Request() noexcept { return impl_->Request(); }
+HttpClientRequest& HttpClientTask::Request() noexcept {
+  return impl_->Request();
+}
 
 void HttpClientTask::AttachSession(std::weak_ptr<HttpClientSession> session) {
   impl_->SetSession(std::move(session));

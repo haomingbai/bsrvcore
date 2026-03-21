@@ -55,28 +55,28 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    * @param sessionid The session identifier
    * @return Shared pointer to Context, nullptr if not found or expired
    */
-  std::shared_ptr<Context> GetSession(const std::string &sessionid);
+  std::shared_ptr<Context> GetSession(const std::string& sessionid);
 
   /**
    * @brief Retrieve a session by ID (move version)
    * @param sessionid The session identifier (will be moved)
    * @return Shared pointer to Context, nullptr if not found or expired
    */
-  std::shared_ptr<Context> GetSession(std::string &&sessionid);
+  std::shared_ptr<Context> GetSession(std::string&& sessionid);
 
   /**
    * @brief Remove a session by ID (copy version)
    * @param sessionid The session identifier to remove
    * @return true if session was found and removed, false otherwise
    */
-  bool RemoveSession(const std::string &sessionid);
+  bool RemoveSession(const std::string& sessionid);
 
   /**
    * @brief Remove a session by ID (move version)
    * @param sessionid The session identifier to remove (will be moved)
    * @return true if session was found and removed, false otherwise
    */
-  bool RemoveSession(std::string &&sessionid);
+  bool RemoveSession(std::string&& sessionid);
 
   /**
    * @brief Enable or disable background session cleanup
@@ -107,14 +107,14 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    * @param sessionid The session identifier
    * @param timeout Custom timeout in milliseconds
    */
-  void SetSessionTimeout(const std::string &sessionid, std::size_t timeout);
+  void SetSessionTimeout(const std::string& sessionid, std::size_t timeout);
 
   /**
    * @brief Set custom timeout for a specific session (move version)
    * @param sessionid The session identifier (will be moved)
    * @param timeout Custom timeout in milliseconds
    */
-  void SetSessionTimeout(std::string &&sessionid, std::size_t timeout);
+  void SetSessionTimeout(std::string&& sessionid, std::size_t timeout);
 
   /**
    * @brief Construct a SessionMap
@@ -131,7 +131,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    * @endcode
    */
   template <typename Executor>
-  SessionMap(Executor exec, HttpServer *server)
+  SessionMap(Executor exec, HttpServer* server)
       : timer_(exec),
         server_(server),
         cleaner_interval_(1000 * 60 * 30),     // 30 minutes default
@@ -149,7 +149,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
   Heap<session_internal::SessionKeyHeapEntry>
       pqueue_;                       ///< Priority queue for expiration
   boost::asio::steady_timer timer_;  ///< Cleanup timer
-  HttpServer *server_;               ///< Associated HTTP server
+  HttpServer* server_;               ///< Associated HTTP server
   std::atomic<std::size_t> cleaner_interval_;  ///< Cleanup interval in ms
   std::atomic<std::size_t> default_timeout_;  ///< Default session timeout in ms
   bool allow_cleaner_;                        ///< Cleaner enabled flag

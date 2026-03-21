@@ -10,11 +10,10 @@
 
 #include "bsrvcore/http_client_session.h"
 
-#include <boost/beast/http/field.hpp>
-
 #include <algorithm>
-#include <chrono>
+#include <boost/beast/http/field.hpp>
 #include <cctype>
+#include <chrono>
 #include <iomanip>
 #include <optional>
 #include <sstream>
@@ -154,9 +153,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
     boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
     std::string url, boost::beast::http::verb method,
     HttpClientOptions options) {
-  auto task = HttpClientTask::CreateFromUrl(std::move(executor), ssl_ctx,
-                                            std::move(url), method,
-                                            std::move(options));
+  auto task = HttpClientTask::CreateFromUrl(
+      std::move(executor), ssl_ctx, std::move(url), method, std::move(options));
   task->AttachSession(weak_from_this());
   return task;
 }
@@ -203,12 +201,12 @@ void HttpClientSession::SyncSetCookie(std::string_view host,
 
 void HttpClientSession::CleanupExpiredLocked() const {
   const auto now = std::chrono::system_clock::now();
-  cookies_.erase(
-      std::remove_if(cookies_.begin(), cookies_.end(),
-                     [&](const Cookie& c) {
-                       return c.expiry.has_value() && c.expiry.value() <= now;
-                     }),
-      cookies_.end());
+  cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
+                                [&](const Cookie& c) {
+                                  return c.expiry.has_value() &&
+                                         c.expiry.value() <= now;
+                                }),
+                 cookies_.end());
 }
 
 std::string HttpClientSession::NormalizeHost(std::string_view host) {
@@ -231,7 +229,8 @@ std::string HttpClientSession::NormalizeDomain(std::string_view domain) {
 std::string HttpClientSession::DefaultPathFromTarget(std::string_view target) {
   // Target could include query. Only the path part is used.
   auto q = target.find('?');
-  std::string_view path = (q == std::string_view::npos) ? target : target.substr(0, q);
+  std::string_view path =
+      (q == std::string_view::npos) ? target : target.substr(0, q);
   if (path.empty() || path.front() != '/') {
     return "/";
   }
@@ -280,8 +279,9 @@ bool HttpClientSession::PathMatches(std::string_view request_path,
   return request_path[cookie_path.size()] == '/';
 }
 
-std::string HttpClientSession::BuildCookieHeaderLocked(
-    std::string_view host, std::string_view target, bool is_https) const {
+std::string HttpClientSession::BuildCookieHeaderLocked(std::string_view host,
+                                                       std::string_view target,
+                                                       bool is_https) const {
   const std::string host_norm = NormalizeHost(host);
   auto q = target.find('?');
   const std::string_view request_path =
@@ -446,26 +446,32 @@ void HttpClientSession::UpsertFromSetCookieLocked(
   if (has_max_age && max_age_valid) {
     if (max_age_secs <= 0) {
       // Deletion.
-      cookies_.erase(
-          std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
-            return c.name == incoming.name && c.domain == incoming.domain &&
-                   c.host_only == incoming.host_only && c.path == incoming.path;
-          }),
-          cookies_.end());
+      cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
+                                    [&](const Cookie& c) {
+                                      return c.name == incoming.name &&
+                                             c.domain == incoming.domain &&
+                                             c.host_only ==
+                                                 incoming.host_only &&
+                                             c.path == incoming.path;
+                                    }),
+                     cookies_.end());
       return;
     }
-    incoming.expiry = std::chrono::system_clock::now() +
-                      std::chrono::seconds(max_age_secs);
+    incoming.expiry =
+        std::chrono::system_clock::now() + std::chrono::seconds(max_age_secs);
   } else if (expires_tp.has_value()) {
     incoming.expiry = expires_tp;
     if (incoming.expiry.value() <= std::chrono::system_clock::now()) {
       // Treat already-expired as deletion.
-      cookies_.erase(
-          std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
-            return c.name == incoming.name && c.domain == incoming.domain &&
-                   c.host_only == incoming.host_only && c.path == incoming.path;
-          }),
-          cookies_.end());
+      cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
+                                    [&](const Cookie& c) {
+                                      return c.name == incoming.name &&
+                                             c.domain == incoming.domain &&
+                                             c.host_only ==
+                                                 incoming.host_only &&
+                                             c.path == incoming.path;
+                                    }),
+                     cookies_.end());
       return;
     }
   }

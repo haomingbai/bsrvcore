@@ -125,27 +125,27 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @brief Get the default sub-route for parameter matching
    * @return Pointer to default route layer, nullptr if not set
    */
-  HttpRouteTableLayer *GetDefaultRoute() const noexcept;
+  HttpRouteTableLayer* GetDefaultRoute() const noexcept;
 
   /**
    * @brief Get sub-route for a specific path segment (copy version)
    * @param key Path segment to look up
    * @return Pointer to sub-route layer, nullptr if not found
    */
-  HttpRouteTableLayer *GetRoute(const std::string &key) const noexcept;
+  HttpRouteTableLayer* GetRoute(const std::string& key) const noexcept;
 
   /**
    * @brief Get sub-route for a specific path segment (move version)
    * @param key Path segment to look up (will be moved)
    * @return Pointer to sub-route layer, nullptr if not found
    */
-  HttpRouteTableLayer *GetRoute(std::string &&key) const noexcept;
+  HttpRouteTableLayer* GetRoute(std::string&& key) const noexcept;
 
   /**
    * @brief Get the request handler for this route layer
    * @return Pointer to request handler, nullptr if not set
    */
-  HttpRequestHandler *GetHandler() noexcept;
+  HttpRequestHandler* GetHandler() noexcept;
 
   /**
    * @brief Add an aspect handler to this route layer
@@ -164,7 +164,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @brief Get all aspect handlers attached to this layer
    * @return Vector of aspect handler pointers
    */
-  std::vector<HttpRequestAspectHandler *> GetAspects() const;
+  std::vector<HttpRequestAspectHandler*> GetAspects() const;
 
   /**
    * @brief Check if default route matching is disabled
@@ -184,12 +184,11 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
       aspects_;  ///< Aspect handlers for this layer
   OwnedPtr<HttpRouteTableLayer>
       default_route_;  ///< Default route for parameter matching
-  OwnedPtr<HttpRequestHandler>
-      handler_;                ///< Request handler for this layer
-  std::size_t max_body_size_;  ///< Maximum request body size
-  std::size_t read_expiry_;    ///< Read operation timeout
-  std::size_t write_expiry_;   ///< Write operation timeout
-  bool ignore_default_route_;  ///< Flag to bypass parameter routes
+  OwnedPtr<HttpRequestHandler> handler_;  ///< Request handler for this layer
+  std::size_t max_body_size_;             ///< Maximum request body size
+  std::size_t read_expiry_;               ///< Read operation timeout
+  std::size_t write_expiry_;              ///< Write operation timeout
+  bool ignore_default_route_;             ///< Flag to bypass parameter routes
 };
 
 }  // namespace route_internal

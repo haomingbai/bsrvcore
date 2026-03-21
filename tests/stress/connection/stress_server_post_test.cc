@@ -65,8 +65,8 @@ StressConfig LoadConfig() {
 TEST(StressServerPostTest, FloodPostTasks) {
   const auto cfg = LoadConfig();
   SCOPED_TRACE(::testing::Message()
-               << "threads=" << cfg.threads
-               << " iterations=" << cfg.iterations << " seed=" << cfg.seed
+               << "threads=" << cfg.threads << " iterations=" << cfg.iterations
+               << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
   bsrvcore::HttpServer server(cfg.threads);

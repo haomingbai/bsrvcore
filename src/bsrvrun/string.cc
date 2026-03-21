@@ -20,8 +20,8 @@ namespace bsrvcore::bsrvrun {
 namespace {
 
 char* DuplicateBuffer(const char* data, std::size_t size) {
-  auto* copied = static_cast<char*>(
-      bsrvcore::Allocate(size + 1, alignof(char)));
+  auto* copied =
+      static_cast<char*>(bsrvcore::Allocate(size + 1, alignof(char)));
   if (size > 0) {
     std::memcpy(copied, data, size);
   }
@@ -43,7 +43,8 @@ String::String(const char* str) : data_(nullptr), size_(0) {
   data_ = DuplicateBuffer(str, size_);
 }
 
-String::String(const char* data, std::size_t size) : data_(nullptr), size_(size) {
+String::String(const char* data, std::size_t size)
+    : data_(nullptr), size_(size) {
   if (data == nullptr && size != 0) {
     size_ = 0;
     data_ = DuplicateBuffer("", 0);
@@ -59,7 +60,8 @@ String::String(std::string_view view)
 String::String(const String& other)
     : data_(DuplicateBuffer(other.data_, other.size_)), size_(other.size_) {}
 
-String::String(String&& other) noexcept : data_(other.data_), size_(other.size_) {
+String::String(String&& other) noexcept
+    : data_(other.data_), size_(other.size_) {
   other.data_ = DuplicateBuffer("", 0);
   other.size_ = 0;
 }

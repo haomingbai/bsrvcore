@@ -20,7 +20,6 @@
 #include "bsrvcore/allocator.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
-
 #include "config_types.h"
 
 namespace bsrvcore::runtime {

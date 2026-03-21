@@ -54,8 +54,7 @@ std::string JsonCell(const CellResult& cell) {
       << "\"warmup_ms\":" << cell.warmup_ms << ','
       << "\"duration_ms\":" << cell.duration_ms << ','
       << "\"repetitions\":" << cell.repetitions << ','
-      << "\"cooldown_ms\":" << cell.cooldown_ms << ','
-      << "\"runs\":[";
+      << "\"cooldown_ms\":" << cell.cooldown_ms << ',' << "\"runs\":[";
   for (std::size_t i = 0; i < cell.runs.size(); ++i) {
     if (i != 0) {
       out << ',';
@@ -68,14 +67,13 @@ std::string JsonCell(const CellResult& cell) {
       << ','
       << "\"error_count\":" << JsonScalarSummary(cell.aggregate.error_count)
       << ','
-      << "\"bytes_sent\":" << JsonScalarSummary(cell.aggregate.bytes_sent) << ','
-      << "\"bytes_received\":"
+      << "\"bytes_sent\":" << JsonScalarSummary(cell.aggregate.bytes_sent)
+      << ',' << "\"bytes_received\":"
       << JsonScalarSummary(cell.aggregate.bytes_received) << ','
-      << "\"rps\":"
-      << JsonScalarSummary(cell.aggregate.requests_per_second) << ','
-      << "\"mib_per_sec\":"
-      << JsonScalarSummary(cell.aggregate.mib_per_second) << ','
-      << "\"latency_us\":{"
+      << "\"rps\":" << JsonScalarSummary(cell.aggregate.requests_per_second)
+      << ','
+      << "\"mib_per_sec\":" << JsonScalarSummary(cell.aggregate.mib_per_second)
+      << ',' << "\"latency_us\":{"
       << "\"p50\":" << JsonScalarSummary(cell.aggregate.latency_p50_us) << ','
       << "\"p95\":" << JsonScalarSummary(cell.aggregate.latency_p95_us) << ','
       << "\"p99\":" << JsonScalarSummary(cell.aggregate.latency_p99_us) << ','
@@ -115,12 +113,12 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
   std::ostringstream out;
   out << "{"
       << "\"environment\":{"
-      << "\"timestamp_utc\":\"" << EscapeJson(environment.timestamp_utc) << "\","
+      << "\"timestamp_utc\":\"" << EscapeJson(environment.timestamp_utc)
+      << "\","
       << "\"os\":\"" << EscapeJson(environment.os) << "\","
       << "\"compiler\":\"" << EscapeJson(environment.compiler) << "\","
       << "\"build_type\":\"" << EscapeJson(environment.build_type) << "\","
-      << "\"logical_cpu_count\":" << environment.logical_cpu_count
-      << "},"
+      << "\"logical_cpu_count\":" << environment.logical_cpu_count << "},"
       << "\"run_config\":{"
       << "\"scenario\":\"" << EscapeJson(cli.scenario_name) << "\","
       << "\"profile\":\"" << EscapeJson(ToString(cli.profile)) << "\","
@@ -129,8 +127,7 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
       << "\"warmup_ms\":" << run_settings.warmup_ms << ','
       << "\"duration_ms\":" << run_settings.duration_ms << ','
       << "\"repetitions\":" << run_settings.repetitions << ','
-      << "\"cooldown_ms\":" << run_settings.cooldown_ms
-      << "},"
+      << "\"cooldown_ms\":" << run_settings.cooldown_ms << "},"
       << "\"cells\":[";
   for (std::size_t i = 0; i < cells.size(); ++i) {
     if (i != 0) {
@@ -143,14 +140,16 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
   return out.str();
 }
 
-void WriteJsonFile(const std::filesystem::path& path, std::string_view content) {
+void WriteJsonFile(const std::filesystem::path& path,
+                   std::string_view content) {
   if (path.has_parent_path()) {
     std::filesystem::create_directories(path.parent_path());
   }
 
   std::ofstream out(path);
   if (!out.is_open()) {
-    throw std::runtime_error("Failed to open JSON output file: " + path.string());
+    throw std::runtime_error("Failed to open JSON output file: " +
+                             path.string());
   }
   out << content;
 }

@@ -26,9 +26,10 @@ TEST(StressConnectionManagementTest, ConcurrentConnectionEstablishAndClose) {
   const auto cfg = LoadStressConfig(8, 80, 120000);
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/ping",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) { task->SetBody("pong"); });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody("pong");
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
@@ -91,7 +92,8 @@ TEST(StressConnectionManagementTest, ConcurrentLargePostPayloads) {
     workers.emplace_back([&, t](std::stop_token st) {
       sync.arrive_and_wait();
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
-        auto res = DoRequestWithRetry(http::verb::post, port, "/echo-size", payload);
+        auto res =
+            DoRequestWithRetry(http::verb::post, port, "/echo-size", payload);
         EXPECT_EQ(res.result(), http::status::ok);
         EXPECT_EQ(res.body(), std::to_string(payload.size()));
       }

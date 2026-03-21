@@ -136,8 +136,8 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * @brief Create plain HTTP task from host/port/target.
    */
   static std::shared_ptr<HttpClientTask> CreateHttp(
-      boost::asio::any_io_executor executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      boost::asio::any_io_executor executor, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
   /**

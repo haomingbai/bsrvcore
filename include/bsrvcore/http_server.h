@@ -101,10 +101,12 @@ struct HttpServerExecutorOptions {
  *                        task->SetBody("User: " + id);
  *                      })
  *      ->AddGlobalAspect([](auto task) { // Pre-service
- *                        std::cout << "Request: " << task->GetRequest().target();
+ *                        std::cout << "Request: " <<
+ * task->GetRequest().target();
  *                      },
  *                      [](auto task) { // Post-service
- *                        std::cout << "Response: " << task->GetResponse().result();
+ *                        std::cout << "Response: " <<
+ * task->GetResponse().result();
  *                      })
  *      ->SetDefaultReadExpiry(30000)    // 30 seconds
  *      ->SetDefaultMaxBodySize(1024*1024) // 1MB
@@ -231,9 +233,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    *
    * @note Exclusive routes take precedence over parameter routes at same path
    */
-  HttpServer* AddExclusiveRouteEntry(
-      HttpRequestMethod method, const std::string_view url,
-      OwnedPtr<HttpRequestHandler> handler);
+  HttpServer* AddExclusiveRouteEntry(HttpRequestMethod method,
+                                     const std::string_view url,
+                                     OwnedPtr<HttpRequestHandler> handler);
 
   /**
    * @brief Add an exclusive route with a function object
@@ -283,8 +285,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     }
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
                         F1 f1, F2 f2) {
-    auto aspect =
-        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+    auto aspect = AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddAspect(method, url, std::move(aspect));
   }
@@ -322,8 +323,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       { fn2(post_task) };
     }
   HttpServer* AddGlobalAspect(HttpRequestMethod method, F1 f1, F2 f2) {
-    auto aspect =
-        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+    auto aspect = AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddGlobalAspect(method, std::move(aspect));
   }
@@ -344,8 +344,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       { fn2(post_task) };
     }
   HttpServer* AddGlobalAspect(F1 f1, F2 f2) {
-    auto aspect =
-        AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+    auto aspect = AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddGlobalAspect(std::move(aspect));
   }
@@ -616,15 +615,14 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_ptr<Context> context_;  ///< Global server context
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
   OwnedPtr<bthpool::detail::BThreadPool>
-      thread_pool_;  ///< Worker executor backed by bthpool
-  OwnedPtr<HttpRouteTable>
-      route_table_;                       ///< Route table for request routing
-  OwnedPtr<SessionMap> sessions_;  ///< Session manager
+      thread_pool_;                       ///< Worker executor backed by bthpool
+  OwnedPtr<HttpRouteTable> route_table_;  ///< Route table for request routing
+  OwnedPtr<SessionMap> sessions_;         ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
   HttpServerExecutorOptions
-      executor_options_;           ///< Worker executor options (persistent)
-  std::atomic<bool> is_running_;    ///< Flag indicating if server is running
+      executor_options_;          ///< Worker executor options (persistent)
+  std::atomic<bool> is_running_;  ///< Flag indicating if server is running
 };
 
 }  // namespace bsrvcore

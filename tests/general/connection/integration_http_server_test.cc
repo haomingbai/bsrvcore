@@ -36,8 +36,7 @@ TEST(HttpServerIntegrationTest, BasicGetAndPost) {
   EXPECT_EQ(get_res.result(), http::status::ok);
   EXPECT_EQ(get_res.body(), "pong");
 
-  auto post_res = DoRequestWithRetry(http::verb::post, port, "/echo",
-                                     "hello");
+  auto post_res = DoRequestWithRetry(http::verb::post, port, "/echo", "hello");
   EXPECT_EQ(post_res.result(), http::status::ok);
   EXPECT_EQ(post_res.body(), "hello");
 }
@@ -62,11 +61,10 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->AppendBody("postM|");
           })
-      ->AddRouteEntry(
-          bsrvcore::HttpRequestMethod::kGet, "/order",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-            task->AppendBody("handler|");
-          })
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/order",
+                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                        task->AppendBody("handler|");
+                      })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/order",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {

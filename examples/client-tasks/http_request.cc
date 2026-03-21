@@ -2,7 +2,6 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/beast/http.hpp>
-
 #include <chrono>
 #include <future>
 #include <iostream>
@@ -23,8 +22,7 @@ int main() {
   options.user_agent = "bsrvcore-example-client";
 
   auto task = bsrvcore::HttpClientTask::CreateHttp(
-      ioc.get_executor(), "example.com", "80", "/", http::verb::get,
-      options);
+      ioc.get_executor(), "example.com", "80", "/", http::verb::get, options);
 
   std::promise<bsrvcore::HttpClientResult> promise;
   auto future = promise.get_future();

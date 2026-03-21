@@ -7,8 +7,8 @@
 #include <optional>
 #include <string>
 
-#include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_request_handler.h"
+#include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
 #include "bsrvcore/internal/http_server_connection.h"
@@ -32,16 +32,15 @@ class FakeConnection : public bsrvcore::HttpServerConnection {
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }
 
-  void DoWriteResponse(bsrvcore::HttpResponse resp,
-                       bool keep_alive) override {
+  void DoWriteResponse(bsrvcore::HttpResponse resp, bool keep_alive) override {
     last_response_ = std::move(resp);
     wrote_response_ = true;
     last_keep_alive_ = keep_alive;
   }
 
   void DoFlushResponseHeader(
-      boost::beast::http::response_header<boost::beast::http::fields>) override {
-  }
+      boost::beast::http::response_header<boost::beast::http::fields>)
+      override {}
 
   void DoFlushResponseBody(std::string) override {}
 
@@ -68,7 +67,8 @@ class FakeConnection : public bsrvcore::HttpServerConnection {
 };
 
 // Build a minimal route result for unit testing tasks.
-bsrvcore::HttpRouteResult MakeRouteResult(bsrvcore::HttpRequestHandler* handler) {
+bsrvcore::HttpRouteResult MakeRouteResult(
+    bsrvcore::HttpRequestHandler* handler) {
   return bsrvcore::HttpRouteResult{
       .current_location = "/",
       .parameters = {},
@@ -97,9 +97,8 @@ TEST(HttpServerTaskTest, UsesExistingSessionCookie) {
   req.set(boost::beast::http::field::cookie, "a=1; sessionId=abc; b=2");
 
   {
-    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
-                                                 MakeRouteResult(&handler),
-                                                 conn);
+    auto task = bsrvcore::HttpServerTask::Create(
+        std::move(req), MakeRouteResult(&handler), conn);
     EXPECT_EQ(task->GetCookie("a"), "1");
     EXPECT_EQ(task->GetSessionId(), "abc");
   }
@@ -126,9 +125,8 @@ TEST(HttpServerTaskTest, GeneratesSessionCookieWhenMissing) {
 
   std::string session_id;
   {
-    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
-                                                 MakeRouteResult(&handler),
-                                                 conn);
+    auto task = bsrvcore::HttpServerTask::Create(
+        std::move(req), MakeRouteResult(&handler), conn);
     session_id = task->GetSessionId();
     EXPECT_FALSE(session_id.empty());
   }
@@ -140,8 +138,8 @@ TEST(HttpServerTaskTest, GeneratesSessionCookieWhenMissing) {
       boost::beast::http::field::set_cookie);
   EXPECT_GT(count, 0u);
 
-  auto header_view = conn->last_response()->base().at(
-      boost::beast::http::field::set_cookie);
+  auto header_view =
+      conn->last_response()->base().at(boost::beast::http::field::set_cookie);
   std::string header(header_view);
   EXPECT_NE(header.find("sessionId="), std::string::npos);
   EXPECT_NE(header.find(session_id), std::string::npos);
@@ -161,9 +159,8 @@ TEST(HttpServerTaskTest, ManualConnectionManagementSkipsAutoWrite) {
   bsrvcore::HttpRequest req;
 
   {
-    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
-                                                 MakeRouteResult(&handler),
-                                                 conn);
+    auto task = bsrvcore::HttpServerTask::Create(
+        std::move(req), MakeRouteResult(&handler), conn);
     task->SetManualConnectionManagement(true);
   }
 

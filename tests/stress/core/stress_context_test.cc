@@ -74,8 +74,8 @@ StressConfig LoadConfig() {
 TEST(StressContextTest, ConcurrentSetGet) {
   const auto cfg = LoadConfig();
   SCOPED_TRACE(::testing::Message()
-               << "threads=" << cfg.threads
-               << " iterations=" << cfg.iterations << " seed=" << cfg.seed
+               << "threads=" << cfg.threads << " iterations=" << cfg.iterations
+               << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
   bsrvcore::Context ctx;
@@ -118,16 +118,15 @@ TEST(StressContextTest, ConcurrentSetGet) {
   }
 
   std::unique_lock<std::mutex> lock(mtx);
-  bool ok = cv.wait_for(lock, cfg.timeout, [&] {
-    return finished == cfg.threads;
-  });
+  bool ok =
+      cv.wait_for(lock, cfg.timeout, [&] { return finished == cfg.threads; });
 
   if (!ok) {
     for (auto& th : workers) {
       th.request_stop();
     }
-    ADD_FAILURE() << "Timeout waiting for stress threads. finished="
-                  << finished << "/" << cfg.threads;
+    ADD_FAILURE() << "Timeout waiting for stress threads. finished=" << finished
+                  << "/" << cfg.threads;
   }
 
   for (int i = 0; i < kKeys; ++i) {

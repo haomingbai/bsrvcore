@@ -33,8 +33,7 @@ using bsrvcore::test::stress::WaitCounter;
 TEST(StressRouteTableTest, ConcurrentRouteQueryKeepsExactAndParamRules) {
   const auto cfg = LoadStressConfig(8, 800, 120000);
   SCOPED_TRACE(::testing::Message()
-               << "threads=" << cfg.threads
-               << " iterations=" << cfg.iterations
+               << "threads=" << cfg.threads << " iterations=" << cfg.iterations
                << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
@@ -44,12 +43,10 @@ TEST(StressRouteTableTest, ConcurrentRouteQueryKeepsExactAndParamRules) {
   auto param_handler = bsrvcore::AllocateUnique<DummyHandler>("param");
   auto* param_ptr = param_handler.get();
 
-  ASSERT_TRUE(table.AddExclusiveRouteEntry(bsrvcore::HttpRequestMethod::kGet,
-                                           "/static",
-                                           std::move(exact_handler)));
+  ASSERT_TRUE(table.AddExclusiveRouteEntry(
+      bsrvcore::HttpRequestMethod::kGet, "/static", std::move(exact_handler)));
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
-                                  "/users/{id}",
-                                  std::move(param_handler)));
+                                  "/users/{id}", std::move(param_handler)));
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   WaitCounter done(cfg.threads);
@@ -63,12 +60,13 @@ TEST(StressRouteTableTest, ConcurrentRouteQueryKeepsExactAndParamRules) {
 
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
         if ((rng() & 1U) == 0U) {
-          auto r = table.Route(bsrvcore::HttpRequestMethod::kGet, "/static/abc");
+          auto r =
+              table.Route(bsrvcore::HttpRequestMethod::kGet, "/static/abc");
           EXPECT_EQ(r.handler, exact_ptr);
         } else {
           auto id = std::to_string(i % 1024U);
-          auto r = table.Route(bsrvcore::HttpRequestMethod::kGet,
-                               "/users/" + id);
+          auto r =
+              table.Route(bsrvcore::HttpRequestMethod::kGet, "/users/" + id);
           EXPECT_EQ(r.handler, param_ptr);
           ASSERT_EQ(r.parameters.size(), 1u);
           EXPECT_EQ(r.parameters[0], id);
@@ -96,8 +94,7 @@ TEST(StressRouteTableTest, RouteTableHandlesManyDistinctParamTargets) {
   auto handler = bsrvcore::AllocateUnique<DummyHandler>("param");
   auto* handler_ptr = handler.get();
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
-                                  "/v/{x}/items/{y}",
-                                  std::move(handler)));
+                                  "/v/{x}/items/{y}", std::move(handler)));
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   WaitCounter done(cfg.threads);

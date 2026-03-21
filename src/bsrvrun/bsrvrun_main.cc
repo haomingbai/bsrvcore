@@ -8,9 +8,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <csignal>
-
+#include <atomic>
+#include <boost/program_options.hpp>
 #include <chrono>
+#include <csignal>
 #include <cstdlib>
 #include <exception>
 #include <iostream>
@@ -18,12 +19,8 @@
 #include <optional>
 #include <string>
 #include <thread>
-#include <atomic>
-
-#include <boost/program_options.hpp>
 
 #include "bsrvcore/http_server.h"
-
 #include "config_loader.h"
 #include "plugin_loader.h"
 #include "server_builder.h"
@@ -82,7 +79,8 @@ int RunMain(int argc, char** argv) {
     if (config.executor.configured) {
       executor_options.core_thread_num = config.executor.core_thread_num;
       executor_options.max_thread_num = config.executor.max_thread_num;
-      executor_options.fast_queue_capacity = config.executor.fast_queue_capacity;
+      executor_options.fast_queue_capacity =
+          config.executor.fast_queue_capacity;
       executor_options.thread_clean_interval =
           config.executor.thread_clean_interval;
       executor_options.task_scan_interval = config.executor.task_scan_interval;
@@ -121,4 +119,6 @@ int RunMain(int argc, char** argv) {
 
 }  // namespace bsrvcore::runtime
 
-int main(int argc, char** argv) { return bsrvcore::runtime::RunMain(argc, argv); }
+int main(int argc, char** argv) {
+  return bsrvcore::runtime::RunMain(argc, argv);
+}

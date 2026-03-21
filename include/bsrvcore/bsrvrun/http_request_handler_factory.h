@@ -40,7 +40,8 @@ class HttpRequestHandlerFactory {
 /**
  * @brief Symbol type of plugin-exported handler factory function.
  *
- * Plugins should export `extern "C" HttpRequestHandlerFactory* GetHandlerFactory();`
+ * Plugins should export `extern "C" HttpRequestHandlerFactory*
+ * GetHandlerFactory();`
  */
 using GetHandlerFactoryFn = HttpRequestHandlerFactory* (*)();
 

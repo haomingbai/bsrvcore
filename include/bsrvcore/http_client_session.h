@@ -1,6 +1,7 @@
 /**
  * @file http_client_session.h
- * @brief HttpClientSession provides cookie-managed factories for HttpClientTask.
+ * @brief HttpClientSession provides cookie-managed factories for
+ * HttpClientTask.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-13
  *
@@ -16,7 +17,6 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/verb.hpp>
-
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -43,15 +43,16 @@ namespace bsrvcore {
  *
  * Note: this session does NOT provide persistence.
  */
-class HttpClientSession : public std::enable_shared_from_this<HttpClientSession> {
+class HttpClientSession
+    : public std::enable_shared_from_this<HttpClientSession> {
  public:
   /** @brief Create a shared session instance. */
   static std::shared_ptr<HttpClientSession> Create();
 
   /** @brief Create plain HTTP task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttp(
-      boost::asio::any_io_executor executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      boost::asio::any_io_executor executor, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
   /** @brief Create HTTPS task from host/port/target. */
@@ -112,8 +113,7 @@ class HttpClientSession : public std::enable_shared_from_this<HttpClientSession>
                                       std::string_view target,
                                       bool is_https) const;
 
-  void UpsertFromSetCookieLocked(std::string_view host,
-                                 std::string_view target,
+  void UpsertFromSetCookieLocked(std::string_view host, std::string_view target,
                                  std::string_view set_cookie_value);
 
   // Cookie jar (thread-safe via mutex_).

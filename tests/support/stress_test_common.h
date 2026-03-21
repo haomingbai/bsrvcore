@@ -45,8 +45,7 @@ inline StressConfig LoadStressConfig(std::size_t default_threads,
                                      std::uint64_t default_seed = 1337) {
   StressConfig cfg{};
   cfg.threads = GetEnvSize("BSRVCORE_STRESS_THREADS", default_threads);
-  cfg.iterations =
-      GetEnvSize("BSRVCORE_STRESS_ITERATIONS", default_iterations);
+  cfg.iterations = GetEnvSize("BSRVCORE_STRESS_ITERATIONS", default_iterations);
   cfg.seed = GetEnvU64("BSRVCORE_STRESS_SEED", default_seed);
   cfg.timeout = std::chrono::milliseconds(
       GetEnvSize("BSRVCORE_STRESS_TIMEOUT_MS", default_timeout_ms));
@@ -54,8 +53,9 @@ inline StressConfig LoadStressConfig(std::size_t default_threads,
 }
 
 // WaitCounter coordinates completion state across worker threads. The state is:
-// (1) workers increment finished counter, (2) main thread waits on cv predicate,
-// (3) timeout path reports progress and lets caller stop workers deterministically.
+// (1) workers increment finished counter, (2) main thread waits on cv
+// predicate, (3) timeout path reports progress and lets caller stop workers
+// deterministically.
 class WaitCounter {
  public:
   explicit WaitCounter(std::size_t expected) : expected_(expected) {}

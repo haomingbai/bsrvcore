@@ -17,7 +17,6 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
-
 #include <iostream>
 #include <memory>
 #include <string>

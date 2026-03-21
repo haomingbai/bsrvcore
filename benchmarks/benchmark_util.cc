@@ -1,5 +1,7 @@
 #include "benchmark_util.h"
 
+#include <sys/utsname.h>
+
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -11,7 +13,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <sys/utsname.h>
 #include <thread>
 #include <vector>
 
@@ -73,12 +74,15 @@ PressureSettings ResolvePressure(PressureKind kind, std::size_t cpu_count) {
 
 ProfileSettings ResolveProfile(ProfileKind profile) {
   if (profile == ProfileKind::kQuick) {
-    return {{PressureKind::kLight, PressureKind::kSaturated}, 1000, 3000, 2,
-            500};
+    return {
+        {PressureKind::kLight, PressureKind::kSaturated}, 1000, 3000, 2, 500};
   }
   return {{PressureKind::kLight, PressureKind::kBalanced,
            PressureKind::kSaturated, PressureKind::kOverload},
-          2000, 8000, 5, 1000};
+          2000,
+          8000,
+          5,
+          1000};
 }
 
 std::string FormatUtcTimestamp(std::chrono::system_clock::time_point tp) {
@@ -201,7 +205,7 @@ EnvironmentInfo DetectEnvironment() {
   info.build_type = BSRVCORE_BENCHMARK_BUILD_TYPE;
   info.logical_cpu_count = SafeCpuCount();
 
-  struct utsname uts {};
+  struct utsname uts{};
   if (uname(&uts) == 0) {
     info.os = std::string(uts.sysname) + " " + uts.release + " " + uts.machine;
   } else {
@@ -259,12 +263,13 @@ std::string Trim(std::string value) {
   auto not_space = [](unsigned char ch) { return !std::isspace(ch); };
   value.erase(value.begin(),
               std::find_if(value.begin(), value.end(), not_space));
-  value.erase(
-      std::find_if(value.rbegin(), value.rend(), not_space).base(), value.end());
+  value.erase(std::find_if(value.rbegin(), value.rend(), not_space).base(),
+              value.end());
   return value;
 }
 
-std::string BuildCookieHeader(const std::map<std::string, std::string>& cookies) {
+std::string BuildCookieHeader(
+    const std::map<std::string, std::string>& cookies) {
   std::ostringstream out;
   bool first = true;
   for (const auto& [name, value] : cookies) {
@@ -343,11 +348,10 @@ ScalarSummary SummarizeScalar(const std::vector<double>& values) {
 
   summary.min = sorted.front();
   summary.max = sorted.back();
-  summary.median = sorted.size() % 2 == 0
-                       ? (sorted[sorted.size() / 2 - 1] +
-                          sorted[sorted.size() / 2]) /
-                             2.0
-                       : sorted[sorted.size() / 2];
+  summary.median =
+      sorted.size() % 2 == 0
+          ? (sorted[sorted.size() / 2 - 1] + sorted[sorted.size() / 2]) / 2.0
+          : sorted[sorted.size() / 2];
   summary.mean = std::accumulate(sorted.begin(), sorted.end(), 0.0) /
                  static_cast<double>(sorted.size());
 
@@ -415,11 +419,10 @@ AggregateMetrics AggregateRuns(const std::vector<RepetitionMetrics>& runs) {
   aggregate.latency_p95_us = SummarizeScalar(p95);
   aggregate.latency_p99_us = SummarizeScalar(p99);
   aggregate.latency_max_us = SummarizeScalar(max);
-  aggregate.stability =
-      aggregate.requests_per_second.cv <= 0.10 &&
-              aggregate.latency_p95_us.cv <= 0.15
-          ? "stable"
-          : "unstable";
+  aggregate.stability = aggregate.requests_per_second.cv <= 0.10 &&
+                                aggregate.latency_p95_us.cv <= 0.15
+                            ? "stable"
+                            : "unstable";
   return aggregate;
 }
 

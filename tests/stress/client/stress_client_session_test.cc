@@ -33,7 +33,8 @@ bsrvcore::HttpClientResponse DoSessionRequest(
 
   std::promise<bsrvcore::HttpClientResult> promise;
   auto future = promise.get_future();
-  task->OnDone([&](const bsrvcore::HttpClientResult& r) { promise.set_value(r); });
+  task->OnDone(
+      [&](const bsrvcore::HttpClientResult& r) { promise.set_value(r); });
   task->Start();
   ioc.run();
 
@@ -57,17 +58,17 @@ TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
         task->SetBody("ok");
       });
 
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/echo-cookie",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetCookie("cid"));
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/echo-cookie",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetCookie("cid"));
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
   auto session = bsrvcore::HttpClientSession::Create();
-  ASSERT_NO_THROW((void)DoSessionRequest(session, http::verb::get, port, "/set"));
+  ASSERT_NO_THROW(
+      (void)DoSessionRequest(session, http::verb::get, port, "/set"));
 
   std::vector<std::jthread> workers;
   workers.reserve(cfg.threads);
@@ -75,7 +76,8 @@ TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
   for (std::size_t t = 0; t < cfg.threads; ++t) {
     workers.emplace_back([&, t](std::stop_token st) {
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
-        auto res = DoSessionRequest(session, http::verb::get, port, "/echo-cookie");
+        auto res =
+            DoSessionRequest(session, http::verb::get, port, "/echo-cookie");
         EXPECT_EQ(res.result(), http::status::ok);
         EXPECT_EQ(res.body(), "client");
       }
@@ -91,19 +93,18 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   const auto cfg = LoadStressConfig(6, 100, 120000);
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/events",
-      [cfg](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetField(http::field::content_type,
-                       "text/event-stream; charset=utf-8");
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events",
+                        [cfg](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetField(http::field::content_type,
+                                         "text/event-stream; charset=utf-8");
 
-        std::string payload;
-        payload.reserve(cfg.iterations * 16);
-        for (std::size_t i = 0; i < cfg.iterations; ++i) {
-          payload += "data: ev-" + std::to_string(i) + "\n\n";
-        }
-        task->SetBody(std::move(payload));
-      });
+                          std::string payload;
+                          payload.reserve(cfg.iterations * 16);
+                          for (std::size_t i = 0; i < cfg.iterations; ++i) {
+                            payload += "data: ev-" + std::to_string(i) + "\n\n";
+                          }
+                          task->SetBody(std::move(payload));
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
@@ -120,8 +121,8 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, completion, done, &pull_next]() {
-    client->Next([parser, events, completion, done, &pull_next](
-                     const bsrvcore::HttpSseClientResult& result) {
+    client->Next([parser, events, completion, done,
+                  &pull_next](const bsrvcore::HttpSseClientResult& result) {
       if (*done) {
         return;
       }
@@ -148,8 +149,8 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
     });
   };
 
-  client->Start([completion, done, &pull_next](
-                    const bsrvcore::HttpSseClientResult& result) {
+  client->Start([completion, done,
+                 &pull_next](const bsrvcore::HttpSseClientResult& result) {
     if (result.ec || result.cancelled) {
       if (!*done) {
         *done = true;

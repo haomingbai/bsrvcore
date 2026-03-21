@@ -30,7 +30,8 @@ class HttpClientSessionAttribute
     : public CloneableAttribute<HttpClientSessionAttribute> {
  public:
   HttpClientSessionAttribute() = default;
-  explicit HttpClientSessionAttribute(std::shared_ptr<HttpClientSession> session)
+  explicit HttpClientSessionAttribute(
+      std::shared_ptr<HttpClientSession> session)
       : session_(std::move(session)) {}
 
   std::shared_ptr<HttpClientSession> Get() const noexcept { return session_; }

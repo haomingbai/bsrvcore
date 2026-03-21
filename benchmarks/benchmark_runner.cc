@@ -1,18 +1,17 @@
 #include "benchmark_runner.h"
 
-#include <boost/asio/ip/address.hpp>
-#include <boost/asio/ip/tcp.hpp>
-
 #include <algorithm>
 #include <atomic>
 #include <barrier>
+#include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <iostream>
 #include <limits>
 #include <memory>
-#include <iostream>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -48,7 +47,8 @@ struct WorkerMetrics {
 enum class PhaseKind { kWarmup, kMeasure, kCooldown, kStop };
 
 bool TraceEnabled() {
-  static const bool enabled = std::getenv("BSRVCORE_BENCHMARK_TRACE") != nullptr;
+  static const bool enabled =
+      std::getenv("BSRVCORE_BENCHMARK_TRACE") != nullptr;
   return enabled;
 }
 
@@ -172,7 +172,8 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
   ValidateScenario(scenario, started_server.port);
   Trace(std::string("validation ok ") + scenario.name + "/" + pressure.name);
 
-  std::barrier sync(static_cast<std::ptrdiff_t>(pressure.client_concurrency + 1));
+  std::barrier sync(
+      static_cast<std::ptrdiff_t>(pressure.client_concurrency + 1));
   std::atomic<PhaseKind> current_phase{PhaseKind::kWarmup};
   std::atomic<std::uint64_t> phase_end_ns{0};
   std::atomic<bool> stop_requested{false};
@@ -244,8 +245,8 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
                     std::chrono::duration_cast<std::chrono::microseconds>(end -
                                                                           start)
                         .count();
-                metrics.latencies_us.push_back(static_cast<std::uint32_t>(
-                    std::clamp<std::int64_t>(
+                metrics.latencies_us.push_back(
+                    static_cast<std::uint32_t>(std::clamp<std::int64_t>(
                         latency, 0,
                         static_cast<std::int64_t>(
                             std::numeric_limits<std::uint32_t>::max()))));
@@ -271,9 +272,9 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
 
   auto run_phase = [&](PhaseKind phase, std::size_t duration_ms_for_phase) {
     current_phase.store(phase, std::memory_order_relaxed);
-    phase_end_ns.store(
-        ToSteadyNs(Clock::now() + std::chrono::milliseconds(duration_ms_for_phase)),
-        std::memory_order_relaxed);
+    phase_end_ns.store(ToSteadyNs(Clock::now() + std::chrono::milliseconds(
+                                                     duration_ms_for_phase)),
+                       std::memory_order_relaxed);
     sync.arrive_and_wait();
     sync.arrive_and_wait();
   };
@@ -358,38 +359,38 @@ std::vector<CellResult> RunBenchmarks(
        ++repetition) {
     std::vector<const ScenarioDefinition*> ordered = selected_scenarios;
     if (profile == ProfileKind::kFull && ordered.size() > 1) {
-      std::rotate(ordered.begin(), ordered.begin() + repetition % ordered.size(),
-                  ordered.end());
+      std::rotate(ordered.begin(),
+                  ordered.begin() + repetition % ordered.size(), ordered.end());
     }
 
     for (const ScenarioDefinition* scenario : ordered) {
       for (const auto& pressure : run_settings.pressures) {
         std::cout << "Running " << scenario->name << " under " << pressure.name
                   << " (rep " << (repetition + 1) << "/"
-                  << run_settings.repetitions << ", server_threads="
-                  << pressure.server_threads << ", client_concurrency="
-                  << pressure.client_concurrency << ")\n";
+                  << run_settings.repetitions
+                  << ", server_threads=" << pressure.server_threads
+                  << ", client_concurrency=" << pressure.client_concurrency
+                  << ")\n";
 
         auto metrics = RunCellInSubprocess(
             executable_path, *scenario, pressure, run_settings.warmup_ms,
-            run_settings.duration_ms, run_settings.cooldown_ms,
-            repetition + 1);
+            run_settings.duration_ms, run_settings.cooldown_ms, repetition + 1);
         std::cout << "Finished " << scenario->name << " under " << pressure.name
                   << " (rep " << (repetition + 1) << "/"
                   << run_settings.repetitions << ")\n";
 
         const auto key = CellKey(scenario->name, pressure.name);
-        auto [it, inserted] = cells_by_key.emplace(
-            key, CellResult{scenario->name,
-                            pressure.name,
-                            pressure.server_threads,
-                            pressure.client_concurrency,
-                            run_settings.warmup_ms,
-                            run_settings.duration_ms,
-                            run_settings.repetitions,
-                            run_settings.cooldown_ms,
-                            {},
-                            {}});
+        auto [it, inserted] =
+            cells_by_key.emplace(key, CellResult{scenario->name,
+                                                 pressure.name,
+                                                 pressure.server_threads,
+                                                 pressure.client_concurrency,
+                                                 run_settings.warmup_ms,
+                                                 run_settings.duration_ms,
+                                                 run_settings.repetitions,
+                                                 run_settings.cooldown_ms,
+                                                 {},
+                                                 {}});
         if (inserted) {
           cell_order.push_back(key);
         }

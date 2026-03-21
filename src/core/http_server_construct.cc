@@ -75,13 +75,13 @@ HttpServer::HttpServer(HttpServerExecutorOptions executor_options)
       thread_pool_(bsrvcore::AllocateUnique<bthpool::detail::BThreadPool>(
           ToBThreadPoolParam(executor_options))),
       route_table_(bsrvcore::AllocateUnique<HttpRouteTable>()),
-      sessions_(bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),
+      sessions_(
+          bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
       executor_options_(std::move(executor_options)),
       is_running_(false) {}
 
-HttpServer::HttpServer()
-    : HttpServer(HttpServerExecutorOptions{}) {}
+HttpServer::HttpServer() : HttpServer(HttpServerExecutorOptions{}) {}
 
 HttpServer::~HttpServer() { Stop(); }

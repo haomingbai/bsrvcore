@@ -17,7 +17,6 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
-
 #include <iostream>
 #include <memory>
 #include <string>
@@ -53,8 +52,7 @@ int main() {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   auto logger = bsrvcore::AllocateShared<ConsoleLogger>();
 
-  server
-      ->SetLogger(logger)
+  server->SetLogger(logger)
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/log",
           [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

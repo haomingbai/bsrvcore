@@ -8,10 +8,10 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
- * This header defines the nested MessageQueue class of HttpServerConnectionImpl.
- * It is included by http_server_connection_impl.h after the outer template class
- * definition, so the nested class keeps access to private members of the outer
- * class (e.g. stream_).
+ * This header defines the nested MessageQueue class of
+ * HttpServerConnectionImpl. It is included by http_server_connection_impl.h
+ * after the outer template class definition, so the nested class keeps access
+ * to private members of the outer class (e.g. stream_).
  */
 
 #pragma once
@@ -20,6 +20,12 @@
 #define BSRVCORE_INTERNAL_CONNECTION_HTTP_SERVER_CONNECTION_MESSAGE_QUEUE_H_
 
 #include <atomic>
+#include <boost/asio/bind_allocator.hpp>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/write.hpp>
+#include <boost/beast/http.hpp>
 #include <condition_variable>
 #include <cstddef>
 #include <deque>
@@ -29,13 +35,6 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
-
-#include <boost/asio/bind_allocator.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/buffer.hpp>
-#include <boost/asio/post.hpp>
-#include <boost/asio/write.hpp>
-#include <boost/beast/http.hpp>
 
 template <ValidStream S>
 class HttpServerConnectionImpl<S>::MessageQueue
@@ -110,15 +109,17 @@ class HttpServerConnectionImpl<S>::MessageQueue
   };
 
   struct HeaderMessage {
-    std::shared_ptr<boost::beast::http::response<boost::beast::http::empty_body>>
+    std::shared_ptr<
+        boost::beast::http::response<boost::beast::http::empty_body>>
         resp_sp;
     boost::beast::http::response_serializer<boost::beast::http::empty_body> sr;
 
     explicit HeaderMessage(
         boost::beast::http::response_header<boost::beast::http::fields>&&
             header)
-        : resp_sp(AllocateShared<boost::beast::http::response<
-                      boost::beast::http::empty_body>>(std::move(header))),
+        : resp_sp(AllocateShared<
+                  boost::beast::http::response<boost::beast::http::empty_body>>(
+              std::move(header))),
           sr(*resp_sp) {}
   };
 
@@ -159,7 +160,8 @@ class HttpServerConnectionImpl<S>::MessageQueue
     auto buf = boost::asio::buffer(*msg_sp);
 
     auto conn_sp = conn_wp_.lock();
-    if (!conn_sp || !conn_sp->IsServerRunning() || !conn_sp->IsStreamAvailable()) {
+    if (!conn_sp || !conn_sp->IsServerRunning() ||
+        !conn_sp->IsStreamAvailable()) {
       HandleConnectionUnavailable();
       return;
     }
@@ -168,19 +170,18 @@ class HttpServerConnectionImpl<S>::MessageQueue
         conn_sp->stream_, buf,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            boost::asio::bind_allocator(
-                conn_sp->GetHandlerAllocator(),
-                [conn_sp,
-                 mq = this->shared_from_this(),
-                 msg_sp](boost::system::error_code ec,
-                         [[maybe_unused]] std::size_t) {
-                  mq->HandleBodyWriteComplete(ec);
-                })));
+            boost::asio::bind_allocator(conn_sp->GetHandlerAllocator(),
+                                        [conn_sp, mq = this->shared_from_this(),
+                                         msg_sp](boost::system::error_code ec,
+                                                 [[maybe_unused]] std::size_t) {
+                                          mq->HandleBodyWriteComplete(ec);
+                                        })));
   }
 
   void StartWriteHeader(HeaderMessage& task) {
     auto conn_sp = conn_wp_.lock();
-    if (!conn_sp || !conn_sp->IsServerRunning() || !conn_sp->IsStreamAvailable()) {
+    if (!conn_sp || !conn_sp->IsServerRunning() ||
+        !conn_sp->IsStreamAvailable()) {
       HandleConnectionUnavailable();
       return;
     }
@@ -194,10 +195,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
             conn_sp->GetExecutor(),
             boost::asio::bind_allocator(
                 conn_sp->GetHandlerAllocator(),
-                [conn_sp,
-                 mq = this->shared_from_this(),
-                 resp_keeper](boost::system::error_code ec,
-                              [[maybe_unused]] std::size_t) {
+                [conn_sp, mq = this->shared_from_this(), resp_keeper](
+                    boost::system::error_code ec,
+                    [[maybe_unused]] std::size_t) {
                   mq->HandleHeaderWriteComplete(ec);
                 })));
   }

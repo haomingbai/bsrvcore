@@ -6,7 +6,6 @@
 #include <string>
 
 #include "bsrvcore/http_server.h"
-
 #include "config_loader.h"
 #include "plugin_loader.h"
 #include "server_builder.h"
@@ -72,9 +71,11 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
       "          pre: \"rpre|\"\n"
       "          post: \"rpost|\"\n";
 
-  const auto config_path = WriteConfig(yaml, "bsrvrun_runtime_integration_1.yaml");
+  const auto config_path =
+      WriteConfig(yaml, "bsrvrun_runtime_integration_1.yaml");
 
-  const auto config = bsrvcore::runtime::LoadConfigFromFile(config_path.string());
+  const auto config =
+      bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
   auto server =
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
@@ -121,9 +122,11 @@ TEST(BsrvRunRuntimeIntegrationTest, IgnoreDefaultRouteMapsToExclusiveRoute) {
       "      params:\n"
       "        body: \"param|\"\n";
 
-  const auto config_path = WriteConfig(yaml, "bsrvrun_runtime_integration_2.yaml");
+  const auto config_path =
+      WriteConfig(yaml, "bsrvrun_runtime_integration_2.yaml");
 
-  const auto config = bsrvcore::runtime::LoadConfigFromFile(config_path.string());
+  const auto config =
+      bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
   auto server =
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);

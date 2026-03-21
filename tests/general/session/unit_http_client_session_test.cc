@@ -25,7 +25,8 @@ inline bsrvcore::HttpClientResponse DoSessionRequest(
 
   std::promise<bsrvcore::HttpClientResult> promise;
   auto future = promise.get_future();
-  task->OnDone([&](const bsrvcore::HttpClientResult& r) { promise.set_value(r); });
+  task->OnDone(
+      [&](const bsrvcore::HttpClientResult& r) { promise.set_value(r); });
   task->Start();
   ioc.run();
 
@@ -48,11 +49,10 @@ TEST(HttpClientSessionTest, CookieRoundTripIsInjectedOnNextRequest) {
         task->AddCookie(std::move(c));
         task->SetBody("ok");
       });
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/check",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetCookie("foo"));
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/check",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetCookie("foo"));
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
@@ -74,15 +74,15 @@ TEST(HttpClientSessionTest, SecureCookieNotSentOverHttp) {
       bsrvcore::HttpRequestMethod::kGet, "/set_secure",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
         bsrvcore::ServerSetCookie c;
-        c.SetName("s").SetValue("1").SetPath("/").SetSecure(true).SetMaxAge(3600);
+        c.SetName("s").SetValue("1").SetPath("/").SetSecure(true).SetMaxAge(
+            3600);
         task->AddCookie(std::move(c));
         task->SetBody("ok");
       });
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/check_secure",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetCookie("s"));
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/check_secure",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetCookie("s"));
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
@@ -106,16 +106,14 @@ TEST(HttpClientSessionTest, PathPrefixMatchingWorks) {
         task->AddCookie(std::move(c));
         task->SetBody("ok");
       });
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/a/x",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetCookie("p"));
-      });
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/b",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetCookie("p"));
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/a/x",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetCookie("p"));
+                        });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/b",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetCookie("p"));
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);

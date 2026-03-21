@@ -18,7 +18,6 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
-
 #include <iostream>
 #include <memory>
 #include <string>
@@ -42,9 +41,8 @@ int main() {
             auto session = task->GetSession();
 
             if (session && !session->HasAttribute("user")) {
-              session->SetAttribute("user",
-                                    bsrvcore::AllocateShared<UserAttribute>(
-                                        "guest"));
+              session->SetAttribute(
+                  "user", bsrvcore::AllocateShared<UserAttribute>("guest"));
             }
 
             std::string user_name = "unknown";

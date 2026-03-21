@@ -30,7 +30,8 @@ inline std::string_view TrimLeadingSingleSpace(std::string_view sv) {
 
 std::vector<SseEvent> SseEventParser::Feed(std::string_view chunk) {
   // The transport may split data arbitrarily; we keep a pending buffer so that
-  // incomplete lines at the end of the chunk can be completed by the next Feed().
+  // incomplete lines at the end of the chunk can be completed by the next
+  // Feed().
   pending_.append(chunk.data(), chunk.size());
 
   std::vector<SseEvent> events;
@@ -70,7 +71,8 @@ void SseEventParser::Reset() {
 void SseEventParser::ConsumeLine(std::string_view line,
                                  std::vector<SseEvent>& out) {
   if (line.empty()) {
-    // A blank line terminates an event. Only emit when we have seen at least one field.
+    // A blank line terminates an event. Only emit when we have seen at least
+    // one field.
     if (has_field_) {
       out.push_back(current_);
       current_ = SseEvent{};
@@ -84,7 +86,8 @@ void SseEventParser::ConsumeLine(std::string_view line,
     return;
   }
 
-  // Parse "field:value" (value may be empty). A single leading space in value is trimmed.
+  // Parse "field:value" (value may be empty). A single leading space in value
+  // is trimmed.
   std::size_t colon = line.find(':');
   std::string_view field = line.substr(0, colon);
   std::string_view value{};

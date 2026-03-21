@@ -12,7 +12,6 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
-
 #include <stdexcept>
 
 namespace bsrvcore::runtime {
@@ -32,7 +31,8 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
   }
 
   if (config.global.default_handler.has_value()) {
-    server->SetDefaultHandler(loader->CreateHandler(*config.global.default_handler));
+    server->SetDefaultHandler(
+        loader->CreateHandler(*config.global.default_handler));
   }
 
   for (const auto& aspect_config : config.global.aspects) {

@@ -62,8 +62,7 @@ TEST(RouteTableTest, ExclusiveRouteBypassesParameterRoutes) {
                                            "/static",
                                            std::move(handler_exclusive)));
   ASSERT_TRUE(table.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
-                                  "/static/{file}",
-                                  std::move(handler_param)));
+                                  "/static/{file}", std::move(handler_param)));
 
   auto result = table.Route(bsrvcore::HttpRequestMethod::kGet, "/static/abc");
   EXPECT_EQ(result.handler, exclusive_ptr);
@@ -83,13 +82,13 @@ TEST(RouteTableTest, AspectOrderIsGlobalMethodThenRoute) {
 
   auto method = bsrvcore::AllocateUnique<DummyAspect>();
   auto* method_ptr = method.get();
-  ASSERT_TRUE(
-      table.AddGlobalAspect(bsrvcore::HttpRequestMethod::kGet, std::move(method)));
+  ASSERT_TRUE(table.AddGlobalAspect(bsrvcore::HttpRequestMethod::kGet,
+                                    std::move(method)));
 
   auto route = bsrvcore::AllocateUnique<DummyAspect>();
   auto* route_ptr = route.get();
-  ASSERT_TRUE(
-      table.AddAspect(bsrvcore::HttpRequestMethod::kGet, "/a", std::move(route)));
+  ASSERT_TRUE(table.AddAspect(bsrvcore::HttpRequestMethod::kGet, "/a",
+                              std::move(route)));
 
   auto result = table.Route(bsrvcore::HttpRequestMethod::kGet, "/a");
   ASSERT_EQ(result.aspects.size(), 3u);

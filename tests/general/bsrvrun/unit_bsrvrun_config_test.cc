@@ -22,8 +22,7 @@ std::filesystem::path WriteTempFile(const std::string& content,
 TEST(BsrvRunConfigTest, ResolveCliPath) {
   const auto path = WriteTempFile("listeners: []\n", "bsrvrun_test_cli.yaml");
 
-  const auto resolved =
-      bsrvcore::runtime::ResolveConfigPath(path.string());
+  const auto resolved = bsrvcore::runtime::ResolveConfigPath(path.string());
   EXPECT_EQ(resolved, path.string());
 
   std::filesystem::remove(path);
@@ -33,13 +32,13 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
   const auto path = WriteTempFile(
       "server:\n"
       "  thread_count: 2\n"
-  "  executor:\n"
-  "    core_thread_num: 3\n"
-  "    max_thread_num: 6\n"
-  "    fast_queue_capacity: 128\n"
-  "    thread_clean_interval: 50000\n"
-  "    task_scan_interval: 80\n"
-  "    suspend_time: 1\n"
+      "  executor:\n"
+      "    core_thread_num: 3\n"
+      "    max_thread_num: 6\n"
+      "    fast_queue_capacity: 128\n"
+      "    thread_clean_interval: 50000\n"
+      "    task_scan_interval: 80\n"
+      "    suspend_time: 1\n"
       "listeners:\n"
       "  - address: \"127.0.0.1\"\n"
       "    port: 8081\n"

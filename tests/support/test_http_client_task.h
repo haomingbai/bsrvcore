@@ -1,7 +1,7 @@
 #pragma once
 
-#include <boost/asio/ip/address.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
 #include <future>
@@ -56,11 +56,12 @@ inline http::response<http::string_body> DoRequestTask(
   options.read_body_timeout = std::chrono::seconds(2);
   options.user_agent = "bsrvcore-test-client-task";
 
-  auto task = HttpClientTask::CreateHttp(
-      ioc.get_executor(), "127.0.0.1", std::to_string(port), target, method,
-      options);
+  auto task =
+      HttpClientTask::CreateHttp(ioc.get_executor(), "127.0.0.1",
+                                 std::to_string(port), target, method, options);
 
-  // Populate request body before Start(). prepare_payload() is called internally.
+  // Populate request body before Start(). prepare_payload() is called
+  // internally.
   task->Request().body() = body;
 
   // Bridge the async task API into a synchronous helper used by tests.
@@ -118,7 +119,8 @@ inline unsigned short StartServerWithRoutes(ServerGuard& guard) {
   constexpr int kMaxAttempts = 5;
   for (int i = 0; i < kMaxAttempts; ++i) {
     unsigned short port = FindFreePort();
-    // Bind may still fail due to the race window (or OS reuse); retry a few times.
+    // Bind may still fail due to the race window (or OS reuse); retry a few
+    // times.
     guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
     if (guard.server->Start(1)) {
       return port;

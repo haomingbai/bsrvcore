@@ -12,9 +12,9 @@
  * routing and session access.
  */
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
@@ -57,16 +57,16 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
 
   auto timer = AllocateShared<boost::asio::steady_timer>(ioc_);
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
-  timer->async_wait([this, fn = std::move(fn),
-                     timer](boost::system::error_code ec) mutable {
-    if (!ec) {
-      std::shared_lock<std::shared_mutex> callback_lock(mtx_);
-      if (!is_running_) {
-        return;
-      }
-      thread_pool_->post(std::move(fn));
-    }
-  });
+  timer->async_wait(
+      [this, fn = std::move(fn), timer](boost::system::error_code ec) mutable {
+        if (!ec) {
+          std::shared_lock<std::shared_mutex> callback_lock(mtx_);
+          if (!is_running_) {
+            return;
+          }
+          thread_pool_->post(std::move(fn));
+        }
+      });
 }
 
 void HttpServer::Post(std::function<void()> fn) {

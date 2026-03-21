@@ -48,21 +48,21 @@ std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetSession(
-    const std::string &sessionid) {
+    const std::string& sessionid) {
   return srv_->GetSession(sessionid);
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetSession(
-    std::string &&sessionid) {
+    std::string&& sessionid) {
   return srv_->GetSession(std::move(sessionid));
 }
 
-bool HttpServerConnection::SetSessionTimeout(const std::string &sessionid,
+bool HttpServerConnection::SetSessionTimeout(const std::string& sessionid,
                                              std::size_t timeout) {
   return srv_->SetSessionTimeout(sessionid, timeout);
 }
 
-bool HttpServerConnection::SetSessionTimeout(std::string &&sessionid,
+bool HttpServerConnection::SetSessionTimeout(std::string&& sessionid,
                                              std::size_t timeout) {
   return srv_->SetSessionTimeout(std::move(sessionid), timeout);
 }
@@ -78,21 +78,21 @@ void HttpServerConnection::Run() {
   }
 
   boost::asio::post(
-      strand_,
-      boost::asio::bind_allocator(GetHandlerAllocator(),
-                                 [self = shared_from_this(), this] {
-    if (header_read_expiry_) {
-      timer_.expires_after(std::chrono::milliseconds(header_read_expiry_));
-      timer_.async_wait(boost::asio::bind_allocator(
-          GetHandlerAllocator(),
-          [self, this](boost::system::error_code ec) {
-            if (!ec) {
-              DoClose();
-            }
-          }));
-    }
-    DoReadHeader();
-  }));
+      strand_, boost::asio::bind_allocator(
+                   GetHandlerAllocator(), [self = shared_from_this(), this] {
+                     if (header_read_expiry_) {
+                       timer_.expires_after(
+                           std::chrono::milliseconds(header_read_expiry_));
+                       timer_.async_wait(boost::asio::bind_allocator(
+                           GetHandlerAllocator(),
+                           [self, this](boost::system::error_code ec) {
+                             if (!ec) {
+                               DoClose();
+                             }
+                           }));
+                     }
+                     DoReadHeader();
+                   }));
 }
 
 void HttpServerConnection::DoRoute() {
@@ -108,7 +108,7 @@ void HttpServerConnection::DoRoute() {
     return;
   }
 
-  auto &res = parser_->get();
+  auto& res = parser_->get();
   auto target = res.target();
 
   route_result_ = srv_->Route(
@@ -158,13 +158,13 @@ void HttpServerConnection::DoCycle() {
     if (header_read_expiry_ + keep_alive_timeout_) {
       timer_.expires_after(
           std::chrono::milliseconds(header_read_expiry_ + keep_alive_timeout_));
-        timer_.async_wait(boost::asio::bind_allocator(
-            GetHandlerAllocator(),
-            [self = shared_from_this(), this](boost::system::error_code ec) {
-              if (!ec) {
-                DoClose();
-              }
-            }));
+      timer_.async_wait(boost::asio::bind_allocator(
+          GetHandlerAllocator(),
+          [self = shared_from_this(), this](boost::system::error_code ec) {
+            if (!ec) {
+              DoClose();
+            }
+          }));
     }
 
     Run();
@@ -175,7 +175,7 @@ void HttpServerConnection::DoCycle() {
 }
 
 HttpServerConnection::HttpServerConnection(
-    boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer *srv,
+    boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer* srv,
     std::size_t header_read_expiry, std::size_t keep_alive_timeout)
     : strand_(std::move(strand)),
       timer_(strand_),
@@ -192,7 +192,7 @@ bool HttpServerConnection::IsServerRunning() const noexcept {
 }
 
 bsrvcore::OwnedPtr<
-    boost::beast::http::request_parser<boost::beast::http::string_body>> &
+    boost::beast::http::request_parser<boost::beast::http::string_body>>&
 HttpServerConnection::GetParser() noexcept {
   return parser_;
 }
@@ -201,7 +201,7 @@ std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
   return keep_alive_timeout_ / 1000 ? keep_alive_timeout_ / 1000 : 1;
 }
 
-boost::asio::strand<boost::asio::any_io_executor> &
+boost::asio::strand<boost::asio::any_io_executor>&
 HttpServerConnection::GetStrand() {
   return strand_;
 }
@@ -211,8 +211,8 @@ HttpServerConnection::GetExecutor() {
   return strand_;
 }
 
-boost::beast::flat_buffer &HttpServerConnection::GetBuffer() { return buf_; }
+boost::beast::flat_buffer& HttpServerConnection::GetBuffer() { return buf_; }
 
-bsrvcore::HttpServer *HttpServerConnection::GetServer() const noexcept {
+bsrvcore::HttpServer* HttpServerConnection::GetServer() const noexcept {
   return srv_;
 }

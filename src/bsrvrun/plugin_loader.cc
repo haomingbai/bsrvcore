@@ -17,7 +17,6 @@
 
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
-
 #include "parameter_map_impl.h"
 
 namespace bsrvcore::runtime {
@@ -53,8 +52,8 @@ void* PluginLoader::GetOrOpenLibrary(const std::string& path) const {
   void* handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
   if (handle == nullptr) {
     const char* error = dlerror();
-    throw std::runtime_error("failed to load library `" + path + "`: " +
-                             (error == nullptr ? "unknown" : error));
+    throw std::runtime_error("failed to load library `" + path +
+                             "`: " + (error == nullptr ? "unknown" : error));
   }
 
   handles_.emplace(path, handle);
@@ -91,8 +90,8 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
   return handler;
 }
 
-bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> PluginLoader::CreateAspect(
-    const FactoryConfig& config) const {
+bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler>
+PluginLoader::CreateAspect(const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
 
   dlerror();

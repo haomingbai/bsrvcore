@@ -14,7 +14,6 @@
 #define BSRVCORE_BSRVRUN_SERVER_BUILDER_H_
 
 #include "bsrvcore/http_server.h"
-
 #include "config_types.h"
 #include "plugin_loader.h"
 

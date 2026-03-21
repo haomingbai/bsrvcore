@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <future>
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
 #include <utility>
@@ -23,12 +23,12 @@ using bsrvcore::test::StartServerWithRoutes;
 
 TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/events",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetField(http::field::content_type, "text/event-stream; charset=utf-8");
-        task->SetBody("data: one\\n\\ndata: two\\n\\n");
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetField(http::field::content_type,
+                                         "text/event-stream; charset=utf-8");
+                          task->SetBody("data: one\\n\\ndata: two\\n\\n");
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
@@ -45,9 +45,10 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   auto saw_next = bsrvcore::AllocateShared<bool>(false);
 
   std::function<void()> pull_next;
-  pull_next = [client, parser, events, completion, done, saw_next, &pull_next]() {
-    client->Next([parser, events, completion, done, saw_next, &pull_next](
-                     const bsrvcore::HttpSseClientResult& result) {
+  pull_next = [client, parser, events, completion, done, saw_next,
+               &pull_next]() {
+    client->Next([parser, events, completion, done, saw_next,
+                  &pull_next](const bsrvcore::HttpSseClientResult& result) {
       if (*done) {
         return;
       }
@@ -76,7 +77,8 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
     });
   };
 
-  client->Start([completion, done, &pull_next](const bsrvcore::HttpSseClientResult& result) {
+  client->Start([completion, done,
+                 &pull_next](const bsrvcore::HttpSseClientResult& result) {
     if (result.ec || result.cancelled) {
       if (!*done) {
         *done = true;

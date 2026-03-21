@@ -50,9 +50,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
     boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
     std::string url, boost::beast::http::verb method,
     HttpClientOptions options) {
-  auto task = HttpClientTask::CreateFromUrl(std::move(executor), ssl_ctx,
-                                            std::move(url), method,
-                                            std::move(options));
+  auto task = HttpClientTask::CreateFromUrl(
+      std::move(executor), ssl_ctx, std::move(url), method, std::move(options));
   task->AttachSession(weak_from_this());
   return task;
 }

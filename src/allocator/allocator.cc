@@ -72,7 +72,8 @@ void* Allocate(std::size_t size, std::size_t alignment) {
   return ptr;
 }
 
-void Deallocate(void* ptr, std::size_t /*size*/, std::size_t alignment) noexcept {
+void Deallocate(void* ptr, std::size_t /*size*/,
+                std::size_t alignment) noexcept {
   if (ptr == nullptr) {
     return;
   }

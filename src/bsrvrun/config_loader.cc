@@ -10,14 +10,14 @@
 
 #include "config_loader.h"
 
+#include <yaml-cpp/yaml.h>
+
 #include <filesystem>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
-
-#include <yaml-cpp/yaml.h>
 
 namespace bsrvcore::runtime {
 
@@ -127,8 +127,8 @@ std::vector<ListenerConfig> ParseListeners(const YAML::Node& node) {
       throw std::runtime_error("listeners.port must be in range [1, 65535]");
     }
 
-    listeners.push_back({address_node.as<std::string>(),
-                         static_cast<std::uint16_t>(port)});
+    listeners.push_back(
+        {address_node.as<std::string>(), static_cast<std::uint16_t>(port)});
   }
 
   return listeners;
@@ -165,8 +165,8 @@ std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {
         .method = ParseMethod(route_node["method"], ctx.str()),
         .path = path_node.as<std::string>(),
         .ignore_default_route = ignore_node ? ignore_node.as<bool>() : false,
-        .handler = ParseFactoryConfig(route_node["handler"],
-                                      ctx.str() + ".handler"),
+        .handler =
+            ParseFactoryConfig(route_node["handler"], ctx.str() + ".handler"),
         .aspects = ParseFactoryConfigList(route_node["aspects"],
                                           ctx.str() + ".aspects"),
     };
@@ -212,34 +212,40 @@ ExecutorConfig ParseExecutorConfig(const YAML::Node& node) {
   const YAML::Node core_thread_num_node = node["core_thread_num"];
   if (core_thread_num_node) {
     if (!core_thread_num_node.IsScalar()) {
-      throw std::runtime_error("server.executor.core_thread_num must be a number");
+      throw std::runtime_error(
+          "server.executor.core_thread_num must be a number");
     }
     config.core_thread_num = core_thread_num_node.as<std::size_t>();
     if (config.core_thread_num == 0) {
-      throw std::runtime_error("server.executor.core_thread_num must be greater than 0");
+      throw std::runtime_error(
+          "server.executor.core_thread_num must be greater than 0");
     }
   }
 
   const YAML::Node max_thread_num_node = node["max_thread_num"];
   if (max_thread_num_node) {
     if (!max_thread_num_node.IsScalar()) {
-      throw std::runtime_error("server.executor.max_thread_num must be a number");
+      throw std::runtime_error(
+          "server.executor.max_thread_num must be a number");
     }
     config.max_thread_num = max_thread_num_node.as<std::size_t>();
     if (config.max_thread_num == 0) {
-      throw std::runtime_error("server.executor.max_thread_num must be greater than 0");
+      throw std::runtime_error(
+          "server.executor.max_thread_num must be greater than 0");
     }
   }
 
   if (config.max_thread_num < config.core_thread_num) {
     throw std::runtime_error(
-        "server.executor.max_thread_num must be greater than or equal to core_thread_num");
+        "server.executor.max_thread_num must be greater than or equal to "
+        "core_thread_num");
   }
 
   const YAML::Node fast_queue_capacity_node = node["fast_queue_capacity"];
   if (fast_queue_capacity_node) {
     if (!fast_queue_capacity_node.IsScalar()) {
-      throw std::runtime_error("server.executor.fast_queue_capacity must be a number");
+      throw std::runtime_error(
+          "server.executor.fast_queue_capacity must be a number");
     }
     config.fast_queue_capacity = fast_queue_capacity_node.as<std::size_t>();
   }
@@ -247,7 +253,8 @@ ExecutorConfig ParseExecutorConfig(const YAML::Node& node) {
   const YAML::Node thread_clean_interval_node = node["thread_clean_interval"];
   if (thread_clean_interval_node) {
     if (!thread_clean_interval_node.IsScalar()) {
-      throw std::runtime_error("server.executor.thread_clean_interval must be a number");
+      throw std::runtime_error(
+          "server.executor.thread_clean_interval must be a number");
     }
     config.thread_clean_interval = thread_clean_interval_node.as<std::size_t>();
   }
@@ -255,7 +262,8 @@ ExecutorConfig ParseExecutorConfig(const YAML::Node& node) {
   const YAML::Node task_scan_interval_node = node["task_scan_interval"];
   if (task_scan_interval_node) {
     if (!task_scan_interval_node.IsScalar()) {
-      throw std::runtime_error("server.executor.task_scan_interval must be a number");
+      throw std::runtime_error(
+          "server.executor.task_scan_interval must be a number");
     }
     config.task_scan_interval = task_scan_interval_node.as<std::size_t>();
   }
@@ -277,7 +285,8 @@ std::string ResolveConfigPath(const std::optional<std::string>& cli_path) {
   if (cli_path.has_value()) {
     const std::filesystem::path configured_path(*cli_path);
     if (!std::filesystem::exists(configured_path)) {
-      throw std::runtime_error("config file not found: " + configured_path.string());
+      throw std::runtime_error("config file not found: " +
+                               configured_path.string());
     }
     return configured_path.string();
   }
@@ -294,7 +303,8 @@ std::string ResolveConfigPath(const std::optional<std::string>& cli_path) {
   }
 
   throw std::runtime_error(
-      "cannot find config file; checked ./bsrvrun.yaml and /etc/bsrvrun/bsrvrun.yaml");
+      "cannot find config file; checked ./bsrvrun.yaml and "
+      "/etc/bsrvrun/bsrvrun.yaml");
 }
 
 ServerConfig LoadConfigFromFile(const std::string& path) {
@@ -321,8 +331,8 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
     }
   }
 
-  ExecutorConfig executor = ParseExecutorConfig(server_node ? server_node["executor"]
-                                                            : YAML::Node{});
+  ExecutorConfig executor =
+      ParseExecutorConfig(server_node ? server_node["executor"] : YAML::Node{});
 
   ServerConfig config{
       .thread_count = thread_count,

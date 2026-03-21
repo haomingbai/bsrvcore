@@ -1,7 +1,6 @@
 #include "benchmark_client.h"
 
 #include <boost/beast/http.hpp>
-
 #include <chrono>
 #include <stdexcept>
 #include <string>
@@ -47,8 +46,8 @@ std::uint64_t ApproximateResponseBytes(
 
 std::runtime_error MakeIoError(std::string_view operation,
                                const boost::system::error_code& ec) {
-  return std::runtime_error(std::string(operation) + " failed: " +
-                            ec.message());
+  return std::runtime_error(std::string(operation) +
+                            " failed: " + ec.message());
 }
 
 template <typename Initiate>
@@ -135,7 +134,8 @@ ExchangeResult KeepAliveClient::Send(
     auto ec = boost::system::error_code{};
     stream_.expires_after(kRequestTimeout);
     ec = RunAsyncOperation(ioc_, [&](auto&& handler) {
-      http::async_write(stream_, request, std::forward<decltype(handler)>(handler));
+      http::async_write(stream_, request,
+                        std::forward<decltype(handler)>(handler));
     });
     if (ec) {
       throw MakeIoError("http write", ec);

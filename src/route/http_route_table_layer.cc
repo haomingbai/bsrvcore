@@ -69,8 +69,8 @@ bool HttpRouteTableLayer::SetDefaultRoute(
   return true;
 }
 
-bool HttpRouteTableLayer::SetRoute(
-    std::string key, OwnedPtr<HttpRouteTableLayer> link) try {
+bool HttpRouteTableLayer::SetRoute(std::string key,
+                                   OwnedPtr<HttpRouteTableLayer> link) try {
   if (key.empty()) {
     return false;
   }

@@ -8,13 +8,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/http_client_session.h"
-
-#include <boost/beast/http/field.hpp>
-
 #include <algorithm>
-#include <chrono>
+#include <boost/beast/http/field.hpp>
 #include <cctype>
+#include <chrono>
 #include <iomanip>
 #include <optional>
 #include <sstream>
@@ -24,6 +21,7 @@
 #include <vector>
 
 #include "bsrvcore/allocator.h"
+#include "bsrvcore/http_client_session.h"
 
 namespace bsrvcore {
 
@@ -182,12 +180,12 @@ void HttpClientSession::SyncSetCookie(std::string_view host,
 
 void HttpClientSession::CleanupExpiredLocked() const {
   const auto now = std::chrono::system_clock::now();
-  cookies_.erase(
-      std::remove_if(cookies_.begin(), cookies_.end(),
-                     [&](const Cookie& c) {
-                       return c.expiry.has_value() && c.expiry.value() <= now;
-                     }),
-      cookies_.end());
+  cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
+                                [&](const Cookie& c) {
+                                  return c.expiry.has_value() &&
+                                         c.expiry.value() <= now;
+                                }),
+                 cookies_.end());
 }
 
 std::string HttpClientSession::NormalizeHost(std::string_view host) {
@@ -261,8 +259,9 @@ bool HttpClientSession::PathMatches(std::string_view request_path,
   return request_path[cookie_path.size()] == '/';
 }
 
-std::string HttpClientSession::BuildCookieHeaderLocked(
-    std::string_view host, std::string_view target, bool is_https) const {
+std::string HttpClientSession::BuildCookieHeaderLocked(std::string_view host,
+                                                       std::string_view target,
+                                                       bool is_https) const {
   const std::string host_norm = NormalizeHost(host);
   auto q = target.find('?');
   const std::string_view request_path =
@@ -324,12 +323,14 @@ void HttpClientSession::UpsertFromSetCookieLocked(
     std::string_view host, std::string_view target,
     std::string_view set_cookie_value) {
   auto erase_cookie = [&](const Cookie& key) {
-    cookies_.erase(
-        std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& c) {
-          return c.name == key.name && c.domain == key.domain &&
-                 c.host_only == key.host_only && c.path == key.path;
-        }),
-        cookies_.end());
+    cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
+                                  [&](const Cookie& c) {
+                                    return c.name == key.name &&
+                                           c.domain == key.domain &&
+                                           c.host_only == key.host_only &&
+                                           c.path == key.path;
+                                  }),
+                   cookies_.end());
   };
 
   set_cookie_value = TrimView(set_cookie_value);
@@ -423,8 +424,8 @@ void HttpClientSession::UpsertFromSetCookieLocked(
       erase_cookie(incoming);
       return;
     }
-    incoming.expiry = std::chrono::system_clock::now() +
-                      std::chrono::seconds(max_age_secs);
+    incoming.expiry =
+        std::chrono::system_clock::now() + std::chrono::seconds(max_age_secs);
   } else if (expires_tp.has_value()) {
     incoming.expiry = expires_tp;
     if (incoming.expiry.value() <= std::chrono::system_clock::now()) {
