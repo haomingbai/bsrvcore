@@ -1,5 +1,6 @@
 #include "benchmark_subprocess.h"
 
+#include <algorithm>
 #include <cerrno>
 #include <cstring>
 #include <fstream>
@@ -15,11 +16,11 @@
 #include "benchmark_util.h"
 
 #if !defined(_WIN32)
-#include <csignal>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <chrono>
+#include <csignal>
 #include <thread>
 #endif
 
@@ -37,7 +38,8 @@ std::string ReadTextFile(const std::filesystem::path& path) {
   return out.str();
 }
 
-void WriteTextFile(const std::filesystem::path& path, std::string_view content) {
+void WriteTextFile(const std::filesystem::path& path,
+                   std::string_view content) {
   std::ofstream out(path);
   if (!out.is_open()) {
     throw std::runtime_error("Failed to open benchmark cell result file: " +
@@ -46,16 +48,16 @@ void WriteTextFile(const std::filesystem::path& path, std::string_view content) 
   out << content;
 }
 
-std::string SerializeMetrics(const bsrvcore::benchmark::RepetitionMetrics& metrics) {
+std::string SerializeMetrics(
+    const bsrvcore::benchmark::RepetitionMetrics& metrics) {
   std::ostringstream out;
   out << "repetition=" << metrics.repetition << "\n"
       << "success_count=" << metrics.success_count << "\n"
       << "error_count=" << metrics.error_count << "\n"
       << "bytes_sent=" << metrics.bytes_sent << "\n"
       << "bytes_received=" << metrics.bytes_received << "\n"
-      << "duration_seconds=" << bsrvcore::benchmark::FormatDouble(
-             metrics.duration_seconds, 9)
-      << "\n"
+      << "duration_seconds="
+      << bsrvcore::benchmark::FormatDouble(metrics.duration_seconds, 9) << "\n"
       << "requests_per_second="
       << bsrvcore::benchmark::FormatDouble(metrics.requests_per_second, 9)
       << "\n"
@@ -146,12 +148,10 @@ int RunInternalCell(const CliConfig& cli,
     pressure.server_threads = *cli.internal_server_threads;
     pressure.client_concurrency = *cli.internal_client_concurrency;
 
-    const auto& scenario =
-        FindScenario(scenarios, *cli.internal_scenario_name);
-    const auto metrics =
-        RunCellRepetition(scenario, pressure, *cli.internal_warmup_ms,
-                          *cli.internal_duration_ms, *cli.internal_cooldown_ms,
-                          *cli.internal_repetition);
+    const auto& scenario = FindScenario(scenarios, *cli.internal_scenario_name);
+    const auto metrics = RunCellRepetition(
+        scenario, pressure, *cli.internal_warmup_ms, *cli.internal_duration_ms,
+        *cli.internal_cooldown_ms, *cli.internal_repetition);
     WriteTextFile(*cli.internal_result_path, SerializeMetrics(metrics));
     return 0;
   } catch (const std::exception& ex) {
@@ -177,13 +177,30 @@ RepetitionMetrics RunCellInSubprocess(
 namespace {
 
 constexpr auto kWaitPollInterval = std::chrono::milliseconds(100);
-constexpr auto kCellTimeoutSlack = std::chrono::seconds(20);
+constexpr std::size_t kCellTimeoutMinSlackMs = 20'000;
+constexpr std::size_t kCellTimeoutMaxSlackMs = 120'000;
+
+std::chrono::milliseconds ComputeCellTimeoutSlack(
+    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
+    const PressureSettings& pressure) {
+  const std::size_t phase_ms = warmup_ms + duration_ms + cooldown_ms;
+  const std::size_t concurrency_budget_ms =
+      std::min<std::size_t>(45'000, pressure.client_concurrency * 120);
+  const std::size_t server_budget_ms =
+      std::min<std::size_t>(15'000, pressure.server_threads * 200);
+  const std::size_t phase_budget_ms =
+      std::min<std::size_t>(20'000, phase_ms / 2);
+
+  const std::size_t slack_ms = std::clamp<std::size_t>(
+      10'000 + concurrency_budget_ms + server_budget_ms + phase_budget_ms,
+      kCellTimeoutMinSlackMs, kCellTimeoutMaxSlackMs);
+  return std::chrono::milliseconds(slack_ms);
+}
 
 std::filesystem::path MakeTempResultPath() {
-  std::string pattern =
-      (std::filesystem::temp_directory_path() /
-       "bsrvcore-benchmark-cell-XXXXXX.txt")
-          .string();
+  std::string pattern = (std::filesystem::temp_directory_path() /
+                         "bsrvcore-benchmark-cell-XXXXXX.txt")
+                            .string();
   std::vector<char> writable(pattern.begin(), pattern.end());
   writable.push_back('\0');
 
@@ -282,9 +299,9 @@ RepetitionMetrics RunCellInSubprocess(
     ::close(pipe_fds[0]);
     ::close(pipe_fds[1]);
 
-    auto args = BuildChildArgs(executable_path, scenario, pressure, warmup_ms,
-                               duration_ms, cooldown_ms, repetition,
-                               result_path);
+    auto args =
+        BuildChildArgs(executable_path, scenario, pressure, warmup_ms,
+                       duration_ms, cooldown_ms, repetition, result_path);
     std::vector<char*> argv;
     argv.reserve(args.size() + 1);
     for (auto& arg : args) {
@@ -298,9 +315,11 @@ RepetitionMetrics RunCellInSubprocess(
 
   ::close(pipe_fds[1]);
 
-  const auto deadline =
-      std::chrono::steady_clock::now() + kCellTimeoutSlack +
-      std::chrono::milliseconds(warmup_ms + duration_ms + cooldown_ms);
+  const auto phase_duration_ms = warmup_ms + duration_ms + cooldown_ms;
+  const auto timeout_slack =
+      ComputeCellTimeoutSlack(warmup_ms, duration_ms, cooldown_ms, pressure);
+  const auto deadline = std::chrono::steady_clock::now() + timeout_slack +
+                        std::chrono::milliseconds(phase_duration_ms);
 
   int status = 0;
   bool timed_out = false;
@@ -313,9 +332,9 @@ RepetitionMetrics RunCellInSubprocess(
       const auto read_error = ReadAllFromFd(pipe_fds[0]);
       ::close(pipe_fds[0]);
       cleanup_result();
-      throw std::runtime_error("waitpid failed: " +
-                               std::string(std::strerror(errno)) + " [" +
-                               TrimErrorMessage(read_error) + "]");
+      throw std::runtime_error(
+          "waitpid failed: " + std::string(std::strerror(errno)) + " [" +
+          TrimErrorMessage(read_error) + "]");
     }
     if (std::chrono::steady_clock::now() >= deadline) {
       timed_out = true;
@@ -331,15 +350,10 @@ RepetitionMetrics RunCellInSubprocess(
 
   if (timed_out) {
     cleanup_result();
-    throw std::runtime_error("benchmark cell timed out for " + scenario.name +
-                             "/" + pressure.name + " after " +
-                             std::to_string(warmup_ms + duration_ms +
-                                            cooldown_ms +
-                                            std::chrono::duration_cast<
-                                                std::chrono::milliseconds>(
-                                                kCellTimeoutSlack)
-                                                .count()) +
-                             "ms [" + child_stderr + "]");
+    throw std::runtime_error(
+        "benchmark cell timed out for " + scenario.name + "/" + pressure.name +
+        " after " + std::to_string(phase_duration_ms + timeout_slack.count()) +
+        "ms [" + child_stderr + "]");
   }
 
   if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {

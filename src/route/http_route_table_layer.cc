@@ -98,32 +98,33 @@ void HttpRouteTableLayer::SetIgnoreDefaultRoute(bool flag) noexcept {
   }
 }
 
-HttpRouteTableLayer* HttpRouteTableLayer::GetDefaultRoute() noexcept {
+HttpRouteTableLayer* HttpRouteTableLayer::GetDefaultRoute() const noexcept {
   return default_route_.get();
 }
 
 HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
-    const std::string& key) noexcept {
-  if (map_.count(key)) {
-    return map_[key].get();
-  } else {
+    const std::string& key) const noexcept {
+  auto it = map_.find(key);
+  if (it == map_.end()) {
     return nullptr;
   }
+  return it->second.get();
 }
 
-HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(std::string&& key) noexcept {
-  if (map_.count(key)) {
-    return map_[key].get();
-  } else {
+HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
+    std::string&& key) const noexcept {
+  auto it = map_.find(key);
+  if (it == map_.end()) {
     return nullptr;
   }
+  return it->second.get();
 }
 
 bsrvcore::HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
   return handler_.get();
 }
 
-bool HttpRouteTableLayer::GetIgnoreDefaultRoute() noexcept {
+bool HttpRouteTableLayer::GetIgnoreDefaultRoute() const noexcept {
   return ignore_default_route_;
 }
 

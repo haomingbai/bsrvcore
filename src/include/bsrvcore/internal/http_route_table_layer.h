@@ -125,21 +125,21 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @brief Get the default sub-route for parameter matching
    * @return Pointer to default route layer, nullptr if not set
    */
-  HttpRouteTableLayer *GetDefaultRoute() noexcept;
+  HttpRouteTableLayer *GetDefaultRoute() const noexcept;
 
   /**
    * @brief Get sub-route for a specific path segment (copy version)
    * @param key Path segment to look up
    * @return Pointer to sub-route layer, nullptr if not found
    */
-  HttpRouteTableLayer *GetRoute(const std::string &key) noexcept;
+  HttpRouteTableLayer *GetRoute(const std::string &key) const noexcept;
 
   /**
    * @brief Get sub-route for a specific path segment (move version)
    * @param key Path segment to look up (will be moved)
    * @return Pointer to sub-route layer, nullptr if not found
    */
-  HttpRouteTableLayer *GetRoute(std::string &&key) noexcept;
+  HttpRouteTableLayer *GetRoute(std::string &&key) const noexcept;
 
   /**
    * @brief Get the request handler for this route layer
@@ -170,7 +170,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @brief Check if default route matching is disabled
    * @return true if default route is ignored
    */
-  bool GetIgnoreDefaultRoute() noexcept;
+  bool GetIgnoreDefaultRoute() const noexcept;
 
   /**
    * @brief Construct a new routing layer

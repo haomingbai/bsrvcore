@@ -36,8 +36,8 @@
 #include <boost/beast/http/write.hpp>
 #include <boost/beast/ssl.hpp>
 #include <cassert>
-#include <cstddef>
 #include <condition_variable>
+#include <cstddef>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -108,32 +108,35 @@ class HttpServerConnectionImpl : public HttpServerConnection {
   static std::shared_ptr<HttpServerConnectionImpl<S>> Create(Args&&... args);
 
   void DoClose() override {
-    if (closed_) return;
-    closed_ = true;
+    if (closed_.exchange(true, std::memory_order_acq_rel)) {
+      return;
+    }
 
-    if (!helper::GetLowestSocket(stream_).is_open()) return;
+    boost::asio::post(
+        GetStrand(),
+        boost::asio::bind_allocator(
+            GetHandlerAllocator(), [self = this->shared_from_this(), this] {
+              if (!helper::GetLowestSocket(stream_).is_open()) {
+                return;
+              }
 
-    if constexpr (helper::IsBeastSslStream<S>::value) {
-      stream_.async_shutdown(boost::asio::bind_executor(
-          GetExecutor(),
-          boost::asio::bind_allocator(
-              GetHandlerAllocator(),
-              [self = this->shared_from_this(), this]([[maybe_unused]] auto ec) {
-                boost::system::error_code socket_ec;
-                helper::GetLowestSocket(stream_).close(socket_ec);
-              })));
-    } else {
-      boost::asio::post(
-          GetStrand(),
-          boost::asio::bind_allocator(
-              GetHandlerAllocator(),
-              [self = this->shared_from_this(), this] {
+              if constexpr (helper::IsBeastSslStream<S>::value) {
+                stream_.async_shutdown(boost::asio::bind_executor(
+                    GetExecutor(),
+                    boost::asio::bind_allocator(
+                        GetHandlerAllocator(),
+                        [self,
+                         this]([[maybe_unused]] boost::system::error_code ec) {
+                          boost::system::error_code socket_ec;
+                          helper::GetLowestSocket(stream_).close(socket_ec);
+                        })));
+              } else {
                 boost::system::error_code ec;
                 helper::GetLowestSocket(stream_).shutdown(
                     boost::asio::ip::tcp::socket::shutdown_both, ec);
                 helper::GetLowestSocket(stream_).close(ec);
-              }));
-    }
+              }
+            }));
   }
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }
@@ -143,32 +146,42 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       DoClose();
       return;
     }
-    resp.keep_alive(keep_alive);
-    resp.set(boost::beast::http::field::keep_alive,
-             std::to_string(GetKeepAliveTimeout()));
-    resp.prepare_payload();
 
-    resp_ = std::move(resp);
+    boost::asio::post(
+        GetStrand(),
+        boost::asio::bind_allocator(
+            GetHandlerAllocator(),
+            [self = this->shared_from_this(), this, keep_alive,
+             response = std::move(resp)]() mutable {
+              if (!IsServerRunning() || !IsStreamAvailable()) {
+                DoClose();
+                return;
+              }
 
-    boost::beast::http::async_write(
-        stream_, resp_,
-        boost::asio::bind_executor(
-            GetExecutor(),
-            boost::asio::bind_allocator(
-                GetHandlerAllocator(),
-                [self = this->shared_from_this(), this, keep_alive](
-                    boost::system::error_code ec,
-                    [[maybe_unused]] std::size_t bytes_transfered) {
-                  if (ec) {
-                    DoClose();
-                  } else {
-                    if (!keep_alive) {
-                      DoClose();
-                    } else {
-                      DoCycle();
-                    }
-                  }
-                })));
+              response.keep_alive(keep_alive);
+              response.set(boost::beast::http::field::keep_alive,
+                           std::to_string(GetKeepAliveTimeout()));
+              response.prepare_payload();
+              resp_ = std::move(response);
+
+              boost::beast::http::async_write(
+                  stream_, resp_,
+                  boost::asio::bind_executor(
+                      GetExecutor(),
+                      boost::asio::bind_allocator(
+                          GetHandlerAllocator(),
+                          [self, this, keep_alive](
+                              boost::system::error_code ec,
+                              [[maybe_unused]] std::size_t bytes_transfered) {
+                            if (ec) {
+                              DoClose();
+                            } else if (!keep_alive) {
+                              DoClose();
+                            } else {
+                              DoCycle();
+                            }
+                          })));
+            }));
   }
 
   void DoFlushResponseHeader(
@@ -287,7 +300,8 @@ void HttpServerConnectionImpl<S>::EnsureMessageQueueCreated() {
   if (auto locked = weak.lock()) {
     std::lock_guard<std::mutex> lock(mtx_);
     if (!message_queue_) {
-      auto conn_sp = std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked);
+      auto conn_sp =
+          std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked);
       message_queue_ =
           AllocateShared<typename HttpServerConnectionImpl<S>::MessageQueue>(
               std::weak_ptr<HttpServerConnectionImpl<S>>(conn_sp));

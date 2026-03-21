@@ -5,6 +5,7 @@
 
 # Add code check and optimization
 option(BSRVCORE_ENABLE_ASAN "Enable AddressSanitizer for Debug builds. Default: OFF" OFF)
+option(BSRVCORE_ENABLE_TSAN "Enable ThreadSanitizer for Debug/RelWithDebInfo builds. Default: OFF" OFF)
 include(FetchContent)
 
 if(POLICY CMP0169)
@@ -33,6 +34,19 @@ else()
       "$<$<CONFIG:Debug>:-fno-omit-frame-pointer>"
     )
     add_link_options("$<$<CONFIG:Debug>:-fsanitize=address>")
+  endif()
+
+  if(BSRVCORE_ENABLE_TSAN)
+    add_compile_options(
+      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fsanitize=thread>"
+      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fno-omit-frame-pointer>"
+    )
+    add_link_options(
+      "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fsanitize=thread>"
+    )
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+      add_compile_options(-Wno-error=tsan)
+    endif()
   endif()
 endif()
 
