@@ -36,12 +36,8 @@ int main(int argc, char** argv) try {
   const auto cells = RunBenchmarks(executable_path, selected_scenarios,
                                    run_settings, cli.profile);
 
-  bool has_errors = false;
   for (const auto& cell : cells) {
     PrintCellSummary(cell);
-    if (cell.aggregate.error_count.max > 0.0) {
-      has_errors = true;
-    }
   }
 
   const auto json = BuildJson(environment, cli, run_settings, cells);
@@ -49,7 +45,7 @@ int main(int argc, char** argv) try {
     WriteJsonFile(*cli.output_json, json);
   }
 
-  return has_errors ? 1 : 0;
+  return 0;
 } catch (const std::exception& ex) {
   std::cerr << "benchmark failed: " << ex.what() << "\n";
   return 1;

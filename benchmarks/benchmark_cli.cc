@@ -1,6 +1,7 @@
 #include "benchmark_cli.h"
 
 #include <boost/program_options.hpp>
+#include <filesystem>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -18,15 +19,22 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "List available scenarios")(
       "scenario",
       po::value<std::string>(&cli.scenario_name)->default_value("all"),
-      "Scenario name or 'all'")(
+      "Scenario name, 'io', or 'all'")(
       "profile", po::value<std::string>()->default_value("quick"),
       "Profile: quick or full")(
       "pressure", po::value<std::string>(),
       "Pressure: light|balanced|saturated|overload|all")(
       "server-threads", po::value<std::size_t>(), "Override server threads")(
       "client-concurrency", po::value<std::size_t>(),
-      "Override client concurrency")("warmup-ms", po::value<std::size_t>(),
-                                     "Warmup duration in ms")(
+      "Override total client connections (all client processes)")(
+      "client-processes", po::value<std::size_t>(),
+      "Number of wrk processes that concurrently pressure one server")(
+      "wrk-threads-per-process", po::value<std::size_t>(),
+      "wrk threads used by each client process")(
+      "wrk-bin", po::value<std::string>(),
+      "Path to wrk binary (default probe: /bin,/usr/bin,/usr/local/bin, then "
+      "PATH)")(
+      "warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
       "duration-ms", po::value<std::size_t>(), "Measure duration in ms")(
       "repetitions", po::value<std::size_t>(), "Number of repetitions")(
       "cooldown-ms", po::value<std::size_t>(), "Cooldown duration in ms")(
@@ -44,6 +52,12 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Server threads for internal cell mode")(
       "internal-client-concurrency", po::value<std::size_t>(),
       "Client concurrency for internal cell mode")(
+      "internal-client-processes", po::value<std::size_t>(),
+      "wrk client process count for internal cell mode")(
+      "internal-wrk-threads-per-process", po::value<std::size_t>(),
+      "wrk threads per process for internal cell mode")(
+      "internal-wrk-bin", po::value<std::string>(),
+      "wrk binary for internal cell mode")(
       "internal-warmup-ms", po::value<std::size_t>(),
       "Warmup duration for internal cell mode")(
       "internal-duration-ms", po::value<std::size_t>(),
@@ -90,6 +104,16 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     cli.client_concurrency_override =
         vm["client-concurrency"].as<std::size_t>();
   }
+  if (vm.count("client-processes") != 0) {
+    cli.client_processes_override = vm["client-processes"].as<std::size_t>();
+  }
+  if (vm.count("wrk-threads-per-process") != 0) {
+    cli.wrk_threads_per_process_override =
+        vm["wrk-threads-per-process"].as<std::size_t>();
+  }
+  if (vm.count("wrk-bin") != 0) {
+    cli.wrk_bin_override = std::filesystem::path(vm["wrk-bin"].as<std::string>());
+  }
   if (vm.count("warmup-ms") != 0) {
     cli.warmup_ms_override = vm["warmup-ms"].as<std::size_t>();
   }
@@ -119,6 +143,18 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   if (vm.count("internal-client-concurrency") != 0) {
     cli.internal_client_concurrency =
         vm["internal-client-concurrency"].as<std::size_t>();
+  }
+  if (vm.count("internal-client-processes") != 0) {
+    cli.internal_client_processes =
+        vm["internal-client-processes"].as<std::size_t>();
+  }
+  if (vm.count("internal-wrk-threads-per-process") != 0) {
+    cli.internal_wrk_threads_per_process =
+        vm["internal-wrk-threads-per-process"].as<std::size_t>();
+  }
+  if (vm.count("internal-wrk-bin") != 0) {
+    cli.internal_wrk_bin =
+        std::filesystem::path(vm["internal-wrk-bin"].as<std::string>());
   }
   if (vm.count("internal-warmup-ms") != 0) {
     cli.internal_warmup_ms = vm["internal-warmup-ms"].as<std::size_t>();

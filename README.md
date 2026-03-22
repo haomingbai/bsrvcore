@@ -154,10 +154,18 @@ cmake --build build-bench --target bsrvcore_http_benchmark --parallel
 Run a short sweep:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark --profile quick
+./build-bench/benchmarks/bsrvcore_http_benchmark --profile quick --wrk-bin /usr/bin/wrk
 ```
+
+Notes:
+
+- The repository does not ship `wrk` binaries by default.
+- The benchmark probes `/bin/wrk`, `/usr/bin/wrk`, `/usr/local/bin/wrk`, then `PATH`.
+- You can enable bundled build explicitly with
+  `-DBSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON`.
 
 For benchmark methodology and shipped snapshots, see:
 
 - [docs/manual/benchmarking.md](docs/manual/benchmarking.md)
+- [docs/manual/linux-io-model-choice.md](docs/manual/linux-io-model-choice.md)
 - [docs/benchmark-results/](docs/benchmark-results)

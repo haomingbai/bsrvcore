@@ -13,7 +13,7 @@ int RunInternalCell(const CliConfig& cli,
 RepetitionMetrics RunCellInSubprocess(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
+    const RunSettings& run_settings,
     std::size_t repetition);
 
 }  // namespace bsrvcore::benchmark

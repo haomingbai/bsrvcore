@@ -51,6 +51,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     ScenarioDefinition scenario;
     scenario.name = "http_get_static";
     scenario.summary = "GET /ping returning a small text body";
+    scenario.io_focused = true;
     scenario.configure_server = [](HttpServer& server) {
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/ping",
@@ -168,6 +169,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     ScenarioDefinition scenario;
     scenario.name = std::move(name);
     scenario.summary = "POST /echo returning the request body";
+    scenario.io_focused = true;
     scenario.required_max_body_size =
         std::max<std::size_t>(size * 2, 256 * 1024);
     scenario.configure_server = [](HttpServer& server) {
@@ -296,6 +298,19 @@ const ScenarioDefinition& FindScenario(
 
 std::vector<const ScenarioDefinition*> ResolveSelectedScenarios(
     const std::vector<ScenarioDefinition>& scenarios, const CliConfig& cli) {
+  if (cli.scenario_name == "io") {
+    std::vector<const ScenarioDefinition*> selected;
+    for (const auto& scenario : scenarios) {
+      if (scenario.io_focused) {
+        selected.push_back(&scenario);
+      }
+    }
+    if (selected.empty()) {
+      throw std::invalid_argument("No IO-focused scenarios are defined");
+    }
+    return selected;
+  }
+
   if (cli.scenario_name == "all") {
     std::vector<const ScenarioDefinition*> selected;
     selected.reserve(scenarios.size());

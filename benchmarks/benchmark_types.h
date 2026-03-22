@@ -32,6 +32,9 @@ struct CliConfig {
   std::optional<std::string> pressure_name;
   std::optional<std::size_t> server_threads_override;
   std::optional<std::size_t> client_concurrency_override;
+  std::optional<std::size_t> client_processes_override;
+  std::optional<std::size_t> wrk_threads_per_process_override;
+  std::optional<std::filesystem::path> wrk_bin_override;
   std::optional<std::size_t> warmup_ms_override;
   std::optional<std::size_t> duration_ms_override;
   std::optional<std::size_t> repetitions_override;
@@ -47,6 +50,9 @@ struct CliConfig {
   std::optional<std::size_t> internal_cooldown_ms;
   std::optional<std::size_t> internal_repetition;
   std::optional<std::filesystem::path> internal_result_path;
+  std::optional<std::filesystem::path> internal_wrk_bin;
+  std::optional<std::size_t> internal_client_processes;
+  std::optional<std::size_t> internal_wrk_threads_per_process;
 };
 
 struct ProfileSettings {
@@ -70,6 +76,9 @@ struct RunSettings {
   std::size_t duration_ms = 0;
   std::size_t repetitions = 0;
   std::size_t cooldown_ms = 0;
+  std::filesystem::path wrk_bin;
+  std::size_t client_processes = 4;
+  std::size_t wrk_threads_per_process = 2;
 };
 
 struct WorkerState {
@@ -91,6 +100,7 @@ struct ScenarioDefinition {
   std::string summary;
   std::size_t required_max_body_size = 256 * 1024;
   bool prime_each_worker = false;
+  bool io_focused = false;
   std::function<void(HttpServer&)> configure_server;
   std::function<RequestSpec(WorkerState&)> make_request;
   std::function<bool(const BenchmarkHttpResponse&, WorkerState&, std::string&)>
@@ -107,12 +117,21 @@ struct EnvironmentInfo {
 
 struct RepetitionMetrics {
   std::size_t repetition = 0;
+  std::uint64_t attempt_count = 0;
   std::uint64_t success_count = 0;
   std::uint64_t error_count = 0;
+  std::uint64_t non_2xx_3xx_count = 0;
+  std::uint64_t socket_connect_error_count = 0;
+  std::uint64_t socket_read_error_count = 0;
+  std::uint64_t socket_write_error_count = 0;
+  std::uint64_t socket_timeout_error_count = 0;
+  std::uint64_t loadgen_failure_count = 0;
   std::uint64_t bytes_sent = 0;
   std::uint64_t bytes_received = 0;
   double duration_seconds = 0.0;
+  double attempt_requests_per_second = 0.0;
   double requests_per_second = 0.0;
+  double failure_ratio = 0.0;
   double mib_per_second = 0.0;
   double latency_p50_us = 0.0;
   double latency_p95_us = 0.0;
@@ -130,11 +149,20 @@ struct ScalarSummary {
 };
 
 struct AggregateMetrics {
+  ScalarSummary attempt_count;
   ScalarSummary success_count;
   ScalarSummary error_count;
+  ScalarSummary non_2xx_3xx_count;
+  ScalarSummary socket_connect_error_count;
+  ScalarSummary socket_read_error_count;
+  ScalarSummary socket_write_error_count;
+  ScalarSummary socket_timeout_error_count;
+  ScalarSummary loadgen_failure_count;
   ScalarSummary bytes_sent;
   ScalarSummary bytes_received;
+  ScalarSummary attempt_requests_per_second;
   ScalarSummary requests_per_second;
+  ScalarSummary failure_ratio;
   ScalarSummary mib_per_second;
   ScalarSummary latency_p50_us;
   ScalarSummary latency_p95_us;

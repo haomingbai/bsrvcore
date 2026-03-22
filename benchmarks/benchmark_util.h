@@ -1,8 +1,6 @@
 #pragma once
 
-#include <boost/beast/http.hpp>
 #include <cstdint>
-#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -22,10 +20,6 @@ EnvironmentInfo DetectEnvironment();
 std::string EscapeJson(std::string_view input);
 std::string FormatDouble(double value, int precision = 3);
 std::string Trim(std::string value);
-std::string BuildCookieHeader(
-    const std::map<std::string, std::string>& cookies);
-void SyncCookieJar(const boost::beast::http::fields& headers,
-                   std::map<std::string, std::string>& cookie_jar);
 
 double PercentileFromSorted(const std::vector<std::uint32_t>& sorted,
                             double fraction);

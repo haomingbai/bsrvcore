@@ -52,15 +52,31 @@ std::string SerializeMetrics(
     const bsrvcore::benchmark::RepetitionMetrics& metrics) {
   std::ostringstream out;
   out << "repetition=" << metrics.repetition << "\n"
+      << "attempt_count=" << metrics.attempt_count << "\n"
       << "success_count=" << metrics.success_count << "\n"
       << "error_count=" << metrics.error_count << "\n"
+      << "non_2xx_3xx_count=" << metrics.non_2xx_3xx_count << "\n"
+      << "socket_connect_error_count=" << metrics.socket_connect_error_count
+      << "\n"
+      << "socket_read_error_count=" << metrics.socket_read_error_count << "\n"
+      << "socket_write_error_count=" << metrics.socket_write_error_count
+      << "\n"
+      << "socket_timeout_error_count=" << metrics.socket_timeout_error_count
+      << "\n"
+      << "loadgen_failure_count=" << metrics.loadgen_failure_count << "\n"
       << "bytes_sent=" << metrics.bytes_sent << "\n"
       << "bytes_received=" << metrics.bytes_received << "\n"
       << "duration_seconds="
       << bsrvcore::benchmark::FormatDouble(metrics.duration_seconds, 9) << "\n"
+      << "attempt_requests_per_second="
+      << bsrvcore::benchmark::FormatDouble(metrics.attempt_requests_per_second,
+                                           9)
+      << "\n"
       << "requests_per_second="
       << bsrvcore::benchmark::FormatDouble(metrics.requests_per_second, 9)
       << "\n"
+      << "failure_ratio="
+      << bsrvcore::benchmark::FormatDouble(metrics.failure_ratio, 9) << "\n"
       << "mib_per_second="
       << bsrvcore::benchmark::FormatDouble(metrics.mib_per_second, 9) << "\n"
       << "latency_p50_us="
@@ -91,18 +107,36 @@ bsrvcore::benchmark::RepetitionMetrics ParseMetrics(std::string_view text) {
     const auto value = line.substr(separator + 1);
     if (key == "repetition") {
       metrics.repetition = static_cast<std::size_t>(std::stoull(value));
+    } else if (key == "attempt_count") {
+      metrics.attempt_count = std::stoull(value);
     } else if (key == "success_count") {
       metrics.success_count = std::stoull(value);
     } else if (key == "error_count") {
       metrics.error_count = std::stoull(value);
+    } else if (key == "non_2xx_3xx_count") {
+      metrics.non_2xx_3xx_count = std::stoull(value);
+    } else if (key == "socket_connect_error_count") {
+      metrics.socket_connect_error_count = std::stoull(value);
+    } else if (key == "socket_read_error_count") {
+      metrics.socket_read_error_count = std::stoull(value);
+    } else if (key == "socket_write_error_count") {
+      metrics.socket_write_error_count = std::stoull(value);
+    } else if (key == "socket_timeout_error_count") {
+      metrics.socket_timeout_error_count = std::stoull(value);
+    } else if (key == "loadgen_failure_count") {
+      metrics.loadgen_failure_count = std::stoull(value);
     } else if (key == "bytes_sent") {
       metrics.bytes_sent = std::stoull(value);
     } else if (key == "bytes_received") {
       metrics.bytes_received = std::stoull(value);
     } else if (key == "duration_seconds") {
       metrics.duration_seconds = std::stod(value);
+    } else if (key == "attempt_requests_per_second") {
+      metrics.attempt_requests_per_second = std::stod(value);
     } else if (key == "requests_per_second") {
       metrics.requests_per_second = std::stod(value);
+    } else if (key == "failure_ratio") {
+      metrics.failure_ratio = std::stod(value);
     } else if (key == "mib_per_second") {
       metrics.mib_per_second = std::stod(value);
     } else if (key == "latency_p50_us") {
@@ -134,6 +168,9 @@ int RunInternalCell(const CliConfig& cli,
         !cli.internal_pressure_name.has_value() ||
         !cli.internal_server_threads.has_value() ||
         !cli.internal_client_concurrency.has_value() ||
+        !cli.internal_client_processes.has_value() ||
+        !cli.internal_wrk_threads_per_process.has_value() ||
+        !cli.internal_wrk_bin.has_value() ||
         !cli.internal_warmup_ms.has_value() ||
         !cli.internal_duration_ms.has_value() ||
         !cli.internal_cooldown_ms.has_value() ||
@@ -148,10 +185,20 @@ int RunInternalCell(const CliConfig& cli,
     pressure.server_threads = *cli.internal_server_threads;
     pressure.client_concurrency = *cli.internal_client_concurrency;
 
+    RunSettings run_settings;
+    run_settings.warmup_ms = *cli.internal_warmup_ms;
+    run_settings.duration_ms = *cli.internal_duration_ms;
+    run_settings.cooldown_ms = *cli.internal_cooldown_ms;
+    run_settings.repetitions = 1;
+    run_settings.client_processes = *cli.internal_client_processes;
+    run_settings.wrk_threads_per_process =
+        *cli.internal_wrk_threads_per_process;
+    run_settings.wrk_bin = *cli.internal_wrk_bin;
+
     const auto& scenario = FindScenario(scenarios, *cli.internal_scenario_name);
-    const auto metrics = RunCellRepetition(
-        scenario, pressure, *cli.internal_warmup_ms, *cli.internal_duration_ms,
-        *cli.internal_cooldown_ms, *cli.internal_repetition);
+    const auto metrics =
+        RunCellRepetition(scenario, pressure, run_settings,
+                          *cli.internal_repetition);
     WriteTextFile(*cli.internal_result_path, SerializeMetrics(metrics));
     return 0;
   } catch (const std::exception& ex) {
@@ -165,11 +212,10 @@ int RunInternalCell(const CliConfig& cli,
 RepetitionMetrics RunCellInSubprocess(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
+    const RunSettings& run_settings,
     std::size_t repetition) {
   (void)executable_path;
-  return RunCellRepetition(scenario, pressure, warmup_ms, duration_ms,
-                           cooldown_ms, repetition);
+  return RunCellRepetition(scenario, pressure, run_settings, repetition);
 }
 
 #else
@@ -181,18 +227,21 @@ constexpr std::size_t kCellTimeoutMinSlackMs = 20'000;
 constexpr std::size_t kCellTimeoutMaxSlackMs = 120'000;
 
 std::chrono::milliseconds ComputeCellTimeoutSlack(
-    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
-    const PressureSettings& pressure) {
-  const std::size_t phase_ms = warmup_ms + duration_ms + cooldown_ms;
+    const RunSettings& run_settings, const PressureSettings& pressure) {
+  const std::size_t phase_ms =
+      run_settings.warmup_ms + run_settings.duration_ms + run_settings.cooldown_ms;
   const std::size_t concurrency_budget_ms =
       std::min<std::size_t>(45'000, pressure.client_concurrency * 120);
+  const std::size_t process_budget_ms =
+      std::min<std::size_t>(20'000, run_settings.client_processes * 800);
   const std::size_t server_budget_ms =
       std::min<std::size_t>(15'000, pressure.server_threads * 200);
   const std::size_t phase_budget_ms =
       std::min<std::size_t>(20'000, phase_ms / 2);
 
   const std::size_t slack_ms = std::clamp<std::size_t>(
-      10'000 + concurrency_budget_ms + server_budget_ms + phase_budget_ms,
+      10'000 + concurrency_budget_ms + process_budget_ms + server_budget_ms +
+          phase_budget_ms,
       kCellTimeoutMinSlackMs, kCellTimeoutMaxSlackMs);
   return std::chrono::milliseconds(slack_ms);
 }
@@ -241,7 +290,7 @@ std::string TrimErrorMessage(std::string message) {
 std::vector<std::string> BuildChildArgs(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
+    const RunSettings& run_settings,
     std::size_t repetition, const std::filesystem::path& result_path) {
   return {executable_path.string(),
           "--internal-run-cell",
@@ -253,12 +302,18 @@ std::vector<std::string> BuildChildArgs(
           std::to_string(pressure.server_threads),
           "--internal-client-concurrency",
           std::to_string(pressure.client_concurrency),
+          "--internal-client-processes",
+          std::to_string(run_settings.client_processes),
+          "--internal-wrk-threads-per-process",
+          std::to_string(run_settings.wrk_threads_per_process),
+          "--internal-wrk-bin",
+          run_settings.wrk_bin.string(),
           "--internal-warmup-ms",
-          std::to_string(warmup_ms),
+          std::to_string(run_settings.warmup_ms),
           "--internal-duration-ms",
-          std::to_string(duration_ms),
+          std::to_string(run_settings.duration_ms),
           "--internal-cooldown-ms",
-          std::to_string(cooldown_ms),
+          std::to_string(run_settings.cooldown_ms),
           "--internal-repetition",
           std::to_string(repetition),
           "--internal-result-path",
@@ -270,7 +325,7 @@ std::vector<std::string> BuildChildArgs(
 RepetitionMetrics RunCellInSubprocess(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    std::size_t warmup_ms, std::size_t duration_ms, std::size_t cooldown_ms,
+    const RunSettings& run_settings,
     std::size_t repetition) {
   const auto result_path = MakeTempResultPath();
   const auto cleanup_result = [&]() {
@@ -299,9 +354,8 @@ RepetitionMetrics RunCellInSubprocess(
     ::close(pipe_fds[0]);
     ::close(pipe_fds[1]);
 
-    auto args =
-        BuildChildArgs(executable_path, scenario, pressure, warmup_ms,
-                       duration_ms, cooldown_ms, repetition, result_path);
+    auto args = BuildChildArgs(executable_path, scenario, pressure, run_settings,
+                               repetition, result_path);
     std::vector<char*> argv;
     argv.reserve(args.size() + 1);
     for (auto& arg : args) {
@@ -315,9 +369,9 @@ RepetitionMetrics RunCellInSubprocess(
 
   ::close(pipe_fds[1]);
 
-  const auto phase_duration_ms = warmup_ms + duration_ms + cooldown_ms;
-  const auto timeout_slack =
-      ComputeCellTimeoutSlack(warmup_ms, duration_ms, cooldown_ms, pressure);
+  const auto phase_duration_ms =
+      run_settings.warmup_ms + run_settings.duration_ms + run_settings.cooldown_ms;
+  const auto timeout_slack = ComputeCellTimeoutSlack(run_settings, pressure);
   const auto deadline = std::chrono::steady_clock::now() + timeout_slack +
                         std::chrono::milliseconds(phase_duration_ms);
 

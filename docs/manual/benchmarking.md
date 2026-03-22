@@ -1,32 +1,51 @@
 # Benchmarking
 
-This chapter explains how to run the built-in benchmark suite for `HttpServer`.
-
-The benchmark tree is **independent from `tests/`**:
-
-- no `GTest`
-- no `ctest`
-- no `tests/support`
-- no external tools such as `wrk`, `ab`, or `google-benchmark`
-
-It uses only this repository plus the normal project dependencies.
+This chapter explains how to run the built-in benchmark suite for
+`HttpServer`.
 
 ## Execution Model
 
-Each benchmark cell (`scenario x pressure x repetition`) runs in a fresh child process.
+Each benchmark cell (`scenario x pressure x repetition`) runs in a fresh child
+process.
 
-This is intentional:
+Inside one cell process:
 
-- it keeps benchmark runs independent from `tests/`
-- it prevents cross-cell state from polluting later measurements
-- it turns a stuck cell into a normal subprocess failure instead of hanging the whole sweep forever
+- one `HttpServer` instance is started
+- `N` independent `wrk` processes pressure that server in parallel
+- warmup, measure, and cooldown are all executed with the same multi-process
+  model
 
-The benchmark client uses Boost.Beast asynchronous operations with explicit deadlines.
-That means request-level timeouts are real I/O deadlines, not blocking calls that wait forever.
+This keeps the load model closer to real deployment pressure while preserving
+subprocess isolation between cells.
+
+## No Repository Binaries By Default
+
+The repository does not ship `wrk` binaries.
+
+Default behavior:
+
+- bundled `wrk` build is `OFF`
+- runtime path probing order is:
+  `/bin/wrk`, `/usr/bin/wrk`, `/usr/local/bin/wrk`, then `wrk` from `PATH`
+
+You can choose one of these paths:
+
+1. install `wrk` in your system path (or under `/bin`)
+2. set `--wrk-bin /absolute/path/to/wrk`
+3. set `BSRVCORE_BENCHMARK_WRK_BIN=/absolute/path/to/wrk`
+4. enable bundled build explicitly at configure time
+
+Optional bundled build switch:
+
+```bash
+-DBSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON
+```
+
+If enabled, `wrk` is built under the build directory only.
 
 ## Build
 
-Build the benchmark binary explicitly:
+Build the benchmark binary:
 
 ```bash
 cmake -S . -B build-bench \
@@ -51,46 +70,54 @@ List scenarios:
 ./build-bench/benchmarks/bsrvcore_http_benchmark --list-scenarios
 ```
 
-Current scenarios:
+Scenario selectors:
 
-- `http_get_static`: `GET /ping`, small text body, baseline request path
-- `http_get_route_param`: `GET /users/{id}`, path parameter extraction cost
-- `http_get_global_aspect`: static GET + one global pre/post aspect pair
-- `http_post_echo_1k`: `POST /echo`, `1 KiB` echo body
-- `http_post_echo_64k`: `POST /echo`, `64 KiB` echo body
-- `http_session_counter`: cookie + session hot path with a per-session counter
+- `--scenario all`: all benchmark scenarios
+- `--scenario io`: IO-focused subset
+- `--scenario <name>`: one named scenario
+
+Current IO-focused subset:
+
+- `http_get_static`
+- `http_post_echo_1k`
+- `http_post_echo_64k`
 
 ## Pressure Levels
 
-The benchmark resolves four pressure presets from the current machine's logical CPU count:
+Built-in pressure presets:
 
 - `light`: `server_threads=1`, `client_concurrency=1`
-- `balanced`: `server_threads=max(1, ceil(cpu/2))`, `client_concurrency=max(4, server_threads*4)`
-- `saturated`: `server_threads=max(1, cpu)`, `client_concurrency=max(16, server_threads*8)`
-- `overload`: `server_threads=max(1, cpu)`, `client_concurrency=max(32, server_threads*16)`
+- `balanced`: `server_threads=max(1, ceil(cpu/2))`,
+  `client_concurrency=max(4, server_threads*4)`
+- `saturated`: `server_threads=max(1, cpu)`,
+  `client_concurrency=max(16, server_threads*8)`
+- `overload`: `server_threads=max(1, cpu)`,
+  `client_concurrency=max(32, server_threads*16)`
 
-In this benchmark implementation, `server_threads` is applied to both:
+Custom override:
 
-- `HttpServerExecutorOptions::core_thread_num/max_thread_num`
-- `HttpServer::Start(thread_count)`
+- `--server-threads <n>`
+- `--client-concurrency <n>`
 
-That keeps one public CLI knob even though the current `HttpServer` API splits worker and I/O configuration.
+When either override is passed, the sweep collapses to one custom pressure
+cell.
 
-## Profiles
+## Multi-Process Load Knobs
 
-- `quick`: `light + saturated`, `warmup=1000ms`, `duration=3000ms`, `repetitions=2`, `cooldown=500ms`
-- `full`: `light + balanced + saturated + overload`, `warmup=2000ms`, `duration=8000ms`, `repetitions=5`, `cooldown=1000ms`
+- `--client-processes <n>`: number of `wrk` processes per phase
+- `--wrk-threads-per-process <n>`: `wrk` threads used by each process
+- `--wrk-bin <path>`: explicit `wrk` path
 
 Examples:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark --profile quick
-./build-bench/benchmarks/bsrvcore_http_benchmark --profile full
-./build-bench/benchmarks/bsrvcore_http_benchmark --scenario http_post_echo_64k --pressure saturated
-./build-bench/benchmarks/bsrvcore_http_benchmark --scenario all --pressure all --warmup-ms 1000 --duration-ms 3000 --repetitions 2 --cooldown-ms 500
+./build-bench/benchmarks/bsrvcore_http_benchmark \
+  --scenario io \
+  --pressure saturated \
+  --client-processes 4 \
+  --wrk-threads-per-process 2 \
+  --wrk-bin /usr/bin/wrk
 ```
-
-If you pass `--server-threads` or `--client-concurrency`, the preset sweep collapses into one custom cell.
 
 ## Output
 
@@ -98,74 +125,58 @@ Optional JSON output:
 
 ```bash
 ./build-bench/benchmarks/bsrvcore_http_benchmark \
-  --profile quick \
+  --scenario io \
+  --pressure saturated \
   --output-json ./benchmark.json
 ```
 
 JSON includes:
 
-- environment info: timestamp, OS, compiler, build type, logical CPU count
-- run config: scenario/profile/pressure and timing settings
+- environment info
+- run config (including `wrk` path and multi-process knobs)
 - per-run metrics
-- per-cell aggregates
-- stability label: `stable` or `unstable`
+- per-cell aggregate metrics
 
 ## Metrics
 
-Each repetition records:
+Per repetition, the benchmark records:
 
+- `attempt_count`
 - `success_count`
 - `error_count`
-- `bytes_sent`
-- `bytes_received`
+- `non_2xx_3xx_count`
+- `socket_connect_error_count`
+- `socket_read_error_count`
+- `socket_write_error_count`
+- `socket_timeout_error_count`
+- `loadgen_failure_count`
+- `attempt_rps`
 - `rps`
+- `failure_ratio`
 - `mib_per_sec`
-- latency percentiles in microseconds: `p50`, `p95`, `p99`, `max`
+- latency in microseconds: `p50`, `p95`, `p99`, `max`
 
-`mib_per_sec` is based on total wire bytes (`bytes_sent + bytes_received`) divided by measured time.
+Failure metrics are part of the benchmark result by design. They are not
+retried away.
 
-Headline values use the **median** across repetitions. JSON also includes:
+## Stability Rule
 
-- `mean`
-- `min`
-- `max`
-- `stdev`
-- `cv`
-
-Stability rule:
+A cell is `stable` only when all are true:
 
 - `rps_cv <= 10%`
 - `p95_cv <= 15%`
+- `failure_ratio.max <= 5%`
+- `loadgen_failure_count.max == 0`
 
-If both hold, the cell is marked `stable`; otherwise `unstable`.
+Otherwise it is `unstable`.
 
 ## Reproducibility
 
 For comparable numbers:
 
 - use `Release`
-- avoid background CPU and network load
+- keep the same scenario and pressure cell
+- avoid background CPU/network pressure
 - do not run multiple benchmark sweeps at the same time
-- keep the same compiler and dependency set
-- compare the same scenario and pressure cell, not only the headline profile
 
-`BSRVCORE_BENCHMARK_TRACE=1` enables extra lifecycle tracing for debugging stuck or flaky runs.
-
-## Limits
-
-This suite is intentionally narrow:
-
-- it benchmarks only this project
-- it does **not** compare against other frameworks
-- it uses in-process loopback traffic on one machine
-- it does not cover TLS handshake cost, SSE, `bsrvrun`, or connection-storm behavior
-
-So the numbers are useful as a **project-local baseline**, not as a direct prediction of production internet performance.
-
-## Snapshot
-
-The repository snapshot for the current machine lives under:
-
-- `docs/benchmark-results/`
-
-It contains the raw JSON and one summarized Markdown report.
+Set `BSRVCORE_BENCHMARK_TRACE=1` to print lifecycle tracing for debugging.

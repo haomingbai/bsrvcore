@@ -3,9 +3,12 @@
 #include <sys/utsname.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <filesystem>
 #include <iomanip>
 #include <limits>
 #include <numeric>
@@ -13,6 +16,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <vector>
 
@@ -26,6 +30,10 @@
 
 #ifndef BSRVCORE_BENCHMARK_BUILD_TYPE
 #define BSRVCORE_BENCHMARK_BUILD_TYPE "unknown"
+#endif
+
+#ifndef BSRVCORE_BENCHMARK_WRK_DEFAULT
+#define BSRVCORE_BENCHMARK_WRK_DEFAULT ""
 #endif
 
 namespace bsrvcore::benchmark {
@@ -83,6 +91,41 @@ ProfileSettings ResolveProfile(ProfileKind profile) {
           8000,
           5,
           1000};
+}
+
+std::filesystem::path ResolveWrkBinary(const CliConfig& cli) {
+  auto is_usable = [](const std::filesystem::path& path) {
+    std::error_code ec;
+    return !path.empty() && std::filesystem::exists(path, ec) && !ec;
+  };
+
+  if (cli.wrk_bin_override.has_value()) {
+    return *cli.wrk_bin_override;
+  }
+
+  if (const char* env_path = std::getenv("BSRVCORE_BENCHMARK_WRK_BIN");
+      env_path != nullptr && env_path[0] != '\0') {
+    return std::filesystem::path(env_path);
+  }
+
+  if (!std::string_view(BSRVCORE_BENCHMARK_WRK_DEFAULT).empty()) {
+    const std::filesystem::path bundled(BSRVCORE_BENCHMARK_WRK_DEFAULT);
+    if (is_usable(bundled)) {
+      return bundled;
+    }
+  }
+
+  // Common distro paths first, then PATH fallback via bare "wrk".
+  for (const auto* candidate :
+       std::array<const char*, 3>{"/bin/wrk", "/usr/bin/wrk",
+                                  "/usr/local/bin/wrk"}) {
+    const std::filesystem::path path(candidate);
+    if (is_usable(path)) {
+      return path;
+    }
+  }
+
+  return std::filesystem::path("wrk");
 }
 
 std::string FormatUtcTimestamp(std::chrono::system_clock::time_point tp) {
@@ -145,9 +188,17 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
   run.duration_ms = cli.duration_ms_override.value_or(profile.duration_ms);
   run.repetitions = cli.repetitions_override.value_or(profile.repetitions);
   run.cooldown_ms = cli.cooldown_ms_override.value_or(profile.cooldown_ms);
+  run.client_processes = cli.client_processes_override.value_or(4);
+  run.wrk_threads_per_process =
+      cli.wrk_threads_per_process_override.value_or(2);
+  run.wrk_bin = ResolveWrkBinary(cli);
 
   if (run.warmup_ms == 0 || run.duration_ms == 0 || run.repetitions == 0) {
     throw std::invalid_argument("warmup/duration/repetitions must be positive");
+  }
+  if (run.client_processes == 0 || run.wrk_threads_per_process == 0) {
+    throw std::invalid_argument(
+        "client-processes and wrk-threads-per-process must be positive");
   }
 
   std::vector<PressureKind> pressure_kinds;
@@ -268,42 +319,6 @@ std::string Trim(std::string value) {
   return value;
 }
 
-std::string BuildCookieHeader(
-    const std::map<std::string, std::string>& cookies) {
-  std::ostringstream out;
-  bool first = true;
-  for (const auto& [name, value] : cookies) {
-    if (!first) {
-      out << "; ";
-    }
-    out << name << "=" << value;
-    first = false;
-  }
-  return out.str();
-}
-
-void SyncCookieJar(const boost::beast::http::fields& headers,
-                   std::map<std::string, std::string>& cookie_jar) {
-  const auto range = headers.equal_range(boost::beast::http::field::set_cookie);
-  for (auto it = range.first; it != range.second; ++it) {
-    std::string value(it->value());
-    const auto semicolon = value.find(';');
-    if (semicolon != std::string::npos) {
-      value.resize(semicolon);
-    }
-    const auto equals = value.find('=');
-    if (equals == std::string::npos || equals == 0) {
-      continue;
-    }
-
-    std::string name = Trim(value.substr(0, equals));
-    std::string cookie_value = Trim(value.substr(equals + 1));
-    if (!name.empty()) {
-      cookie_jar[name] = cookie_value;
-    }
-  }
-}
-
 double PercentileFromSorted(const std::vector<std::uint32_t>& sorted,
                             double fraction) {
   if (sorted.empty()) {
@@ -374,22 +389,40 @@ ScalarSummary SummarizeScalar(const std::vector<double>& values) {
 
 AggregateMetrics AggregateRuns(const std::vector<RepetitionMetrics>& runs) {
   AggregateMetrics aggregate;
+  std::vector<double> attempt_counts;
   std::vector<double> success_counts;
   std::vector<double> error_counts;
+  std::vector<double> non_2xx_3xx_counts;
+  std::vector<double> socket_connect_error_counts;
+  std::vector<double> socket_read_error_counts;
+  std::vector<double> socket_write_error_counts;
+  std::vector<double> socket_timeout_error_counts;
+  std::vector<double> loadgen_failure_counts;
   std::vector<double> bytes_sent;
   std::vector<double> bytes_received;
+  std::vector<double> attempt_rps;
   std::vector<double> rps;
+  std::vector<double> failure_ratio;
   std::vector<double> mibps;
   std::vector<double> p50;
   std::vector<double> p95;
   std::vector<double> p99;
   std::vector<double> max;
 
+  attempt_counts.reserve(runs.size());
   success_counts.reserve(runs.size());
   error_counts.reserve(runs.size());
+  non_2xx_3xx_counts.reserve(runs.size());
+  socket_connect_error_counts.reserve(runs.size());
+  socket_read_error_counts.reserve(runs.size());
+  socket_write_error_counts.reserve(runs.size());
+  socket_timeout_error_counts.reserve(runs.size());
+  loadgen_failure_counts.reserve(runs.size());
   bytes_sent.reserve(runs.size());
   bytes_received.reserve(runs.size());
+  attempt_rps.reserve(runs.size());
   rps.reserve(runs.size());
+  failure_ratio.reserve(runs.size());
   mibps.reserve(runs.size());
   p50.reserve(runs.size());
   p95.reserve(runs.size());
@@ -397,11 +430,25 @@ AggregateMetrics AggregateRuns(const std::vector<RepetitionMetrics>& runs) {
   max.reserve(runs.size());
 
   for (const auto& run : runs) {
+    attempt_counts.push_back(static_cast<double>(run.attempt_count));
     success_counts.push_back(static_cast<double>(run.success_count));
     error_counts.push_back(static_cast<double>(run.error_count));
+    non_2xx_3xx_counts.push_back(static_cast<double>(run.non_2xx_3xx_count));
+    socket_connect_error_counts.push_back(
+        static_cast<double>(run.socket_connect_error_count));
+    socket_read_error_counts.push_back(
+        static_cast<double>(run.socket_read_error_count));
+    socket_write_error_counts.push_back(
+        static_cast<double>(run.socket_write_error_count));
+    socket_timeout_error_counts.push_back(
+        static_cast<double>(run.socket_timeout_error_count));
+    loadgen_failure_counts.push_back(
+        static_cast<double>(run.loadgen_failure_count));
     bytes_sent.push_back(static_cast<double>(run.bytes_sent));
     bytes_received.push_back(static_cast<double>(run.bytes_received));
+    attempt_rps.push_back(run.attempt_requests_per_second);
     rps.push_back(run.requests_per_second);
+    failure_ratio.push_back(run.failure_ratio);
     mibps.push_back(run.mib_per_second);
     p50.push_back(run.latency_p50_us);
     p95.push_back(run.latency_p95_us);
@@ -409,18 +456,32 @@ AggregateMetrics AggregateRuns(const std::vector<RepetitionMetrics>& runs) {
     max.push_back(run.latency_max_us);
   }
 
+  aggregate.attempt_count = SummarizeScalar(attempt_counts);
   aggregate.success_count = SummarizeScalar(success_counts);
   aggregate.error_count = SummarizeScalar(error_counts);
+  aggregate.non_2xx_3xx_count = SummarizeScalar(non_2xx_3xx_counts);
+  aggregate.socket_connect_error_count =
+      SummarizeScalar(socket_connect_error_counts);
+  aggregate.socket_read_error_count = SummarizeScalar(socket_read_error_counts);
+  aggregate.socket_write_error_count =
+      SummarizeScalar(socket_write_error_counts);
+  aggregate.socket_timeout_error_count =
+      SummarizeScalar(socket_timeout_error_counts);
+  aggregate.loadgen_failure_count = SummarizeScalar(loadgen_failure_counts);
   aggregate.bytes_sent = SummarizeScalar(bytes_sent);
   aggregate.bytes_received = SummarizeScalar(bytes_received);
+  aggregate.attempt_requests_per_second = SummarizeScalar(attempt_rps);
   aggregate.requests_per_second = SummarizeScalar(rps);
+  aggregate.failure_ratio = SummarizeScalar(failure_ratio);
   aggregate.mib_per_second = SummarizeScalar(mibps);
   aggregate.latency_p50_us = SummarizeScalar(p50);
   aggregate.latency_p95_us = SummarizeScalar(p95);
   aggregate.latency_p99_us = SummarizeScalar(p99);
   aggregate.latency_max_us = SummarizeScalar(max);
   aggregate.stability = aggregate.requests_per_second.cv <= 0.10 &&
-                                aggregate.latency_p95_us.cv <= 0.15
+                                aggregate.latency_p95_us.cv <= 0.15 &&
+                                aggregate.failure_ratio.max <= 0.05 &&
+                                aggregate.loadgen_failure_count.max <= 0.0
                             ? "stable"
                             : "unstable";
   return aggregate;

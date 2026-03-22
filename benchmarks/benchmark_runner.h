@@ -9,9 +9,7 @@ namespace bsrvcore::benchmark {
 
 RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
                                     const PressureSettings& pressure,
-                                    std::size_t warmup_ms,
-                                    std::size_t duration_ms,
-                                    std::size_t cooldown_ms,
+                                    const RunSettings& run_settings,
                                     std::size_t repetition);
 
 std::vector<CellResult> RunBenchmarks(

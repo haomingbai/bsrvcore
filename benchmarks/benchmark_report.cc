@@ -28,12 +28,24 @@ std::string JsonRepetition(const RepetitionMetrics& run) {
   std::ostringstream out;
   out << "{"
       << "\"repetition\":" << run.repetition << ','
+      << "\"attempt_count\":" << run.attempt_count << ','
       << "\"success_count\":" << run.success_count << ','
       << "\"error_count\":" << run.error_count << ','
+      << "\"non_2xx_3xx_count\":" << run.non_2xx_3xx_count << ','
+      << "\"socket_connect_error_count\":" << run.socket_connect_error_count
+      << ','
+      << "\"socket_read_error_count\":" << run.socket_read_error_count << ','
+      << "\"socket_write_error_count\":" << run.socket_write_error_count << ','
+      << "\"socket_timeout_error_count\":" << run.socket_timeout_error_count
+      << ','
+      << "\"loadgen_failure_count\":" << run.loadgen_failure_count << ','
       << "\"bytes_sent\":" << run.bytes_sent << ','
       << "\"bytes_received\":" << run.bytes_received << ','
       << "\"duration_seconds\":" << FormatDouble(run.duration_seconds) << ','
+      << "\"attempt_rps\":" << FormatDouble(run.attempt_requests_per_second)
+      << ','
       << "\"rps\":" << FormatDouble(run.requests_per_second) << ','
+      << "\"failure_ratio\":" << FormatDouble(run.failure_ratio) << ','
       << "\"mib_per_sec\":" << FormatDouble(run.mib_per_second) << ','
       << "\"latency_us\":{"
       << "\"p50\":" << FormatDouble(run.latency_p50_us) << ','
@@ -63,15 +75,33 @@ std::string JsonCell(const CellResult& cell) {
   }
   out << "],"
       << "\"aggregate\":{"
+      << "\"attempt_count\":" << JsonScalarSummary(cell.aggregate.attempt_count)
+      << ','
       << "\"success_count\":" << JsonScalarSummary(cell.aggregate.success_count)
       << ','
       << "\"error_count\":" << JsonScalarSummary(cell.aggregate.error_count)
       << ','
+      << "\"non_2xx_3xx_count\":"
+      << JsonScalarSummary(cell.aggregate.non_2xx_3xx_count) << ','
+      << "\"socket_connect_error_count\":"
+      << JsonScalarSummary(cell.aggregate.socket_connect_error_count) << ','
+      << "\"socket_read_error_count\":"
+      << JsonScalarSummary(cell.aggregate.socket_read_error_count) << ','
+      << "\"socket_write_error_count\":"
+      << JsonScalarSummary(cell.aggregate.socket_write_error_count) << ','
+      << "\"socket_timeout_error_count\":"
+      << JsonScalarSummary(cell.aggregate.socket_timeout_error_count) << ','
+      << "\"loadgen_failure_count\":"
+      << JsonScalarSummary(cell.aggregate.loadgen_failure_count) << ','
       << "\"bytes_sent\":" << JsonScalarSummary(cell.aggregate.bytes_sent)
       << ',' << "\"bytes_received\":"
       << JsonScalarSummary(cell.aggregate.bytes_received) << ','
+      << "\"attempt_rps\":"
+      << JsonScalarSummary(cell.aggregate.attempt_requests_per_second) << ','
       << "\"rps\":" << JsonScalarSummary(cell.aggregate.requests_per_second)
       << ','
+      << "\"failure_ratio\":"
+      << JsonScalarSummary(cell.aggregate.failure_ratio) << ','
       << "\"mib_per_sec\":" << JsonScalarSummary(cell.aggregate.mib_per_second)
       << ',' << "\"latency_us\":{"
       << "\"p50\":" << JsonScalarSummary(cell.aggregate.latency_p50_us) << ','
@@ -96,15 +126,23 @@ void PrintCellSummary(const CellResult& cell) {
   std::cout << "[" << cell.scenario_name << "/" << cell.pressure_name << "] "
             << "server_threads=" << cell.server_threads
             << " client_concurrency=" << cell.client_concurrency
+            << " median_attempt_rps="
+            << FormatDouble(cell.aggregate.attempt_requests_per_second.median,
+                            2)
             << " median_rps="
             << FormatDouble(cell.aggregate.requests_per_second.median, 2)
+            << " median_failure="
+            << FormatDouble(cell.aggregate.failure_ratio.median * 100.0, 2)
+            << "%"
             << " median_mibps="
             << FormatDouble(cell.aggregate.mib_per_second.median, 2)
             << " median_p95_us="
             << FormatDouble(cell.aggregate.latency_p95_us.median, 2)
             << " cv(rps)="
             << FormatDouble(cell.aggregate.requests_per_second.cv * 100.0, 2)
-            << "% stability=" << cell.aggregate.stability << "\n";
+            << "% loadgen_failures(max)="
+            << FormatDouble(cell.aggregate.loadgen_failure_count.max, 0)
+            << " stability=" << cell.aggregate.stability << "\n";
 }
 
 std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
@@ -127,7 +165,12 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
       << "\"warmup_ms\":" << run_settings.warmup_ms << ','
       << "\"duration_ms\":" << run_settings.duration_ms << ','
       << "\"repetitions\":" << run_settings.repetitions << ','
-      << "\"cooldown_ms\":" << run_settings.cooldown_ms << "},"
+      << "\"cooldown_ms\":" << run_settings.cooldown_ms << ','
+      << "\"client_processes\":" << run_settings.client_processes << ','
+      << "\"wrk_threads_per_process\":" << run_settings.wrk_threads_per_process
+      << ','
+      << "\"wrk_bin\":\"" << EscapeJson(run_settings.wrk_bin.string())
+      << "\"},"
       << "\"cells\":[";
   for (std::size_t i = 0; i < cells.size(); ++i) {
     if (i != 0) {

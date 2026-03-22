@@ -22,7 +22,8 @@ Read in this order:
 10. [Examples](examples.md) — Goal: run the sample programs.
 11. [Testing](testing.md) — Goal: build and run tests locally and in CI.
 12. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
-13. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
+13. [Linux I/O model choice](linux-io-model-choice.md) — Goal: understand why `epoll` stays the default over `io_uring` for broad Linux compatibility.
+14. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
 
 ## Public umbrella header
 
