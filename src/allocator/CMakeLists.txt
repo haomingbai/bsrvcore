@@ -1,8 +1,8 @@
 include(FetchContent)
 
 set(MI_BUILD_SHARED OFF CACHE BOOL "" FORCE)
-set(MI_BUILD_STATIC ON CACHE BOOL "" FORCE)
-set(MI_BUILD_OBJECT OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_STATIC OFF CACHE BOOL "" FORCE)
+set(MI_BUILD_OBJECT ON CACHE BOOL "" FORCE)
 set(MI_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(MI_BUILD_FUZZ OFF CACHE BOOL "" FORCE)
 set(MI_INSTALL_TOPLEVEL OFF CACHE BOOL "" FORCE)
@@ -14,28 +14,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(mimalloc)
 
-add_library(bsrvcore_mimalloc_allocator_backend INTERFACE)
-if(TARGET mimalloc-static)
-  target_link_libraries(
-    bsrvcore_mimalloc_allocator_backend INTERFACE mimalloc-static)
-  set_property(TARGET mimalloc-static PROPERTY POSITION_INDEPENDENT_CODE ON)
+if(TARGET mimalloc-obj)
+  set_property(TARGET mimalloc-obj PROPERTY POSITION_INDEPENDENT_CODE ON)
   if(NOT MSVC)
     target_compile_options(
-      mimalloc-static PRIVATE -Wno-error -Wno-pedantic -Wno-error=pedantic)
+      mimalloc-obj PRIVATE -Wno-error -Wno-pedantic -Wno-error=pedantic)
   endif()
-elseif(TARGET mimalloc)
-  target_link_libraries(
-    bsrvcore_mimalloc_allocator_backend INTERFACE mimalloc)
-  set_property(TARGET mimalloc PROPERTY POSITION_INDEPENDENT_CODE ON)
-  if(NOT MSVC)
-    target_compile_options(
-      mimalloc PRIVATE -Wno-error -Wno-pedantic -Wno-error=pedantic)
-  endif()
-else()
-  message(FATAL_ERROR "Unable to find a mimalloc target after FetchContent_MakeAvailable.")
-endif()
 
-set(ALLOCATOR_DEP_LIBS bsrvcore_mimalloc_allocator_backend PARENT_SCOPE)
+  # Embed mimalloc object code into bsrvcore so exported static builds do not
+  # depend on internal/unexported build targets.
+  set(ALLOCATOR_OBJECT_SOURCES $<TARGET_OBJECTS:mimalloc-obj> PARENT_SCOPE)
+  set(ALLOCATOR_INCLUDE_DIRS ${mimalloc_SOURCE_DIR}/include PARENT_SCOPE)
+else()
+  message(FATAL_ERROR "Unable to find target 'mimalloc-obj' after FetchContent_MakeAvailable.")
+endif()
 
 set(ALLOCATOR_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/allocator.cc

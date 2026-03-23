@@ -33,6 +33,32 @@ cmake --build build --parallel
 sudo cmake --install build
 ```
 
+Library type is controlled by `BUILD_SHARED_LIBS`:
+
+- Shared library (default):
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON
+```
+
+- Static library:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF
+```
+
+As a subproject (`add_subdirectory`), set `BUILD_SHARED_LIBS` in the parent project
+before adding `bsrvcore`:
+
+```cmake
+# Parent project's CMakeLists.txt
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libs across subprojects" FORCE)
+add_subdirectory(external/bsrvcore)
+
+add_executable(app main.cc)
+target_link_libraries(app PRIVATE bsrvcore::bsrvcore)
+```
+
 Compile a standalone program against installed `bsrvcore`:
 
 ```bash

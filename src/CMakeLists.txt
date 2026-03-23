@@ -73,6 +73,8 @@ target_compile_definitions(bthpool_headers INTERFACE
   USE_BOOST_ASIO_EXECUTOR
 )
 
+set(BTHPOOL_INCLUDE_DIR "${bthpool_SOURCE_DIR}/include")
+
 # Add the subdirectories in this project.
 option(BSRVCORE_BUILD_TOOLS "Build bsrvcore runtime tools. Default: ON" ON)
 
@@ -94,7 +96,12 @@ set(BSRVCORE_SOURCES
 )
 
 # Create library (static or shared follows BUILD_SHARED_LIBS)
-add_library(bsrvcore SHARED ${BSRVCORE_SOURCES})
+add_library(bsrvcore ${BSRVCORE_SOURCES})
+add_library(bsrvcore::bsrvcore ALIAS bsrvcore)
+
+if(DEFINED ALLOCATOR_OBJECT_SOURCES)
+  target_sources(bsrvcore PRIVATE ${ALLOCATOR_OBJECT_SOURCES})
+endif()
 
 # Ensure the library is built with C++23 (required by our internal bthpool usage).
 target_compile_features(bsrvcore PUBLIC cxx_std_23)
@@ -105,12 +112,20 @@ target_link_libraries(bsrvcore
     PRIVATE
         Boost::system
         Boost::url
-        bthpool_headers
-        ${ALLOCATOR_DEP_LIBS}
     PUBLIC
         Boost::headers
         OpenSSL::SSL
         OpenSSL::Crypto
+)
+
+# Keep bthpool as a pure internal build dependency; this avoids exporting
+# an internal-only target when bsrvcore is built as a static library.
+target_include_directories(bsrvcore SYSTEM PRIVATE
+  ${BTHPOOL_INCLUDE_DIR}
+)
+target_compile_definitions(bsrvcore PRIVATE
+  BTHPOOL_HAS_BOOST_ASIO=1
+  USE_BOOST_ASIO_EXECUTOR
 )
 
 # Public include directories for build and install
@@ -120,6 +135,7 @@ target_include_directories(bsrvcore
     $<INSTALL_INTERFACE:include>                                # public headers for install
   PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>      # private headers for build
+    ${ALLOCATOR_INCLUDE_DIRS}
 )
 
 # Set version and export name

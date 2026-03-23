@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.25)
 project(bsrvcore VERSION 0.6.0 LANGUAGES CXX)
 
+# Keep historical default (shared) while still allowing callers/subprojects
+# to fully control the library type via BUILD_SHARED_LIBS.
+if(NOT DEFINED BUILD_SHARED_LIBS)
+  option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+endif()
+
 # Use C++23
 if(NOT DEFINED CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_STANDARD 23)
@@ -129,7 +135,12 @@ set(CPACK_RPM_COMPONENT_INSTALL ON)   # RPM: produce multiple .rpm (e.g. package
 
 # Which components we define (order is presentation order)
 # Note: install(... COMPONENT ...) should use these names ("runtime", "devel")
-set(CPACK_COMPONENTS_ALL runtime devel)
+if(BUILD_SHARED_LIBS)
+  set(CPACK_COMPONENTS_ALL runtime devel)
+else()
+  # Static-only builds don't install runtime shared objects.
+  set(CPACK_COMPONENTS_ALL devel)
+endif()
 
 # Human-friendly names & descriptions shown by some installers
 set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime libraries")
@@ -148,12 +159,17 @@ set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
 
 # Ensure devel package metadata pulls required development dependencies.
-# - Runtime package is required for SONAME files.
 # - Public headers expose Boost.Asio/Beast and OpenSSL types.
 # - Linking against bsrvcore also needs Boost.System and Boost.URL dev files.
-set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
-  "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
-)
+if(BUILD_SHARED_LIBS)
+  set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
+    "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
+  )
+else()
+  set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
+    "libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
+  )
+endif()
 
 # RPM naming: typical rpm convention uses "-devel"
 set(CPACK_RPM_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
@@ -161,7 +177,11 @@ set(CPACK_RPM_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
 
 # Ensure devel RPM declares toolchain-level development dependencies.
 # boost-devel provides the public Boost.Asio/Beast headers and component libs.
-set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}, boost-devel, openssl-devel")
+if(BUILD_SHARED_LIBS)
+  set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}, boost-devel, openssl-devel")
+else()
+  set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "boost-devel, openssl-devel")
+endif()
 
 # Refresh linker cache on install/uninstall so newly installed libbsrvcore.so.N
 # can be found immediately by runtime loaders.
