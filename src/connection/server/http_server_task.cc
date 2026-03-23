@@ -27,7 +27,6 @@
 #include <cstddef>
 #include <functional>
 #include <memory>
-#include <memory_resource>
 #include <optional>
 #include <ranges>
 #include <string>
@@ -46,23 +45,6 @@ namespace bsrvcore {
 
 namespace task_internal {
 
-class PmrMemoryResource final : public std::pmr::memory_resource {
- private:
-  void* do_allocate(std::size_t bytes, std::size_t alignment) override {
-    return bsrvcore::Allocate(bytes, alignment);
-  }
-
-  void do_deallocate(void* p, std::size_t bytes,
-                     std::size_t alignment) override {
-    bsrvcore::Deallocate(p, bytes, alignment);
-  }
-
-  bool do_is_equal(
-      const std::pmr::memory_resource& other) const noexcept override {
-    return this == &other;
-  }
-};
-
 struct HttpTaskSharedState {
   HttpTaskSharedState(HttpRequest in_req, HttpRouteResult in_route_result,
                       std::shared_ptr<HttpServerConnection> in_conn,
@@ -80,8 +62,7 @@ struct HttpTaskSharedState {
         post_completed(false),
         lifecycle_managed(false),
         response_committed(false),
-        handler_alloc(std::move(in_handler_alloc)),
-        pmr() {}
+        handler_alloc(std::move(in_handler_alloc)) {}
 
   HttpRequest req;
   HttpResponse resp;
@@ -103,7 +84,6 @@ struct HttpTaskSharedState {
   // Per-request allocator + executor, derived from the owning
   // connection/server.
   bsrvcore::internal::HandlerAllocator handler_alloc;
-  PmrMemoryResource pmr;
 };
 
 }  // namespace task_internal
@@ -550,13 +530,6 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
   state_->srv->SetTimer(
       timeout, boost::asio::bind_allocator(state_->handler_alloc,
                                            [fn = std::move(fn)]() { fn(); }));
-}
-
-std::pmr::memory_resource* HttpTaskBase::GetMemoryResource() const noexcept {
-  if (!state_) {
-    return std::pmr::get_default_resource();
-  }
-  return &state_->pmr;
 }
 
 bool HttpTaskBase::IsAvailable() noexcept {

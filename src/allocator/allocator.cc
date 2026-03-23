@@ -25,26 +25,6 @@ constexpr bool IsPowerOfTwo(std::size_t value) noexcept {
 
 }  // namespace
 
-void* AllocatorMemoryResource::do_allocate(std::size_t bytes,
-                                           std::size_t alignment) {
-  return Allocate(bytes, alignment);
-}
-
-void AllocatorMemoryResource::do_deallocate(void* p, std::size_t bytes,
-                                            std::size_t alignment) {
-  Deallocate(p, bytes, alignment);
-}
-
-bool AllocatorMemoryResource::do_is_equal(
-    const std::pmr::memory_resource& other) const noexcept {
-  return this == &other;
-}
-
-std::pmr::memory_resource* GetDefaultMemoryResource() noexcept {
-  static AllocatorMemoryResource resource{};
-  return &resource;
-}
-
 void* Allocate(std::size_t size, std::size_t alignment) {
   if (size == 0) {
     return nullptr;

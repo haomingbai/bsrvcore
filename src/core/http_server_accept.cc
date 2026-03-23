@@ -43,16 +43,15 @@ using namespace bsrvcore;
 
 namespace {
 
-bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
+bthpool::BThreadPoolParam ToBThreadPoolParam(
     const HttpServerExecutorOptions& options) {
-  bthpool::detail::BThreadPoolParam param;
+  bthpool::BThreadPoolParam param;
   param.core_thread_num = options.core_thread_num;
   param.max_thread_num = options.max_thread_num;
   param.fast_queue_capacity = options.fast_queue_capacity;
   param.thread_clean_interval = options.thread_clean_interval;
   param.task_scan_interval = options.task_scan_interval;
   param.suspend_time = options.suspend_time;
-  param.memory_resource = bsrvcore::GetDefaultMemoryResource();
   return param;
 }
 
@@ -114,8 +113,8 @@ void HttpServer::Stop() {
     it.join();
   }
 
-  thread_pool_ = bsrvcore::AllocateUnique<bthpool::detail::BThreadPool>(
-      ToBThreadPoolParam(executor_options_));
+  thread_pool_ =
+      bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(ToBThreadPoolParam(executor_options_), Allocator<std::byte>{});
   io_threads_.clear();
   acceptors_.clear();
   for (auto ep : eps) {

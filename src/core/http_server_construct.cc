@@ -50,7 +50,6 @@ bthpool::detail::BThreadPoolParam ToBThreadPoolParam(
   param.thread_clean_interval = options.thread_clean_interval;
   param.task_scan_interval = options.task_scan_interval;
   param.suspend_time = options.suspend_time;
-  param.memory_resource = bsrvcore::GetDefaultMemoryResource();
   return param;
 }
 
@@ -72,8 +71,9 @@ HttpServer::HttpServer(std::size_t thread_num)
 HttpServer::HttpServer(HttpServerExecutorOptions executor_options)
     : context_(bsrvcore::AllocateShared<Context>()),
       logger_(bsrvcore::AllocateShared<internal::EmptyLogger>()),
-      thread_pool_(bsrvcore::AllocateUnique<bthpool::detail::BThreadPool>(
-          ToBThreadPoolParam(executor_options))),
+      thread_pool_(
+          bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(
+              ToBThreadPoolParam(executor_options))),
       route_table_(bsrvcore::AllocateUnique<HttpRouteTable>()),
       sessions_(
           bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),

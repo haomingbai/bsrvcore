@@ -26,7 +26,6 @@
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
-#include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <cstring>
 #include <functional>
@@ -35,6 +34,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <bthpool/bthpool.hpp>
 
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_request_method.h"

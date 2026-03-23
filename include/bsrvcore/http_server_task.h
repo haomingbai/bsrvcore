@@ -32,12 +32,12 @@
 #include <functional>
 #include <future>
 #include <memory>
-#include <memory_resource>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator.h"
 #include "bsrvcore/http_route_result.h"
 #include "bsrvcore/logger.h"
 #include "bsrvcore/server_set_cookie.h"
@@ -205,10 +205,7 @@ class HttpTaskBase {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::allocate_shared<std::packaged_task<RT()>>(
-        std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
-            GetMemoryResource()),
-        binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -256,10 +253,7 @@ class HttpTaskBase {
     using RT = typename std::invoke_result_t<Fn, Args...>;
 
     auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = std::allocate_shared<std::packaged_task<RT()>>(
-        std::pmr::polymorphic_allocator<std::packaged_task<RT()>>(
-            GetMemoryResource()),
-        binded_fn);
+    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
     auto future = task->get_future();
     std::function<void()> to_post = [task]() { (*task)(); };
 
@@ -350,11 +344,6 @@ class HttpTaskBase {
    */
   std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState()
       const noexcept;
-
-  // Allocator hook for template helpers in this header.
-  //
-  // Implemented in the .cc file and backed by the per-connection allocator.
-  std::pmr::memory_resource* GetMemoryResource() const noexcept;
 
  private:
   void GenerateCookiePairs();

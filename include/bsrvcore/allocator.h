@@ -17,7 +17,6 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <memory_resource>
 #include <new>
 #include <type_traits>
 #include <utility>
@@ -39,26 +38,6 @@ namespace bsrvcore {
  */
 void Deallocate(void* ptr, std::size_t size = 0,
                 std::size_t alignment = alignof(std::max_align_t)) noexcept;
-
-/**
- * @brief PMR resource that routes allocations to Allocate/Deallocate.
- */
-class AllocatorMemoryResource final : public std::pmr::memory_resource {
- public:
-  AllocatorMemoryResource() = default;
-
- private:
-  void* do_allocate(std::size_t bytes, std::size_t alignment) override;
-  void do_deallocate(void* p, std::size_t bytes,
-                     std::size_t alignment) override;
-  bool do_is_equal(
-      const std::pmr::memory_resource& other) const noexcept override;
-};
-
-/**
- * @brief Get the library-default PMR resource backed by Allocate/Deallocate.
- */
-std::pmr::memory_resource* GetDefaultMemoryResource() noexcept;
 
 template <typename T>
 class Allocator {
