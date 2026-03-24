@@ -31,6 +31,8 @@ struct CliConfig {
   ProfileKind profile = ProfileKind::kQuick;
   std::optional<std::string> pressure_name;
   std::optional<std::size_t> server_threads_override;
+  std::optional<std::size_t> server_io_threads_override;
+  std::optional<std::size_t> server_worker_threads_override;
   std::optional<std::size_t> client_concurrency_override;
   std::optional<std::size_t> client_processes_override;
   std::optional<std::size_t> wrk_threads_per_process_override;
@@ -44,6 +46,8 @@ struct CliConfig {
   std::optional<std::string> internal_scenario_name;
   std::optional<std::string> internal_pressure_name;
   std::optional<std::size_t> internal_server_threads;
+  std::optional<std::size_t> internal_server_io_threads;
+  std::optional<std::size_t> internal_server_worker_threads;
   std::optional<std::size_t> internal_client_concurrency;
   std::optional<std::size_t> internal_warmup_ms;
   std::optional<std::size_t> internal_duration_ms;
@@ -66,7 +70,8 @@ struct ProfileSettings {
 struct PressureSettings {
   PressureKind kind = PressureKind::kCustom;
   std::string name;
-  std::size_t server_threads = 1;
+  std::size_t server_io_threads = 1;
+  std::size_t server_worker_threads = 1;
   std::size_t client_concurrency = 1;
 };
 
@@ -174,7 +179,8 @@ struct AggregateMetrics {
 struct CellResult {
   std::string scenario_name;
   std::string pressure_name;
-  std::size_t server_threads = 1;
+  std::size_t server_io_threads = 1;
+  std::size_t server_worker_threads = 1;
   std::size_t client_concurrency = 1;
   std::size_t warmup_ms = 0;
   std::size_t duration_ms = 0;

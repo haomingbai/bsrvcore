@@ -107,10 +107,24 @@ class HttpServerConnection
   }
 
   /**
-   * @brief Post a function to be executed on the connection's strand
-   * @param fn Function to execute asynchronously
+   * @brief Post a function to the server worker pool.
+   * @param fn Function to execute asynchronously.
+   *
+   * @details
+   * This is intended for general/CPU work and follows HttpServer::Post
+   * semantics. For short I/O-path sequencing on io_context, use Dispatch.
    */
   void Post(std::function<void()> fn);
+
+  /**
+   * @brief Dispatch a function on the connection's strand.
+   *
+   * @details
+   * If called from the same strand context, the callback may run inline.
+   * Otherwise it is enqueued to the strand. This is useful for keeping
+   * short synchronous request lifecycle steps on the I/O path.
+   */
+  void Dispatch(std::function<void()> fn);
 
   /**
    * @brief Post a function with arguments and return a future for the result
@@ -153,9 +167,14 @@ class HttpServerConnection
   }
 
   /**
-   * @brief Set a timer to execute a function after timeout
-   * @param timeout Timeout in milliseconds
-   * @param fn Callback function to execute
+    * @brief Set a timer to execute a function after timeout.
+    * @param timeout Timeout in milliseconds.
+    * @param fn Callback function to execute.
+    *
+    * @details
+    * Follows HttpServer::SetTimer semantics across the full server chain:
+    * timer waiting is driven by io_context, callback execution is posted to
+    * the server worker pool.
    */
   void SetTimer(std::size_t timeout, std::function<void()> fn);
 

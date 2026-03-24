@@ -15,6 +15,7 @@
 #include "bsrvcore/internal/http_server_connection.h"
 
 #include <boost/asio/bind_allocator.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
@@ -36,11 +37,32 @@
 
 using bsrvcore::HttpServerConnection;
 
-void HttpServerConnection::Post(std::function<void()> fn) { srv_->Post(fn); }
+void HttpServerConnection::Post(std::function<void()> fn) {
+  if (!srv_) {
+    return;
+  }
+
+  srv_->Post(boost::asio::bind_allocator(
+      GetHandlerAllocator(), [fn = std::move(fn)]() { fn(); }));
+}
+
+void HttpServerConnection::Dispatch(std::function<void()> fn) {
+  boost::asio::dispatch(
+      strand_, boost::asio::bind_allocator(
+                   GetHandlerAllocator(), [fn = std::move(fn)]() { fn(); }));
+}
 
 void HttpServerConnection::SetTimer(std::size_t timeout,
                                     std::function<void()> callback) {
-  srv_->SetTimer(timeout, callback);
+  if (!srv_) {
+    return;
+  }
+
+  srv_->SetTimer(timeout, boost::asio::bind_allocator(
+                             GetHandlerAllocator(),
+                             [callback = std::move(callback)]() mutable {
+                               callback();
+                             }));
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {

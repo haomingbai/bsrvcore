@@ -86,26 +86,36 @@ Current IO-focused subset:
 
 Built-in pressure presets:
 
-- `light`: `server_threads=1`, `client_concurrency=1`
-- `balanced`: `server_threads=max(1, ceil(cpu/2))`,
-  `client_concurrency=max(4, server_threads*4)`
-- `saturated`: `server_threads=max(1, cpu)`,
-  `client_concurrency=max(16, server_threads*8)`
-- `overload`: `server_threads=max(1, cpu)`,
-  `client_concurrency=max(32, server_threads*16)`
+- `light`: `server_io_threads=1`, `server_worker_threads=1`,
+  `client_concurrency=1`
+- `balanced`: `server_io_threads=max(1, floor(cpu/4))`,
+  `server_worker_threads=max(1, floor(cpu/2))`,
+  `client_concurrency=max(4, server_worker_threads*4)`
+- `saturated`: `server_io_threads=max(1, floor(cpu/2))`,
+  `server_worker_threads=max(1, cpu)`,
+  `client_concurrency=max(16, server_worker_threads*8)`
+- `overload`: `server_io_threads=max(1, floor(cpu/2))`,
+  `server_worker_threads=max(2, cpu*2)`,
+  `client_concurrency=max(32, server_worker_threads*8)`
 
 Custom override:
 
-- `--server-threads <n>`
+- `--server-io-threads <n>`
+- `--server-worker-threads <n>`
 - `--client-concurrency <n>`
+
+Compatibility note:
+
+- `--server-threads <n>` is still accepted and maps to
+  `server_io_threads=n` plus `server_worker_threads=n`.
 
 When either override is passed, the sweep collapses to one custom pressure
 cell.
 
 ## Multi-Process Load Knobs
 
-- `--client-processes <n>`: number of `wrk` processes per phase
-- `--wrk-threads-per-process <n>`: `wrk` threads used by each process
+- `--client-processes <n>`: number of `wrk` processes per phase (default: 2)
+- `--wrk-threads-per-process <n>`: `wrk` threads used by each process (default: 1)
 - `--wrk-bin <path>`: explicit `wrk` path
 
 Examples:

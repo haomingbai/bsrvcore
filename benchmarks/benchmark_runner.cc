@@ -116,10 +116,10 @@ struct StartedServer {
 
 bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
-    std::size_t server_threads) {
+    const bsrvcore::benchmark::PressureSettings& pressure) {
   bsrvcore::HttpServerExecutorOptions options;
-  options.core_thread_num = server_threads;
-  options.max_thread_num = server_threads;
+  options.core_thread_num = pressure.server_worker_threads;
+  options.max_thread_num = pressure.server_worker_threads;
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server->SetHeaderReadExpiry(5000)
@@ -134,14 +134,14 @@ bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
 
 StartedServer StartServerWithRetry(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
-    std::size_t server_threads) {
+    const bsrvcore::benchmark::PressureSettings& pressure) {
   std::string last_error = "unknown";
   for (std::size_t attempt = 0; attempt < kServerStartRetries; ++attempt) {
-    auto server = BuildServer(scenario, server_threads);
+    auto server = BuildServer(scenario, pressure);
     try {
       const auto port = FindFreePort();
       server->AddListen({asio::ip::make_address("127.0.0.1"), port});
-      if (!server->Start(server_threads)) {
+      if (!server->Start(pressure.server_io_threads)) {
         last_error = "HttpServer::Start returned false";
         server->Stop();
         continue;
@@ -671,7 +671,7 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
                                     const RunSettings& run_settings,
                                     std::size_t repetition) {
   Trace(std::string("start cell ") + scenario.name + "/" + pressure.name);
-  auto started_server = StartServerWithRetry(scenario, pressure.server_threads);
+  auto started_server = StartServerWithRetry(scenario, pressure);
   Trace(std::string("server started ") + scenario.name + "/" + pressure.name);
 
   WorkerState request_state;
@@ -737,7 +737,9 @@ std::vector<CellResult> RunBenchmarks(
         std::cout << "Running " << scenario->name << " under " << pressure.name
                   << " (rep " << (repetition + 1) << "/"
                   << run_settings.repetitions
-                  << ", server_threads=" << pressure.server_threads
+                  << ", server_io_threads=" << pressure.server_io_threads
+                  << ", server_worker_threads="
+                  << pressure.server_worker_threads
                   << ", client_concurrency=" << pressure.client_concurrency
                   << ", client_processes=" << run_settings.client_processes
                   << ", wrk_threads_per_process="
@@ -753,7 +755,8 @@ std::vector<CellResult> RunBenchmarks(
         auto [it, inserted] =
             cells_by_key.emplace(key, CellResult{scenario->name,
                                                  pressure.name,
-                                                 pressure.server_threads,
+                             pressure.server_io_threads,
+                             pressure.server_worker_threads,
                                                  pressure.client_concurrency,
                                                  run_settings.warmup_ms,
                                                  run_settings.duration_ms,

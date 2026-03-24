@@ -44,6 +44,16 @@ bool HasHeader(const BenchmarkHttpResponse& response, std::string_view key) {
   return false;
 }
 
+std::string HeaderValue(const BenchmarkHttpResponse& response,
+                        std::string_view key) {
+  for (const auto& field : response.base()) {
+    if (boost::beast::iequals(field.name_string(), key)) {
+      return std::string(field.value());
+    }
+  }
+  return {};
+}
+
 }  // namespace
 
 std::vector<ScenarioDefinition> BuildScenarios() {
@@ -164,6 +174,60 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     return scenario;
   };
 
+  auto make_long_aspect_chain = []() -> ScenarioDefinition {
+    constexpr std::size_t kAspectCount = 64;
+
+    ScenarioDefinition scenario;
+    scenario.name = "http_get_aspect_chain_64";
+    scenario.summary =
+        "GET /ping with 64 global aspects to validate pre/post order";
+    scenario.configure_server = [](HttpServer& server) {
+      for (std::size_t i = 0; i < kAspectCount; ++i) {
+        server.AddGlobalAspect(
+            [i](std::shared_ptr<HttpPreServerTask> task) {
+              task->SetField("X-Bench-Aspect-Pre-Last", std::to_string(i));
+            },
+            [i](std::shared_ptr<HttpPostServerTask> task) {
+              task->SetField("X-Bench-Aspect-Post-Last", std::to_string(i));
+            });
+      }
+
+      server.AddRouteEntry(
+          HttpRequestMethod::kGet, "/ping",
+          [](std::shared_ptr<HttpServerTask> task) {
+            task->SetKeepAlive(task->GetRequest().keep_alive());
+            task->GetResponse().result(http::status::ok);
+            task->SetField(http::field::content_type,
+                           "text/plain; charset=utf-8");
+            task->SetBody("pong");
+          });
+    };
+    scenario.make_request = [](WorkerState&) {
+      RequestSpec request;
+      request.method = http::verb::get;
+      request.target = "/ping";
+      return request;
+    };
+    scenario.validate_response = [](const BenchmarkHttpResponse& response,
+                                    WorkerState&, std::string& error) {
+      if (response.result() != http::status::ok || response.body() != "pong") {
+        error = "expected 200/pong";
+        return false;
+      }
+
+      const auto pre_last = HeaderValue(response, "X-Bench-Aspect-Pre-Last");
+      const auto post_last =
+          HeaderValue(response, "X-Bench-Aspect-Post-Last");
+      if (pre_last != "63" || post_last != "0") {
+        error = "long aspect chain order mismatch";
+        return false;
+      }
+
+      return true;
+    };
+    return scenario;
+  };
+
   auto make_post_echo = [](std::string name, std::size_t size,
                            char fill) -> ScenarioDefinition {
     ScenarioDefinition scenario;
@@ -279,6 +343,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
   return {make_static_get(),
           make_route_param(),
           make_global_aspect(),
+      make_long_aspect_chain(),
           make_post_echo("http_post_echo_1k", 1024, 'x'),
           make_post_echo("http_post_echo_64k", 64 * 1024, 'y'),
           make_session_counter()};

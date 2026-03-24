@@ -166,7 +166,9 @@ int RunInternalCell(const CliConfig& cli,
   try {
     if (!cli.internal_scenario_name.has_value() ||
         !cli.internal_pressure_name.has_value() ||
-        !cli.internal_server_threads.has_value() ||
+      (!cli.internal_server_threads.has_value() &&
+       (!cli.internal_server_io_threads.has_value() ||
+        !cli.internal_server_worker_threads.has_value())) ||
         !cli.internal_client_concurrency.has_value() ||
         !cli.internal_client_processes.has_value() ||
         !cli.internal_wrk_threads_per_process.has_value() ||
@@ -182,7 +184,16 @@ int RunInternalCell(const CliConfig& cli,
     PressureSettings pressure;
     pressure.kind = PressureKind::kCustom;
     pressure.name = *cli.internal_pressure_name;
-    pressure.server_threads = *cli.internal_server_threads;
+    if (cli.internal_server_threads.has_value()) {
+      pressure.server_io_threads = *cli.internal_server_threads;
+      pressure.server_worker_threads = *cli.internal_server_threads;
+    }
+    if (cli.internal_server_io_threads.has_value()) {
+      pressure.server_io_threads = *cli.internal_server_io_threads;
+    }
+    if (cli.internal_server_worker_threads.has_value()) {
+      pressure.server_worker_threads = *cli.internal_server_worker_threads;
+    }
     pressure.client_concurrency = *cli.internal_client_concurrency;
 
     RunSettings run_settings;
@@ -235,7 +246,10 @@ std::chrono::milliseconds ComputeCellTimeoutSlack(
   const std::size_t process_budget_ms =
       std::min<std::size_t>(20'000, run_settings.client_processes * 800);
   const std::size_t server_budget_ms =
-      std::min<std::size_t>(15'000, pressure.server_threads * 200);
+      std::min<std::size_t>(15'000,
+                (pressure.server_io_threads +
+                 pressure.server_worker_threads) *
+                  120);
   const std::size_t phase_budget_ms =
       std::min<std::size_t>(20'000, phase_ms / 2);
 
@@ -298,8 +312,10 @@ std::vector<std::string> BuildChildArgs(
           scenario.name,
           "--internal-pressure-name",
           pressure.name,
-          "--internal-server-threads",
-          std::to_string(pressure.server_threads),
+      "--internal-server-io-threads",
+      std::to_string(pressure.server_io_threads),
+      "--internal-server-worker-threads",
+      std::to_string(pressure.server_worker_threads),
           "--internal-client-concurrency",
           std::to_string(pressure.client_concurrency),
           "--internal-client-processes",

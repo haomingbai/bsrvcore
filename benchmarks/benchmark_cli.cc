@@ -25,6 +25,10 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "pressure", po::value<std::string>(),
       "Pressure: light|balanced|saturated|overload|all")(
       "server-threads", po::value<std::size_t>(), "Override server threads")(
+      "server-io-threads", po::value<std::size_t>(),
+      "Override server io thread count")(
+      "server-worker-threads", po::value<std::size_t>(),
+      "Override server worker thread count")(
       "client-concurrency", po::value<std::size_t>(),
       "Override total client connections (all client processes)")(
       "client-processes", po::value<std::size_t>(),
@@ -50,6 +54,10 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Pressure name for internal cell mode")(
       "internal-server-threads", po::value<std::size_t>(),
       "Server threads for internal cell mode")(
+      "internal-server-io-threads", po::value<std::size_t>(),
+      "Server io threads for internal cell mode")(
+      "internal-server-worker-threads", po::value<std::size_t>(),
+      "Server worker threads for internal cell mode")(
       "internal-client-concurrency", po::value<std::size_t>(),
       "Client concurrency for internal cell mode")(
       "internal-client-processes", po::value<std::size_t>(),
@@ -100,6 +108,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   if (vm.count("server-threads") != 0) {
     cli.server_threads_override = vm["server-threads"].as<std::size_t>();
   }
+  if (vm.count("server-io-threads") != 0) {
+    cli.server_io_threads_override =
+        vm["server-io-threads"].as<std::size_t>();
+  }
+  if (vm.count("server-worker-threads") != 0) {
+    cli.server_worker_threads_override =
+        vm["server-worker-threads"].as<std::size_t>();
+  }
   if (vm.count("client-concurrency") != 0) {
     cli.client_concurrency_override =
         vm["client-concurrency"].as<std::size_t>();
@@ -139,6 +155,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   if (vm.count("internal-server-threads") != 0) {
     cli.internal_server_threads =
         vm["internal-server-threads"].as<std::size_t>();
+  }
+  if (vm.count("internal-server-io-threads") != 0) {
+    cli.internal_server_io_threads =
+        vm["internal-server-io-threads"].as<std::size_t>();
+  }
+  if (vm.count("internal-server-worker-threads") != 0) {
+    cli.internal_server_worker_threads =
+        vm["internal-server-worker-threads"].as<std::size_t>();
   }
   if (vm.count("internal-client-concurrency") != 0) {
     cli.internal_client_concurrency =

@@ -29,6 +29,9 @@ Async execution semantics:
 - `SetTimer()` uses server I/O context for timeout tracking, then runs callback on the worker pool.
 - `GetExecutor()` can be used when integrating with APIs that require `boost::asio::any_io_executor`.
 - For I/O-only operations, use `GetIoContext()`.
+- Route completion dispatches pre-aspect execution onto the connection I/O strand.
+- Main handler and post-aspect stages are posted to the worker pool.
+- Long aspect chains are processed in chunks with internal `post` continuation points to avoid deep recursion.
 
 ## Extending a request lifetime
 

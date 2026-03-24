@@ -61,7 +61,9 @@ std::string JsonCell(const CellResult& cell) {
   out << "{"
       << "\"scenario\":\"" << EscapeJson(cell.scenario_name) << "\","
       << "\"pressure\":\"" << EscapeJson(cell.pressure_name) << "\","
-      << "\"server_threads\":" << cell.server_threads << ','
+      << "\"server_io_threads\":" << cell.server_io_threads << ','
+      << "\"server_worker_threads\":" << cell.server_worker_threads
+      << ','
       << "\"client_concurrency\":" << cell.client_concurrency << ','
       << "\"warmup_ms\":" << cell.warmup_ms << ','
       << "\"duration_ms\":" << cell.duration_ms << ','
@@ -124,7 +126,8 @@ void PrintScenarioList(const std::vector<ScenarioDefinition>& scenarios) {
 
 void PrintCellSummary(const CellResult& cell) {
   std::cout << "[" << cell.scenario_name << "/" << cell.pressure_name << "] "
-            << "server_threads=" << cell.server_threads
+            << "server_io_threads=" << cell.server_io_threads
+            << " server_worker_threads=" << cell.server_worker_threads
             << " client_concurrency=" << cell.client_concurrency
             << " median_attempt_rps="
             << FormatDouble(cell.aggregate.attempt_requests_per_second.median,
