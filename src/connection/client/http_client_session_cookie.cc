@@ -12,7 +12,6 @@
 #include <boost/beast/http/field.hpp>
 #include <cctype>
 #include <chrono>
-#include <cstdint>
 #include <iomanip>
 #include <optional>
 #include <sstream>
