@@ -1,11 +1,14 @@
 #include <gtest/gtest.h>
 
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 
 #include "bsrvcore/http_request_method.h"
 #include "bsrvcore/http_server.h"
 #include "bsrvcore/http_server_task.h"
+#include "bsrvcore/put_processor.h"
 #include "test_http_client_task.h"
 
 namespace {
@@ -13,6 +16,17 @@ using bsrvcore::test::DoRequestWithRetry;
 using bsrvcore::test::ServerGuard;
 using bsrvcore::test::StartServerWithRoutes;
 namespace http = boost::beast::http;
+
+std::filesystem::path MakeTempPath(const std::string& prefix) {
+  static std::size_t counter = 0;
+  return std::filesystem::temp_directory_path() /
+         (prefix + "-" + std::to_string(counter++));
+}
+
+std::string ReadFile(const std::filesystem::path& path) {
+  std::ifstream in(path, std::ios::binary);
+  return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
 
 }  // namespace
 
@@ -110,4 +124,31 @@ TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
   auto res = DoRequestWithRetry(http::verb::get, port, "/defer", "");
   EXPECT_EQ(res.result(), http::status::ok);
   EXPECT_EQ(res.body(), "pre|handler|post|");
+}
+
+TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
+  const auto path = MakeTempPath("put-dump");
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kPut, "/dump",
+      [path](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+        bsrvcore::PutProcessor processor(*task);
+        const bool scheduled = processor.AsyncDumpToDisk(
+            path, [task](bool ok) { task->SetBody(ok ? "dumped" : "failed"); });
+        if (!scheduled) {
+          task->SetBody("rejected");
+        }
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  const auto res = DoRequestWithRetry(http::verb::put, port, "/dump", "abc123");
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "dumped");
+  EXPECT_EQ(ReadFile(path), "abc123");
+
+  std::error_code ec;
+  std::filesystem::remove(path, ec);
 }

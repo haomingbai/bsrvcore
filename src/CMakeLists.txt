@@ -8,6 +8,17 @@ option(BSRVCORE_ENABLE_ASAN "Enable AddressSanitizer for Debug builds. Default: 
 option(BSRVCORE_ENABLE_TSAN "Enable ThreadSanitizer for Debug/RelWithDebInfo builds. Default: OFF" OFF)
 include(FetchContent)
 
+find_path(LIBURING_INCLUDE_DIR NAMES liburing.h REQUIRED)
+find_library(LIBURING_LIBRARY NAMES uring REQUIRED)
+
+if(NOT TARGET liburing::liburing)
+  add_library(liburing::liburing UNKNOWN IMPORTED)
+  set_target_properties(liburing::liburing PROPERTIES
+    IMPORTED_LOCATION "${LIBURING_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${LIBURING_INCLUDE_DIR}"
+  )
+endif()
+
 if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
@@ -112,6 +123,7 @@ target_link_libraries(bsrvcore
     PRIVATE
         Boost::system
         Boost::url
+        liburing::liburing
     PUBLIC
         Boost::headers
         OpenSSL::SSL
@@ -126,6 +138,7 @@ target_include_directories(bsrvcore SYSTEM PRIVATE
 target_compile_definitions(bsrvcore PRIVATE
   BTHPOOL_HAS_BOOST_ASIO=1
   USE_BOOST_ASIO_EXECUTOR
+  BOOST_ASIO_HAS_IO_URING=1
 )
 
 # Public include directories for build and install
@@ -192,7 +205,7 @@ endif()
 # pkg-config must expose TLS libraries publicly because consumer translation
 # units can directly instantiate boost::asio::ssl::context from public headers.
 set(BSRVCORE_PC_PUBLIC_LIBS "-lssl -lcrypto")
-set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url")
+set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url -luring")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bsrvcore.pc.in
                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)

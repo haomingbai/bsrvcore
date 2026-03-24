@@ -19,6 +19,7 @@ So you can set headers/body in any step.
 The task gives access to:
 
 - Request/response: `GetRequest()`, `GetResponse()`
+- Request body wrappers: `MultipartParser(*task)`, `PutProcessor(*task)`
 - Response helpers: `SetBody()`, `AppendBody()`, `SetField()`, `SetKeepAlive()`
 - Async helpers: `Post()`, `FuturedPost()`, `SetTimer()`
 - Connection control: `IsAvailable()`, `DoClose()`, `DoCycle()`
@@ -53,4 +54,4 @@ When manual mode is **off** (default), the normal flow is:
 2. bsrvcore writes the response
 3. Post aspects run
 
-Next: [SSE server](sse-server.md).
+Next: [Request body processing](request-body-processing.md).

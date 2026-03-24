@@ -530,8 +530,8 @@ void HttpTaskBase::Post(std::function<void()> fn) {
     return;
   }
 
-  conn->Post(boost::asio::bind_allocator(
-      state_->handler_alloc, [fn = std::move(fn)]() { fn(); }));
+  conn->Post(boost::asio::bind_allocator(state_->handler_alloc,
+                                         [fn = std::move(fn)]() { fn(); }));
 }
 
 void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
@@ -545,9 +545,8 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
   }
 
   conn->SetTimer(timeout,
-                 boost::asio::bind_allocator(
-                     state_->handler_alloc,
-                     [fn = std::move(fn)]() { fn(); }));
+                 boost::asio::bind_allocator(state_->handler_alloc,
+                                             [fn = std::move(fn)]() { fn(); }));
 }
 
 bool HttpTaskBase::IsAvailable() noexcept {
@@ -779,6 +778,14 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
 
 boost::asio::io_context& HttpTaskBase::GetIoContext() noexcept {
   return state_->conn.load()->GetServer()->GetIoContext();
+}
+
+boost::asio::any_io_executor HttpTaskBase::GetExecutor() noexcept {
+  if (!state_ || state_->srv == nullptr) {
+    return {};
+  }
+
+  return state_->srv->GetExecutor();
 }
 
 }  // namespace bsrvcore

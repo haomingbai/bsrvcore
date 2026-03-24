@@ -15,6 +15,7 @@ It also provides client-side helper tasks:
 - CMake 3.25+
 - Boost: `system`, `url`, `asio`, `beast`
 - OpenSSL (for HTTPS)
+- liburing (required for Asio file I/O support used by request-body dumping)
 
 ## Build
 

@@ -27,6 +27,8 @@
 #include "bsrvcore/http_client_session.h"
 #include "bsrvcore/http_client_session_attribute.h"
 #include "bsrvcore/http_client_task.h"
+#include "bsrvcore/multipart_parser.h"
+#include "bsrvcore/put_processor.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"

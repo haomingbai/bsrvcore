@@ -90,8 +90,7 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   auto future = promise->get_future();
   server.Post([promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
-            std::future_status::ready);
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout), std::future_status::ready);
   EXPECT_TRUE(future.get());
 
   server.Stop();
@@ -111,8 +110,7 @@ TEST(Server, SetTimerDispatchesCallback) {
   server.SetTimer(
       50, [promise] { promise->set_value(std::this_thread::get_id()); });
 
-  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
-            std::future_status::ready);
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout), std::future_status::ready);
   EXPECT_NE(future.get(), caller_id);
 
   server.Stop();
@@ -130,8 +128,7 @@ TEST(Server, GetExecutorSupportsAsioPost) {
   boost::asio::post(server.GetExecutor(),
                     [promise] { promise->set_value(true); });
 
-  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout),
-            std::future_status::ready);
+  ASSERT_EQ(future.wait_for(kAsyncWaitTimeout), std::future_status::ready);
   EXPECT_TRUE(future.get());
 
   server.Stop();

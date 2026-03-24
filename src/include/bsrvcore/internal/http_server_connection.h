@@ -167,14 +167,14 @@ class HttpServerConnection
   }
 
   /**
-    * @brief Set a timer to execute a function after timeout.
-    * @param timeout Timeout in milliseconds.
-    * @param fn Callback function to execute.
-    *
-    * @details
-    * Follows HttpServer::SetTimer semantics across the full server chain:
-    * timer waiting is driven by io_context, callback execution is posted to
-    * the server worker pool.
+   * @brief Set a timer to execute a function after timeout.
+   * @param timeout Timeout in milliseconds.
+   * @param fn Callback function to execute.
+   *
+   * @details
+   * Follows HttpServer::SetTimer semantics across the full server chain:
+   * timer waiting is driven by io_context, callback execution is posted to
+   * the server worker pool.
    */
   void SetTimer(std::size_t timeout, std::function<void()> fn);
 

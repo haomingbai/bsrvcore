@@ -42,14 +42,14 @@ void HttpServerConnection::Post(std::function<void()> fn) {
     return;
   }
 
-  srv_->Post(boost::asio::bind_allocator(
-      GetHandlerAllocator(), [fn = std::move(fn)]() { fn(); }));
+  srv_->Post(boost::asio::bind_allocator(GetHandlerAllocator(),
+                                         [fn = std::move(fn)]() { fn(); }));
 }
 
 void HttpServerConnection::Dispatch(std::function<void()> fn) {
   boost::asio::dispatch(
-      strand_, boost::asio::bind_allocator(
-                   GetHandlerAllocator(), [fn = std::move(fn)]() { fn(); }));
+      strand_, boost::asio::bind_allocator(GetHandlerAllocator(),
+                                           [fn = std::move(fn)]() { fn(); }));
 }
 
 void HttpServerConnection::SetTimer(std::size_t timeout,
@@ -58,11 +58,10 @@ void HttpServerConnection::SetTimer(std::size_t timeout,
     return;
   }
 
-  srv_->SetTimer(timeout, boost::asio::bind_allocator(
-                             GetHandlerAllocator(),
-                             [callback = std::move(callback)]() mutable {
-                               callback();
-                             }));
+  srv_->SetTimer(
+      timeout, boost::asio::bind_allocator(
+                   GetHandlerAllocator(),
+                   [callback = std::move(callback)]() mutable { callback(); }));
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {

@@ -114,7 +114,8 @@ void HttpServer::Stop() {
   }
 
   thread_pool_ =
-      bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(ToBThreadPoolParam(executor_options_), Allocator<std::byte>{});
+      bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(
+          ToBThreadPoolParam(executor_options_), Allocator<std::byte>{});
   io_threads_.clear();
   acceptors_.clear();
   for (auto ep : eps) {
