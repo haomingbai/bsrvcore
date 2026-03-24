@@ -27,7 +27,7 @@ jobs:
           cmake-version: '3.25.0'
 
       # 3) Install system dependencies
-      - name: Install apt packages (build + packagers + openssl dev)
+      - name: Install apt packages (build + packagers + openssl/liburing dev)
         run: |
           sudo apt-get update
           packages=(
@@ -40,6 +40,7 @@ jobs:
             rpm                 # For generating RPMs with CPack
             ca-certificates     # network certs (safe)
             libssl-dev          # OpenSSL (headers + libcrypto) — project depends on openssl/crypto
+            liburing-dev        # Required for Boost.Asio io_uring-backed file I/O
             libyaml-cpp-dev     # Use the system static archive when available; otherwise vendored static yaml-cpp is used
           )
           sudo apt-get install -y --no-install-recommends "${packages[@]}"
