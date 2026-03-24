@@ -99,7 +99,7 @@ void HttpServerConnection::Run() {
     return;
   }
 
-  boost::asio::post(
+  boost::asio::dispatch(
       strand_, boost::asio::bind_allocator(
                    GetHandlerAllocator(), [self = shared_from_this(), this] {
                      if (header_read_expiry_) {

@@ -649,7 +649,9 @@ void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
 
     if (curr_idx < state.route_result.aspects.size() &&
         handled_in_batch >= kAspectContinuationChunk) {
-      Post([self, curr_idx] { self->DoPreService(curr_idx); });
+      if (auto conn = GetSharedState()->conn.load()) {
+        conn->Dispatch([self, curr_idx] { self->DoPreService(curr_idx); });
+      }
       return;
     }
   }
@@ -679,7 +681,9 @@ HttpServerTask::~HttpServerTask() {
 }
 
 void HttpServerTask::Start() {
-  Post([self = shared_from_this()] { self->DoService(); });
+  if (auto conn = GetSharedState()->conn.load()) {
+    conn->Dispatch([self = shared_from_this()] { self->DoService(); });
+  }
 }
 
 void HttpServerTask::DoService() {
@@ -737,9 +741,11 @@ void HttpPostServerTask::Start() {
     return;
   }
 
-  Post([self = shared_from_this()] {
-    self->DoPostService(self->GetState().route_result.aspects.size() - 1);
-  });
+  if (auto conn = GetSharedState()->conn.load()) {
+    conn->Dispatch([self = shared_from_this()] {
+      self->DoPostService(self->GetState().route_result.aspects.size() - 1);
+    });
+  }
 }
 
 void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
@@ -763,7 +769,9 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
 
     --curr_idx;
     if (handled_in_batch >= kAspectContinuationChunk) {
-      Post([self, curr_idx] { self->DoPostService(curr_idx); });
+      if (auto conn = GetSharedState()->conn.load()) {
+        conn->Dispatch([self, curr_idx] { self->DoPostService(curr_idx); });
+      }
       return;
     }
   }

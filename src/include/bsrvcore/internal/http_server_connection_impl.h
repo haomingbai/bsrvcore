@@ -147,7 +147,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::post(
+    boost::asio::dispatch(
         GetStrand(),
         boost::asio::bind_allocator(
             GetHandlerAllocator(),
