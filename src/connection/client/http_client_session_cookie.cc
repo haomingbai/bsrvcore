@@ -9,7 +9,7 @@
  */
 
 #include <algorithm>
-#include <boost/beast/http/field.hpp>
+#include <boost/beast.hpp>
 #include <cctype>
 #include <chrono>
 #include <iomanip>
