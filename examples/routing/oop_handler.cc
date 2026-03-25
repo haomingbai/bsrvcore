@@ -4,7 +4,7 @@
  *
  * Demonstrates:
  * - Custom HttpRequestHandler class
- * - Route parameters via GetPathParameters
+ * - Route parameters via GetPathParameter
  *
  * Prerequisites: Boost, OpenSSL (required by bsrvcore build).
  * Build: cmake -S . -B build -DBSRVCORE_BUILD_EXAMPLES=ON
@@ -24,8 +24,8 @@
 class HelloHandler : public bsrvcore::HttpRequestHandler {
  public:
   void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
-    const auto& params = task->GetPathParameters();
-    std::string name = params.empty() ? "world" : params.front();
+    const auto* name_param = task->GetPathParameter("name");
+    std::string name = name_param == nullptr ? "world" : *name_param;
 
     task->GetResponse().result(boost::beast::http::status::ok);
     task->SetField(boost::beast::http::field::content_type,

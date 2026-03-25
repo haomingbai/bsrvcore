@@ -46,8 +46,9 @@ TEST(RouteTableTest, MatchesParametricRoute) {
   auto result = table.Route(bsrvcore::HttpRequestMethod::kGet, "/users/123");
   EXPECT_EQ(result.handler, handler_ptr);
   ASSERT_EQ(result.parameters.size(), 1u);
-  EXPECT_EQ(result.parameters[0], "123");
+  EXPECT_EQ(result.parameters.at("id"), "123");
   EXPECT_EQ(result.current_location, "/users/123");
+  EXPECT_EQ(result.route_template, "/users/{id}");
 }
 
 // Exclusive routes should bypass parametric matches.

@@ -24,6 +24,7 @@
 #include <shared_mutex>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "bsrvcore/allocator.h"
@@ -227,8 +228,8 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * the matched layer on success.
    * @param out_location Output string that receives the matched route template
    * (e.g. "/users/{param0}/info").
-   * @param out_parameters Output vector receiving parameter values extracted
-   * from the URL.
+   * @param out_parameter_values Output vector receiving parameter values
+   * extracted from the URL in path order.
    * @return True if matching succeeded and route_layer was advanced to a valid
    * layer; false otherwise.
    * @note This function is noexcept and will not throw.
@@ -236,7 +237,33 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   bool MatchSegments(const boost::urls::url_view& url,
                      route_internal::HttpRouteTableLayer*& route_layer,
                      std::string& out_location,
-                     std::vector<std::string>& out_parameters) const noexcept;
+                     std::vector<std::string>& out_parameter_values) const
+      noexcept;
+
+  /**
+   * @brief Extract ordered parameter names from a route target.
+   * @param target Route target template.
+   * @return Parameter names in path order.
+   */
+  static std::vector<std::string> ExtractParamNames(
+      std::string_view target) noexcept;
+
+  /**
+   * @brief Normalize a route target into a template path.
+   * @param target Route target template.
+   * @return Normalized route template without query.
+   */
+  static std::string NormalizeRouteTemplate(std::string_view target);
+
+  /**
+   * @brief Build the named parameter map for a matched terminal route layer.
+   * @param route_layer Terminal route layer that owns parameter names.
+   * @param parameter_values Extracted parameter values in path order.
+   * @return Named parameter map.
+   */
+  static std::unordered_map<std::string, std::string> BuildParameterMap(
+      const route_internal::HttpRouteTableLayer& route_layer,
+      std::vector<std::string> parameter_values);
 
   /**
    * @brief Collect aspect handlers in order: global, method-specific, then

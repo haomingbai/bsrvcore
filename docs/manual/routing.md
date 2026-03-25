@@ -24,11 +24,18 @@ This is the common "path template" pattern:
 
 - `/hello/{name}`
 
-Inside the handler, bsrvcore stores the parameter values in a vector:
+Inside the handler, bsrvcore stores the parameter values in a map keyed by
+parameter name:
 
 ```cpp
 const auto& params = task->GetPathParameters();
-// params[0] is the first parameter
+// params.at("name") is the captured value
+```
+
+You can also read one parameter directly:
+
+```cpp
+const auto* name = task->GetPathParameter("name");
 ```
 
 ## Exclusive routes
@@ -54,7 +61,9 @@ server->SetDefaultHandler([](std::shared_ptr<bsrvcore::HttpServerTask> task) {
 
 ## Current location
 
-`task->GetCurrentLocation()` returns the matched route location string.
+`task->GetCurrentLocation()` returns the matched concrete request path.
+
+`task->GetRouteTemplate()` returns the matched route template string.
 
 Tip: you can log it in an aspect to see which route matched.
 

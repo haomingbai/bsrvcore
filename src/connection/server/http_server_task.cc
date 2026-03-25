@@ -559,8 +559,21 @@ const std::string& HttpTaskBase::GetCurrentLocation() {
   return state_->route_result.current_location;
 }
 
-const std::vector<std::string>& HttpTaskBase::GetPathParameters() {
+const std::string& HttpTaskBase::GetRouteTemplate() {
+  return state_->route_result.route_template;
+}
+
+const std::unordered_map<std::string, std::string>&
+HttpTaskBase::GetPathParameters() {
   return state_->route_result.parameters;
+}
+
+const std::string* HttpTaskBase::GetPathParameter(const std::string& key) {
+  auto it = state_->route_result.parameters.find(key);
+  if (it == state_->route_result.parameters.end()) {
+    return nullptr;
+  }
+  return &it->second;
 }
 
 bool HttpTaskBase::AddCookie(bsrvcore::ServerSetCookie cookie) try {

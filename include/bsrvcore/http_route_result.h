@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace bsrvcore {
@@ -28,12 +29,14 @@ class HttpRequestHandler;
 /**
  * @brief Result of routing an HTTP request
  *
- * Contains the matched handler, aspect chain, route parameters, and request
- * limits.
+ * Contains the matched handler, aspect chain, named route parameters, and
+ * request limits.
  */
 struct HttpRouteResult {
-  std::string current_location;         ///< Matched route path
-  std::vector<std::string> parameters;  ///< Extracted route parameters
+  std::string current_location;  ///< Matched concrete request path
+  std::string route_template;    ///< Matched route template path
+  std::unordered_map<std::string, std::string>
+      parameters;  ///< Extracted route parameters by name
   std::vector<HttpRequestAspectHandler*>
       aspects;                  ///< Aspect handlers to execute
   HttpRequestHandler* handler;  ///< Main request handler

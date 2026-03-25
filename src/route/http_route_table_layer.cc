@@ -30,6 +30,7 @@ using namespace bsrvcore::route_internal;
 HttpRouteTableLayer::HttpRouteTableLayer()
     : default_route_(nullptr),
       handler_(nullptr),
+      route_template_("/"),
       max_body_size_(0),
       read_expiry_(0),
       write_expiry_(0),
@@ -122,6 +123,24 @@ HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
 
 bsrvcore::HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
   return handler_.get();
+}
+
+void HttpRouteTableLayer::SetParamNames(
+    std::vector<std::string> param_names) noexcept {
+  param_names_ = std::move(param_names);
+}
+
+const std::vector<std::string>& HttpRouteTableLayer::GetParamNames()
+    const noexcept {
+  return param_names_;
+}
+
+void HttpRouteTableLayer::SetRouteTemplate(std::string route_template) noexcept {
+  route_template_ = std::move(route_template);
+}
+
+const std::string& HttpRouteTableLayer::GetRouteTemplate() const noexcept {
+  return route_template_;
 }
 
 bool HttpRouteTableLayer::GetIgnoreDefaultRoute() const noexcept {

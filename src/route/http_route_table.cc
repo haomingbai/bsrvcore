@@ -13,6 +13,7 @@
 
 #include "bsrvcore/internal/http_route_table.h"
 
+#include <algorithm>
 #include <boost/url/parse.hpp>
 #include <cstddef>
 #include <iterator>
@@ -20,6 +21,7 @@
 #include <ranges>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -37,10 +39,29 @@ using bsrvcore::HttpRouteResult;
 using bsrvcore::HttpRouteTable;
 using bsrvcore::route_internal::HttpRouteTableLayer;
 
+namespace {
+
+std::string_view StripQuery(std::string_view target) noexcept {
+  return target.substr(0, target.find('?'));
+}
+
+bool IsParameterSegment(std::string_view segment) noexcept {
+  return segment.size() >= 2 && segment.front() == '{' &&
+         segment.back() == '}';
+}
+
+std::string_view ExtractParamName(std::string_view segment) noexcept {
+  if (!IsParameterSegment(segment)) {
+    return {};
+  }
+  return segment.substr(1, segment.size() - 2);
+}
+
+}  // namespace
+
 HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                                       std::string_view target) noexcept {
   using boost::urls::parse_uri_reference;
-  using boost::urls::url_view;
 
   // Initial layer.
   HttpRouteTableLayer* route_layer =
@@ -59,8 +80,9 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
   // Try to resolve the route and get current_location
   std::string current_location;
-  std::vector<std::string> parameters;
-  bool ok = MatchSegments(*parsed, route_layer, current_location, parameters);
+  std::vector<std::string> parameter_values;
+  bool ok = MatchSegments(*parsed, route_layer, current_location,
+                          parameter_values);
   if (!ok) {
     return BuildDefaultRouteResult(method);
   }
@@ -92,7 +114,8 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
   HttpRouteResult result = {
       .current_location = std::move(current_location),
-      .parameters = std::move(parameters),
+      .route_template = route_layer->GetRouteTemplate(),
+      .parameters = BuildParameterMap(*route_layer, std::move(parameter_values)),
       .aspects = std::move(aspects),
       .handler = handler,
       .max_body_size = max_body_size,
@@ -115,7 +138,7 @@ bool HttpRouteTable::AddRouteEntry(HttpRequestMethod method,
   }
 
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -141,7 +164,7 @@ bool HttpRouteTable::AddExclusiveRouteEntry(
   }
 
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -160,7 +183,7 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
     HttpRequestMethod method, const std::string_view target) {
   auto route_layer = entrance_[static_cast<size_t>(method)].get();
 
-  std::string_view url = target.substr(0, target.find('?'));
+  const std::string_view url = StripQuery(target);
   auto url_segments = url | std::views::split('/') |
                       std::ranges::views::transform([](auto&& word) {
                         return std::string_view(word.begin(), word.end());
@@ -170,24 +193,20 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
     if (word.empty()) {
       continue;
     } else if (word.front() == '{') {
-      // Route with parametre.
+      // Parameter segments share one fallback edge at this tree level.
       if (HttpRouteTableLayer* current_layer = route_layer->GetDefaultRoute()) {
-        // Layer exists.
         route_layer = current_layer;
       } else {
-        // Layer not exists.
         auto new_layer = AllocateUnique<HttpRouteTableLayer>();
         current_layer = new_layer.get();
         route_layer->SetDefaultRoute(std::move(new_layer));
         route_layer = current_layer;
       }
     } else {
-      // Specific path.
+      // Static segments keep exact-match children in the node map.
       if (auto current_layer = route_layer->GetRoute(std::string(word))) {
-        // Layer exists.
         route_layer = current_layer;
       } else {
-        // Layer not exists.
         auto new_layer = AllocateUnique<HttpRouteTableLayer>();
         current_layer = new_layer.get();
         route_layer->SetRoute(std::string(word), std::move(new_layer));
@@ -196,6 +215,8 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
     }
   }
 
+  route_layer->SetParamNames(ExtractParamNames(target));
+  route_layer->SetRouteTemplate(NormalizeRouteTemplate(target));
   return route_layer;
 }
 
@@ -209,6 +230,7 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 
   HttpRouteResult result = {
       .current_location = "/",
+      .route_template = "/",
       .parameters = {},
       .aspects = std::move(aspects),
       .handler = default_handler_.get(),
@@ -223,14 +245,11 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 bool HttpRouteTable::MatchSegments(
     const boost::urls::url_view& url, HttpRouteTableLayer*& route_layer,
     std::string& out_location,
-    std::vector<std::string>& out_parameters) const noexcept {
+    std::vector<std::string>& out_parameter_values) const noexcept {
   out_location.clear();
-  out_parameters.clear();
+  out_parameter_values.clear();
 
   for (auto const& seg : url.segments()) {
-    // Every non-empty segs should add a '/' before.
-    out_location.push_back('/');
-
     if (seg.empty()) {
       continue;
     }
@@ -238,6 +257,7 @@ bool HttpRouteTable::MatchSegments(
     // First try route with map.
     if (HttpRouteTableLayer* next = route_layer->GetRoute(std::string(seg))) {
       route_layer = next;
+      out_location.push_back('/');
       out_location.append(seg);
     } else {
       // If the further route is prevented, then jump out and get the handler.
@@ -252,13 +272,62 @@ bool HttpRouteTable::MatchSegments(
         return false;
       }
 
-      out_parameters.emplace_back(seg);
+      out_parameter_values.emplace_back(seg);
       route_layer = default_layer;
+      out_location.push_back('/');
       out_location.append(seg);
     }
   }
 
+  if (out_location.empty()) {
+    out_location = "/";
+  }
+
   return true;
+}
+
+std::vector<std::string> HttpRouteTable::ExtractParamNames(
+    std::string_view target) noexcept {
+  std::vector<std::string> param_names;
+
+  const std::string_view url = StripQuery(target);
+  auto url_segments = url | std::views::split('/') |
+                      std::ranges::views::transform([](auto&& word) {
+                        return std::string_view(word.begin(), word.end());
+                      });
+
+  for (auto word : url_segments) {
+    const std::string_view param_name = ExtractParamName(word);
+    if (!param_name.empty()) {
+      param_names.emplace_back(param_name);
+    }
+  }
+
+  return param_names;
+}
+
+std::string HttpRouteTable::NormalizeRouteTemplate(std::string_view target) {
+  const std::string_view url = StripQuery(target);
+  if (url.empty()) {
+    return "/";
+  }
+
+  return std::string(url);
+}
+
+std::unordered_map<std::string, std::string> HttpRouteTable::BuildParameterMap(
+    const HttpRouteTableLayer& route_layer,
+    std::vector<std::string> parameter_values) {
+  std::unordered_map<std::string, std::string> parameters;
+  const auto& param_names = route_layer.GetParamNames();
+  const auto pair_count = std::min(param_names.size(), parameter_values.size());
+  parameters.reserve(pair_count);
+
+  for (std::size_t i = 0; i < pair_count; ++i) {
+    parameters.emplace(param_names[i], std::move(parameter_values[i]));
+  }
+
+  return parameters;
 }
 
 std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
@@ -294,7 +363,7 @@ bool HttpRouteTable::AddAspect(HttpRequestMethod method,
                                const std::string_view target,
                                OwnedPtr<HttpRequestAspectHandler> aspect) {
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -314,7 +383,7 @@ bool HttpRouteTable::AddAspect(HttpRequestMethod method,
 bool HttpRouteTable::AddGlobalAspect(
     HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) try {
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -336,7 +405,7 @@ bool HttpRouteTable::SetWriteExpiry(HttpRequestMethod method,
                                     const std::string_view target,
                                     std::size_t expiry) {
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -357,7 +426,7 @@ bool HttpRouteTable::SetReadExpiry(HttpRequestMethod method,
                                    const std::string_view target,
                                    std::size_t expiry) {
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 
@@ -378,7 +447,7 @@ bool HttpRouteTable::SetMaxBodySize(HttpRequestMethod method,
                                     const std::string_view target,
                                     std::size_t max_body_size) {
   auto method_idx = static_cast<size_t>(method);
-  if (method_idx > kHttpRequestMethodNum) {
+  if (method_idx >= kHttpRequestMethodNum) {
     return false;
   }
 

@@ -69,7 +69,7 @@ TEST(StressRouteTableTest, ConcurrentRouteQueryKeepsExactAndParamRules) {
               table.Route(bsrvcore::HttpRequestMethod::kGet, "/users/" + id);
           EXPECT_EQ(r.handler, param_ptr);
           ASSERT_EQ(r.parameters.size(), 1u);
-          EXPECT_EQ(r.parameters[0], id);
+          EXPECT_EQ(r.parameters.at("id"), id);
         }
       }
 
@@ -110,6 +110,8 @@ TEST(StressRouteTableTest, RouteTableHandlesManyDistinctParamTargets) {
                              "/v/" + x + "/items/" + y);
         EXPECT_EQ(r.handler, handler_ptr);
         ASSERT_EQ(r.parameters.size(), 2u);
+        EXPECT_EQ(r.parameters.at("x"), x);
+        EXPECT_EQ(r.parameters.at("y"), y);
       }
       done.MarkOneDone();
     });

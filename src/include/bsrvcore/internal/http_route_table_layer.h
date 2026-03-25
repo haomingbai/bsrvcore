@@ -148,6 +148,30 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   HttpRequestHandler* GetHandler() noexcept;
 
   /**
+   * @brief Set path parameter names for this terminal route layer
+   * @param param_names Parameter names in route order
+   */
+  void SetParamNames(std::vector<std::string> param_names) noexcept;
+
+  /**
+   * @brief Get path parameter names for this terminal route layer
+   * @return Parameter names in route order
+   */
+  const std::vector<std::string>& GetParamNames() const noexcept;
+
+  /**
+   * @brief Set the route template string for this terminal route layer
+   * @param route_template Normalized route template
+   */
+  void SetRouteTemplate(std::string route_template) noexcept;
+
+  /**
+   * @brief Get the route template string for this terminal route layer
+   * @return Normalized route template
+   */
+  const std::string& GetRouteTemplate() const noexcept;
+
+  /**
    * @brief Add an aspect handler to this route layer
    * @param aspect Aspect handler to add
    * @return true if aspect was added successfully
@@ -182,9 +206,12 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
       map_;  ///< Sub-routes by path segment
   std::vector<OwnedPtr<HttpRequestAspectHandler>>
       aspects_;  ///< Aspect handlers for this layer
+  std::vector<std::string>
+      param_names_;  ///< Path parameter names for terminal routes
   OwnedPtr<HttpRouteTableLayer>
       default_route_;  ///< Default route for parameter matching
   OwnedPtr<HttpRequestHandler> handler_;  ///< Request handler for this layer
+  std::string route_template_;            ///< Normalized route template
   std::size_t max_body_size_;             ///< Maximum request body size
   std::size_t read_expiry_;               ///< Read operation timeout
   std::size_t write_expiry_;              ///< Write operation timeout

@@ -35,6 +35,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -282,6 +283,12 @@ class HttpTaskBase {
   const std::string& GetCurrentLocation();
 
   /**
+   * @brief Get matched route template string.
+   * @return Route template.
+   */
+  const std::string& GetRouteTemplate();
+
+  /**
    * @brief Get cookie by key from request.
    * @param key Cookie name.
    * @return Cookie value reference (empty string if not found).
@@ -293,9 +300,16 @@ class HttpTaskBase {
 
   /**
    * @brief Get path parameters extracted by router.
-   * @return Path parameter vector reference.
+   * @return Path parameter map reference.
    */
-  const std::vector<std::string>& GetPathParameters();
+  const std::unordered_map<std::string, std::string>& GetPathParameters();
+
+  /**
+   * @brief Get one path parameter by name.
+   * @param key Parameter name.
+   * @return Pointer to parameter value, or nullptr if missing.
+   */
+  const std::string* GetPathParameter(const std::string& key);
 
   /**
    * @brief Add Set-Cookie entry to final response.

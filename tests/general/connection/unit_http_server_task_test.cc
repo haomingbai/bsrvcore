@@ -71,6 +71,7 @@ bsrvcore::HttpRouteResult MakeRouteResult(
     bsrvcore::HttpRequestHandler* handler) {
   return bsrvcore::HttpRouteResult{
       .current_location = "/",
+      .route_template = "/",
       .parameters = {},
       .aspects = {},
       .handler = handler,
@@ -165,4 +166,32 @@ TEST(HttpServerTaskTest, ManualConnectionManagementSkipsAutoWrite) {
   }
 
   EXPECT_FALSE(conn->wrote_response());
+}
+
+TEST(HttpServerTaskTest, ExposesRouteTemplateAndNamedPathParameters) {
+  bsrvcore::HttpServer server(1);
+  boost::asio::io_context ioc;
+  boost::asio::any_io_executor exec = ioc.get_executor();
+  boost::asio::strand<boost::asio::any_io_executor> strand(exec);
+
+  auto conn =
+      bsrvcore::AllocateShared<FakeConnection>(std::move(strand), &server);
+  DummyHandler handler;
+
+  auto route_result = MakeRouteResult(&handler);
+  route_result.current_location = "/users/123";
+  route_result.route_template = "/users/{id}";
+  route_result.parameters.emplace("id", "123");
+
+  bsrvcore::HttpRequest req;
+  {
+    auto task =
+        bsrvcore::HttpServerTask::Create(std::move(req), std::move(route_result),
+                                         conn);
+    EXPECT_EQ(task->GetCurrentLocation(), "/users/123");
+    EXPECT_EQ(task->GetRouteTemplate(), "/users/{id}");
+    ASSERT_NE(task->GetPathParameter("id"), nullptr);
+    EXPECT_EQ(*task->GetPathParameter("id"), "123");
+    EXPECT_EQ(task->GetPathParameter("missing"), nullptr);
+  }
 }

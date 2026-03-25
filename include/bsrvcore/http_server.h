@@ -97,9 +97,10 @@ struct HttpServerExecutorOptions {
  *                      })
  *      ->AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
  *                      [](auto task) {
- *                        auto id = task->GetPathParameters()[0];
+ *                        auto id = task->GetPathParameter("id");
  *                        task->GetResponse().result(boost::beast::http::status::ok);
- *                        task->SetBody("User: " + id);
+ *                        task->SetBody("User: " +
+ *                                      (id ? *id : std::string("unknown")));
  *                      })
  *      ->AddGlobalAspect([](auto task) { // Pre-service
  *                        std::cout << "Request: " <<
