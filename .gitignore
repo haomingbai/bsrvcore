@@ -4,3 +4,6 @@
 # Ignore the clangd cache and vscode project file.
 .cache/
 .vscode/
+
+# Ignore the benchmark plotting virtual environment.
+.venv-benchmark/

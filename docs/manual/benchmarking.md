@@ -147,6 +147,16 @@ JSON includes:
 - per-run metrics
 - per-cell aggregate metrics
 
+## Helper Scripts
+
+The repository also provides helper scripts under `scripts/`:
+
+- `scripts/build.sh`: configure and build with common defaults
+- `scripts/format.sh`: run `clang-format` across the repository
+- `scripts/benchmark.sh`: build the benchmark binary, detect CPU count,
+  run a benchmark sweep, create a Python venv, and generate plots plus a short
+  Markdown report under `docs/benchmark-results/`
+
 ## Metrics
 
 Per repetition, the benchmark records:

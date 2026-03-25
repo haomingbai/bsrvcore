@@ -14,6 +14,11 @@ Latest baseline (supersedes previous smoke-only snapshot):
 - [2026-03-21-i9-13900h-full-short.md](2026-03-21-i9-13900h-full-short.md)
 - [2026-03-21-i9-13900h-full-short.json](2026-03-21-i9-13900h-full-short.json)
 
+Latest change-validation run:
+
+- [2026-03-26-blueprint-routing-quick.md](2026-03-26-blueprint-routing-quick.md)
+- [2026-03-26-blueprint-routing-quick.json](2026-03-26-blueprint-routing-quick.json)
+
 Baseline run configuration:
 
 - profile: `full`
