@@ -47,6 +47,25 @@ Use this when you have both:
 - `/users/me` (exclusive)
 - `/users/{id}` (parameter)
 
+## BluePrint
+
+`BluePrint` lets you build a route tree first and mount it later under a path
+prefix.
+
+```cpp
+auto blue_print = bsrvcore::BluePrintFactory::Create();
+blue_print.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
+  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    const auto* id = task->GetPathParameter("id");
+    task->SetBody(id == nullptr ? "missing" : *id);
+  });
+
+server->AddBluePrint("/api", std::move(blue_print));
+```
+
+`ReuseableBluePrint` is the reusable variant. It deep-clones its handlers and
+aspects on each mount, so one blueprint can be mounted at multiple prefixes.
+
 ## Default handler
 
 A fallback handler runs when no route matches.

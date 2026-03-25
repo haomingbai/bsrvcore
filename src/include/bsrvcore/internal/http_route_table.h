@@ -200,6 +200,22 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    */
   HttpRouteTable() noexcept;
 
+  /**
+   * @brief Mount another route table under a prefix by moving its tree.
+   * @param prefix Prefix path where the source table is attached.
+   * @param source Source route table to consume.
+   * @return true if mount succeeded without conflicts.
+   */
+  bool MountAt(std::string_view prefix, HttpRouteTable&& source);
+
+  /**
+   * @brief Mount another route table under a prefix by cloning its tree.
+   * @param prefix Prefix path where the source table is attached.
+   * @param source Source route table to clone.
+   * @return true if mount succeeded without conflicts.
+   */
+  bool MountAt(std::string_view prefix, const HttpRouteTable& source);
+
  private:
   /**
    * @brief A helper function to get the correct route layer. When the layer is
@@ -279,6 +295,25 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   std::vector<HttpRequestAspectHandler*> CollectAspects(
       route_internal::HttpRouteTableLayer* route_layer,
       HttpRequestMethod method) const noexcept;
+
+  static bool HasTerminalConfiguration(
+      const route_internal::HttpRouteTableLayer& layer) noexcept;
+
+  static std::string JoinRouteTemplate(std::string_view prefix,
+                                       std::string_view route_template);
+
+  static void PrefixRouteTemplates(route_internal::HttpRouteTableLayer& layer,
+                                   std::string_view prefix);
+
+  static bool CanMergeLayer(const route_internal::HttpRouteTableLayer& dst,
+                            const route_internal::HttpRouteTableLayer& src)
+      noexcept;
+
+  static void MoveMergeLayer(route_internal::HttpRouteTableLayer& dst,
+                             route_internal::HttpRouteTableLayer& src);
+
+  static bool CloneLayer(const route_internal::HttpRouteTableLayer& src,
+                         OwnedPtr<route_internal::HttpRouteTableLayer>& dst);
 
   static constexpr size_t kHttpRequestMethodNum = 9;
   std::shared_mutex mtx_;  ///< Read-write lock for thread safety

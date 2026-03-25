@@ -56,6 +56,8 @@ namespace bsrvcore {
 
 class HttpRouteTable;
 class SessionMap;
+class BluePrint;
+class ReuseableBluePrint;
 
 /**
  * @brief Parameters used to create the server worker executor.
@@ -350,6 +352,23 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
     return AddGlobalAspect(std::move(aspect));
   }
+
+  /**
+   * @brief Mount a one-shot blueprint under a path prefix.
+   * @param prefix Prefix path where the blueprint root is attached.
+   * @param blue_print Blueprint to consume and mount.
+   * @return Pointer to server for method chaining.
+   */
+  HttpServer* AddBluePrint(std::string_view prefix, BluePrint&& blue_print);
+
+  /**
+   * @brief Mount a reusable blueprint under a path prefix.
+   * @param prefix Prefix path where the blueprint root is attached.
+   * @param blue_print Reusable blueprint to clone and mount.
+   * @return Pointer to server for method chaining.
+   */
+  HttpServer* AddBluePrint(std::string_view prefix,
+                           const ReuseableBluePrint& blue_print);
 
   /**
    * @brief Add a listening endpoint

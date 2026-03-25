@@ -32,6 +32,7 @@
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/blue_print.h"
 #include "bsrvcore/http_request_aspect_handler.h"
 #include "bsrvcore/http_request_handler.h"
 #include "bsrvcore/http_request_method.h"
@@ -105,6 +106,30 @@ HttpServer* HttpServer::AddGlobalAspect(
   }
 
   route_table_->AddGlobalAspect(std::move(aspect));
+  return this;
+}
+
+HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
+                                     BluePrint&& blue_print) {
+  std::shared_lock<std::shared_mutex> lock(mtx_);
+
+  if (is_running_) {
+    return this;
+  }
+
+  std::move(blue_print).MountInto(prefix, *route_table_);
+  return this;
+}
+
+HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
+                                     const ReuseableBluePrint& blue_print) {
+  std::shared_lock<std::shared_mutex> lock(mtx_);
+
+  if (is_running_) {
+    return this;
+  }
+
+  blue_print.MountInto(prefix, *route_table_);
   return this;
 }
 

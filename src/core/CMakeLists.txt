@@ -1,4 +1,5 @@
 set(CORE_SOURCES
+  ${CMAKE_CURRENT_SOURCE_DIR}/blue_print.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/http_server_accept.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/http_server_config.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/http_server_construct.cc

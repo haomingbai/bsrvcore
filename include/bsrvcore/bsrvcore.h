@@ -19,10 +19,13 @@
 
 #include "bsrvcore/allocator.h"
 #include "bsrvcore/attribute.h"
+#include "bsrvcore/blue_print.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
 #include "bsrvcore/bsrvrun/string.h"
+#include "bsrvcore/cloneable_http_request_aspect_handler.h"
+#include "bsrvcore/cloneable_http_request_handler.h"
 #include "bsrvcore/context.h"
 #include "bsrvcore/http_client_session.h"
 #include "bsrvcore/http_client_session_attribute.h"

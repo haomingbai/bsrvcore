@@ -31,6 +31,7 @@ namespace bsrvcore {
 
 class HttpRequestHandler;
 class HttpRequestAspectHandler;
+class HttpRouteTable;
 
 namespace route_internal {
 
@@ -202,6 +203,8 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   HttpRouteTableLayer();
 
  private:
+  friend class ::bsrvcore::HttpRouteTable;
+
   std::unordered_map<std::string, OwnedPtr<HttpRouteTableLayer>>
       map_;  ///< Sub-routes by path segment
   std::vector<OwnedPtr<HttpRequestAspectHandler>>
