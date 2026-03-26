@@ -19,7 +19,6 @@
 #define BSRVCORE_INTERNAL_HTTP_ROUTE_TABLE_LAYER_H_
 
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>

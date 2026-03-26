@@ -20,7 +20,6 @@
 #include <array>
 #include <boost/url/url_view.hpp>
 #include <cstddef>
-#include <memory>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
