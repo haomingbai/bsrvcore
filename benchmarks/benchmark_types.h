@@ -23,13 +23,19 @@ using BenchmarkHttpResponse = http::response<http::string_body>;
 
 enum class ProfileKind { kQuick, kFull };
 enum class PressureKind { kLight, kBalanced, kSaturated, kOverload, kCustom };
+enum class RunMode { kLocal, kClient, kServer };
 
 struct CliConfig {
   bool list_scenarios = false;
   bool show_help = false;
   std::string scenario_name = "all";
+  RunMode mode = RunMode::kLocal;
   ProfileKind profile = ProfileKind::kQuick;
   std::optional<std::string> pressure_name;
+  std::optional<std::string> pressure_label;
+  std::optional<std::string> server_url;
+  std::string listen_host = "127.0.0.1";
+  std::optional<unsigned short> listen_port;
   std::optional<std::size_t> server_threads_override;
   std::optional<std::size_t> server_io_threads_override;
   std::optional<std::size_t> server_worker_threads_override;
@@ -43,8 +49,10 @@ struct CliConfig {
   std::optional<std::size_t> cooldown_ms_override;
   std::optional<std::filesystem::path> output_json;
   bool internal_run_cell = false;
+  std::optional<RunMode> internal_mode;
   std::optional<std::string> internal_scenario_name;
   std::optional<std::string> internal_pressure_name;
+  std::optional<std::string> internal_server_url;
   std::optional<std::size_t> internal_server_threads;
   std::optional<std::size_t> internal_server_io_threads;
   std::optional<std::size_t> internal_server_worker_threads;
@@ -76,12 +84,14 @@ struct PressureSettings {
 };
 
 struct RunSettings {
+  RunMode mode = RunMode::kLocal;
   std::vector<PressureSettings> pressures;
   std::size_t warmup_ms = 0;
   std::size_t duration_ms = 0;
   std::size_t repetitions = 0;
   std::size_t cooldown_ms = 0;
   std::filesystem::path wrk_bin;
+  std::string server_url;
   std::size_t client_processes = 4;
   std::size_t wrk_threads_per_process = 2;
 };

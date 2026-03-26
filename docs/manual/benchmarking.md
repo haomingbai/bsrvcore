@@ -1,202 +1,179 @@
 # Benchmarking
 
-This chapter explains how to run the built-in benchmark suite for
-`HttpServer`.
+This chapter describes the benchmark workflow for `HttpServer`.
 
-## Execution Model
+## Overview
 
-Each benchmark cell (`scenario x pressure x repetition`) runs in a fresh child
-process.
+The benchmark stack is split into three layers:
 
-Inside one cell process:
+- `bsrvcore_http_benchmark`: runs benchmark cells and exports JSON
+- `scripts/benchmark_plot.py`: reads consolidated JSON and generates images only
+- `scripts/benchmark.sh`: orchestrates build, sweep, env detection, packaging,
+  and single-host or dual-host execution
 
-- one `HttpServer` instance is started
-- `N` independent `wrk` processes pressure that server in parallel
-- warmup, measure, and cooldown are all executed with the same multi-process
-  model
+The script-generated package is intentionally concise. It records the facts,
+tables, and plots for a run. The final performance analysis report should be
+written by hand from those artifacts.
 
-This keeps the load model closer to real deployment pressure while preserving
-subprocess isolation between cells.
+## Benchmark Modes
 
-## No Repository Binaries By Default
+The benchmark binary supports three runtime modes:
 
-The repository does not ship `wrk` binaries.
+- `local`: starts a benchmark server in the benchmark subprocess, then runs `wrk`
+- `client`: runs `wrk` against `--server-url` and does not start a local server
+- `server`: starts one benchmark scenario as a foreground server process
 
-Default behavior:
+`server` mode requires one named scenario. It does not accept `io` or `all`
+because those selectors map to multiple scenario definitions.
 
-- bundled `wrk` build is `OFF`
-- runtime path probing order is:
-  `/bin/wrk`, `/usr/bin/wrk`, `/usr/local/bin/wrk`, then `wrk` from `PATH`
+## Single-Host Workflow
 
-You can choose one of these paths:
-
-1. install `wrk` in your system path (or under `/bin`)
-2. set `--wrk-bin /absolute/path/to/wrk`
-3. set `BSRVCORE_BENCHMARK_WRK_BIN=/absolute/path/to/wrk`
-4. enable bundled build explicitly at configure time
-
-Optional bundled build switch:
+Run a local sweep:
 
 ```bash
--DBSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON
+bash scripts/benchmark.sh run
 ```
 
-If enabled, `wrk` is built under the build directory only.
-
-## Build
-
-Build the benchmark binary:
+Common overrides:
 
 ```bash
-cmake -S . -B build-bench \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DBSRVCORE_BUILD_EXAMPLES=OFF \
-  -DBSRVCORE_BUILD_TESTS=OFF \
-  -DBSRVCORE_BUILD_BENCHMARKS=ON
-cmake --build build-bench --target bsrvcore_http_benchmark --parallel
+bash scripts/benchmark.sh run \
+  --build-dir build-release \
+  --scenario http_get_static \
+  --sweep-depth quick
 ```
 
-Binary path:
+`run` does all of the following:
+
+- builds `bsrvcore_http_benchmark`
+- resolves a usable `wrk` binary
+- detects or creates a Python environment with `matplotlib`
+- sweeps benchmark pressure cells
+- writes a formatted JSON report
+- generates charts
+- writes a concise package summary under `docs/benchmark-results/package/`
+
+## Dual-Host Workflow
+
+### Manual Split Roles
+
+Start the benchmark server on the service host:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark
+bash scripts/benchmark.sh server \
+  --scenario http_get_static \
+  --listen-host 0.0.0.0 \
+  --listen-port 18080 \
+  --server-io-threads 5 \
+  --server-worker-threads 10
 ```
 
-## Scenarios
-
-List scenarios:
+Run the benchmark client on the load-generator host:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark --list-scenarios
+bash scripts/benchmark.sh client \
+  --scenario http_get_static \
+  --server-url http://service-host:18080 \
+  --server-io-threads 5 \
+  --server-worker-threads 10 \
+  --sweep-depth quick
 ```
 
-Scenario selectors:
+In manual `client` mode, `--server-io-threads` and
+`--server-worker-threads` are required so the exported result set still carries
+the server configuration that was actually benchmarked.
 
-- `--scenario all`: all benchmark scenarios
-- `--scenario io`: IO-focused subset
-- `--scenario <name>`: one named scenario
+### SSH-Orchestrated Split Roles
 
-Current IO-focused subset:
-
-- `http_get_static`
-- `http_post_echo_1k`
-- `http_post_echo_64k`
-
-## Pressure Levels
-
-Built-in pressure presets:
-
-- `light`: `server_io_threads=1`, `server_worker_threads=1`,
-  `client_concurrency=1`
-- `balanced`: `server_io_threads=max(1, floor(cpu/4))`,
-  `server_worker_threads=max(1, floor(cpu/2))`,
-  `client_concurrency=max(4, server_worker_threads*4)`
-- `saturated`: `server_io_threads=max(1, floor(cpu/2))`,
-  `server_worker_threads=max(1, cpu)`,
-  `client_concurrency=max(16, server_worker_threads*8)`
-- `overload`: `server_io_threads=max(1, floor(cpu/2))`,
-  `server_worker_threads=max(2, cpu*2)`,
-  `client_concurrency=max(32, server_worker_threads*8)`
-
-Custom override:
-
-- `--server-io-threads <n>`
-- `--server-worker-threads <n>`
-- `--client-concurrency <n>`
-
-Compatibility note:
-
-- `--server-threads <n>` is still accepted and maps to
-  `server_io_threads=n` plus `server_worker_threads=n`.
-
-When either override is passed, the sweep collapses to one custom pressure
-cell.
-
-## Multi-Process Load Knobs
-
-- `--client-processes <n>`: number of `wrk` processes per phase (default: 2)
-- `--wrk-threads-per-process <n>`: `wrk` threads used by each process (default: 1)
-- `--wrk-bin <path>`: explicit `wrk` path
-
-Examples:
+If passwordless SSH is available, the client host can build and start the
+remote benchmark server automatically:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark \
-  --scenario io \
-  --pressure saturated \
-  --client-processes 4 \
-  --wrk-threads-per-process 2 \
-  --wrk-bin /usr/bin/wrk
+bash scripts/benchmark.sh ssh-run \
+  --scenario http_get_static \
+  --ssh-target user@service-host \
+  --ssh-remote-root /path/to/bsrvcore \
+  --server-host service-host \
+  --sweep-depth quick
 ```
 
-## Output
+`ssh-run` is implemented as a thin wrapper around the same `server` and
+`client` roles.
 
-Optional JSON output:
+## Sweep Strategy
+
+The sweep is orchestrated by `scripts/benchmark.sh`, not by hardcoding a large
+matrix into the benchmark binary.
+
+Current sweep dimensions:
+
+- `server_io_threads`
+- `server_worker_threads`
+- `client_concurrency`
+- `client_processes`
+- `wrk_threads_per_process`
+
+Depth presets:
+
+- `quick`
+- `standard`
+- `full`
+
+The sweep is designed to produce useful capacity curves instead of only testing
+one or two saturated points.
+
+## Outputs
+
+Canonical outputs are written to `docs/benchmark-results/`:
+
+- `benchmark-report.json`
+- `benchmark-report.md`
+- `benchmark-report-capacity-overview.png`
+- `benchmark-report-peak-neighborhood.png`
+- `benchmark-report-thread-sensitivity.png`
+- `benchmark-report-loadgen-sensitivity.png`
+
+The concise package is written under:
 
 ```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark \
-  --scenario io \
-  --pressure saturated \
-  --output-json ./benchmark.json
+docs/benchmark-results/package/
 ```
 
-JSON includes:
+It contains:
 
-- environment info
-- run config (including `wrk` path and multi-process knobs)
-- per-run metrics
-- per-cell aggregate metrics
+- `summary.md`
+- collected environment snapshots
+- links back to the parent JSON and technical report
 
-## Helper Scripts
+`benchmark_plot.py` does **not** generate Markdown reports.
 
-The repository also provides helper scripts under `scripts/`:
+## Environment Detection
 
-- `scripts/build.sh`: configure and build with common defaults
-- `scripts/format.sh`: run `clang-format` across the repository
-- `scripts/benchmark.sh`: build the benchmark binary, detect CPU count,
-  run a benchmark sweep, create a Python venv, and generate plots plus a short
-  Markdown report at `docs/benchmark-results/benchmark-report.md`
+The orchestration script collects benchmark environment details using common
+CLI tools where available, including:
 
-## Metrics
+- `nproc`
+- `lscpu`
+- `uname -a`
+- `hostname -I`
+- `free -h`
+- `c++ --version`
+- `cmake --version`
+- `python3 --version`
 
-Per repetition, the benchmark records:
+Python plotting environment selection order:
 
-- `attempt_count`
-- `success_count`
-- `error_count`
-- `non_2xx_3xx_count`
-- `socket_connect_error_count`
-- `socket_read_error_count`
-- `socket_write_error_count`
-- `socket_timeout_error_count`
-- `loadgen_failure_count`
-- `attempt_rps`
-- `rps`
-- `failure_ratio`
-- `mib_per_sec`
-- latency in microseconds: `p50`, `p95`, `p99`, `max`
+1. active `VIRTUAL_ENV` if it already has `matplotlib`
+2. repository-local `${BSRVCORE_BENCH_VENV:-.venv-benchmark}`
+3. auto-create that local venv and install `matplotlib`
+4. system `python3` if it already has `matplotlib`
 
-Failure metrics are part of the benchmark result by design. They are not
-retried away.
+If none of these work, the script fails explicitly.
 
-## Stability Rule
+## Notes
 
-A cell is `stable` only when all are true:
-
-- `rps_cv <= 10%`
-- `p95_cv <= 15%`
-- `failure_ratio.max <= 5%`
-- `loadgen_failure_count.max == 0`
-
-Otherwise it is `unstable`.
-
-## Reproducibility
-
-For comparable numbers:
-
-- use `Release`
-- keep the same scenario and pressure cell
-- avoid background CPU/network pressure
-- do not run multiple benchmark sweeps at the same time
-
-Set `BSRVCORE_BENCHMARK_TRACE=1` to print lifecycle tracing for debugging.
+- Use `Release` builds for comparable throughput numbers.
+- Avoid concurrent benchmark sweeps on the same machine.
+- The complete performance analysis should be written manually from the
+  generated JSON and images, especially when you need to explain saturation,
+  decline regions, or bottleneck causes.

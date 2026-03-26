@@ -157,10 +157,12 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
       << "\"build_type\":\"" << EscapeJson(environment.build_type) << "\","
       << "\"logical_cpu_count\":" << environment.logical_cpu_count << "},"
       << "\"run_config\":{"
+      << "\"mode\":\"" << EscapeJson(ToString(run_settings.mode)) << "\","
       << "\"scenario\":\"" << EscapeJson(cli.scenario_name) << "\","
       << "\"profile\":\"" << EscapeJson(ToString(cli.profile)) << "\","
       << "\"pressure\":\""
       << EscapeJson(cli.pressure_name.value_or("profile-default")) << "\","
+      << "\"server_url\":\"" << EscapeJson(run_settings.server_url) << "\","
       << "\"warmup_ms\":" << run_settings.warmup_ms << ','
       << "\"duration_ms\":" << run_settings.duration_ms << ','
       << "\"repetitions\":" << run_settings.repetitions << ','

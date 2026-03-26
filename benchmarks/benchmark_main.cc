@@ -29,6 +29,24 @@ int main(int argc, char** argv) try {
     return 0;
   }
 
+  if (cli.mode == RunMode::kServer) {
+    if (cli.scenario_name == "all" || cli.scenario_name == "io") {
+      throw std::invalid_argument(
+          "server mode requires one named scenario, not 'all' or 'io'");
+    }
+    const auto run_settings = ResolveRunSettings(cli);
+    if (run_settings.pressures.size() != 1) {
+      throw std::invalid_argument(
+          "server mode requires one explicit pressure configuration");
+    }
+    if (!cli.listen_port.has_value()) {
+      throw std::invalid_argument("server mode requires --listen-port");
+    }
+    const auto& scenario = FindScenario(scenarios, cli.scenario_name);
+    return RunServer(scenario, run_settings.pressures.front(), cli.listen_host,
+                     *cli.listen_port);
+  }
+
   const auto selected_scenarios = ResolveSelectedScenarios(scenarios, cli);
   const auto run_settings = ResolveRunSettings(cli);
   const auto environment = DetectEnvironment();

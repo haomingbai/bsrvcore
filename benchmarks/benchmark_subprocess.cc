@@ -163,6 +163,7 @@ namespace bsrvcore::benchmark {
 int RunInternalCell(const CliConfig& cli,
                     const std::vector<ScenarioDefinition>& scenarios) {
   try {
+    const RunMode mode = cli.internal_mode.value_or(RunMode::kLocal);
     if (!cli.internal_scenario_name.has_value() ||
         !cli.internal_pressure_name.has_value() ||
         (!cli.internal_server_threads.has_value() &&
@@ -178,6 +179,10 @@ int RunInternalCell(const CliConfig& cli,
         !cli.internal_repetition.has_value() ||
         !cli.internal_result_path.has_value()) {
       throw MakeInternalArgumentError("missing one or more required flags");
+    }
+    if (mode == RunMode::kClient && !cli.internal_server_url.has_value()) {
+      throw MakeInternalArgumentError(
+          "client internal mode requires --internal-server-url");
     }
 
     PressureSettings pressure;
@@ -196,6 +201,7 @@ int RunInternalCell(const CliConfig& cli,
     pressure.client_concurrency = *cli.internal_client_concurrency;
 
     RunSettings run_settings;
+    run_settings.mode = mode;
     run_settings.warmup_ms = *cli.internal_warmup_ms;
     run_settings.duration_ms = *cli.internal_duration_ms;
     run_settings.cooldown_ms = *cli.internal_cooldown_ms;
@@ -204,6 +210,7 @@ int RunInternalCell(const CliConfig& cli,
     run_settings.wrk_threads_per_process =
         *cli.internal_wrk_threads_per_process;
     run_settings.wrk_bin = *cli.internal_wrk_bin;
+    run_settings.server_url = cli.internal_server_url.value_or("");
 
     const auto& scenario = FindScenario(scenarios, *cli.internal_scenario_name);
     const auto metrics = RunCellRepetition(scenario, pressure, run_settings,
@@ -302,34 +309,42 @@ std::vector<std::string> BuildChildArgs(
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
     const RunSettings& run_settings, std::size_t repetition,
     const std::filesystem::path& result_path) {
-  return {executable_path.string(),
-          "--internal-run-cell",
-          "--internal-scenario",
-          scenario.name,
-          "--internal-pressure-name",
-          pressure.name,
-          "--internal-server-io-threads",
-          std::to_string(pressure.server_io_threads),
-          "--internal-server-worker-threads",
-          std::to_string(pressure.server_worker_threads),
-          "--internal-client-concurrency",
-          std::to_string(pressure.client_concurrency),
-          "--internal-client-processes",
-          std::to_string(run_settings.client_processes),
-          "--internal-wrk-threads-per-process",
-          std::to_string(run_settings.wrk_threads_per_process),
-          "--internal-wrk-bin",
-          run_settings.wrk_bin.string(),
-          "--internal-warmup-ms",
-          std::to_string(run_settings.warmup_ms),
-          "--internal-duration-ms",
-          std::to_string(run_settings.duration_ms),
-          "--internal-cooldown-ms",
-          std::to_string(run_settings.cooldown_ms),
-          "--internal-repetition",
-          std::to_string(repetition),
-          "--internal-result-path",
-          result_path.string()};
+  auto args = std::vector<std::string>{
+      executable_path.string(),
+      "--internal-run-cell",
+      "--internal-mode",
+      ToString(run_settings.mode),
+      "--internal-scenario",
+      scenario.name,
+      "--internal-pressure-name",
+      pressure.name,
+      "--internal-server-io-threads",
+      std::to_string(pressure.server_io_threads),
+      "--internal-server-worker-threads",
+      std::to_string(pressure.server_worker_threads),
+      "--internal-client-concurrency",
+      std::to_string(pressure.client_concurrency),
+      "--internal-client-processes",
+      std::to_string(run_settings.client_processes),
+      "--internal-wrk-threads-per-process",
+      std::to_string(run_settings.wrk_threads_per_process),
+      "--internal-wrk-bin",
+      run_settings.wrk_bin.string(),
+      "--internal-warmup-ms",
+      std::to_string(run_settings.warmup_ms),
+      "--internal-duration-ms",
+      std::to_string(run_settings.duration_ms),
+      "--internal-cooldown-ms",
+      std::to_string(run_settings.cooldown_ms),
+      "--internal-repetition",
+      std::to_string(repetition),
+      "--internal-result-path",
+      result_path.string()};
+  if (run_settings.mode == RunMode::kClient) {
+    args.emplace_back("--internal-server-url");
+    args.emplace_back(run_settings.server_url);
+  }
+  return args;
 }
 
 }  // namespace

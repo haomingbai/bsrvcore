@@ -171,6 +171,18 @@ std::string ToString(PressureKind kind) {
   return "custom";
 }
 
+std::string ToString(RunMode mode) {
+  switch (mode) {
+    case RunMode::kLocal:
+      return "local";
+    case RunMode::kClient:
+      return "client";
+    case RunMode::kServer:
+      return "server";
+  }
+  return "local";
+}
+
 PressureKind ParsePressureKind(const std::string& value) {
   if (value == "light") {
     return PressureKind::kLight;
@@ -187,11 +199,25 @@ PressureKind ParsePressureKind(const std::string& value) {
   throw std::invalid_argument("Unknown pressure: " + value);
 }
 
+RunMode ParseRunMode(const std::string& value) {
+  if (value == "local") {
+    return RunMode::kLocal;
+  }
+  if (value == "client") {
+    return RunMode::kClient;
+  }
+  if (value == "server") {
+    return RunMode::kServer;
+  }
+  throw std::invalid_argument("Unknown mode: " + value);
+}
+
 RunSettings ResolveRunSettings(const CliConfig& cli) {
   const std::size_t cpu_count = SafeCpuCount();
   const ProfileSettings profile = ResolveProfile(cli.profile);
 
   RunSettings run;
+  run.mode = cli.mode;
   run.warmup_ms = cli.warmup_ms_override.value_or(profile.warmup_ms);
   run.duration_ms = cli.duration_ms_override.value_or(profile.duration_ms);
   run.repetitions = cli.repetitions_override.value_or(profile.repetitions);
@@ -200,6 +226,7 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
   run.wrk_threads_per_process =
       cli.wrk_threads_per_process_override.value_or(1);
   run.wrk_bin = ResolveWrkBinary(cli);
+  run.server_url = cli.server_url.value_or("");
 
   if (run.warmup_ms == 0 || run.duration_ms == 0 || run.repetitions == 0) {
     throw std::invalid_argument("warmup/duration/repetitions must be positive");
@@ -207,6 +234,10 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
   if (run.client_processes == 0 || run.wrk_threads_per_process == 0) {
     throw std::invalid_argument(
         "client-processes and wrk-threads-per-process must be positive");
+  }
+  if (run.mode == RunMode::kClient && run.server_url.empty()) {
+    throw std::invalid_argument(
+        "client mode requires --server-url http://host:port");
   }
 
   std::vector<PressureKind> pressure_kinds;
@@ -230,7 +261,7 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
 
     auto pressure = ResolvePressure(base_kind, cpu_count);
     pressure.kind = PressureKind::kCustom;
-    pressure.name = "custom";
+    pressure.name = cli.pressure_label.value_or("custom");
     if (cli.server_threads_override.has_value()) {
       pressure.server_io_threads = *cli.server_threads_override;
       pressure.server_worker_threads = *cli.server_threads_override;

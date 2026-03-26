@@ -6,6 +6,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "benchmark_util.h"
+
 namespace po = boost::program_options;
 
 namespace bsrvcore::benchmark {
@@ -17,6 +19,8 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   options.add_options()("help,h", "Show help")(
       "list-scenarios", po::bool_switch(&cli.list_scenarios),
       "List available scenarios")(
+      "mode", po::value<std::string>()->default_value("local"),
+      "Mode: local|client|server")(
       "scenario",
       po::value<std::string>(&cli.scenario_name)->default_value("all"),
       "Scenario name, 'io', or 'all'")(
@@ -24,6 +28,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Profile: quick or full")(
       "pressure", po::value<std::string>(),
       "Pressure: light|balanced|saturated|overload|all")(
+      "pressure-label", po::value<std::string>(),
+      "Custom pressure label used when explicit thread/concurrency overrides "
+      "are passed")("server-url", po::value<std::string>(),
+                    "Remote benchmark base URL for client mode, for example "
+                    "http://host:18080")(
+      "listen-host", po::value<std::string>()->default_value("127.0.0.1"),
+      "Listen host for server mode")("listen-port", po::value<unsigned short>(),
+                                     "Listen port for server mode")(
       "server-threads", po::value<std::size_t>(), "Override server threads")(
       "server-io-threads", po::value<std::size_t>(),
       "Override server io thread count")("server-worker-threads",
@@ -47,10 +59,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   hidden.add_options()("internal-run-cell",
                        po::bool_switch(&cli.internal_run_cell),
                        "Run one benchmark cell in internal mode")(
+      "internal-mode", po::value<std::string>(),
+      "Run mode for internal cell mode")(
       "internal-scenario", po::value<std::string>(),
       "Scenario name for internal cell mode")(
       "internal-pressure-name", po::value<std::string>(),
       "Pressure name for internal cell mode")(
+      "internal-server-url", po::value<std::string>(),
+      "Remote base URL for internal client cell mode")(
       "internal-server-threads", po::value<std::size_t>(),
       "Server threads for internal cell mode")(
       "internal-server-io-threads", po::value<std::size_t>(),
@@ -92,6 +108,7 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     return cli;
   }
 
+  cli.mode = ParseRunMode(vm["mode"].as<std::string>());
   const std::string profile = vm["profile"].as<std::string>();
   if (profile == "quick") {
     cli.profile = ProfileKind::kQuick;
@@ -103,6 +120,16 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
 
   if (vm.count("pressure") != 0) {
     cli.pressure_name = vm["pressure"].as<std::string>();
+  }
+  if (vm.count("pressure-label") != 0) {
+    cli.pressure_label = vm["pressure-label"].as<std::string>();
+  }
+  if (vm.count("server-url") != 0) {
+    cli.server_url = vm["server-url"].as<std::string>();
+  }
+  cli.listen_host = vm["listen-host"].as<std::string>();
+  if (vm.count("listen-port") != 0) {
+    cli.listen_port = vm["listen-port"].as<unsigned short>();
   }
   if (vm.count("server-threads") != 0) {
     cli.server_threads_override = vm["server-threads"].as<std::size_t>();
@@ -148,8 +175,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   if (vm.count("internal-scenario") != 0) {
     cli.internal_scenario_name = vm["internal-scenario"].as<std::string>();
   }
+  if (vm.count("internal-mode") != 0) {
+    cli.internal_mode = ParseRunMode(vm["internal-mode"].as<std::string>());
+  }
   if (vm.count("internal-pressure-name") != 0) {
     cli.internal_pressure_name = vm["internal-pressure-name"].as<std::string>();
+  }
+  if (vm.count("internal-server-url") != 0) {
+    cli.internal_server_url = vm["internal-server-url"].as<std::string>();
   }
   if (vm.count("internal-server-threads") != 0) {
     cli.internal_server_threads =

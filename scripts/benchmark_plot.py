@@ -1,403 +1,553 @@
 #!/usr/bin/env python3
-"""Generate benchmark plots and a short Markdown summary from benchmark JSON."""
+"""Generate curated benchmark charts from a consolidated benchmark JSON file."""
 
 from __future__ import annotations
 
 import argparse
 import json
+from collections import defaultdict
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+
+
+COLORS = [
+    "#1d4ed8",
+    "#d97706",
+    "#059669",
+    "#dc2626",
+    "#7c3aed",
+    "#0891b2",
+]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", required=True)
-    parser.add_argument("--markdown", required=True)
-    parser.add_argument("--rps-png", required=True)
-    parser.add_argument("--latency-png", required=True)
-    parser.add_argument("--failure-png", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--prefix", default="benchmark-report")
     return parser.parse_args()
 
 
-def load_cells(json_path: Path) -> tuple[dict, list[dict]]:
-    data = json.loads(json_path.read_text(encoding="utf-8"))
-    return data, data.get("cells", [])
+def load_data(json_path: Path) -> dict:
+    return json.loads(json_path.read_text(encoding="utf-8"))
 
 
-def cell_label(cell: dict) -> str:
-    return f"{cell['scenario']}/{cell['pressure']}"
-
-
-def scenario_labels(cells: list[dict]) -> list[str]:
-    return [cell_label(cell) for cell in cells]
-
-
-def aggregate_stat(cell: dict, metric: str, stat: str = "mean") -> float:
-    return float(cell["aggregate"][metric][stat])
-
-
-def latency_stat(cell: dict, percentile: str, stat: str = "mean") -> float:
-    return float(cell["aggregate"]["latency_us"][percentile][stat])
-
-
-def run_latency(run: dict, percentile: str) -> float:
-    return float(run["latency_us"][percentile])
-
-
-def markdown_table(headers: list[str], rows: list[list[str]]) -> list[str]:
-    lines = [
-        "| " + " | ".join(headers) + " |",
-        "| " + " | ".join(["---"] * len(headers)) + " |",
-    ]
-    for row in rows:
-        lines.append("| " + " | ".join(row) + " |")
-    return lines
-
-
-def summary_counts(cells: list[dict]) -> tuple[int, int]:
-    stable = sum(1 for cell in cells if cell["aggregate"].get("stability") == "stable")
-    unstable = len(cells) - stable
-    return stable, unstable
-
-
-def overview_lines(cells: list[dict]) -> list[str]:
-    stable_count, unstable_count = summary_counts(cells)
-    best_rps_cell = max(cells, key=lambda cell: aggregate_stat(cell, "rps"))
-    lowest_p95_cell = min(cells, key=lambda cell: latency_stat(cell, "p95"))
-    highest_p95_cell = max(cells, key=lambda cell: latency_stat(cell, "p95"))
-
-    return [
-        "## Executive Summary",
-        "",
-        f"- total_cells: `{len(cells)}`",
-        f"- stable_cells: `{stable_count}`",
-        f"- unstable_cells: `{unstable_count}`",
-        (
-            f"- best_throughput: `{cell_label(best_rps_cell)}` at "
-            f"`{aggregate_stat(best_rps_cell, 'rps'):.2f} rps`"
-        ),
-        (
-            f"- lowest_p95: `{cell_label(lowest_p95_cell)}` at "
-            f"`{latency_stat(lowest_p95_cell, 'p95'):.2f} us`"
-        ),
-        (
-            f"- highest_p95: `{cell_label(highest_p95_cell)}` at "
-            f"`{latency_stat(highest_p95_cell, 'p95'):.2f} us`"
-        ),
-        "",
-    ]
-
-
-def stability_rule_lines() -> list[str]:
-    return [
-        "## Stability Rule",
-        "",
-        "A cell is marked `stable` only when all conditions are met:",
-        "",
-        "- `rps_cv <= 10%`",
-        "- `p95_cv <= 15%`",
-        "- `failure_ratio.max <= 5%`",
-        "- `loadgen_failure_count.max == 0`",
-        "",
-    ]
-
-
-def cell_configuration_lines(cells: list[dict]) -> list[str]:
-    rows = []
-    for cell in cells:
-        rows.append(
-            [
-                cell["scenario"],
-                cell["pressure"],
-                str(cell["client_concurrency"]),
-                str(cell["server_io_threads"]),
-                str(cell["server_worker_threads"]),
-                str(cell["warmup_ms"]),
-                str(cell["duration_ms"]),
-                str(cell["cooldown_ms"]),
-                str(cell["repetitions"]),
-            ]
-        )
-
-    return [
-        "## Cell Configuration",
-        "",
-        *markdown_table(
-            [
-                "scenario",
-                "pressure",
-                "client_concurrency",
-                "server_io_threads",
-                "server_worker_threads",
-                "warmup_ms",
-                "duration_ms",
-                "cooldown_ms",
-                "repetitions",
-            ],
-            rows,
-        ),
-        "",
-    ]
-
-
-def scenario_summary_lines(cells: list[dict]) -> list[str]:
-    rows = []
-    for cell in cells:
-        aggregate = cell["aggregate"]
-        rows.append(
-            [
-                cell["scenario"],
-                cell["pressure"],
-                f"{aggregate_stat(cell, 'rps'):.2f}",
-                f"{aggregate['rps']['cv']:.3f}",
-                f"{latency_stat(cell, 'p50'):.2f}",
-                f"{latency_stat(cell, 'p95'):.2f}",
-                f"{latency_stat(cell, 'p99'):.2f}",
-                f"{latency_stat(cell, 'max'):.2f}",
-                f"{aggregate['failure_ratio']['max']:.4f}",
-                aggregate.get("stability", "unknown"),
-            ]
-        )
-
-    return [
-        "## Scenario Summary",
-        "",
-        *markdown_table(
-            [
-                "scenario",
-                "pressure",
-                "mean_rps",
-                "rps_cv",
-                "p50_us",
-                "p95_us",
-                "p99_us",
-                "max_us",
-                "failure_ratio_max",
-                "stability",
-            ],
-            rows,
-        ),
-        "",
-    ]
-
-
-def detailed_result_lines(cells: list[dict]) -> list[str]:
-    lines = ["## Detailed Results", ""]
-
-    for cell in cells:
-        aggregate = cell["aggregate"]
-        lines.extend(
-            [
-                f"### {cell_label(cell)}",
-                "",
-                (
-                    f"- load_shape: `client_concurrency={cell['client_concurrency']}`, "
-                    f"`server_io_threads={cell['server_io_threads']}`, "
-                    f"`server_worker_threads={cell['server_worker_threads']}`"
-                ),
-                (
-                    f"- throughput: mean `{aggregate_stat(cell, 'rps'):.2f} rps`, "
-                    f"min `{aggregate['rps']['min']:.2f}`, max `{aggregate['rps']['max']:.2f}`, "
-                    f"cv `{aggregate['rps']['cv']:.3f}`"
-                ),
-                (
-                    f"- latency: p50 `{latency_stat(cell, 'p50'):.2f} us`, "
-                    f"p95 `{latency_stat(cell, 'p95'):.2f} us`, "
-                    f"p99 `{latency_stat(cell, 'p99'):.2f} us`, "
-                    f"max `{latency_stat(cell, 'max'):.2f} us`"
-                ),
-                (
-                    f"- success_path: mean_success `{aggregate_stat(cell, 'success_count'):.2f}`, "
-                    f"mean_errors `{aggregate_stat(cell, 'error_count'):.2f}`, "
-                    f"failure_ratio_max `{aggregate['failure_ratio']['max']:.4f}`"
-                ),
-                (
-                    f"- bandwidth: mean `{aggregate_stat(cell, 'mib_per_sec'):.3f} MiB/s`, "
-                    f"bytes_sent_mean `{aggregate_stat(cell, 'bytes_sent'):.2f}`, "
-                    f"bytes_received_mean `{aggregate_stat(cell, 'bytes_received'):.2f}`"
-                ),
-                f"- stability: `{aggregate.get('stability', 'unknown')}`",
-                "",
-                *markdown_table(
-                    [
-                        "repetition",
-                        "rps",
-                        "p50_us",
-                        "p95_us",
-                        "p99_us",
-                        "max_us",
-                        "failure_ratio",
-                        "success_count",
-                        "error_count",
-                    ],
-                    [
-                        [
-                            str(run["repetition"]),
-                            f"{float(run['rps']):.2f}",
-                            f"{run_latency(run, 'p50'):.2f}",
-                            f"{run_latency(run, 'p95'):.2f}",
-                            f"{run_latency(run, 'p99'):.2f}",
-                            f"{run_latency(run, 'max'):.2f}",
-                            f"{float(run['failure_ratio']):.4f}",
-                            str(run["success_count"]),
-                            str(run["error_count"]),
-                        ]
-                        for run in cell.get("runs", [])
-                    ],
-                ),
-                "",
-            ]
-        )
-
-    return lines
-
-
-def save_bar_chart(
-    labels: list[str],
-    values: list[float],
-    title: str,
-    ylabel: str,
-    output: Path,
-    color: str,
-) -> None:
-    plt.figure(figsize=(10, 5))
-    plt.bar(labels, values, color=color)
-    plt.title(title)
-    plt.ylabel(ylabel)
-    plt.xticks(rotation=25, ha="right")
-    plt.tight_layout()
-    plt.savefig(output)
-    plt.close()
-
-
-def write_markdown_report(
-    data: dict,
-    cells: list[dict],
-    json_path: Path,
-    markdown_path: Path,
-    rps_png: Path,
-    latency_png: Path,
-    failure_png: Path,
-) -> None:
-    environment = data.get("environment", {})
-    run_config = data.get("run_config", {})
-
-    lines = [
-        "# Benchmark Report",
-        "",
-        *overview_lines(cells),
-        "## Environment",
-        "",
-        f"- timestamp_utc: `{environment.get('timestamp_utc', 'unknown')}`",
-        f"- os: `{environment.get('os', 'unknown')}`",
-        f"- compiler: `{environment.get('compiler', 'unknown')}`",
-        f"- build_type: `{environment.get('build_type', 'unknown')}`",
-        f"- logical_cpu_count: `{environment.get('logical_cpu_count', 'unknown')}`",
-        "",
-        "## Run Config",
-        "",
-        f"- scenario: `{run_config.get('scenario', 'unknown')}`",
-        f"- profile: `{run_config.get('profile', 'unknown')}`",
-        f"- pressure: `{run_config.get('pressure', 'unknown')}`",
-        f"- warmup_ms: `{run_config.get('warmup_ms', 'unknown')}`",
-        f"- duration_ms: `{run_config.get('duration_ms', 'unknown')}`",
-        f"- cooldown_ms: `{run_config.get('cooldown_ms', 'unknown')}`",
-        f"- client_processes: `{run_config.get('client_processes', 'unknown')}`",
-        f"- wrk_threads_per_process: `{run_config.get('wrk_threads_per_process', 'unknown')}`",
-        f"- repetitions: `{run_config.get('repetitions', 'unknown')}`",
-        f"- wrk_bin: `{run_config.get('wrk_bin', 'unknown')}`",
-        "",
-        "## Artifacts",
-        "",
-        f"- raw_json: [{json_path.name}]({json_path.name})",
-        "",
-    ]
-
-    lines.extend(
-        [
-            *stability_rule_lines(),
-            *cell_configuration_lines(cells),
-            *scenario_summary_lines(cells),
-            *detailed_result_lines(cells),
-            "",
-            "## Plots",
-            "",
-            f"![Throughput]({rps_png.name})",
-            "",
-            f"![Latency]({latency_png.name})",
-            "",
-            f"![Failure Ratio]({failure_png.name})",
-            "",
-        ]
+def build_cell_key(cell: dict) -> str:
+    return (
+        f"{cell['scenario']}|{cell['pressure']}|io={cell['server_io_threads']}"
+        f"|worker={cell['server_worker_threads']}|conc={cell['client_concurrency']}"
+        f"|proc={cell['client_processes']}|wrk={cell['wrk_threads_per_process']}"
     )
 
-    markdown_path.write_text("\n".join(lines), encoding="utf-8")
+
+def derive_rows(data: dict) -> list[dict]:
+    rows: list[dict] = []
+    for cell in data.get("cells", []):
+        aggregate = cell.get("aggregate", {})
+        latency = aggregate.get("latency_us", {})
+        rows.append(
+            {
+                "cell_key": cell.get("cell_key", build_cell_key(cell)),
+                "scenario": cell.get("scenario", "unknown"),
+                "pressure": cell.get("pressure", "unknown"),
+                "server_io_threads": int(cell.get("server_io_threads", 0)),
+                "server_worker_threads": int(cell.get("server_worker_threads", 0)),
+                "client_concurrency": int(cell.get("client_concurrency", 0)),
+                "client_processes": int(cell.get("client_processes", 0)),
+                "wrk_threads_per_process": int(
+                    cell.get("wrk_threads_per_process", 0)
+                ),
+                "mean_rps": float(aggregate.get("rps", {}).get("mean", 0.0)),
+                "p95_us": float(latency.get("p95", {}).get("mean", 0.0)),
+                "p99_us": float(latency.get("p99", {}).get("mean", 0.0)),
+                "failure_ratio_max": float(
+                    aggregate.get("failure_ratio", {}).get("max", 0.0)
+                ),
+                "stability": aggregate.get("stability", "unknown"),
+            }
+        )
+    rows.sort(
+        key=lambda row: (
+            row["scenario"],
+            row["server_io_threads"],
+            row["server_worker_threads"],
+            row["client_concurrency"],
+            row["client_processes"],
+            row["wrk_threads_per_process"],
+        )
+    )
+    return rows
+
+
+def group_key(row: dict) -> tuple:
+    return (
+        row["scenario"],
+        row["server_io_threads"],
+        row["server_worker_threads"],
+        row["client_processes"],
+        row["wrk_threads_per_process"],
+    )
+
+
+def line_label(key: tuple, note: str = "") -> str:
+    scenario, io_threads, worker_threads, client_processes, wrk_threads = key
+    label = (
+        f"io={io_threads} worker={worker_threads} "
+        f"proc={client_processes} wrk={wrk_threads}"
+    )
+    if note:
+        return f"{label} ({note})"
+    return label
+
+
+def winner_row(rows: list[dict], data: dict) -> dict:
+    winner_key = data.get("winner", {}).get("cell_key")
+    for row in rows:
+        if row["cell_key"] == winner_key:
+            return row
+    raise SystemExit("winner cell is missing from the consolidated JSON")
+
+
+def group_rows(rows: list[dict]) -> dict[tuple, list[dict]]:
+    groups: dict[tuple, list[dict]] = defaultdict(list)
+    for row in rows:
+        groups[group_key(row)].append(row)
+    for series in groups.values():
+        series.sort(key=lambda row: row["client_concurrency"])
+    return groups
+
+
+def max_rps(series: list[dict]) -> float:
+    return max(row["mean_rps"] for row in series)
+
+
+def unique_concurrency_count(series: list[dict]) -> int:
+    return len({row["client_concurrency"] for row in series})
+
+
+def stable_marker(row: dict) -> str:
+    return "o" if row["stability"] == "stable" else "X"
+
+
+def plot_metric_series(
+    ax: Axes,
+    series: list[dict],
+    y_key: str,
+    color: str,
+    label: str,
+    winner_cell_key: str,
+) -> None:
+    ordered = sorted(series, key=lambda row: row["client_concurrency"])
+    x = [row["client_concurrency"] for row in ordered]
+    y = [row[y_key] for row in ordered]
+    ax.plot(x, y, color=color, linewidth=1.6, marker="o", label=label)
+    for row in ordered:
+        marker_size = 70 if row["cell_key"] == winner_cell_key else 36
+        edge = "#111827" if row["cell_key"] == winner_cell_key else color
+        ax.scatter(
+            row["client_concurrency"],
+            row[y_key],
+            color=color,
+            marker=stable_marker(row),
+            s=marker_size,
+            edgecolors=edge,
+            linewidths=1.0,
+            zorder=4,
+        )
+
+
+def representative_groups(
+    rows: list[dict], winner: dict
+) -> list[tuple[tuple, list[dict], str]]:
+    groups = group_rows(rows)
+    winner_group_key = group_key(winner)
+    reference_key = reference_family_key(rows, winner)
+
+    picked: list[tuple[tuple, list[dict], str]] = []
+    used: set[tuple] = set()
+
+    def add_group(key: tuple | None, note: str) -> None:
+        if key is None or key in used:
+            return
+        series = groups.get(key)
+        if not series or unique_concurrency_count(series) < 3:
+            return
+        picked.append((key, series, note))
+        used.add(key)
+
+    baseline_candidates = [
+        key
+        for key, series in groups.items()
+        if unique_concurrency_count(series) >= 3
+    ]
+    baseline_key = min(
+        baseline_candidates,
+        key=lambda key: (key[1], key[2], key[3], key[4], -max_rps(groups[key])),
+        default=None,
+    )
+    add_group(baseline_key, "baseline")
+
+    if reference_key == winner_group_key:
+        add_group(winner_group_key, "winner family")
+    else:
+        add_group(reference_key, "near-peak family")
+
+    same_server_candidates = sorted(
+        (
+            key
+            for key, series in groups.items()
+            if key[0] == winner["scenario"]
+            and key[1] == winner["server_io_threads"]
+            and key[2] == winner["server_worker_threads"]
+            and key != winner_group_key
+            and unique_concurrency_count(series) >= 3
+        ),
+        key=lambda key: max_rps(groups[key]),
+        reverse=True,
+    )
+    add_group(same_server_candidates[0] if same_server_candidates else None, "same server")
+
+    high_thread_candidates = sorted(
+        (
+            key
+            for key, series in groups.items()
+            if key[0] == winner["scenario"]
+            and key != winner_group_key
+            and unique_concurrency_count(series) >= 3
+            and (
+                key[1] > winner["server_io_threads"]
+                or key[2] > winner["server_worker_threads"]
+            )
+        ),
+        key=lambda key: (max_rps(groups[key]), key[2], key[1]),
+        reverse=True,
+    )
+    add_group(high_thread_candidates[0] if high_thread_candidates else None, "higher threads")
+
+    return picked[:4]
+
+
+def reference_family_key(rows: list[dict], winner: dict) -> tuple | None:
+    groups = group_rows(rows)
+    winner_key = group_key(winner)
+    if unique_concurrency_count(groups.get(winner_key, [])) >= 4:
+        return winner_key
+
+    same_shape_candidates = [
+        key
+        for key, series in groups.items()
+        if key[0] == winner["scenario"]
+        and key[3] == winner["client_processes"]
+        and key[4] == winner["wrk_threads_per_process"]
+        and unique_concurrency_count(series) >= 4
+    ]
+    if same_shape_candidates:
+        return max(same_shape_candidates, key=lambda key: max_rps(groups[key]))
+
+    full_curve_candidates = [
+        key
+        for key, series in groups.items()
+        if key[0] == winner["scenario"] and unique_concurrency_count(series) >= 4
+    ]
+    if full_curve_candidates:
+        return max(full_curve_candidates, key=lambda key: max_rps(groups[key]))
+    return None
+
+
+def reference_server_pair(rows: list[dict], winner: dict) -> tuple[int, int] | None:
+    counts: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    for row in rows:
+        if row["scenario"] != winner["scenario"]:
+            continue
+        counts[(row["server_io_threads"], row["server_worker_threads"])].append(row)
+
+    def shape_count(pair: tuple[int, int]) -> int:
+        pair_rows = counts[pair]
+        by_shape: dict[tuple[int, int], set[int]] = defaultdict(set)
+        for row in pair_rows:
+            by_shape[(row["client_processes"], row["wrk_threads_per_process"])].add(
+                row["client_concurrency"]
+            )
+        return sum(1 for points in by_shape.values() if len(points) >= 3)
+
+    winner_pair = (winner["server_io_threads"], winner["server_worker_threads"])
+    if shape_count(winner_pair) >= 2:
+        return winner_pair
+
+    candidates = [
+        pair for pair in counts if shape_count(pair) >= 2
+    ]
+    if not candidates:
+        return None
+    return max(
+        candidates,
+        key=lambda pair: (
+            shape_count(pair),
+            max(row["mean_rps"] for row in counts[pair]),
+        ),
+    )
+
+
+def save_capacity_overview(
+    rows: list[dict], winner: dict, output: Path
+) -> Path | None:
+    selections = representative_groups(rows, winner)
+    if len(selections) < 2:
+        return None
+
+    figure, axes = plt.subplots(2, 1, figsize=(11, 9), sharex=True)
+    for index, (key, series, note) in enumerate(selections):
+        color = COLORS[index % len(COLORS)]
+        plot_metric_series(
+            axes[0],
+            series,
+            "mean_rps",
+            color,
+            line_label(key, note),
+            winner["cell_key"],
+        )
+        plot_metric_series(
+            axes[1],
+            series,
+            "p95_us",
+            color,
+            line_label(key, note),
+            winner["cell_key"],
+        )
+
+    axes[0].set_title(
+        f"Capacity Overview: {winner['scenario']} on representative server/loadgen shapes"
+    )
+    axes[0].set_ylabel("Mean RPS")
+    axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="best")
+
+    axes[1].set_ylabel("p95 latency (us)")
+    axes[1].set_xlabel("Client concurrency")
+    axes[1].grid(alpha=0.25)
+
+    figure.tight_layout()
+    figure.savefig(output)
+    plt.close(figure)
+    return output
+
+
+def save_peak_neighborhood(rows: list[dict], winner: dict, output: Path) -> Path | None:
+    reference_key = reference_family_key(rows, winner)
+    if reference_key is None:
+        return None
+    winner_series = [row for row in rows if group_key(row) == reference_key]
+
+    conc_min = max(1, winner["client_concurrency"] - 20)
+    conc_max = winner["client_concurrency"] + 20
+    focus = [
+        row
+        for row in winner_series
+        if conc_min <= row["client_concurrency"] <= conc_max
+    ]
+    if len(focus) < 4:
+        focus = winner_series
+
+    ordered = sorted(focus, key=lambda row: row["client_concurrency"])
+    x = [row["client_concurrency"] for row in ordered]
+    rps = [row["mean_rps"] for row in ordered]
+    p95 = [row["p95_us"] for row in ordered]
+    p99 = [row["p99_us"] for row in ordered]
+
+    figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    axes[0].plot(x, rps, color="#d97706", linewidth=1.8, marker="o")
+    axes[0].scatter(
+        winner["client_concurrency"],
+        winner["mean_rps"],
+        color="#111827",
+        s=90,
+        zorder=5,
+    )
+    axes[0].annotate(
+        f"winner: conc={winner['client_concurrency']}\n{winner['mean_rps']:.0f} rps",
+        xy=(winner["client_concurrency"], winner["mean_rps"]),
+        xytext=(8, 10),
+        textcoords="offset points",
+    )
+    ref_scenario, ref_io, ref_worker, ref_proc, ref_wrk = reference_key
+    axes[0].set_title(
+        f"Peak Neighborhood: {ref_scenario} io={ref_io} worker={ref_worker} "
+        f"proc={ref_proc} wrk={ref_wrk} reference family, exact top cell highlighted"
+    )
+    axes[0].set_ylabel("Mean RPS")
+    axes[0].grid(alpha=0.25)
+
+    axes[1].plot(x, p95, color="#1d4ed8", linewidth=1.6, marker="o", label="p95")
+    axes[1].plot(x, p99, color="#7c3aed", linewidth=1.6, marker="o", label="p99")
+    axes[1].set_ylabel("Latency (us)")
+    axes[1].set_xlabel("Client concurrency")
+    axes[1].grid(alpha=0.25)
+    axes[1].legend(loc="best")
+
+    figure.tight_layout()
+    figure.savefig(output)
+    plt.close(figure)
+    return output
+
+
+def save_thread_sensitivity(
+    rows: list[dict], winner: dict, output: Path
+) -> Path | None:
+    focus = [
+        row
+        for row in rows
+        if row["scenario"] == winner["scenario"]
+        and row["client_concurrency"] == winner["client_concurrency"]
+        and row["client_processes"] == winner["client_processes"]
+        and row["wrk_threads_per_process"] == winner["wrk_threads_per_process"]
+    ]
+    by_io: dict[int, list[dict]] = defaultdict(list)
+    for row in focus:
+        by_io[row["server_io_threads"]].append(row)
+
+    ranked_series = sorted(
+        (
+            (io_threads, sorted(series, key=lambda row: row["server_worker_threads"]))
+            for io_threads, series in by_io.items()
+            if len({row["server_worker_threads"] for row in series}) >= 2
+        ),
+        key=lambda item: max_rps(item[1]),
+        reverse=True,
+    )[:4]
+    if not ranked_series:
+        return None
+
+    figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    for index, (io_threads, series) in enumerate(ranked_series):
+        color = COLORS[index % len(COLORS)]
+        x = [row["server_worker_threads"] for row in series]
+        rps = [row["mean_rps"] for row in series]
+        p95 = [row["p95_us"] for row in series]
+        label = f"io={io_threads}"
+        axes[0].plot(x, rps, color=color, linewidth=1.6, marker="o", label=label)
+        axes[1].plot(x, p95, color=color, linewidth=1.6, marker="o", label=label)
+
+    axes[0].scatter(
+        winner["server_worker_threads"],
+        winner["mean_rps"],
+        color="#111827",
+        s=90,
+        zorder=5,
+    )
+    axes[0].set_title(
+        f"Server Thread Sensitivity at conc={winner['client_concurrency']} "
+        f"proc={winner['client_processes']} wrk={winner['wrk_threads_per_process']}"
+    )
+    axes[0].set_ylabel("Mean RPS")
+    axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="best")
+
+    axes[1].set_ylabel("p95 latency (us)")
+    axes[1].set_xlabel("Server worker threads")
+    axes[1].grid(alpha=0.25)
+
+    figure.tight_layout()
+    figure.savefig(output)
+    plt.close(figure)
+    return output
+
+
+def save_loadgen_sensitivity(
+    rows: list[dict], winner: dict, output: Path
+) -> Path | None:
+    server_pair = reference_server_pair(rows, winner)
+    if server_pair is None:
+        return None
+    server_io_threads, server_worker_threads = server_pair
+    focus = [
+        row
+        for row in rows
+        if row["scenario"] == winner["scenario"]
+        and row["server_io_threads"] == server_io_threads
+        and row["server_worker_threads"] == server_worker_threads
+    ]
+    by_shape: dict[tuple[int, int], list[dict]] = defaultdict(list)
+    for row in focus:
+        by_shape[(row["client_processes"], row["wrk_threads_per_process"])].append(row)
+
+    ranked_shapes = sorted(
+        (
+            (shape, sorted(series, key=lambda row: row["client_concurrency"]))
+            for shape, series in by_shape.items()
+            if unique_concurrency_count(series) >= 3
+        ),
+        key=lambda item: (
+            item[0] != (
+                winner["client_processes"],
+                winner["wrk_threads_per_process"],
+            ),
+            -max_rps(item[1]),
+        ),
+    )[:4]
+    if len(ranked_shapes) < 2:
+        return None
+
+    figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    for index, (shape, series) in enumerate(ranked_shapes):
+        color = COLORS[index % len(COLORS)]
+        proc, wrk_threads = shape
+        label = f"proc={proc} wrk={wrk_threads}"
+        plot_metric_series(
+            axes[0], series, "mean_rps", color, label, winner["cell_key"]
+        )
+        plot_metric_series(
+            axes[1], series, "p95_us", color, label, winner["cell_key"]
+        )
+
+    axes[0].set_title(
+        f"Load Generator Sensitivity at io={server_io_threads} "
+        f"worker={server_worker_threads}"
+    )
+    axes[0].set_ylabel("Mean RPS")
+    axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="best")
+
+    axes[1].set_ylabel("p95 latency (us)")
+    axes[1].set_xlabel("Client concurrency")
+    axes[1].grid(alpha=0.25)
+
+    figure.tight_layout()
+    figure.savefig(output)
+    plt.close(figure)
+    return output
 
 
 def main() -> None:
     args = parse_args()
-    json_path = Path(args.json)
-    markdown_path = Path(args.markdown)
-    rps_png = Path(args.rps_png)
-    latency_png = Path(args.latency_png)
-    failure_png = Path(args.failure_png)
+    data = load_data(Path(args.json))
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    data, cells = load_cells(json_path)
-    labels = scenario_labels(cells)
+    rows = derive_rows(data)
+    if not rows:
+        raise SystemExit("benchmark JSON has no cells to plot")
 
-    rps_values = [cell["aggregate"]["rps"]["mean"] for cell in cells]
-    p95_values = [cell["aggregate"]["latency_us"]["p95"]["mean"] for cell in cells]
-    p99_values = [cell["aggregate"]["latency_us"]["p99"]["mean"] for cell in cells]
-    failure_values = [
-        cell["aggregate"]["failure_ratio"]["max"] for cell in cells
+    winner = winner_row(rows, data)
+    outputs = [
+        save_capacity_overview(
+            rows, winner, output_dir / f"{args.prefix}-capacity-overview.png"
+        ),
+        save_peak_neighborhood(
+            rows, winner, output_dir / f"{args.prefix}-peak-neighborhood.png"
+        ),
+        save_thread_sensitivity(
+            rows, winner, output_dir / f"{args.prefix}-thread-sensitivity.png"
+        ),
+        save_loadgen_sensitivity(
+            rows, winner, output_dir / f"{args.prefix}-loadgen-sensitivity.png"
+        ),
     ]
 
-    save_bar_chart(
-        labels,
-        rps_values,
-        "Mean Requests Per Second",
-        "RPS",
-        rps_png,
-        "#1f77b4",
-    )
-
-    plt.figure(figsize=(10, 5))
-    positions = list(range(len(labels)))
-    plt.bar(positions, p95_values, width=0.4, label="p95", color="#ff7f0e")
-    plt.bar(
-        [position + 0.4 for position in positions],
-        p99_values,
-        width=0.4,
-        label="p99",
-        color="#d62728",
-    )
-    plt.title("Latency Percentiles")
-    plt.ylabel("Microseconds")
-    plt.xticks([position + 0.2 for position in positions], labels, rotation=25, ha="right")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(latency_png)
-    plt.close()
-
-    save_bar_chart(
-        labels,
-        failure_values,
-        "Failure Ratio Max",
-        "Failure Ratio",
-        failure_png,
-        "#2ca02c",
-    )
-
-    write_markdown_report(
-        data,
-        cells,
-        json_path,
-        markdown_path,
-        rps_png,
-        latency_png,
-        failure_png,
-    )
+    for output in outputs:
+        if output is not None:
+            print(output)
 
 
 if __name__ == "__main__":

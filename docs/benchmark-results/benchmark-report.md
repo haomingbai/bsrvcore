@@ -1,354 +1,161 @@
-# Benchmark Report
+# Bsrvcore HTTP Benchmark Technical Report
 
-## Executive Summary
+## 1. Scope And Method
 
-- total_cells: `14`
-- stable_cells: `13`
-- unstable_cells: `1`
-- best_throughput: `http_get_static/saturated` at `169860.64 rps`
-- lowest_p95: `http_get_static/light` at `23.61 us`
-- highest_p95: `http_session_counter/saturated` at `7656.91 us`
+This run targets the `http_get_static` path only. The goal is not to claim an exact machine-limit number. The goal is to locate a credible near-peak operating region on the current host, then explain how throughput and latency change around that region.
 
-## Validation Scope
+This point matters for interpreting the charts:
 
-- source_revision: `8cf0d86`
-- benchmark_target:
-  `route parameter naming rewrite + mountable BluePrint support + benchmark automation scripts`
-- benchmark_command: `bash scripts/benchmark.sh`
-- validated_tests:
-  `unit_blue_print_test`, `unit_route_table_test`, `unit_http_server_task_test`,
-  `stress_route_table_test`, `stress_keep_alive_route_param_test`
-- script_checks:
-  `bash -n scripts/build.sh scripts/format.sh scripts/benchmark.sh`,
-  `python3 -m py_compile scripts/benchmark_plot.py`
-
-## Reproduction
-
-Run the canonical report workflow:
-
-```bash
-bash scripts/benchmark.sh
-```
-
-Run the benchmark binary directly with the same parameters used by this report:
-
-```bash
-./build-bench/benchmarks/bsrvcore_http_benchmark \
-  --scenario all \
-  --profile quick \
-  --client-processes 4 \
-  --wrk-threads-per-process 1 \
-  --wrk-bin ./build-bench/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk \
-  --output-json docs/benchmark-results/benchmark-report.json
-```
-
-## Environment
-
-- timestamp_utc: `2026-03-25T18:43:51Z`
-- os: `Linux 6.19.8-200.fc43.x86_64 x86_64`
-- compiler: `GNU 15.2.1`
-- build_type: `Release`
-- logical_cpu_count: `20`
-
-## Run Config
-
-- scenario: `all`
-- profile: `quick`
-- pressure: `profile-default`
-- warmup_ms: `1000`
-- duration_ms: `3000`
-- cooldown_ms: `500`
-- client_processes: `4`
-- wrk_threads_per_process: `1`
+- topology: `single-host`
+- host: `haomingbai-PC`
+- CPU: `20` logical CPUs, `13th Gen Intel(R) Core(TM) i9-13900H`
+- OS: `Fedora Linux 43 (Workstation Edition)`
+- kernel: `Linux 6.19.8-200.fc43.x86_64`
+- command: `bash scripts/benchmark.sh run --build-dir build-release --scenario http_get_static --sweep-depth quick`
+- warmup / duration / cooldown: `800 ms / 2000 ms / 400 ms`
 - repetitions: `2`
-- wrk_bin: `/home/haomingbai/my_projects/bsrvcore/build-bench/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk`
+- search shape: `23` coarse cells + `83` fine cells = `106` total cells
+- winner rule: stable-first, then highest `mean_rps`, then lower `p95`, then lower `p99`
+- reporting rule in this document: use the exact top cell as a reference, but treat all stable cells within `1%` of the top as one near-peak band
 
-## Artifacts
+Because both server and load generator run on the same machine, the absolute top number is a conservative single-host ceiling, not a pure server-only upper bound. Small differences between adjacent cells can be distorted by local scheduling noise, wrk-side CPU usage, and loopback stack contention. For that reason, the main conclusion below is a near-peak interval, not a single sacred point.
 
-- raw_json: [benchmark-report.json](benchmark-report.json)
-- markdown_report: [benchmark-report.md](benchmark-report.md)
-- throughput_plot: [benchmark-report-rps.png](benchmark-report-rps.png)
-- latency_plot: [benchmark-report-latency.png](benchmark-report-latency.png)
-- failure_plot: [benchmark-report-failure.png](benchmark-report-failure.png)
+The formatted raw data is in [benchmark-report.json](benchmark-report.json).
 
-## Change-Focused Findings
+## 2. Executive Summary
 
-- Named route parameters remain close to the static route baseline under load.
-  `http_get_route_param/light` is `4.33%` below `http_get_static/light` in mean
-  RPS, while `http_get_route_param/saturated` is only `0.69%` below the
-  saturated static route.
-- The new parameter naming logic does not introduce a visible saturated-path
-  latency regression. Static vs route-param p95 is `1053.81 us` vs `1060.95 us`,
-  which is effectively flat for this sweep.
-- A single global aspect adds modest light-load overhead. Relative to
-  `http_get_route_param/light`, `http_get_global_aspect/light` drops mean RPS by
-  `3.84%`. Under saturated load the difference is within noise, with the global
-  aspect path slightly higher in this run.
-- Deep aspect chains are cheap under saturation but still visible on the light
-  path. `http_get_aspect_chain_64/light` is `33.79%` below
-  `http_get_global_aspect/light`, while `http_get_aspect_chain_64/saturated` is
-  only `2.51%` lower than `http_get_global_aspect/saturated`.
-- Payload size is not the throughput limiter in this quick sweep for the echo
-  benchmark. `http_post_echo_64k` and `http_post_echo_1k` deliver nearly the
-  same RPS in both pressure levels, but the 64 KiB case pushes much higher
-  bandwidth.
-- `http_session_counter/saturated` is the main latency outlier. Throughput stays
-  high at `165989.68 rps`, but p95 reaches `7656.91 us` and p99 reaches
-  `13002.44 us`, far above the other GET paths. That is the main follow-up item
-  if latency tail reduction matters.
-- The only unstable cell is `http_get_static/light`. The trigger is latency
-  variance rather than throughput loss: `rps_cv` is `0.030`, but `p95_cv` is
-  `0.186`, above the `0.150` stability threshold.
+The exact top stable cell in this run is:
 
-## Stability Rule
-
-A cell is marked `stable` only when all conditions are met:
-
-- `rps_cv <= 10%`
-- `p95_cv <= 15%`
-- `failure_ratio.max <= 5%`
-- `loadgen_failure_count.max == 0`
-
-## Cell Configuration
-
-| scenario | pressure | client_concurrency | server_io_threads | server_worker_threads | warmup_ms | duration_ms | cooldown_ms | repetitions |
+| scenario | io_threads | worker_threads | concurrency | client_processes | wrk_threads | mean_rps | p95_us | p99_us |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| http_get_static | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_get_static | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_get_route_param | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_get_route_param | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_get_global_aspect | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_get_global_aspect | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_get_aspect_chain_64 | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_get_aspect_chain_64 | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_post_echo_1k | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_post_echo_1k | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_post_echo_64k | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_post_echo_64k | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
-| http_session_counter | light | 1 | 1 | 1 | 1000 | 3000 | 500 | 2 |
-| http_session_counter | saturated | 160 | 10 | 20 | 1000 | 3000 | 500 | 2 |
+| `http_get_static` | `5` | `11` | `40` | `2` | `1` | `184256.43` | `244.88` | `259.99` |
 
-## Scenario Summary
+For practical use, the more important result is the near-peak band. Stable cells within `1%` of the winner are:
 
-| scenario | pressure | mean_rps | rps_cv | p50_us | p95_us | p99_us | max_us | failure_ratio_max | stability |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| http_get_static | light | 70188.07 | 0.030 | 13.00 | 23.61 | 28.50 | 1298.00 | 0.0000 | unstable |
-| http_get_static | saturated | 169860.64 | 0.002 | 938.64 | 1053.81 | 1124.85 | 14870.00 | 0.0000 | stable |
-| http_get_route_param | light | 67146.45 | 0.013 | 13.00 | 51.33 | 78.00 | 1218.50 | 0.0000 | stable |
-| http_get_route_param | saturated | 168686.03 | 0.011 | 948.64 | 1060.95 | 1133.70 | 14720.00 | 0.0000 | stable |
-| http_get_global_aspect | light | 64570.97 | 0.004 | 13.00 | 50.50 | 76.50 | 327.00 | 0.0000 | stable |
-| http_get_global_aspect | saturated | 169518.55 | 0.000 | 940.00 | 1053.28 | 1124.99 | 15480.00 | 0.0000 | stable |
-| http_get_aspect_chain_64 | light | 42755.16 | 0.015 | 21.00 | 45.44 | 61.00 | 329.50 | 0.0000 | stable |
-| http_get_aspect_chain_64 | saturated | 165265.67 | 0.006 | 965.00 | 1089.03 | 1161.25 | 13255.00 | 0.0000 | stable |
-| http_post_echo_1k | light | 15315.65 | 0.003 | 14.00 | 96.28 | 154.50 | 356.00 | 0.0000 | stable |
-| http_post_echo_1k | saturated | 86867.83 | 0.001 | 1150.12 | 1877.81 | 1989.99 | 3875.00 | 0.0000 | stable |
-| http_post_echo_64k | light | 15317.74 | 0.004 | 14.00 | 99.28 | 157.50 | 403.00 | 0.0000 | stable |
-| http_post_echo_64k | saturated | 87109.67 | 0.003 | 1066.23 | 1841.53 | 1968.74 | 4835.00 | 0.0000 | stable |
-| http_session_counter | light | 62212.42 | 0.012 | 14.00 | 84.22 | 136.00 | 12825.00 | 0.0000 | stable |
-| http_session_counter | saturated | 165989.68 | 0.000 | 940.00 | 7656.91 | 13002.44 | 35675.00 | 0.0000 | stable |
+| pressure | mean_rps | p95_us | gap_to_top |
+| --- | --- | --- | --- |
+| `io5-worker11-conc40-proc2-wrk1` | `184256.43` | `244.88` | `0.00%` |
+| `io5-worker10-conc56-proc1-wrk2` | `183682.24` | `341.44` | `0.31%` |
+| `io5-worker10-conc40-proc1-wrk2` | `183445.24` | `244.83` | `0.44%` |
+| `io5-worker10-conc60-proc2-wrk1` | `182486.30` | `373.73` | `0.96%` |
+| `io6-worker11-conc40-proc2-wrk1` | `182484.93` | `250.17` | `0.96%` |
 
-## Detailed Results
+That band is narrow enough to be meaningful but wide enough that it should not be overfit. The most defensible recommendation from this run is:
 
-### http_get_static/light
+- server near-peak range: `io_threads=5-6`, `worker_threads=10-11`
+- client near-peak range on this host: `concurrency=40-60`, with `proc=1,wrk=2` or `proc=2,wrk=1`
+- if lower tail latency matters more than the last `0.5%-1%` of throughput, prefer the `concurrency≈40` points over the `56-60` points
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `70188.07 rps`, min `68095.48`, max `72280.65`, cv `0.030`
-- latency: p50 `13.00 us`, p95 `23.61 us`, p99 `28.50 us`, max `1298.00 us`
-- success_path: mean_success `217583.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `12.316 MiB/s`, bytes_sent_mean `18712138.00`, bytes_received_mean `21322792.50`
-- stability: `unstable`
+## 3. Capacity Overview
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 68095.48 | 13.00 | 28.00 | 36.00 | 426.00 | 0.0000 | 211096 | 0 |
-| 2 | 72280.65 | 13.00 | 19.22 | 21.00 | 2170.00 | 0.0000 | 224070 | 0 |
+The first chart compares representative capacity curves. It is intentionally not “all cells at once”. The purpose is to show the baseline, the near-peak family, and an over-threaded comparison family on the same axes.
 
-### http_get_static/saturated
+![Capacity Overview](./benchmark-report-capacity-overview.png)
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `169860.64 rps`, min `169520.97`, max `170200.32`, cv `0.002`
-- latency: p50 `938.64 us`, p95 `1053.81 us`, p99 `1124.85 us`, max `14870.00 us`
-- success_path: mean_success `526568.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `29.809 MiB/s`, bytes_sent_mean `45284848.00`, bytes_received_mean `51610910.50`
-- stability: `stable`
+The main takeaways are:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 169520.97 | 940.00 | 1060.23 | 1132.42 | 15740.00 | 0.0000 | 525515 | 0 |
-| 2 | 170200.32 | 937.28 | 1047.38 | 1117.28 | 14000.00 | 0.0000 | 527621 | 0 |
+- The single-thread baseline tops out at `99401.37 rps` (`io1-worker1-conc8-proc1-wrk1`). The top cell is `85.37%` higher than that baseline, so the gain is real server scaling, not just wrk-side tuning.
+- The over-threaded family `io10-worker20` never catches up. `io10-worker20-conc40-proc2-wrk1` is `7.56%` below the top cell, and `io10-worker20-conc80-proc2-wrk1` is `8.61%` below while also pushing p95 much higher.
+- The broad near-peak family is centered on `io5-worker10/11`, not on the largest thread counts. On this host, more server threads are not safer; they are already on the wrong side of the scheduler/cache tradeoff.
 
-### http_get_route_param/light
+## 4. Peak Neighborhood
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `67146.45 rps`, min `66300.00`, max `67992.90`, cv `0.013`
-- latency: p50 `13.00 us`, p95 `51.33 us`, p99 `78.00 us`, max `1218.50 us`
-- success_path: mean_success `208154.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `12.167 MiB/s`, bytes_sent_mean `19150168.00`, bytes_received_mean `20400046.00`
-- stability: `stable`
+The next chart zooms into the near-peak region. The curve itself uses the densest near-peak family, `io5-worker10-proc2-wrk1`, because it has a full concurrency sweep from `10` to `80`. The exact winner cell `io5-worker11-conc40-proc2-wrk1` is overlaid as the highlighted top point.
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 66300.00 | 13.00 | 52.44 | 80.00 | 297.00 | 0.0000 | 205530 | 0 |
-| 2 | 67992.90 | 13.00 | 50.22 | 76.00 | 2140.00 | 0.0000 | 210778 | 0 |
+This is deliberate. The exact winner is a fine-grained thread-tuning point, not a full family sweep. Plotting the dense nearby family is more honest than pretending a single-point winner defines a whole curve.
 
-### http_get_route_param/saturated
+![Peak Neighborhood](./benchmark-report-peak-neighborhood.png)
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `168686.03 rps`, min `166898.07`, max `170474.00`, cv `0.011`
-- latency: p50 `948.64 us`, p95 `1060.95 us`, p99 `1133.70 us`, max `14720.00 us`
-- success_path: mean_success `514403.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `30.564 MiB/s`, bytes_sent_mean `47325076.00`, bytes_received_mean `50405048.50`
-- stability: `stable`
+This curve shows a real near-peak interval, not a single spike:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 170474.00 | 940.00 | 1051.66 | 1124.99 | 15530.00 | 0.0000 | 511422 | 0 |
-| 2 | 166898.07 | 957.27 | 1070.23 | 1142.42 | 13910.00 | 0.0000 | 517384 | 0 |
+- `conc=38` on the reference family reaches `182334.57 rps`
+- `conc=40` reaches `182202.62 rps`
+- `conc=46` reaches `181731.00 rps`
+- `conc=60` reaches `182486.30 rps`
 
-### http_get_global_aspect/light
+These points are all within about `0.3%-1.1%` of the top cell once thread tuning is accounted for. That is exactly the kind of spread that should be treated as one near-peak band under a single-host benchmark method.
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `64570.97 rps`, min `64291.29`, max `64850.64`, cv `0.004`
-- latency: p50 `13.00 us`, p95 `50.50 us`, p99 `76.50 us`, max `327.00 us`
-- success_path: mean_success `200170.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `14.225 MiB/s`, bytes_sent_mean `17214620.00`, bytes_received_mean `29024584.00`
-- stability: `stable`
+Latency explains why this should be described as a band, not just “higher concurrency is better”:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 64291.29 | 13.00 | 51.89 | 79.00 | 331.00 | 0.0000 | 199303 | 0 |
-| 2 | 64850.64 | 13.00 | 49.11 | 74.00 | 323.00 | 0.0000 | 201037 | 0 |
+- `conc=40` around the winner stays near `245-276 us` p95
+- `conc=56-60` is still near-peak in throughput, but p95 rises into roughly `341-374 us`
+- beyond that, throughput stops buying enough headroom to justify the extra queueing
 
-### http_get_global_aspect/saturated
+So the practical crest is:
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `169518.55 rps`, min `169490.97`, max `169546.13`, cv `0.000`
-- latency: p50 `940.00 us`, p95 `1053.28 us`, p99 `1124.99 us`, max `15480.00 us`
-- success_path: mean_success `525507.50`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `37.344 MiB/s`, bytes_sent_mean `45193645.00`, bytes_received_mean `76194774.50`
-- stability: `stable`
+- lower-latency crest: `conc≈40`
+- raw-throughput crest: `conc≈56-60`
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 169490.97 | 940.00 | 1051.74 | 1125.13 | 15910.00 | 0.0000 | 525422 | 0 |
-| 2 | 169546.13 | 940.00 | 1054.82 | 1124.85 | 15050.00 | 0.0000 | 525593 | 0 |
+## 5. Server Thread Sensitivity
 
-### http_get_aspect_chain_64/light
+The next chart fixes the client shape at `conc=40, proc=2, wrk=1` and varies server thread counts. This is the cleanest way to see whether the exact winner is a fluke.
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `42755.16 rps`, min `42101.61`, max `43408.71`, cv `0.015`
-- latency: p50 `21.00 us`, p95 `45.44 us`, p99 `61.00 us`, max `329.50 us`
-- success_path: mean_success `132541.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `9.868 MiB/s`, bytes_sent_mean `11398526.00`, bytes_received_mean `20677919.00`
-- stability: `stable`
+![Thread Sensitivity](./benchmark-report-thread-sensitivity.png)
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 43408.71 | 21.00 | 39.89 | 51.00 | 328.00 | 0.0000 | 134567 | 0 |
-| 2 | 42101.61 | 21.00 | 51.00 | 71.00 | 331.00 | 0.0000 | 130515 | 0 |
+The answer is no. The winner is not a random outlier, but the “best point” should still be read as a small plateau:
 
-### http_get_aspect_chain_64/saturated
+- `io5-worker11-conc40-proc2-wrk1`: `184256.43 rps`, `244.88 us` p95
+- `io5-worker10-conc40-proc2-wrk1`: `182202.62 rps`, `275.82 us` p95, only `1.12%` lower
+- `io6-worker11-conc40-proc2-wrk1`: `182484.93 rps`, `250.17 us` p95, only `0.96%` lower
+- `io5-worker12-conc40-proc2-wrk1`: `180506.52 rps`, `247.64 us` p95, still close but clearly off the crest
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `165265.67 rps`, min `164241.67`, max `166289.67`, cv `0.006`
-- latency: p50 `965.00 us`, p95 `1089.03 us`, p99 `1161.25 us`, max `13255.00 us`
-- success_path: mean_success `495797.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `38.143 MiB/s`, bytes_sent_mean `42638542.00`, bytes_received_mean `77348208.00`
-- stability: `stable`
+That gives a robust server-side conclusion:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 166289.67 | 960.00 | 1080.28 | 1152.50 | 11680.00 | 0.0000 | 498869 | 0 |
-| 2 | 164241.67 | 970.00 | 1097.78 | 1170.00 | 14830.00 | 0.0000 | 492725 | 0 |
+- the useful region is `io=5-6`
+- the useful worker region is `10-11`
+- `worker=11` is the best point in this run, but `10-12` is the real tuning band
 
-### http_post_echo_1k/light
+Once worker threads move up toward `13-14`, throughput softens again. That is the same “too many threads” pattern already visible in the coarse `io10-worker20` family.
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `15315.65 rps`, min `15275.16`, max `15356.13`, cv `0.003`
-- latency: p50 `14.00 us`, p95 `96.28 us`, p99 `154.50 us`, max `356.00 us`
-- success_path: mean_success `47478.50`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `19.046 MiB/s`, bytes_sent_mean `55027581.50`, bytes_received_mean `6883901.50`
-- stability: `stable`
+## 6. Load Generator Sensitivity
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 15356.13 | 14.00 | 93.56 | 154.00 | 330.00 | 0.0000 | 47604 | 0 |
-| 2 | 15275.16 | 14.00 | 99.00 | 155.00 | 382.00 | 0.0000 | 47353 | 0 |
+Because this is a single-host run, client-side shape matters. The next chart uses the densest near-peak server family, `io5-worker10`, and compares several `proc/wrk` shapes across concurrency.
 
-### http_post_echo_1k/saturated
+![Loadgen Sensitivity](./benchmark-report-loadgen-sensitivity.png)
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `86867.83 rps`, min `86747.33`, max `86988.33`, cv `0.001`
-- latency: p50 `1150.12 us`, p95 `1877.81 us`, p99 `1989.99 us`, max `3875.00 us`
-- success_path: mean_success `260603.50`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `108.026 MiB/s`, bytes_sent_mean `302039456.50`, bytes_received_mean `37780193.00`
-- stability: `stable`
+This chart is the strongest evidence that the benchmark method itself affects the measured ceiling:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 86747.33 | 1195.15 | 1891.99 | 2007.52 | 3080.00 | 0.0000 | 260242 | 0 |
-| 2 | 86988.33 | 1105.10 | 1863.63 | 1972.47 | 4670.00 | 0.0000 | 260965 | 0 |
+- `io5-worker10-conc40-proc1-wrk2` reaches `183445.24 rps` with `244.83 us` p95, only `0.44%` below the top cell
+- `io5-worker10-conc60-proc2-wrk1` reaches `182486.30 rps`, but p95 rises to `373.73 us`
+- `proc=3/4` shapes stay close, but they do not beat the best `proc=1/2` shapes
+- extra fan-out or extra wrk threads do not create a clean monotonic improvement; they just move the local resource tradeoff around
 
-### http_post_echo_64k/light
+This is exactly what a same-host benchmark should look like:
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `15317.74 rps`, min `15262.26`, max `15373.23`, cv `0.004`
-- latency: p50 `14.00 us`, p95 `99.28 us`, p99 `157.50 us`, max `403.00 us`
-- success_path: mean_success `47485.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `961.463 MiB/s`, bytes_sent_mean `3118434920.00`, bytes_received_mean `6883901.50`
-- stability: `stable`
+- server threads, client threads, and loopback sockets all compete on the same CPU pool
+- the highest measured `rps` is therefore a property of the whole test arrangement, not only the server
+- small deltas near the top are real enough to locate a useful operating region, but not precise enough to declare one client shape universally correct
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 15373.23 | 14.00 | 99.89 | 159.00 | 464.00 | 0.0000 | 47657 | 0 |
-| 2 | 15262.26 | 14.00 | 98.67 | 156.00 | 342.00 | 0.0000 | 47313 | 0 |
+## 7. What This Means For Single-Host Benchmarking
 
-### http_post_echo_64k/saturated
+This run is good enough to locate the near-peak region, but it should not be used to overstate precision.
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `87109.67 rps`, min `86840.33`, max `87379.00`, cv `0.003`
-- latency: p50 `1066.23 us`, p95 `1841.53 us`, p99 `1968.74 us`, max `4835.00 us`
-- success_path: mean_success `261329.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `5467.697 MiB/s`, bytes_sent_mean `17161998088.00`, bytes_received_mean `37890294.00`
-- stability: `stable`
+The disciplined way to read it is:
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 87379.00 | 1107.47 | 1835.56 | 1959.98 | 5390.00 | 0.0000 | 262137 | 0 |
-| 2 | 86840.33 | 1024.99 | 1847.50 | 1977.50 | 4280.00 | 0.0000 | 260521 | 0 |
+- The single-host benchmark is valid for relative tuning.
+  It clearly separates the baseline, the near-peak server thread region, and the over-threaded region.
+- The single-host benchmark is not a pure server ceiling.
+  The best points depend on local client shape, which means the measurement includes wrk-side CPU and loopback overhead.
+- The right output is a band, not a point.
+  On this run the credible near-peak band is centered on `io=5-6`, `worker=10-11`, `concurrency=40-60`.
 
-### http_session_counter/light
+If the next step is to estimate server-only headroom, the correct follow-up is a dual-host run with the server fixed near this band, then sweep only the client side from a second machine.
 
-- load_shape: `client_concurrency=1`, `server_io_threads=1`, `server_worker_threads=1`
-- throughput: mean `62212.42 rps`, min `61454.84`, max `62970.00`, cv `0.012`
-- latency: p50 `14.00 us`, p95 `84.22 us`, p99 `136.00 us`, max `12825.00 us`
-- success_path: mean_success `192858.50`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `14.477 MiB/s`, bytes_sent_mean `17164406.50`, bytes_received_mean `29894901.50`
-- stability: `stable`
+## 8. Recommended Configurations
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 62970.00 | 14.00 | 85.11 | 138.00 | 12630.00 | 0.0000 | 195207 | 0 |
-| 2 | 61454.84 | 14.00 | 83.33 | 134.00 | 13020.00 | 0.0000 | 190510 | 0 |
+For this machine and this benchmark path:
 
-### http_session_counter/saturated
+- Best single-host point from this run:
+  `io=5, worker=11, conc=40, proc=2, wrk=1`
+- Best low-latency near-peak point:
+  `io=5, worker=10, conc=40, proc=1, wrk=2`
+  It is only `0.44%` below the top, with essentially the same p95.
+- Best high-throughput near-peak point if you accept more queueing:
+  `io=5, worker=10, conc=60, proc=2, wrk=1`
+  It is only `0.96%` below the top, but p95 is much higher.
 
-- load_shape: `client_concurrency=160`, `server_io_threads=10`, `server_worker_threads=20`
-- throughput: mean `165989.68 rps`, min `165987.10`, max `165992.26`, cv `0.000`
-- latency: p50 `940.00 us`, p95 `7656.91 us`, p99 `13002.44 us`, max `35675.00 us`
-- success_path: mean_success `514568.00`, mean_errors `0.00`, failure_ratio_max `0.0000`
-- bandwidth: mean `38.624 MiB/s`, bytes_sent_mean `45796552.00`, bytes_received_mean `79754690.00`
-- stability: `stable`
+## 9. Artifacts
 
-| repetition | rps | p50_us | p95_us | p99_us | max_us | failure_ratio | success_count | error_count |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 165992.26 | 940.00 | 7689.95 | 13057.91 | 35590.00 | 0.0000 | 514576 | 0 |
-| 2 | 165987.10 | 940.00 | 7623.87 | 12946.97 | 35760.00 | 0.0000 | 514560 | 0 |
-
-## Plots
-
-![Throughput](benchmark-report-rps.png)
-
-![Latency](benchmark-report-latency.png)
-
-![Failure Ratio](benchmark-report-failure.png)
+- Report: [benchmark-report.md](benchmark-report.md)
+- Data: [benchmark-report.json](benchmark-report.json)
+- Concise package: [package/summary.md](./package/summary.md)

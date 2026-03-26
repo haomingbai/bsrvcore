@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/http/verb.hpp>
@@ -49,6 +50,7 @@ constexpr std::size_t kServerStartRetries = 8;
 constexpr auto kServerDrainDelay = std::chrono::milliseconds(20);
 constexpr auto kLoadgenPollInterval = std::chrono::milliseconds(100);
 constexpr auto kLoadgenTimeoutSlack = std::chrono::milliseconds(15'000);
+constexpr auto kServerRunPollInterval = std::chrono::milliseconds(250);
 
 using Clock = std::chrono::steady_clock;
 
@@ -114,6 +116,10 @@ struct StartedServer {
   unsigned short port = 0;
 };
 
+std::atomic<bool> g_server_stop_requested = false;
+
+extern "C" void HandleServerSignal(int) { g_server_stop_requested.store(true); }
+
 bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
     const bsrvcore::benchmark::PressureSettings& pressure) {
@@ -162,6 +168,22 @@ StartedServer StartServerWithRetry(
 
   throw std::runtime_error("Failed to start benchmark server after retries: " +
                            last_error);
+}
+
+StartedServer StartServerAt(
+    const bsrvcore::benchmark::ScenarioDefinition& scenario,
+    const bsrvcore::benchmark::PressureSettings& pressure,
+    std::string_view listen_host, unsigned short port) {
+  auto server = BuildServer(scenario, pressure);
+  server->AddListen({asio::ip::make_address(std::string(listen_host)), port});
+  if (!server->Start(pressure.server_io_threads)) {
+    throw std::runtime_error("HttpServer::Start returned false");
+  }
+  return {bsrvcore::AllocateUnique<ServerGuard>(std::move(server)), port};
+}
+
+std::string BuildServerUrl(std::string_view host, unsigned short port) {
+  return "http://" + std::string(host) + ":" + std::to_string(port);
 }
 
 std::uint64_t ParseUnsigned(std::string token) {
@@ -522,8 +544,7 @@ WrkProcessMetrics RunWrkProcess(const std::filesystem::path& wrk_bin,
                                 const std::filesystem::path& wrk_script,
                                 std::size_t connections, std::size_t threads,
                                 std::size_t duration_seconds,
-                                unsigned short server_port) {
-  const std::string url = "http://127.0.0.1:" + std::to_string(server_port);
+                                std::string_view server_url) {
   std::vector<std::string> args = {wrk_bin.string(),
                                    "--latency",
                                    "-t",
@@ -534,7 +555,7 @@ WrkProcessMetrics RunWrkProcess(const std::filesystem::path& wrk_bin,
                                    std::to_string(duration_seconds) + "s",
                                    "-s",
                                    wrk_script.string(),
-                                   url};
+                                   std::string(server_url)};
 
   const auto timeout =
       std::chrono::milliseconds(duration_seconds * 1000) + kLoadgenTimeoutSlack;
@@ -561,7 +582,7 @@ WrkProcessMetrics RunWrkProcess(const std::filesystem::path& wrk_bin,
 std::vector<WrkProcessMetrics> RunWrkPhase(
     const bsrvcore::benchmark::PressureSettings& pressure,
     const bsrvcore::benchmark::RunSettings& run_settings,
-    const std::filesystem::path& wrk_script, unsigned short server_port,
+    const std::filesystem::path& wrk_script, std::string_view server_url,
     std::size_t duration_ms) {
   const std::size_t process_count = std::max<std::size_t>(
       1, std::min(run_settings.client_processes, pressure.client_concurrency));
@@ -579,7 +600,7 @@ std::vector<WrkProcessMetrics> RunWrkPhase(
       try {
         process_results[i] =
             RunWrkProcess(run_settings.wrk_bin, wrk_script, connections,
-                          threads, duration_seconds, server_port);
+                          threads, duration_seconds, server_url);
       } catch (const std::exception& ex) {
         process_results[i].exit_code = -1;
         process_results[i].diagnostic = ex.what();
@@ -677,8 +698,16 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
                                     const RunSettings& run_settings,
                                     std::size_t repetition) {
   Trace(std::string("start cell ") + scenario.name + "/" + pressure.name);
-  auto started_server = StartServerWithRetry(scenario, pressure);
-  Trace(std::string("server started ") + scenario.name + "/" + pressure.name);
+  const bool use_remote_server = run_settings.mode == RunMode::kClient;
+  StartedServer started_server;
+  std::string server_url;
+  if (use_remote_server) {
+    server_url = run_settings.server_url;
+  } else {
+    started_server = StartServerWithRetry(scenario, pressure);
+    server_url = BuildServerUrl("127.0.0.1", started_server.port);
+    Trace(std::string("server started ") + scenario.name + "/" + pressure.name);
+  }
 
   WorkerState request_state;
   const auto request = scenario.make_request(request_state);
@@ -692,14 +721,14 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
   try {
     if (run_settings.warmup_ms > 0) {
       Trace(std::string("warmup start ") + scenario.name + "/" + pressure.name);
-      (void)RunWrkPhase(pressure, run_settings, wrk_script, started_server.port,
+      (void)RunWrkPhase(pressure, run_settings, wrk_script, server_url,
                         run_settings.warmup_ms);
       Trace(std::string("warmup done ") + scenario.name + "/" + pressure.name);
     }
 
     Trace(std::string("measure start ") + scenario.name + "/" + pressure.name);
-    auto measured = RunWrkPhase(pressure, run_settings, wrk_script,
-                                started_server.port, run_settings.duration_ms);
+    auto measured = RunWrkPhase(pressure, run_settings, wrk_script, server_url,
+                                run_settings.duration_ms);
     Trace(std::string("measure done ") + scenario.name + "/" + pressure.name);
     metrics = BuildMeasuredMetrics(repetition, run_settings.duration_ms,
                                    request, measured);
@@ -707,7 +736,7 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
     if (run_settings.cooldown_ms > 0) {
       Trace(std::string("cooldown start ") + scenario.name + "/" +
             pressure.name);
-      (void)RunWrkPhase(pressure, run_settings, wrk_script, started_server.port,
+      (void)RunWrkPhase(pressure, run_settings, wrk_script, server_url,
                         run_settings.cooldown_ms);
       Trace(std::string("cooldown done ") + scenario.name + "/" +
             pressure.name);
@@ -719,10 +748,42 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
   }
 
   cleanup_script();
-  std::this_thread::sleep_for(kServerDrainDelay);
-  started_server.guard.reset();
+  if (!use_remote_server) {
+    std::this_thread::sleep_for(kServerDrainDelay);
+    started_server.guard.reset();
+  }
   Trace(std::string("cell complete ") + scenario.name + "/" + pressure.name);
   return metrics;
+}
+
+int RunServer(const ScenarioDefinition& scenario,
+              const PressureSettings& pressure, std::string_view listen_host,
+              unsigned short listen_port) {
+  if (listen_port == 0) {
+    throw std::invalid_argument("server mode requires a non-zero listen port");
+  }
+
+  auto started_server =
+      StartServerAt(scenario, pressure, listen_host, listen_port);
+
+  g_server_stop_requested.store(false);
+  const auto previous_sigint = std::signal(SIGINT, HandleServerSignal);
+  const auto previous_sigterm = std::signal(SIGTERM, HandleServerSignal);
+
+  std::cout << "SERVER_READY=1\n";
+  std::cout << "SERVER_SCENARIO=" << scenario.name << "\n";
+  std::cout << "SERVER_LISTEN_HOST=" << listen_host << "\n";
+  std::cout << "SERVER_LISTEN_PORT=" << listen_port << "\n";
+  std::cout.flush();
+
+  while (!g_server_stop_requested.load()) {
+    std::this_thread::sleep_for(kServerRunPollInterval);
+  }
+
+  std::signal(SIGINT, previous_sigint);
+  std::signal(SIGTERM, previous_sigterm);
+  started_server.guard.reset();
+  return 0;
 }
 
 std::vector<CellResult> RunBenchmarks(
@@ -749,6 +810,7 @@ std::vector<CellResult> RunBenchmarks(
                   << ", server_worker_threads="
                   << pressure.server_worker_threads
                   << ", client_concurrency=" << pressure.client_concurrency
+                  << ", mode=" << ToString(run_settings.mode)
                   << ", client_processes=" << run_settings.client_processes
                   << ", wrk_threads_per_process="
                   << run_settings.wrk_threads_per_process << ")\n";

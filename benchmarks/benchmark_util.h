@@ -13,7 +13,9 @@ inline constexpr std::size_t kMaxLatencySamples = 1'000'000;
 
 std::string ToString(ProfileKind profile);
 std::string ToString(PressureKind kind);
+std::string ToString(RunMode mode);
 PressureKind ParsePressureKind(const std::string& value);
+RunMode ParseRunMode(const std::string& value);
 RunSettings ResolveRunSettings(const CliConfig& cli);
 EnvironmentInfo DetectEnvironment();
 
