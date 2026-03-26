@@ -185,9 +185,8 @@ TEST(HttpServerTaskTest, ExposesRouteTemplateAndNamedPathParameters) {
 
   bsrvcore::HttpRequest req;
   {
-    auto task =
-        bsrvcore::HttpServerTask::Create(std::move(req), std::move(route_result),
-                                         conn);
+    auto task = bsrvcore::HttpServerTask::Create(std::move(req),
+                                                 std::move(route_result), conn);
     EXPECT_EQ(task->GetCurrentLocation(), "/users/123");
     EXPECT_EQ(task->GetRouteTemplate(), "/users/{id}");
     ASSERT_NE(task->GetPathParameter("id"), nullptr);

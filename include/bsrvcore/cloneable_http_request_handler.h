@@ -42,12 +42,12 @@ class CloneableHttpRequestHandler : public HttpRequestHandler {
  */
 template <typename Fn>
   requires std::copy_constructible<Fn> &&
-           requires(Fn fn, std::shared_ptr<HttpServerTask> task) {
-             { fn(task) };
-           }
-class CloneableFunctionRouteHandler : public CloneableHttpRequestHandler,
-                                      public NonCopyableNonMovable<
-                                          CloneableFunctionRouteHandler<Fn>> {
+               requires(Fn fn, std::shared_ptr<HttpServerTask> task) {
+                 { fn(task) };
+               }
+class CloneableFunctionRouteHandler
+    : public CloneableHttpRequestHandler,
+      public NonCopyableNonMovable<CloneableFunctionRouteHandler<Fn>> {
  public:
   /**
    * @brief Construct a cloneable function-backed handler.

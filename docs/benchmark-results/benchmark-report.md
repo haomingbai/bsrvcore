@@ -345,7 +345,6 @@ A cell is marked `stable` only when all conditions are met:
 | 1 | 165992.26 | 940.00 | 7689.95 | 13057.91 | 35590.00 | 0.0000 | 514576 | 0 |
 | 2 | 165987.10 | 940.00 | 7623.87 | 12946.97 | 35760.00 | 0.0000 | 514560 | 0 |
 
-
 ## Plots
 
 ![Throughput](benchmark-report-rps.png)

@@ -81,8 +81,7 @@ class MultipartParser {
    * @param path Destination path.
    * @return true if the part is dumpable and work was scheduled.
    */
-  bool AsyncDumpToDisk(std::size_t part_idx,
-                       std::filesystem::path path) const {
+  bool AsyncDumpToDisk(std::size_t part_idx, std::filesystem::path path) const {
     return AsyncDumpToDisk(part_idx, std::move(path), DumpCallback{});
   }
 

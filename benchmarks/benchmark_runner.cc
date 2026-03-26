@@ -7,12 +7,12 @@
 #include <boost/beast/http/verb.hpp>
 #include <cerrno>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -226,11 +226,12 @@ std::uint64_t ParseSizeBytes(std::string_view token) {
     if (value.size() > suffix.size() &&
         value.compare(value.size() - suffix.size(), suffix.size(), suffix) ==
             0) {
-      const double count = ParseDouble(std::string_view(value).substr(
-          0, value.size() - suffix.size()));
+      const double count = ParseDouble(
+          std::string_view(value).substr(0, value.size() - suffix.size()));
       return static_cast<std::uint64_t>(std::llround(count * multiplier));
     }
-    return static_cast<std::uint64_t>(std::numeric_limits<std::uint64_t>::max());
+    return static_cast<std::uint64_t>(
+        std::numeric_limits<std::uint64_t>::max());
   };
 
   if (const auto gb = parse_unit("GB", 1024.0 * 1024.0 * 1024.0);
@@ -271,8 +272,8 @@ std::string LuaLongString(std::string_view value) {
   while (true) {
     const std::string delimiter = "]" + std::string(eq_count, '=') + "]";
     if (value.find(delimiter) == std::string_view::npos) {
-      return "[" + std::string(eq_count, '=') + "[" + std::string(value) +
-             "]" + std::string(eq_count, '=') + "]";
+      return "[" + std::string(eq_count, '=') + "[" + std::string(value) + "]" +
+             std::string(eq_count, '=') + "]";
     }
     ++eq_count;
   }
@@ -312,8 +313,7 @@ std::filesystem::path WriteWrkScript(
   out << "wrk.body = " << LuaLongString(request.body) << "\n";
   for (const auto& [field, value] : request.headers) {
     out << "wrk.headers["
-        << LuaLongString(
-               std::string(boost::beast::http::to_string(field)))
+        << LuaLongString(std::string(boost::beast::http::to_string(field)))
         << "] = " << LuaLongString(value) << "\n";
   }
   if (!request.keep_alive) {
@@ -326,8 +326,7 @@ std::uint64_t ApproximateRequestBytes(
     const bsrvcore::benchmark::RequestSpec& request) {
   constexpr std::string_view kHttpVersion = "HTTP/1.1";
   std::uint64_t total = boost::beast::http::to_string(request.method).size() +
-                        1 + request.target.size() + 1 + kHttpVersion.size() +
-                        2;
+                        1 + request.target.size() + 1 + kHttpVersion.size() + 2;
   total += 64;  // Host/User-Agent/Accept defaults in wrk.
   for (const auto& [field, value] : request.headers) {
     total += boost::beast::http::to_string(field).size() + 2 + value.size() + 2;
@@ -385,10 +384,10 @@ WrkProcessMetrics ParseWrkOutput(std::string_view output) {
       continue;
     }
     if (std::regex_match(line, matches, percentile_line)) {
-      const auto percentile = static_cast<std::size_t>(std::stoul(matches[1].str()));
+      const auto percentile =
+          static_cast<std::size_t>(std::stoul(matches[1].str()));
       if (percentile < latency_percentiles.size()) {
-        latency_percentiles[percentile] =
-            ParseDurationMicros(matches[2].str());
+        latency_percentiles[percentile] = ParseDurationMicros(matches[2].str());
         latency_seen[percentile] = true;
       }
       continue;
@@ -484,10 +483,9 @@ CommandResult RunCommandCapture(const std::vector<std::string>& args,
     if (wait_result == -1) {
       const auto output = ReadAllFromFd(pipe_fds[0]);
       ::close(pipe_fds[0]);
-      throw std::runtime_error("waitpid failed: " +
-                               std::string(std::strerror(errno)) +
-                               " output=[" + bsrvcore::benchmark::Trim(output) +
-                               "]");
+      throw std::runtime_error(
+          "waitpid failed: " + std::string(std::strerror(errno)) + " output=[" +
+          bsrvcore::benchmark::Trim(output) + "]");
     }
     if (std::chrono::steady_clock::now() >= deadline) {
       timed_out = true;
@@ -526,13 +524,20 @@ WrkProcessMetrics RunWrkProcess(const std::filesystem::path& wrk_bin,
                                 std::size_t duration_seconds,
                                 unsigned short server_port) {
   const std::string url = "http://127.0.0.1:" + std::to_string(server_port);
-  std::vector<std::string> args = {
-      wrk_bin.string(), "--latency", "-t", std::to_string(threads), "-c",
-      std::to_string(connections), "-d", std::to_string(duration_seconds) + "s",
-      "-s", wrk_script.string(), url};
+  std::vector<std::string> args = {wrk_bin.string(),
+                                   "--latency",
+                                   "-t",
+                                   std::to_string(threads),
+                                   "-c",
+                                   std::to_string(connections),
+                                   "-d",
+                                   std::to_string(duration_seconds) + "s",
+                                   "-s",
+                                   wrk_script.string(),
+                                   url};
 
-  const auto timeout = std::chrono::milliseconds(duration_seconds * 1000) +
-                       kLoadgenTimeoutSlack;
+  const auto timeout =
+      std::chrono::milliseconds(duration_seconds * 1000) + kLoadgenTimeoutSlack;
   const auto command = RunCommandCapture(args, timeout);
 
   auto parsed = ParseWrkOutput(command.output);
@@ -541,7 +546,8 @@ WrkProcessMetrics RunWrkProcess(const std::filesystem::path& wrk_bin,
   if (command.timed_out) {
     parsed.diagnostic = "wrk timed out";
   } else if (command.exit_code != 0) {
-    parsed.diagnostic = "wrk exited with code " + std::to_string(command.exit_code);
+    parsed.diagnostic =
+        "wrk exited with code " + std::to_string(command.exit_code);
   }
   if (!bsrvcore::benchmark::Trim(command.output).empty()) {
     if (!parsed.diagnostic.empty()) {
@@ -567,14 +573,13 @@ std::vector<WrkProcessMetrics> RunWrkPhase(
   workers.reserve(process_count);
   for (std::size_t i = 0; i < process_count; ++i) {
     const std::size_t connections = std::max<std::size_t>(1, split[i]);
-    const std::size_t threads =
-        std::max<std::size_t>(
-            1, std::min(run_settings.wrk_threads_per_process, connections));
+    const std::size_t threads = std::max<std::size_t>(
+        1, std::min(run_settings.wrk_threads_per_process, connections));
     workers.emplace_back([&, i, connections, threads] {
       try {
-        process_results[i] = RunWrkProcess(run_settings.wrk_bin, wrk_script,
-                                           connections, threads,
-                                           duration_seconds, server_port);
+        process_results[i] =
+            RunWrkProcess(run_settings.wrk_bin, wrk_script, connections,
+                          threads, duration_seconds, server_port);
       } catch (const std::exception& ex) {
         process_results[i].exit_code = -1;
         process_results[i].diagnostic = ex.what();
@@ -592,7 +597,8 @@ bsrvcore::benchmark::RepetitionMetrics BuildMeasuredMetrics(
   bsrvcore::benchmark::RepetitionMetrics metrics;
   metrics.repetition = repetition;
 
-  double duration_seconds = static_cast<double>(DurationMsToSeconds(duration_ms));
+  double duration_seconds =
+      static_cast<double>(DurationMsToSeconds(duration_ms));
   for (const auto& run : process_runs) {
     duration_seconds = std::max(duration_seconds, run.duration_seconds);
   }
@@ -608,10 +614,9 @@ bsrvcore::benchmark::RepetitionMetrics BuildMeasuredMetrics(
     if (!run.diagnostic.empty()) {
       Trace(std::string("wrk diagnostic: ") + run.diagnostic);
     }
-    const std::uint64_t socket_errors = run.socket_connect_errors +
-                                        run.socket_read_errors +
-                                        run.socket_write_errors +
-                                        run.socket_timeout_errors;
+    const std::uint64_t socket_errors =
+        run.socket_connect_errors + run.socket_read_errors +
+        run.socket_write_errors + run.socket_timeout_errors;
     const std::uint64_t success_count =
         run.requests > run.non_2xx_3xx ? run.requests - run.non_2xx_3xx : 0;
     const std::uint64_t error_count = run.non_2xx_3xx + socket_errors;
@@ -635,7 +640,8 @@ bsrvcore::benchmark::RepetitionMetrics BuildMeasuredMetrics(
       weighted_p95 += run.latency_p95_us * weight;
       weighted_p99 += run.latency_p99_us * weight;
       weighted_total += weight;
-      metrics.latency_max_us = std::max(metrics.latency_max_us, run.latency_max_us);
+      metrics.latency_max_us =
+          std::max(metrics.latency_max_us, run.latency_max_us);
     }
   }
 
@@ -695,14 +701,16 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
     auto measured = RunWrkPhase(pressure, run_settings, wrk_script,
                                 started_server.port, run_settings.duration_ms);
     Trace(std::string("measure done ") + scenario.name + "/" + pressure.name);
-    metrics = BuildMeasuredMetrics(repetition, run_settings.duration_ms, request,
-                                   measured);
+    metrics = BuildMeasuredMetrics(repetition, run_settings.duration_ms,
+                                   request, measured);
 
     if (run_settings.cooldown_ms > 0) {
-      Trace(std::string("cooldown start ") + scenario.name + "/" + pressure.name);
+      Trace(std::string("cooldown start ") + scenario.name + "/" +
+            pressure.name);
       (void)RunWrkPhase(pressure, run_settings, wrk_script, started_server.port,
                         run_settings.cooldown_ms);
-      Trace(std::string("cooldown done ") + scenario.name + "/" + pressure.name);
+      Trace(std::string("cooldown done ") + scenario.name + "/" +
+            pressure.name);
     }
   } catch (...) {
     cleanup_script();
@@ -755,8 +763,8 @@ std::vector<CellResult> RunBenchmarks(
         auto [it, inserted] =
             cells_by_key.emplace(key, CellResult{scenario->name,
                                                  pressure.name,
-                             pressure.server_io_threads,
-                             pressure.server_worker_threads,
+                                                 pressure.server_io_threads,
+                                                 pressure.server_worker_threads,
                                                  pressure.client_concurrency,
                                                  run_settings.warmup_ms,
                                                  run_settings.duration_ms,

@@ -250,11 +250,11 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * layer; false otherwise.
    * @note This function is noexcept and will not throw.
    */
-  bool MatchSegments(const boost::urls::url_view& url,
-                     route_internal::HttpRouteTableLayer*& route_layer,
-                     std::string& out_location,
-                     std::vector<std::string>& out_parameter_values) const
-      noexcept;
+  bool MatchSegments(
+      const boost::urls::url_view& url,
+      route_internal::HttpRouteTableLayer*& route_layer,
+      std::string& out_location,
+      std::vector<std::string>& out_parameter_values) const noexcept;
 
   /**
    * @brief Extract ordered parameter names from a route target.
@@ -305,9 +305,9 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   static void PrefixRouteTemplates(route_internal::HttpRouteTableLayer& layer,
                                    std::string_view prefix);
 
-  static bool CanMergeLayer(const route_internal::HttpRouteTableLayer& dst,
-                            const route_internal::HttpRouteTableLayer& src)
-      noexcept;
+  static bool CanMergeLayer(
+      const route_internal::HttpRouteTableLayer& dst,
+      const route_internal::HttpRouteTableLayer& src) noexcept;
 
   static void MoveMergeLayer(route_internal::HttpRouteTableLayer& dst,
                              route_internal::HttpRouteTableLayer& src);

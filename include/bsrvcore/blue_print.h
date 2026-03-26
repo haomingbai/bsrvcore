@@ -138,9 +138,9 @@ class ReuseableBluePrint {
   ReuseableBluePrint* AddRouteEntry(HttpRequestMethod method,
                                     std::string_view url, Func&& func) {
     using Fn = std::decay_t<Func>;
-    return AddRouteEntry(
-        method, url, AllocateUnique<CloneableFunctionRouteHandler<Fn>>(
-                         std::forward<Func>(func)));
+    return AddRouteEntry(method, url,
+                         AllocateUnique<CloneableFunctionRouteHandler<Fn>>(
+                             std::forward<Func>(func)));
   }
 
   ReuseableBluePrint* AddExclusiveRouteEntry(
@@ -153,11 +153,13 @@ class ReuseableBluePrint {
                { fn(task) };
              }
   ReuseableBluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
-                                             std::string_view url, Func&& func) {
+                                             std::string_view url,
+                                             Func&& func) {
     using Fn = std::decay_t<Func>;
     return AddExclusiveRouteEntry(
-        method, url, AllocateUnique<CloneableFunctionRouteHandler<Fn>>(
-                         std::forward<Func>(func)));
+        method, url,
+        AllocateUnique<CloneableFunctionRouteHandler<Fn>>(
+            std::forward<Func>(func)));
   }
 
   ReuseableBluePrint* AddAspect(
@@ -191,8 +193,7 @@ class ReuseableBluePrint {
                                      std::string_view url, std::size_t size);
 
  private:
-  bool MountInto(std::string_view prefix,
-                 HttpRouteTable& route_table) const;
+  bool MountInto(std::string_view prefix, HttpRouteTable& route_table) const;
 
   class Impl;
   OwnedPtr<Impl> impl_;

@@ -125,9 +125,8 @@ std::filesystem::path ResolveWrkBinary(const CliConfig& cli) {
   }
 
   // Common distro paths first, then PATH fallback via bare "wrk".
-  for (const auto* candidate :
-       std::array<const char*, 3>{"/bin/wrk", "/usr/bin/wrk",
-                                  "/usr/local/bin/wrk"}) {
+  for (const auto* candidate : std::array<const char*, 3>{
+           "/bin/wrk", "/usr/bin/wrk", "/usr/local/bin/wrk"}) {
     const std::filesystem::path path(candidate);
     if (is_usable(path)) {
       return path;
@@ -197,7 +196,7 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
   run.duration_ms = cli.duration_ms_override.value_or(profile.duration_ms);
   run.repetitions = cli.repetitions_override.value_or(profile.repetitions);
   run.cooldown_ms = cli.cooldown_ms_override.value_or(profile.cooldown_ms);
-    run.client_processes = cli.client_processes_override.value_or(2);
+  run.client_processes = cli.client_processes_override.value_or(2);
   run.wrk_threads_per_process =
       cli.wrk_threads_per_process_override.value_or(1);
   run.wrk_bin = ResolveWrkBinary(cli);
@@ -220,7 +219,7 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
     pressure_kinds = {ParsePressureKind(*cli.pressure_name)};
   }
 
-    if (cli.server_threads_override.has_value() ||
+  if (cli.server_threads_override.has_value() ||
       cli.server_io_threads_override.has_value() ||
       cli.server_worker_threads_override.has_value() ||
       cli.client_concurrency_override.has_value()) {

@@ -216,8 +216,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
       }
 
       const auto pre_last = HeaderValue(response, "X-Bench-Aspect-Pre-Last");
-      const auto post_last =
-          HeaderValue(response, "X-Bench-Aspect-Post-Last");
+      const auto post_last = HeaderValue(response, "X-Bench-Aspect-Post-Last");
       if (pre_last != "63" || post_last != "0") {
         error = "long aspect chain order mismatch";
         return false;
@@ -343,7 +342,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
   return {make_static_get(),
           make_route_param(),
           make_global_aspect(),
-      make_long_aspect_chain(),
+          make_long_aspect_chain(),
           make_post_echo("http_post_echo_1k", 1024, 'x'),
           make_post_echo("http_post_echo_64k", 64 * 1024, 'y'),
           make_session_counter()};

@@ -60,15 +60,13 @@ BluePrint* BluePrint::AddAspect(HttpRequestMethod method, std::string_view url,
 }
 
 BluePrint* BluePrint::SetReadExpiry(HttpRequestMethod method,
-                                    std::string_view url,
-                                    std::size_t expiry) {
+                                    std::string_view url, std::size_t expiry) {
   impl_->route_table_->SetReadExpiry(method, url, expiry);
   return this;
 }
 
 BluePrint* BluePrint::SetWriteExpiry(HttpRequestMethod method,
-                                     std::string_view url,
-                                     std::size_t expiry) {
+                                     std::string_view url, std::size_t expiry) {
   impl_->route_table_->SetWriteExpiry(method, url, expiry);
   return this;
 }
@@ -117,20 +115,23 @@ ReuseableBluePrint* ReuseableBluePrint::AddAspect(
   return this;
 }
 
-ReuseableBluePrint* ReuseableBluePrint::SetReadExpiry(
-    HttpRequestMethod method, std::string_view url, std::size_t expiry) {
+ReuseableBluePrint* ReuseableBluePrint::SetReadExpiry(HttpRequestMethod method,
+                                                      std::string_view url,
+                                                      std::size_t expiry) {
   impl_->route_table_->SetReadExpiry(method, url, expiry);
   return this;
 }
 
-ReuseableBluePrint* ReuseableBluePrint::SetWriteExpiry(
-    HttpRequestMethod method, std::string_view url, std::size_t expiry) {
+ReuseableBluePrint* ReuseableBluePrint::SetWriteExpiry(HttpRequestMethod method,
+                                                       std::string_view url,
+                                                       std::size_t expiry) {
   impl_->route_table_->SetWriteExpiry(method, url, expiry);
   return this;
 }
 
-ReuseableBluePrint* ReuseableBluePrint::SetMaxBodySize(
-    HttpRequestMethod method, std::string_view url, std::size_t size) {
+ReuseableBluePrint* ReuseableBluePrint::SetMaxBodySize(HttpRequestMethod method,
+                                                       std::string_view url,
+                                                       std::size_t size) {
   impl_->route_table_->SetMaxBodySize(method, url, size);
   return this;
 }

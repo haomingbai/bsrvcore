@@ -59,8 +59,7 @@ std::string SerializeMetrics(
       << "socket_connect_error_count=" << metrics.socket_connect_error_count
       << "\n"
       << "socket_read_error_count=" << metrics.socket_read_error_count << "\n"
-      << "socket_write_error_count=" << metrics.socket_write_error_count
-      << "\n"
+      << "socket_write_error_count=" << metrics.socket_write_error_count << "\n"
       << "socket_timeout_error_count=" << metrics.socket_timeout_error_count
       << "\n"
       << "loadgen_failure_count=" << metrics.loadgen_failure_count << "\n"
@@ -166,9 +165,9 @@ int RunInternalCell(const CliConfig& cli,
   try {
     if (!cli.internal_scenario_name.has_value() ||
         !cli.internal_pressure_name.has_value() ||
-      (!cli.internal_server_threads.has_value() &&
-       (!cli.internal_server_io_threads.has_value() ||
-        !cli.internal_server_worker_threads.has_value())) ||
+        (!cli.internal_server_threads.has_value() &&
+         (!cli.internal_server_io_threads.has_value() ||
+          !cli.internal_server_worker_threads.has_value())) ||
         !cli.internal_client_concurrency.has_value() ||
         !cli.internal_client_processes.has_value() ||
         !cli.internal_wrk_threads_per_process.has_value() ||
@@ -207,9 +206,8 @@ int RunInternalCell(const CliConfig& cli,
     run_settings.wrk_bin = *cli.internal_wrk_bin;
 
     const auto& scenario = FindScenario(scenarios, *cli.internal_scenario_name);
-    const auto metrics =
-        RunCellRepetition(scenario, pressure, run_settings,
-                          *cli.internal_repetition);
+    const auto metrics = RunCellRepetition(scenario, pressure, run_settings,
+                                           *cli.internal_repetition);
     WriteTextFile(*cli.internal_result_path, SerializeMetrics(metrics));
     return 0;
   } catch (const std::exception& ex) {
@@ -223,8 +221,7 @@ int RunInternalCell(const CliConfig& cli,
 RepetitionMetrics RunCellInSubprocess(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    const RunSettings& run_settings,
-    std::size_t repetition) {
+    const RunSettings& run_settings, std::size_t repetition) {
   (void)executable_path;
   return RunCellRepetition(scenario, pressure, run_settings, repetition);
 }
@@ -239,17 +236,16 @@ constexpr std::size_t kCellTimeoutMaxSlackMs = 120'000;
 
 std::chrono::milliseconds ComputeCellTimeoutSlack(
     const RunSettings& run_settings, const PressureSettings& pressure) {
-  const std::size_t phase_ms =
-      run_settings.warmup_ms + run_settings.duration_ms + run_settings.cooldown_ms;
+  const std::size_t phase_ms = run_settings.warmup_ms +
+                               run_settings.duration_ms +
+                               run_settings.cooldown_ms;
   const std::size_t concurrency_budget_ms =
       std::min<std::size_t>(45'000, pressure.client_concurrency * 120);
   const std::size_t process_budget_ms =
       std::min<std::size_t>(20'000, run_settings.client_processes * 800);
-  const std::size_t server_budget_ms =
-      std::min<std::size_t>(15'000,
-                (pressure.server_io_threads +
-                 pressure.server_worker_threads) *
-                  120);
+  const std::size_t server_budget_ms = std::min<std::size_t>(
+      15'000,
+      (pressure.server_io_threads + pressure.server_worker_threads) * 120);
   const std::size_t phase_budget_ms =
       std::min<std::size_t>(20'000, phase_ms / 2);
 
@@ -304,18 +300,18 @@ std::string TrimErrorMessage(std::string message) {
 std::vector<std::string> BuildChildArgs(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    const RunSettings& run_settings,
-    std::size_t repetition, const std::filesystem::path& result_path) {
+    const RunSettings& run_settings, std::size_t repetition,
+    const std::filesystem::path& result_path) {
   return {executable_path.string(),
           "--internal-run-cell",
           "--internal-scenario",
           scenario.name,
           "--internal-pressure-name",
           pressure.name,
-      "--internal-server-io-threads",
-      std::to_string(pressure.server_io_threads),
-      "--internal-server-worker-threads",
-      std::to_string(pressure.server_worker_threads),
+          "--internal-server-io-threads",
+          std::to_string(pressure.server_io_threads),
+          "--internal-server-worker-threads",
+          std::to_string(pressure.server_worker_threads),
           "--internal-client-concurrency",
           std::to_string(pressure.client_concurrency),
           "--internal-client-processes",
@@ -341,8 +337,7 @@ std::vector<std::string> BuildChildArgs(
 RepetitionMetrics RunCellInSubprocess(
     const std::filesystem::path& executable_path,
     const ScenarioDefinition& scenario, const PressureSettings& pressure,
-    const RunSettings& run_settings,
-    std::size_t repetition) {
+    const RunSettings& run_settings, std::size_t repetition) {
   const auto result_path = MakeTempResultPath();
   const auto cleanup_result = [&]() {
     std::error_code ec;
@@ -370,8 +365,8 @@ RepetitionMetrics RunCellInSubprocess(
     ::close(pipe_fds[0]);
     ::close(pipe_fds[1]);
 
-    auto args = BuildChildArgs(executable_path, scenario, pressure, run_settings,
-                               repetition, result_path);
+    auto args = BuildChildArgs(executable_path, scenario, pressure,
+                               run_settings, repetition, result_path);
     std::vector<char*> argv;
     argv.reserve(args.size() + 1);
     for (auto& arg : args) {
@@ -385,8 +380,9 @@ RepetitionMetrics RunCellInSubprocess(
 
   ::close(pipe_fds[1]);
 
-  const auto phase_duration_ms =
-      run_settings.warmup_ms + run_settings.duration_ms + run_settings.cooldown_ms;
+  const auto phase_duration_ms = run_settings.warmup_ms +
+                                 run_settings.duration_ms +
+                                 run_settings.cooldown_ms;
   const auto timeout_slack = ComputeCellTimeoutSlack(run_settings, pressure);
   const auto deadline = std::chrono::steady_clock::now() + timeout_slack +
                         std::chrono::milliseconds(phase_duration_ms);

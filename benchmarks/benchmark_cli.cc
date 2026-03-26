@@ -26,9 +26,9 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Pressure: light|balanced|saturated|overload|all")(
       "server-threads", po::value<std::size_t>(), "Override server threads")(
       "server-io-threads", po::value<std::size_t>(),
-      "Override server io thread count")(
-      "server-worker-threads", po::value<std::size_t>(),
-      "Override server worker thread count")(
+      "Override server io thread count")("server-worker-threads",
+                                         po::value<std::size_t>(),
+                                         "Override server worker thread count")(
       "client-concurrency", po::value<std::size_t>(),
       "Override total client connections (all client processes)")(
       "client-processes", po::value<std::size_t>(),
@@ -37,8 +37,7 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "wrk threads used by each client process")(
       "wrk-bin", po::value<std::string>(),
       "Path to wrk binary (default probe: /bin,/usr/bin,/usr/local/bin, then "
-      "PATH)")(
-      "warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
+      "PATH)")("warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
       "duration-ms", po::value<std::size_t>(), "Measure duration in ms")(
       "repetitions", po::value<std::size_t>(), "Number of repetitions")(
       "cooldown-ms", po::value<std::size_t>(), "Cooldown duration in ms")(
@@ -109,8 +108,7 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     cli.server_threads_override = vm["server-threads"].as<std::size_t>();
   }
   if (vm.count("server-io-threads") != 0) {
-    cli.server_io_threads_override =
-        vm["server-io-threads"].as<std::size_t>();
+    cli.server_io_threads_override = vm["server-io-threads"].as<std::size_t>();
   }
   if (vm.count("server-worker-threads") != 0) {
     cli.server_worker_threads_override =
@@ -128,7 +126,8 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
         vm["wrk-threads-per-process"].as<std::size_t>();
   }
   if (vm.count("wrk-bin") != 0) {
-    cli.wrk_bin_override = std::filesystem::path(vm["wrk-bin"].as<std::string>());
+    cli.wrk_bin_override =
+        std::filesystem::path(vm["wrk-bin"].as<std::string>());
   }
   if (vm.count("warmup-ms") != 0) {
     cli.warmup_ms_override = vm["warmup-ms"].as<std::size_t>();

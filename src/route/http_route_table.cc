@@ -48,8 +48,7 @@ std::string_view StripQuery(std::string_view target) noexcept {
 }
 
 bool IsParameterSegment(std::string_view segment) noexcept {
-  return segment.size() >= 2 && segment.front() == '{' &&
-         segment.back() == '}';
+  return segment.size() >= 2 && segment.front() == '{' && segment.back() == '}';
 }
 
 std::string_view ExtractParamName(std::string_view segment) noexcept {
@@ -83,8 +82,8 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   // Try to resolve the route and get current_location
   std::string current_location;
   std::vector<std::string> parameter_values;
-  bool ok = MatchSegments(*parsed, route_layer, current_location,
-                          parameter_values);
+  bool ok =
+      MatchSegments(*parsed, route_layer, current_location, parameter_values);
   if (!ok) {
     return BuildDefaultRouteResult(method);
   }
@@ -117,7 +116,8 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   HttpRouteResult result = {
       .current_location = std::move(current_location),
       .route_template = route_layer->GetRouteTemplate(),
-      .parameters = BuildParameterMap(*route_layer, std::move(parameter_values)),
+      .parameters =
+          BuildParameterMap(*route_layer, std::move(parameter_values)),
       .aspects = std::move(aspects),
       .handler = handler,
       .max_body_size = max_body_size,
@@ -715,7 +715,8 @@ bool HttpRouteTable::MountAt(std::string_view prefix, HttpRouteTable&& source) {
 
   // First pass: normalize route templates and reject any conflicting nodes
   // before mutating the destination tree.
-  for (std::size_t method_idx = 0; method_idx < entrance_.size(); ++method_idx) {
+  for (std::size_t method_idx = 0; method_idx < entrance_.size();
+       ++method_idx) {
     PrefixRouteTemplates(*source.entrance_[method_idx], prefix);
 
     HttpRouteTableLayer* mount_root =
@@ -726,7 +727,8 @@ bool HttpRouteTable::MountAt(std::string_view prefix, HttpRouteTable&& source) {
   }
 
   // Second pass: move the already-validated source subtrees into place.
-  for (std::size_t method_idx = 0; method_idx < entrance_.size(); ++method_idx) {
+  for (std::size_t method_idx = 0; method_idx < entrance_.size();
+       ++method_idx) {
     HttpRouteTableLayer* mount_root =
         get_or_create_mount_layer(entrance_[method_idx].get());
     MoveMergeLayer(*mount_root, *source.entrance_[method_idx]);
@@ -742,7 +744,8 @@ bool HttpRouteTable::MountAt(std::string_view prefix,
   }
 
   HttpRouteTable cloned_source;
-  for (std::size_t method_idx = 0; method_idx < entrance_.size(); ++method_idx) {
+  for (std::size_t method_idx = 0; method_idx < entrance_.size();
+       ++method_idx) {
     if (!CloneLayer(*source.entrance_[method_idx],
                     cloned_source.entrance_[method_idx])) {
       return false;

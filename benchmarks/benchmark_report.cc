@@ -33,18 +33,16 @@ std::string JsonRepetition(const RepetitionMetrics& run) {
       << "\"error_count\":" << run.error_count << ','
       << "\"non_2xx_3xx_count\":" << run.non_2xx_3xx_count << ','
       << "\"socket_connect_error_count\":" << run.socket_connect_error_count
+      << ',' << "\"socket_read_error_count\":" << run.socket_read_error_count
+      << ',' << "\"socket_write_error_count\":" << run.socket_write_error_count
       << ','
-      << "\"socket_read_error_count\":" << run.socket_read_error_count << ','
-      << "\"socket_write_error_count\":" << run.socket_write_error_count << ','
       << "\"socket_timeout_error_count\":" << run.socket_timeout_error_count
-      << ','
-      << "\"loadgen_failure_count\":" << run.loadgen_failure_count << ','
+      << ',' << "\"loadgen_failure_count\":" << run.loadgen_failure_count << ','
       << "\"bytes_sent\":" << run.bytes_sent << ','
       << "\"bytes_received\":" << run.bytes_received << ','
       << "\"duration_seconds\":" << FormatDouble(run.duration_seconds) << ','
       << "\"attempt_rps\":" << FormatDouble(run.attempt_requests_per_second)
-      << ','
-      << "\"rps\":" << FormatDouble(run.requests_per_second) << ','
+      << ',' << "\"rps\":" << FormatDouble(run.requests_per_second) << ','
       << "\"failure_ratio\":" << FormatDouble(run.failure_ratio) << ','
       << "\"mib_per_sec\":" << FormatDouble(run.mib_per_second) << ','
       << "\"latency_us\":{"
@@ -62,8 +60,7 @@ std::string JsonCell(const CellResult& cell) {
       << "\"scenario\":\"" << EscapeJson(cell.scenario_name) << "\","
       << "\"pressure\":\"" << EscapeJson(cell.pressure_name) << "\","
       << "\"server_io_threads\":" << cell.server_io_threads << ','
-      << "\"server_worker_threads\":" << cell.server_worker_threads
-      << ','
+      << "\"server_worker_threads\":" << cell.server_worker_threads << ','
       << "\"client_concurrency\":" << cell.client_concurrency << ','
       << "\"warmup_ms\":" << cell.warmup_ms << ','
       << "\"duration_ms\":" << cell.duration_ms << ','
@@ -82,8 +79,7 @@ std::string JsonCell(const CellResult& cell) {
       << "\"success_count\":" << JsonScalarSummary(cell.aggregate.success_count)
       << ','
       << "\"error_count\":" << JsonScalarSummary(cell.aggregate.error_count)
-      << ','
-      << "\"non_2xx_3xx_count\":"
+      << ',' << "\"non_2xx_3xx_count\":"
       << JsonScalarSummary(cell.aggregate.non_2xx_3xx_count) << ','
       << "\"socket_connect_error_count\":"
       << JsonScalarSummary(cell.aggregate.socket_connect_error_count) << ','
@@ -102,8 +98,8 @@ std::string JsonCell(const CellResult& cell) {
       << JsonScalarSummary(cell.aggregate.attempt_requests_per_second) << ','
       << "\"rps\":" << JsonScalarSummary(cell.aggregate.requests_per_second)
       << ','
-      << "\"failure_ratio\":"
-      << JsonScalarSummary(cell.aggregate.failure_ratio) << ','
+      << "\"failure_ratio\":" << JsonScalarSummary(cell.aggregate.failure_ratio)
+      << ','
       << "\"mib_per_sec\":" << JsonScalarSummary(cell.aggregate.mib_per_second)
       << ',' << "\"latency_us\":{"
       << "\"p50\":" << JsonScalarSummary(cell.aggregate.latency_p50_us) << ','
@@ -171,8 +167,7 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
       << "\"cooldown_ms\":" << run_settings.cooldown_ms << ','
       << "\"client_processes\":" << run_settings.client_processes << ','
       << "\"wrk_threads_per_process\":" << run_settings.wrk_threads_per_process
-      << ','
-      << "\"wrk_bin\":\"" << EscapeJson(run_settings.wrk_bin.string())
+      << ',' << "\"wrk_bin\":\"" << EscapeJson(run_settings.wrk_bin.string())
       << "\"},"
       << "\"cells\":[";
   for (std::size_t i = 0; i < cells.size(); ++i) {

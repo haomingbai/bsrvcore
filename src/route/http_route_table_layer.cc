@@ -135,7 +135,8 @@ const std::vector<std::string>& HttpRouteTableLayer::GetParamNames()
   return param_names_;
 }
 
-void HttpRouteTableLayer::SetRouteTemplate(std::string route_template) noexcept {
+void HttpRouteTableLayer::SetRouteTemplate(
+    std::string route_template) noexcept {
   route_template_ = std::move(route_template);
 }
 

@@ -56,8 +56,8 @@ TEST(BluePrintTest, MountsRouteTreeUnderPrefix) {
 
   server.AddBluePrint("/api", std::move(blue_print));
 
-  auto result = server.Route(bsrvcore::HttpRequestMethod::kGet,
-                             "/api/users/123");
+  auto result =
+      server.Route(bsrvcore::HttpRequestMethod::kGet, "/api/users/123");
   EXPECT_EQ(result.handler, handler_ptr);
   ASSERT_EQ(result.parameters.size(), 1u);
   EXPECT_EQ(result.parameters.at("id"), "123");
@@ -83,10 +83,8 @@ TEST(BluePrintTest, ReuseableBluePrintClonesOnEachMount) {
 
   server.AddBluePrint("/v1", blue_print)->AddBluePrint("/v2", blue_print);
 
-  auto v1 =
-      server.Route(bsrvcore::HttpRequestMethod::kGet, "/v1/users/alpha");
-  auto v2 =
-      server.Route(bsrvcore::HttpRequestMethod::kGet, "/v2/users/beta");
+  auto v1 = server.Route(bsrvcore::HttpRequestMethod::kGet, "/v1/users/alpha");
+  auto v2 = server.Route(bsrvcore::HttpRequestMethod::kGet, "/v2/users/beta");
 
   ASSERT_NE(v1.handler, nullptr);
   ASSERT_NE(v2.handler, nullptr);

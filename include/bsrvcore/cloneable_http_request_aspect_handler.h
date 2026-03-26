@@ -42,12 +42,12 @@ class CloneableHttpRequestAspectHandler : public HttpRequestAspectHandler {
  */
 template <typename F1, typename F2>
   requires std::copy_constructible<F1> && std::copy_constructible<F2> &&
-           requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                    std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                    F2 fn2) {
-             { fn1(pre_task) };
-             { fn2(post_task) };
-           }
+               requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                        std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                        F2 fn2) {
+                 { fn1(pre_task) };
+                 { fn2(post_task) };
+               }
 class CloneableFunctionRequestAspectHandler
     : public CloneableHttpRequestAspectHandler,
       public NonCopyableNonMovable<
