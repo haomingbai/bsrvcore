@@ -155,7 +155,7 @@ The repository also provides helper scripts under `scripts/`:
 - `scripts/format.sh`: run `clang-format` across the repository
 - `scripts/benchmark.sh`: build the benchmark binary, detect CPU count,
   run a benchmark sweep, create a Python venv, and generate plots plus a short
-  Markdown report under `docs/benchmark-results/`
+  Markdown report at `docs/benchmark-results/benchmark-report.md`
 
 ## Metrics
 

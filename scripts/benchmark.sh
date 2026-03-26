@@ -6,7 +6,8 @@ BUILD_DIR="${BSRVCORE_BENCH_BUILD_DIR:-build-bench}"
 VENV_DIR="${BSRVCORE_BENCH_VENV:-.venv-benchmark}"
 PROFILE="${BSRVCORE_BENCH_PROFILE:-quick}"
 SCENARIO="${BSRVCORE_BENCH_SCENARIO:-all}"
-TAG="${BSRVCORE_BENCH_TAG:-$(date +%F)-auto-benchmark}"
+# Keep one canonical benchmark report unless the caller opts into a custom tag.
+TAG="${BSRVCORE_BENCH_TAG:-benchmark-report}"
 PARALLELISM="${BSRVCORE_BUILD_PARALLEL:-$(nproc)}"
 CPU_COUNT="$(nproc)"
 
@@ -33,6 +34,7 @@ FAILURE_PNG="${OUTPUT_DIR}/${TAG}-failure.png"
 BENCH_BIN="${ROOT_DIR}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark"
 WRK_BIN="${ROOT_DIR}/${BUILD_DIR}/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk"
 VENV_PYTHON="${ROOT_DIR}/${VENV_DIR}/bin/python"
+MPLCONFIGDIR="${BSRVCORE_BENCH_MPLCONFIGDIR:-/tmp/bsrvcore-matplotlib}"
 
 mkdir -p "${OUTPUT_DIR}"
 
@@ -67,7 +69,8 @@ fi
 "${VENV_PYTHON}" -m pip install --upgrade pip >/dev/null
 "${VENV_PYTHON}" -m pip install matplotlib >/dev/null
 
-"${VENV_PYTHON}" "${ROOT_DIR}/scripts/benchmark_plot.py" \
+MPLCONFIGDIR="${MPLCONFIGDIR}" \
+  "${VENV_PYTHON}" "${ROOT_DIR}/scripts/benchmark_plot.py" \
   --json "${JSON_OUT}" \
   --markdown "${MD_OUT}" \
   --rps-png "${RPS_PNG}" \

@@ -196,4 +196,4 @@ For benchmark methodology and shipped snapshots, see:
 
 - [docs/manual/benchmarking.md](docs/manual/benchmarking.md)
 - [docs/manual/linux-io-model-choice.md](docs/manual/linux-io-model-choice.md)
-- [docs/benchmark-results/](docs/benchmark-results)
+- [docs/benchmark-results/benchmark-report.md](docs/benchmark-results/benchmark-report.md)
