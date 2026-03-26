@@ -19,8 +19,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_SERVER_TASK_H_
-#define BSRVCORE_HTTP_SERVER_TASK_H_
+#ifndef BSRVCORE_CONNECTION_SERVER_HTTP_SERVER_TASK_H_
+#define BSRVCORE_CONNECTION_SERVER_HTTP_SERVER_TASK_H_
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>

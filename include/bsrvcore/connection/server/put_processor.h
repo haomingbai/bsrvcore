@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_PUT_PROCESSOR_H_
-#define BSRVCORE_PUT_PROCESSOR_H_
+#ifndef BSRVCORE_CONNECTION_SERVER_PUT_PROCESSOR_H_
+#define BSRVCORE_CONNECTION_SERVER_PUT_PROCESSOR_H_
 
 #include <boost/asio/any_io_executor.hpp>
 #include <filesystem>

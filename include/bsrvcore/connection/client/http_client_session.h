@@ -11,8 +11,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_CLIENT_SESSION_H_
-#define BSRVCORE_HTTP_CLIENT_SESSION_H_
+#ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_H_
+#define BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_H_
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -123,4 +123,4 @@ class HttpClientSession
 
 }  // namespace bsrvcore
 
-#endif  // BSRVCORE_HTTP_CLIENT_SESSION_H_
+#endif  // BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_H_

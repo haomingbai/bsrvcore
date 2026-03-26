@@ -14,8 +14,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_ROUTE_RESULT_H_
-#define BSRVCORE_HTTP_ROUTE_RESULT_H_
+#ifndef BSRVCORE_ROUTE_HTTP_ROUTE_RESULT_H_
+#define BSRVCORE_ROUTE_HTTP_ROUTE_RESULT_H_
 
 #include <cstddef>
 #include <string>

@@ -15,8 +15,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_SERVER_SET_COOKIE_H_
-#define BSRVCORE_SERVER_SET_COOKIE_H_
+#ifndef BSRVCORE_CONNECTION_SERVER_SERVER_SET_COOKIE_H_
+#define BSRVCORE_CONNECTION_SERVER_SERVER_SET_COOKIE_H_
 
 #include <cstdint>
 #include <optional>

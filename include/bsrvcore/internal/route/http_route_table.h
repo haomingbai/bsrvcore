@@ -14,8 +14,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_HTTP_ROUTE_TABLE_H_
-#define BSRVCORE_INTERNAL_HTTP_ROUTE_TABLE_H_
+#ifndef BSRVCORE_INTERNAL_ROUTE_HTTP_ROUTE_TABLE_H_
+#define BSRVCORE_INTERNAL_ROUTE_HTTP_ROUTE_TABLE_H_
 
 #include <array>
 #include <boost/url/url_view.hpp>

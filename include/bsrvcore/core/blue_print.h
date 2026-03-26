@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_BLUE_PRINT_H_
-#define BSRVCORE_BLUE_PRINT_H_
+#ifndef BSRVCORE_CORE_BLUE_PRINT_H_
+#define BSRVCORE_CORE_BLUE_PRINT_H_
 
 #include <concepts>
 #include <cstddef>

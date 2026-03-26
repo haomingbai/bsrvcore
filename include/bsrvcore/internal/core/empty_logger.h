@@ -11,6 +11,11 @@
  * Provides an internal Logger implementation that discards all log messages.
  */
 
+#pragma once
+
+#ifndef BSRVCORE_INTERNAL_CORE_EMPTY_LOGGER_H_
+#define BSRVCORE_INTERNAL_CORE_EMPTY_LOGGER_H_
+
 #include <string>
 
 #include "bsrvcore/core/logger.h"
@@ -37,3 +42,5 @@ class EmptyLogger : public Logger {
 }  // namespace internal
 
 }  // namespace bsrvcore
+
+#endif  // BSRVCORE_INTERNAL_CORE_EMPTY_LOGGER_H_

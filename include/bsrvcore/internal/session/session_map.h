@@ -14,8 +14,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_SESSION_MAP_H_
-#define BSRVCORE_INTERNAL_SESSION_MAP_H_
+#ifndef BSRVCORE_INTERNAL_SESSION_SESSION_MAP_H_
+#define BSRVCORE_INTERNAL_SESSION_SESSION_MAP_H_
 
 #include <atomic>
 #include <boost/asio/steady_timer.hpp>

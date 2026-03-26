@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_MULTIPART_PARSER_H_
-#define BSRVCORE_MULTIPART_PARSER_H_
+#ifndef BSRVCORE_CONNECTION_SERVER_MULTIPART_PARSER_H_
+#define BSRVCORE_CONNECTION_SERVER_MULTIPART_PARSER_H_
 
 #include <boost/asio/any_io_executor.hpp>
 #include <cstddef>

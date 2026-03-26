@@ -15,8 +15,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_SERVER_H_
-#define BSRVCORE_HTTP_SERVER_H_
+#ifndef BSRVCORE_CORE_HTTP_SERVER_H_
+#define BSRVCORE_CORE_HTTP_SERVER_H_
 
 #include <algorithm>
 #include <boost/asio/any_io_executor.hpp>

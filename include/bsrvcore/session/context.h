@@ -14,8 +14,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_CONTEXT_H_
-#define BSRVCORE_CONTEXT_H_
+#ifndef BSRVCORE_SESSION_CONTEXT_H_
+#define BSRVCORE_SESSION_CONTEXT_H_
 
 #include <memory>
 #include <shared_mutex>

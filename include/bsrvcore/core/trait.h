@@ -15,8 +15,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_TRAIT_H_
-#define BSRVCORE_TRAIT_H_
+#ifndef BSRVCORE_CORE_TRAIT_H_
+#define BSRVCORE_CORE_TRAIT_H_
 
 namespace bsrvcore {
 

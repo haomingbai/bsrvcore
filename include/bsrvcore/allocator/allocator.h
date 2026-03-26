@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_ALLOCATOR_H_
-#define BSRVCORE_ALLOCATOR_H_
+#ifndef BSRVCORE_ALLOCATOR_ALLOCATOR_H_
+#define BSRVCORE_ALLOCATOR_ALLOCATOR_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -157,4 +157,4 @@ void DestroyDeallocate(T* ptr) noexcept {
 
 }  // namespace bsrvcore
 
-#endif  // BSRVCORE_ALLOCATOR_H_
+#endif  // BSRVCORE_ALLOCATOR_ALLOCATOR_H_

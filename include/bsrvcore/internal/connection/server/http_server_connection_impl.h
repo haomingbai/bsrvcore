@@ -16,8 +16,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
-#define BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
+#ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_IMPL_H_
+#define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_IMPL_H_
 
 #include <atomic>
 #include <boost/asio/bind_allocator.hpp>
@@ -312,4 +312,4 @@ void HttpServerConnectionImpl<S>::EnsureMessageQueueCreated() {
 }  // namespace connection_internal
 }  // namespace bsrvcore
 
-#endif  // BSRVCORE_INTERNAL_HTTP_SERVER_CONNECTION_IMPL_H_
+#endif  // BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_IMPL_H_

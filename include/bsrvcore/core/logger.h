@@ -15,8 +15,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_LOGGER_H_
-#define BSRVCORE_LOGGER_H_
+#ifndef BSRVCORE_CORE_LOGGER_H_
+#define BSRVCORE_CORE_LOGGER_H_
 
 #include <cstdint>
 #include <string>

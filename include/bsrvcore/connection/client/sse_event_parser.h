@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_SSE_EVENT_PARSER_H_
-#define BSRVCORE_SSE_EVENT_PARSER_H_
+#ifndef BSRVCORE_CONNECTION_CLIENT_SSE_EVENT_PARSER_H_
+#define BSRVCORE_CONNECTION_CLIENT_SSE_EVENT_PARSER_H_
 
 #include <optional>
 #include <string>
@@ -65,4 +65,4 @@ class SseEventParser {
 
 }  // namespace bsrvcore
 
-#endif  // BSRVCORE_SSE_EVENT_PARSER_H_
+#endif  // BSRVCORE_CONNECTION_CLIENT_SSE_EVENT_PARSER_H_

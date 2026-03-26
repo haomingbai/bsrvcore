@@ -14,8 +14,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_REQUEST_HANDLER_H_
-#define BSRVCORE_HTTP_REQUEST_HANDLER_H_
+#ifndef BSRVCORE_ROUTE_HTTP_REQUEST_HANDLER_H_
+#define BSRVCORE_ROUTE_HTTP_REQUEST_HANDLER_H_
 
 #include <exception>
 #include <memory>

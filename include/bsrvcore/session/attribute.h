@@ -15,8 +15,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_ATTRIBUTE_H_
-#define BSRVCORE_ATTRIBUTE_H_
+#ifndef BSRVCORE_SESSION_ATTRIBUTE_H_
+#define BSRVCORE_SESSION_ATTRIBUTE_H_
 
 #include <cstddef>
 #include <memory>

@@ -10,8 +10,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_HTTP_CLIENT_SESSION_ATTRIBUTE_H_
-#define BSRVCORE_HTTP_CLIENT_SESSION_ATTRIBUTE_H_
+#ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_ATTRIBUTE_H_
+#define BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_ATTRIBUTE_H_
 
 #include <memory>
 #include <string>
@@ -98,4 +98,4 @@ inline std::shared_ptr<HttpClientSession> GetOrCreateHttpClientSession(
 
 }  // namespace bsrvcore
 
-#endif  // BSRVCORE_HTTP_CLIENT_SESSION_ATTRIBUTE_H_
+#endif  // BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_ATTRIBUTE_H_

@@ -13,8 +13,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_HEAP_H_
-#define BSRVCORE_INTERNAL_HEAP_H_
+#ifndef BSRVCORE_INTERNAL_SESSION_HEAP_H_
+#define BSRVCORE_INTERNAL_SESSION_HEAP_H_
 
 #include <cassert>
 #include <cstddef>
