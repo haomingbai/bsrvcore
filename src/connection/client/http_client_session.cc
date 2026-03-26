@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_session.h"
 
 #include <string>
 #include <utility>

@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/http_client_task.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -31,8 +31,8 @@
 #include <string>
 #include <utility>
 
-#include "bsrvcore/allocator.h"
-#include "bsrvcore/http_client_session.h"
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/http_client_session.h"
 #include "impl/http_url_parser.h"
 
 namespace bsrvcore {

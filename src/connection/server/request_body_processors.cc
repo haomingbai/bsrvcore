@@ -28,8 +28,8 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/multipart_parser.h"
-#include "bsrvcore/put_processor.h"
+#include "bsrvcore/connection/server/multipart_parser.h"
+#include "bsrvcore/connection/server/put_processor.h"
 
 namespace bsrvcore {
 

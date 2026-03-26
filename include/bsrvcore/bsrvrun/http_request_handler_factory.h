@@ -15,9 +15,9 @@
 
 #include <memory>
 
-#include "bsrvcore/allocator.h"
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
-#include "bsrvcore/http_request_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
 
 namespace bsrvcore::bsrvrun {
 

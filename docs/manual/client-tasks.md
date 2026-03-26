@@ -2,9 +2,9 @@
 
 This chapter maps to:
 
-- `include/bsrvcore/http_client_task.h`
-- `include/bsrvcore/http_sse_client_task.h`
-- `include/bsrvcore/sse_event_parser.h`
+- `include/bsrvcore/connection/client/http_client_task.h`
+- `include/bsrvcore/connection/client/http_sse_client_task.h`
+- `include/bsrvcore/connection/client/sse_event_parser.h`
 
 ## HttpClientTask
 

@@ -11,7 +11,7 @@
  * Implements session lookup, creation, and expiration scheduling.
  */
 
-#include "bsrvcore/internal/session_map.h"
+#include "bsrvcore/internal/session/session_map.h"
 
 #include <algorithm>
 #include <boost/system/detail/error_code.hpp>
@@ -21,10 +21,10 @@
 #include <mutex>
 #include <string>
 
-#include "bsrvcore/context.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/internal/session_context_entry.h"
-#include "bsrvcore/internal/session_key_heap_entry.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/session/session_context_entry.h"
+#include "bsrvcore/internal/session/session_key_heap_entry.h"
 
 using bsrvcore::SessionMap;
 

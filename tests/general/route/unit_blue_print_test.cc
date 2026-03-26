@@ -3,11 +3,11 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/blue_print.h"
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_request_handler.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
+#include "bsrvcore/core/blue_print.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
 
 namespace {
 

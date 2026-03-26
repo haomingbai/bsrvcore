@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/allocator.h"
-#include "bsrvcore/http_client_session.h"
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/http_client_session.h"
 
 namespace bsrvcore {
 

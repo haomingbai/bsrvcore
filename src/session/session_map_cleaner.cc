@@ -18,7 +18,7 @@
 #include <chrono>
 #include <cstddef>
 
-#include "bsrvcore/internal/session_map.h"
+#include "bsrvcore/internal/session/session_map.h"
 
 namespace {
 

@@ -1,6 +1,6 @@
 # Tasks and lifecycle
 
-This chapter maps to `include/bsrvcore/http_server_task.h`.
+This chapter maps to `include/bsrvcore/connection/server/http_server_task.h`.
 
 ## The 3-step request flow
 

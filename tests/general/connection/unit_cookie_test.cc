@@ -2,7 +2,7 @@
 
 #include <string>
 
-#include "bsrvcore/server_set_cookie.h"
+#include "bsrvcore/connection/server/server_set_cookie.h"
 
 // Ensure missing name/value returns an empty cookie string.
 TEST(ServerSetCookieTest, MissingNameOrValueReturnsEmpty) {

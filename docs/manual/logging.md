@@ -1,6 +1,6 @@
 # Logging
 
-This chapter maps to `include/bsrvcore/logger.h` and logging helpers on tasks.
+This chapter maps to `include/bsrvcore/core/logger.h` and logging helpers on tasks.
 
 ## Provide a logger
 

@@ -11,8 +11,8 @@
 #include <thread>
 #include <utility>
 
-#include "bsrvcore/http_client_task.h"
-#include "bsrvcore/http_server.h"
+#include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/core/http_server.h"
 
 namespace bsrvcore::test {
 

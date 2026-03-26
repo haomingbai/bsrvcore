@@ -11,11 +11,11 @@
  * Provides the default fallback response when no route matches.
  */
 
-#include "bsrvcore/internal/empty_route_handler.h"
+#include "bsrvcore/internal/route/empty_route_handler.h"
 
 #include <memory>
 
-#include "bsrvcore/http_server_task.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 
 using bsrvcore::route_internal::EmptyRouteHandler;
 

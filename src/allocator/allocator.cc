@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/allocator.h"
+#include "bsrvcore/allocator/allocator.h"
 
 #include <mimalloc.h>
 

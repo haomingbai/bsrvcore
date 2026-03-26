@@ -34,7 +34,6 @@ function(bsrvcore_add_test target_name source_file label)
   target_include_directories(${target_name}
     PRIVATE
       ${CMAKE_SOURCE_DIR}/include
-      ${CMAKE_SOURCE_DIR}/src/include
       ${CMAKE_SOURCE_DIR}/tests/support
   )
 

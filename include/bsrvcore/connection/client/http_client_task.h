@@ -1,0 +1,220 @@
+/**
+ * @file http_client_task.h
+ * @brief Asynchronous HTTP/HTTPS client task with staged callbacks.
+ * @author Haoming Bai <haomingbai@hotmail.com>
+ * @date   2026-03-13
+ *
+ * Copyright (c) 2026 Haoming Bai
+ * SPDX-License-Identifier: MIT
+ */
+
+#pragma once
+
+#ifndef BSRVCORE_HTTP_CLIENT_TASK_H_
+#define BSRVCORE_HTTP_CLIENT_TASK_H_
+
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/system/error_code.hpp>
+#include <chrono>
+#include <functional>
+#include <memory>
+#include <optional>
+#include <string>
+
+#include "bsrvcore/connection/server/http_server_task.h"
+
+namespace bsrvcore {
+
+class HttpClientSession;
+
+/**
+ * @brief Alias of request message type used by HttpClientTask.
+ */
+using HttpClientRequest = HttpRequest;
+
+/**
+ * @brief Alias of response message type used by HttpClientTask.
+ */
+using HttpClientResponse = HttpResponse;
+
+/**
+ * @brief Runtime options for a single HTTP/HTTPS client request.
+ */
+struct HttpClientOptions {
+  /** @brief DNS resolve timeout. */
+  std::chrono::milliseconds resolve_timeout{2000};
+  /** @brief TCP connect timeout. */
+  std::chrono::milliseconds connect_timeout{2000};
+  /** @brief TLS handshake timeout for HTTPS. */
+  std::chrono::milliseconds tls_handshake_timeout{2000};
+  /** @brief HTTP write timeout for sending request bytes. */
+  std::chrono::milliseconds write_timeout{2000};
+  /** @brief Timeout for reading the response header. */
+  std::chrono::milliseconds read_header_timeout{2000};
+  /** @brief Timeout for reading response body bytes. */
+  std::chrono::milliseconds read_body_timeout{5000};
+  /** @brief Maximum response body size accepted by parser. */
+  std::size_t max_response_body_bytes{4 * 1024 * 1024};
+  /** @brief Enable TLS peer and host verification for HTTPS. */
+  bool verify_peer{true};
+  /** @brief Keep-alive preference sent in request and used by read flow. */
+  bool keep_alive{false};
+  /** @brief Optional User-Agent header value. */
+  std::string user_agent{};
+};
+
+/**
+ * @brief Stage of callback delivery for HttpClientTask.
+ */
+enum class HttpClientStage {
+  /** @brief Connection established (and TLS handshake completed for HTTPS). */
+  kConnected,
+  /** @brief Response header received. */
+  kHeader,
+  /** @brief Response body chunk received (only when OnChunk is registered). */
+  kChunk,
+  /** @brief Final completion stage (success, failure, or cancellation). */
+  kDone,
+};
+
+/**
+ * @brief Internal pipeline location where a failure occurred.
+ */
+enum class HttpClientErrorStage {
+  /** @brief No failure. */
+  kNone,
+  /** @brief Invalid creation arguments or unsupported URL input. */
+  kCreate,
+  /** @brief DNS resolve failed. */
+  kResolve,
+  /** @brief TCP connect failed. */
+  kConnect,
+  /** @brief TLS handshake or SNI setup failed. */
+  kTlsHandshake,
+  /** @brief Request write failed. */
+  kWriteRequest,
+  /** @brief Response header read failed. */
+  kReadHeader,
+  /** @brief Response body read failed. */
+  kReadBody,
+};
+
+/**
+ * @brief Unified callback payload for all HttpClientTask stages.
+ */
+struct HttpClientResult {
+  /** @brief Operation error code, 0 on success. */
+  boost::system::error_code ec{};
+  /** @brief Current callback stage. */
+  HttpClientStage stage{HttpClientStage::kDone};
+  /** @brief Failure location in transport pipeline. */
+  HttpClientErrorStage error_stage{HttpClientErrorStage::kNone};
+  /** @brief True when completion was driven by Cancel(). */
+  bool cancelled{false};
+  /** @brief Response header snapshot (valid from kHeader/kDone). */
+  HttpResponseHeader header{};
+  /** @brief Final response (mainly meaningful at kDone success). */
+  HttpClientResponse response{};
+  /** @brief Incremental body bytes for kChunk callbacks. */
+  std::string chunk{};
+};
+
+/**
+ * @brief Asynchronous HTTP/HTTPS client task with staged callbacks.
+ *
+ * The task exposes stage callbacks (`OnConnected`, `OnHeader`, `OnChunk`,
+ * `OnDone`) and expresses all statuses through `HttpClientResult` fields.
+ */
+class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
+ public:
+  /** @brief Callback type used by all stages. */
+  using Callback = std::function<void(const HttpClientResult&)>;
+
+  /**
+   * @brief Create plain HTTP task from host/port/target.
+   */
+  static std::shared_ptr<HttpClientTask> CreateHttp(
+      boost::asio::any_io_executor executor, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+
+  /**
+   * @brief Create HTTPS task from host/port/target.
+   */
+  static std::shared_ptr<HttpClientTask> CreateHttps(
+      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
+      std::string host, std::string port, std::string target,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+
+  /**
+   * @brief Create task from URL without SSL context.
+   *
+   * Supports `http://` directly. For `https://`, Start() fails with
+   * `invalid_argument` and error stage `kCreate`.
+   */
+  static std::shared_ptr<HttpClientTask> CreateFromUrl(
+      boost::asio::any_io_executor executor, std::string url,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+
+  /**
+   * @brief Create task from URL with SSL context.
+   */
+  static std::shared_ptr<HttpClientTask> CreateFromUrl(
+      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
+      std::string url, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+
+  /** @brief Register connected-stage callback. */
+  HttpClientTask& OnConnected(Callback cb);
+  /** @brief Register header-stage callback. */
+  HttpClientTask& OnHeader(Callback cb);
+  /** @brief Register chunk-stage callback. */
+  HttpClientTask& OnChunk(Callback cb);
+  /** @brief Register done-stage callback (final convergence point). */
+  HttpClientTask& OnDone(Callback cb);
+
+  /**
+   * @brief Access mutable request before Start().
+   */
+  HttpClientRequest& Request() noexcept;
+
+  /**
+   * @brief Attach a client session to this task.
+   *
+   * This is an optional API mainly intended for HttpClientSession factories.
+   * Tasks created via the original static Create* factories remain lightweight
+   * and session-free unless explicitly attached.
+   */
+  void AttachSession(std::weak_ptr<HttpClientSession> session);
+
+  /**
+   * @brief Start asynchronous execution.
+   */
+  void Start();
+  /**
+   * @brief Request cancellation and close underlying transport.
+   */
+  void Cancel();
+
+  /** @brief Whether the latest terminal state is a failure. */
+  bool Failed() const noexcept;
+  /** @brief Latest failure code, if any. */
+  boost::system::error_code ErrorCode() const noexcept;
+  /** @brief Latest failure stage, if any. */
+  HttpClientErrorStage ErrorStage() const noexcept;
+
+  ~HttpClientTask();
+
+ private:
+  class Impl;
+
+  explicit HttpClientTask(std::shared_ptr<Impl> impl);
+
+  std::shared_ptr<Impl> impl_;
+};
+
+}  // namespace bsrvcore
+
+#endif  // BSRVCORE_HTTP_CLIENT_TASK_H_

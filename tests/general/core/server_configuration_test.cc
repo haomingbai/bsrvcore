@@ -21,10 +21,10 @@
 #include <thread>
 #include <utility>
 
-#include "bsrvcore/http_request_handler.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/http_server_task.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 
 namespace {
 constexpr auto kAsyncWaitTimeout = std::chrono::seconds(10);

@@ -12,7 +12,7 @@
  * including cookie/session handling, posting helpers, and timers.
  */
 
-#include "bsrvcore/http_server_task.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_allocator.hpp>
@@ -36,11 +36,11 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/allocator.h"
-#include "bsrvcore/context.h"
-#include "bsrvcore/internal/http_server_connection.h"
-#include "bsrvcore/logger.h"
-#include "bsrvcore/server_set_cookie.h"
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/internal/connection/server/http_server_connection.h"
+#include "bsrvcore/core/logger.h"
+#include "bsrvcore/connection/server/server_set_cookie.h"
 
 namespace bsrvcore {
 

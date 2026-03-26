@@ -3,7 +3,7 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/attribute.h"
+#include "bsrvcore/session/attribute.h"
 
 namespace {
 

@@ -12,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/http_server.h"
+#include "bsrvcore/core/http_server.h"
 
 namespace {
 

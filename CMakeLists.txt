@@ -97,7 +97,7 @@ if(DOXYGEN_FOUND)
   # Output dir for docs
   set(DOXYGEN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs")
   # Input dirs for Doxygen
-  set(DOXYGEN_INPUT_DIRS "${CMAKE_SOURCE_DIR}/include ${CMAKE_SOURCE_DIR}/src/include")
+  set(DOXYGEN_INPUT_DIRS "${CMAKE_SOURCE_DIR}/include")
 
   # Configure Doxyfile from template
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/Doxyfile.in

@@ -5,10 +5,10 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/http_server_task.h"
-#include "bsrvcore/put_processor.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/server/put_processor.h"
 #include "test_http_client_task.h"
 
 namespace {

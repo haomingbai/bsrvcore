@@ -36,15 +36,15 @@
 #include <string_view>
 #include <utility>
 
-#include "bsrvcore/context.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_route_result.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/internal/empty_logger.h"
-#include "bsrvcore/internal/http_route_table.h"
-#include "bsrvcore/internal/http_server_connection_impl.h"
-#include "bsrvcore/internal/session_map.h"
-#include "bsrvcore/logger.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/route/http_route_result.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/core/empty_logger.h"
+#include "bsrvcore/internal/route/http_route_table.h"
+#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/session/session_map.h"
+#include "bsrvcore/core/logger.h"
 
 using namespace bsrvcore;
 

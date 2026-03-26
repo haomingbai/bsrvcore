@@ -2,8 +2,8 @@
 
 This chapter maps to:
 
-- `include/bsrvcore/multipart_parser.h`
-- `include/bsrvcore/put_processor.h`
+- `include/bsrvcore/connection/server/multipart_parser.h`
+- `include/bsrvcore/connection/server/put_processor.h`
 
 ## One-sentence idea
 

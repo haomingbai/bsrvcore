@@ -1,6 +1,6 @@
 # Aspects (AOP)
 
-This chapter maps to `include/bsrvcore/http_request_aspect_handler.h` and `include/bsrvcore/http_server.h`.
+This chapter maps to `include/bsrvcore/route/http_request_aspect_handler.h` and `include/bsrvcore/core/http_server.h`.
 
 ## What is an aspect?
 

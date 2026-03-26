@@ -22,7 +22,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "bsrvcore/http_request_method.h"
+#include "bsrvcore/route/http_request_method.h"
 
 namespace bsrvcore::runtime {
 

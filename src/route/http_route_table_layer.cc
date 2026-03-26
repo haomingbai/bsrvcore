@@ -11,7 +11,7 @@
  * Implements a routing tree node that stores handlers, aspects, and children.
  */
 
-#include "bsrvcore/internal/http_route_table_layer.h"
+#include "bsrvcore/internal/route/http_route_table_layer.h"
 
 #include <cstddef>
 #include <exception>
@@ -20,8 +20,8 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_request_handler.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
 
 class HttpRequestHandler;
 

@@ -13,8 +13,8 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/attribute.h"
-#include "bsrvcore/context.h"
+#include "bsrvcore/session/attribute.h"
+#include "bsrvcore/session/context.h"
 
 namespace {
 

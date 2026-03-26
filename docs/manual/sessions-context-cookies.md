@@ -2,10 +2,10 @@
 
 This chapter maps to:
 
-- `include/bsrvcore/context.h`
-- `include/bsrvcore/attribute.h`
-- `include/bsrvcore/server_set_cookie.h`
-- parts of `include/bsrvcore/http_server.h` and `include/bsrvcore/http_server_task.h`
+- `include/bsrvcore/session/context.h`
+- `include/bsrvcore/session/attribute.h`
+- `include/bsrvcore/connection/server/server_set_cookie.h`
+- parts of `include/bsrvcore/core/http_server.h` and `include/bsrvcore/connection/server/http_server_task.h`
 
 ## Context
 

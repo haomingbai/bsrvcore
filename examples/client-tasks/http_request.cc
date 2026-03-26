@@ -1,4 +1,4 @@
-#include <bsrvcore/http_client_task.h>
+#include <bsrvcore/connection/client/http_client_task.h>
 
 #include <boost/asio/io_context.hpp>
 #include <boost/beast/http.hpp>

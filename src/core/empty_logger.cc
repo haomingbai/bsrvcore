@@ -11,11 +11,11 @@
  * Discards log messages when no real logger is configured.
  */
 
-#include "bsrvcore/internal/empty_logger.h"
+#include "bsrvcore/internal/core/empty_logger.h"
 
 #include <string>
 
-#include "bsrvcore/logger.h"
+#include "bsrvcore/core/logger.h"
 
 void bsrvcore::internal::EmptyLogger::Log(
     [[maybe_unused]] bsrvcore::LogLevel level,

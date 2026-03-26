@@ -25,11 +25,11 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
 
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/internal/empty_logger.h"
-#include "bsrvcore/internal/http_server_connection_impl.h"
-#include "bsrvcore/internal/session_map.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/core/empty_logger.h"
+#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/session/session_map.h"
 
 using namespace bsrvcore;
 

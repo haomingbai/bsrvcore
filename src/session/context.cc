@@ -12,14 +12,14 @@
  * scoped storage.
  */
 
-#include "bsrvcore/context.h"
+#include "bsrvcore/session/context.h"
 
 #include <mutex>
 #include <shared_mutex>
 #include <string>
 #include <utility>
 
-#include "bsrvcore/attribute.h"
+#include "bsrvcore/session/attribute.h"
 
 using bsrvcore::Context;
 

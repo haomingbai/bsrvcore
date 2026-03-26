@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/http_server.h"
+#include "bsrvcore/core/http_server.h"
 #include "config_loader.h"
 #include "plugin_loader.h"
 #include "server_builder.h"

@@ -8,12 +8,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/blue_print.h"
+#include "bsrvcore/core/blue_print.h"
 
 #include <memory>
 #include <utility>
 
-#include "bsrvcore/internal/http_route_table.h"
+#include "bsrvcore/internal/route/http_route_table.h"
 
 namespace bsrvcore {
 

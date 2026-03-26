@@ -29,13 +29,13 @@
 #include <cstring>
 #include <memory>
 
-#include "bsrvcore/allocator.h"
-#include "bsrvcore/context.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/internal/empty_logger.h"
-#include "bsrvcore/internal/http_route_table.h"
-#include "bsrvcore/internal/http_server_connection_impl.h"
-#include "bsrvcore/internal/session_map.h"
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/core/empty_logger.h"
+#include "bsrvcore/internal/route/http_route_table.h"
+#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/session/session_map.h"
 
 using namespace bsrvcore;
 

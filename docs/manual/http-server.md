@@ -1,6 +1,6 @@
 # HTTP server
 
-This chapter maps to `include/bsrvcore/http_server.h`.
+This chapter maps to `include/bsrvcore/core/http_server.h`.
 
 ## One-sentence idea
 

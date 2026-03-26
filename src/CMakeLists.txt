@@ -144,10 +144,9 @@ target_compile_definitions(bsrvcore PRIVATE
 # Public include directories for build and install
 target_include_directories(bsrvcore
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>  # public headers for build
-    $<INSTALL_INTERFACE:include>                                # public headers for install
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>  # project headers for build
+    $<INSTALL_INTERFACE:include>                               # project headers for install
   PRIVATE
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>      # private headers for build
     ${ALLOCATOR_INCLUDE_DIRS}
 )
 

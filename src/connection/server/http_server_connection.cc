@@ -12,7 +12,7 @@
  * writing.
  */
 
-#include "bsrvcore/internal/http_server_connection.h"
+#include "bsrvcore/internal/connection/server/http_server_connection.h"
 
 #include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/dispatch.hpp>
@@ -29,11 +29,11 @@
 #include <string>
 #include <utility>
 
-#include "bsrvcore/context.h"
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/http_server_task.h"
-#include "bsrvcore/logger.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/logger.h"
 
 using bsrvcore::HttpServerConnection;
 

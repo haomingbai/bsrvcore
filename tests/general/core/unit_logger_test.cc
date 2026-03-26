@@ -4,8 +4,8 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/logger.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/logger.h"
 
 namespace {
 

@@ -2,7 +2,7 @@
 
 This chapter maps to:
 
-- `include/bsrvcore/http_server_task.h`
+- `include/bsrvcore/connection/server/http_server_task.h`
 - `examples/sse/stream.cc`
 
 ## One-sentence idea

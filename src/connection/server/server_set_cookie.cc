@@ -11,7 +11,7 @@
  * Implements cookie attribute setters and serialization utilities.
  */
 
-#include "bsrvcore/server_set_cookie.h"
+#include "bsrvcore/connection/server/server_set_cookie.h"
 
 #include <cctype>
 #include <cstdint>

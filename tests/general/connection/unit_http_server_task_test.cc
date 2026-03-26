@@ -7,11 +7,11 @@
 #include <optional>
 #include <string>
 
-#include "bsrvcore/http_request_handler.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/http_server_task.h"
-#include "bsrvcore/internal/http_server_connection.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/internal/connection/server/http_server_connection.h"
 
 namespace {
 

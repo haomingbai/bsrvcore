@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/sse_event_parser.h"
+#include "bsrvcore/connection/client/sse_event_parser.h"
 
 #include <algorithm>
 #include <charconv>

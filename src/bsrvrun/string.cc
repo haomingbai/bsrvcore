@@ -13,7 +13,7 @@
 #include <cstring>
 #include <utility>
 
-#include "bsrvcore/allocator.h"
+#include "bsrvcore/allocator/allocator.h"
 
 namespace bsrvcore::bsrvrun {
 

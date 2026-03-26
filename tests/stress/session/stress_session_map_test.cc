@@ -10,7 +10,7 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/internal/session_map.h"
+#include "bsrvcore/internal/session/session_map.h"
 #include "stress_test_common.h"
 
 namespace {

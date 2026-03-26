@@ -4,10 +4,10 @@
 #include <string>
 #include <vector>
 
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_request_handler.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/internal/http_route_table.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/internal/route/http_route_table.h"
 
 namespace {
 

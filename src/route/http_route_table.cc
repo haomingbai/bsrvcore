@@ -11,7 +11,7 @@
  * Implements route registration and request path matching.
  */
 
-#include "bsrvcore/internal/http_route_table.h"
+#include "bsrvcore/internal/route/http_route_table.h"
 
 #include <algorithm>
 #include <boost/url/parse.hpp>
@@ -25,13 +25,13 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/cloneable_http_request_aspect_handler.h"
-#include "bsrvcore/cloneable_http_request_handler.h"
-#include "bsrvcore/http_request_aspect_handler.h"
-#include "bsrvcore/http_request_handler.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/internal/empty_route_handler.h"
-#include "bsrvcore/internal/http_route_table_layer.h"
+#include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
+#include "bsrvcore/route/cloneable_http_request_handler.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/internal/route/empty_route_handler.h"
+#include "bsrvcore/internal/route/http_route_table_layer.h"
 #include "impl/http_route_target_validator.h"
 
 using bsrvcore::HttpRequestAspectHandler;

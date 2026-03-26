@@ -8,11 +8,11 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/attribute.h"
-#include "bsrvcore/context.h"
-#include "bsrvcore/http_request_method.h"
-#include "bsrvcore/http_server.h"
-#include "bsrvcore/http_server_task.h"
+#include "bsrvcore/session/attribute.h"
+#include "bsrvcore/session/context.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 
 namespace bsrvcore::benchmark {
 

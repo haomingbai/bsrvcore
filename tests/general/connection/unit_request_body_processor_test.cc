@@ -9,8 +9,8 @@
 #include <string>
 #include <thread>
 
-#include "bsrvcore/multipart_parser.h"
-#include "bsrvcore/put_processor.h"
+#include "bsrvcore/connection/server/multipart_parser.h"
+#include "bsrvcore/connection/server/put_processor.h"
 
 namespace {
 namespace http = boost::beast::http;
