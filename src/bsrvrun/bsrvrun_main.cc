@@ -79,8 +79,7 @@ int RunMain(int argc, char** argv) {
     if (config.executor.configured) {
       runtime_options.core_thread_num = config.executor.core_thread_num;
       runtime_options.max_thread_num = config.executor.max_thread_num;
-      runtime_options.fast_queue_capacity =
-          config.executor.fast_queue_capacity;
+      runtime_options.fast_queue_capacity = config.executor.fast_queue_capacity;
       runtime_options.thread_clean_interval =
           config.executor.thread_clean_interval;
       runtime_options.task_scan_interval = config.executor.task_scan_interval;

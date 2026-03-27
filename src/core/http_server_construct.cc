@@ -30,12 +30,12 @@
 #include <memory>
 
 #include "bsrvcore/allocator/allocator.h"
-#include "bsrvcore/session/context.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
 #include "bsrvcore/internal/core/empty_logger.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
 #include "bsrvcore/internal/session/session_map.h"
+#include "bsrvcore/session/context.h"
 
 using namespace bsrvcore;
 
@@ -54,7 +54,8 @@ bthpool::detail::BThreadPoolParam ToThreadPoolParam(
   return param;
 }
 
-HttpServerRuntimeOptions MakeRuntimeOptionsFromThreadNum(std::size_t thread_num) {
+HttpServerRuntimeOptions MakeRuntimeOptionsFromThreadNum(
+    std::size_t thread_num) {
   HttpServerRuntimeOptions options;
   if (thread_num != 0) {
     options.core_thread_num = thread_num;
@@ -81,10 +82,10 @@ HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
       keep_alive_timeout_(4000),
       kRuntimeOptions_(std::move(runtime_options)),
       kHasMaxConnection_(kRuntimeOptions_.has_max_connection),
-      available_connection_num_(kHasMaxConnection_
-                                    ? static_cast<std::int64_t>(
-                                          kRuntimeOptions_.max_connection)
-                                    : static_cast<std::int64_t>(0)),
+      available_connection_num_(
+          kHasMaxConnection_
+              ? static_cast<std::int64_t>(kRuntimeOptions_.max_connection)
+              : static_cast<std::int64_t>(0)),
       is_running_(false) {}
 
 HttpServer::HttpServer() : HttpServer(HttpServerRuntimeOptions{}) {}

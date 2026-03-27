@@ -41,13 +41,13 @@
 #include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
-#include "bsrvcore/connection/server/http_server_task.h"
-#include "bsrvcore/core/logger.h"
-#include "bsrvcore/core/trait.h"
 
 namespace bthpool {
 template <class Allocator>
@@ -650,10 +650,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
   const HttpServerRuntimeOptions
-      kRuntimeOptions_;               ///< Immutable runtime options.
-  const bool kHasMaxConnection_;      ///< Whether max-connection control is on.
+      kRuntimeOptions_;           ///< Immutable runtime options.
+  const bool kHasMaxConnection_;  ///< Whether max-connection control is on.
   std::atomic<std::int64_t> available_connection_num_{
-      0};                       ///< Approximate available connection slots.
+      0};                         ///< Approximate available connection slots.
   std::atomic<bool> is_running_;  ///< Flag indicating if server is running
 };
 

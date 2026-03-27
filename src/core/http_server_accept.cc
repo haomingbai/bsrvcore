@@ -11,6 +11,7 @@
  * Implements start/stop and asynchronous acceptor loop.
  */
 
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/bind_executor.hpp>
@@ -27,7 +28,6 @@
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
 #include <bthpool/bthpool.hpp>
-#include <atomic>
 #include <cstddef>
 #include <cstring>
 #include <memory>
@@ -36,8 +36,8 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/internal/core/empty_logger.h"
 #include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/core/empty_logger.h"
 #include "bsrvcore/internal/session/session_map.h"
 
 using namespace bsrvcore;
@@ -142,9 +142,8 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
           accept_alloc, [this, &acc](boost::system::error_code ec,
                                      boost::asio::ip::tcp::socket skt) {
             if (!ec) {
-              if (kHasMaxConnection_ &&
-                  available_connection_num_.load(std::memory_order_relaxed) <=
-                      0) {
+              if (kHasMaxConnection_ && available_connection_num_.load(
+                                            std::memory_order_relaxed) <= 0) {
                 boost::system::error_code close_ec;
                 skt.close(close_ec);
               } else {
@@ -162,13 +161,13 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
                           ->Run();
                 } else {
                   connection_internal::HttpServerConnectionImpl<
-                      boost::beast::tcp_stream>::Create(
-                      std::move(stream),
-                      boost::asio::strand<boost::asio::any_io_executor>(
-                          stream.get_executor()),
-                      this, header_read_expiry_, keep_alive_timeout_,
-                      kHasMaxConnection_, &available_connection_num_)
-                      ->Run();
+                      boost::beast::tcp_stream>::
+                      Create(std::move(stream),
+                             boost::asio::strand<boost::asio::any_io_executor>(
+                                 stream.get_executor()),
+                             this, header_read_expiry_, keep_alive_timeout_,
+                             kHasMaxConnection_, &available_connection_num_)
+                          ->Run();
                 }
               }
             }

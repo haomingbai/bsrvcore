@@ -332,7 +332,8 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
       }
     }
 
-    const YAML::Node has_max_connection_node = server_node["has_max_connection"];
+    const YAML::Node has_max_connection_node =
+        server_node["has_max_connection"];
     if (has_max_connection_node) {
       if (!has_max_connection_node.IsScalar()) {
         throw std::runtime_error("server.has_max_connection must be a bool");
@@ -347,7 +348,8 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
       }
       const auto max_connection_value = max_connection_node.as<long long>();
       if (max_connection_value <= 0) {
-        throw std::runtime_error("server.max_connection must be greater than 0");
+        throw std::runtime_error(
+            "server.max_connection must be greater than 0");
       }
       max_connection = static_cast<std::size_t>(max_connection_value);
     }

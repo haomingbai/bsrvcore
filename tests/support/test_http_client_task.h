@@ -129,9 +129,9 @@ template <typename ConfigureRequestFn>
 inline http::response<http::string_body> DoRequestWithRetry(
     http::verb method, unsigned short port, const std::string& target,
     const std::string& body, ConfigureRequestFn&& configure_request) {
-  return DoRequestTaskWithRetry(method, port, target, body,
-                                std::forward<ConfigureRequestFn>(
-                                    configure_request));
+  return DoRequestTaskWithRetry(
+      method, port, target, body,
+      std::forward<ConfigureRequestFn>(configure_request));
 }
 
 inline http::response<http::string_body> DoRequestWithRetry(

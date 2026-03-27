@@ -8,9 +8,9 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "stress_test_common.h"
 #include "test_http_client_task.h"
 
@@ -34,17 +34,16 @@ TEST(StressRoutingAcceptanceTest,
           [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
             task->SetBody("exclusive");
           })
-      ->AddRouteEntry(
-          bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-            const auto* id = task->GetPathParameter("id");
-            if (id == nullptr) {
-              task->GetResponse().result(http::status::bad_request);
-              task->SetBody("missing-id");
-              return;
-            }
-            task->SetBody(*id);
-          });
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
+                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                        const auto* id = task->GetPathParameter("id");
+                        if (id == nullptr) {
+                          task->GetResponse().result(http::status::bad_request);
+                          task->SetBody("missing-id");
+                          return;
+                        }
+                        task->SetBody(*id);
+                      });
 
   bsrvcore::test::ServerGuard guard(std::move(server));
   const auto port = bsrvcore::test::FindFreePort();
@@ -77,7 +76,8 @@ TEST(StressRoutingAcceptanceTest,
             const auto id = std::to_string(i % 1024U);
             const auto response = bsrvcore::test::DoRequestWithRetry(
                 http::verb::get, port, "/users/" + id, "");
-            if (response.result() != http::status::ok || response.body() != id) {
+            if (response.result() != http::status::ok ||
+                response.body() != id) {
               std::lock_guard<std::mutex> lock(error_mutex);
               errors.emplace_back("param route returned unexpected body");
             }

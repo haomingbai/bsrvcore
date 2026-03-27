@@ -19,9 +19,9 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "stress_test_common.h"
 #include "test_http_client_task.h"
 

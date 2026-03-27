@@ -27,10 +27,10 @@
 #include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/core/trait.h"
+#include "bsrvcore/internal/route/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
-#include "bsrvcore/internal/route/http_route_table_layer.h"
-#include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 

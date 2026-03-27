@@ -9,9 +9,9 @@
 #include <thread>
 #include <vector>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/session/attribute.h"
 #include "bsrvcore/session/context.h"
 #include "stress_test_common.h"
@@ -25,8 +25,7 @@ namespace http = boost::beast::http;
 
 class CounterAttribute : public bsrvcore::CloneableAttribute<CounterAttribute> {
  public:
-  CounterAttribute()
-      : counter(std::make_shared<std::atomic<std::size_t>>(0)) {}
+  CounterAttribute() : counter(std::make_shared<std::atomic<std::size_t>>(0)) {}
 
   std::shared_ptr<std::atomic<std::size_t>> counter;
 };
@@ -106,14 +105,16 @@ TEST(StressSessionAcceptanceTest,
               [&session_cookie](http::request<http::string_body>& request) {
                 request.set(http::field::cookie, session_cookie);
               });
-          if (response.result() != http::status::ok || response.body().empty()) {
+          if (response.result() != http::status::ok ||
+              response.body().empty()) {
             std::lock_guard<std::mutex> lock(error_mutex);
             errors.emplace_back(
                 "shared-session request returned unexpected response");
           }
           if (response.base().count(http::field::set_cookie) != 0u) {
             std::lock_guard<std::mutex> lock(error_mutex);
-            errors.emplace_back("shared-session request unexpectedly reset cookie");
+            errors.emplace_back(
+                "shared-session request unexpectedly reset cookie");
           }
         } catch (const std::exception& ex) {
           std::lock_guard<std::mutex> lock(error_mutex);
@@ -183,8 +184,8 @@ TEST(StressSessionAcceptanceTest,
           const auto response = bsrvcore::test::DoRequestWithRetry(
               http::verb::get, port, "/session/init", "");
           const auto session_cookie = ExtractSessionCookie(response);
-          if (response.result() != http::status::ok || response.body().empty() ||
-              session_cookie.empty() ||
+          if (response.result() != http::status::ok ||
+              response.body().empty() || session_cookie.empty() ||
               session_cookie.find("sessionId=") == std::string::npos) {
             std::lock_guard<std::mutex> lock(error_mutex);
             errors.emplace_back(

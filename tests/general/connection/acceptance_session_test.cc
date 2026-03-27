@@ -5,9 +5,9 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/session/attribute.h"
 #include "bsrvcore/session/context.h"
 #include "test_http_client_task.h"
@@ -21,8 +21,7 @@ namespace http = boost::beast::http;
 class StoredValueAttribute
     : public bsrvcore::CloneableAttribute<StoredValueAttribute> {
  public:
-  explicit StoredValueAttribute(std::string value)
-      : value(std::move(value)) {}
+  explicit StoredValueAttribute(std::string value) : value(std::move(value)) {}
 
   std::string value;
 };
@@ -43,11 +42,10 @@ std::string ExtractSessionCookie(
 
 TEST(SessionAcceptanceTest, ExistingSessionCookieIsReusedWithoutReset) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
-  server->AddRouteEntry(
-      bsrvcore::HttpRequestMethod::kGet, "/session",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        task->SetBody(task->GetSessionId());
-      });
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/session",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody(task->GetSessionId());
+                        });
 
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);

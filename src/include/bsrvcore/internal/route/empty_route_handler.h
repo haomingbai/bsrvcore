@@ -18,8 +18,8 @@
 
 #include <memory>
 
-#include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/route/http_request_handler.h"
 
 namespace bsrvcore {
 

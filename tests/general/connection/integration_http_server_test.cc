@@ -4,7 +4,6 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
-
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -12,10 +11,10 @@
 #include <string>
 #include <thread>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/put_processor.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
 namespace {
@@ -36,7 +35,8 @@ std::string ReadFile(const std::filesystem::path& path) {
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 
-bool WaitUntilSocketClosed(tcp::socket& socket, std::chrono::milliseconds timeout) {
+bool WaitUntilSocketClosed(tcp::socket& socket,
+                           std::chrono::milliseconds timeout) {
   boost::system::error_code set_non_blocking_ec;
   socket.non_blocking(true, set_non_blocking_ec);
   if (set_non_blocking_ec) {
@@ -122,8 +122,7 @@ TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
   tcp::socket second(ioc);
   second.connect({boost::asio::ip::make_address("127.0.0.1"), port});
 
-  EXPECT_TRUE(
-      WaitUntilSocketClosed(second, std::chrono::milliseconds(1500)));
+  EXPECT_TRUE(WaitUntilSocketClosed(second, std::chrono::milliseconds(1500)));
 
   boost::system::error_code ignore_ec;
   second.close(ignore_ec);

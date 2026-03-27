@@ -7,11 +7,11 @@
 #include <utility>
 #include <vector>
 
-#include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/core/http_server.h"
-#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/client/http_sse_client_task.h"
 #include "bsrvcore/connection/client/sse_event_parser.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
 namespace {

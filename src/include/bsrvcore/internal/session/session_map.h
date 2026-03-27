@@ -26,10 +26,10 @@
 #include <unordered_map>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/internal/session/heap.h"
 #include "bsrvcore/internal/session/session_context_entry.h"
 #include "bsrvcore/internal/session/session_key_heap_entry.h"
-#include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 class Context;

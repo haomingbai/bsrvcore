@@ -35,11 +35,11 @@
 #include <string>
 
 #include "bsrvcore/allocator/allocator.h"
-#include "bsrvcore/route/http_route_result.h"
-#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/route/http_route_result.h"
 
 namespace bsrvcore {
 
@@ -312,8 +312,7 @@ class HttpServerConnection
    */
   HttpServerConnection(boost::asio::strand<boost::asio::any_io_executor> strand,
                        HttpServer* srv, std::size_t header_read_expiry,
-                       std::size_t keep_alive_timeout,
-                       bool has_max_connection,
+                       std::size_t keep_alive_timeout, bool has_max_connection,
                        std::atomic<std::int64_t>* available_connection_num);
 
   /**
