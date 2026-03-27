@@ -314,6 +314,8 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
   }
 
   std::size_t thread_count = 4;
+  bool has_max_connection = false;
+  std::size_t max_connection = 0;
   const YAML::Node server_node = root["server"];
   if (server_node) {
     if (!server_node.IsMap()) {
@@ -329,6 +331,32 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
         throw std::runtime_error("server.thread_count must be greater than 0");
       }
     }
+
+    const YAML::Node has_max_connection_node = server_node["has_max_connection"];
+    if (has_max_connection_node) {
+      if (!has_max_connection_node.IsScalar()) {
+        throw std::runtime_error("server.has_max_connection must be a bool");
+      }
+      has_max_connection = has_max_connection_node.as<bool>();
+    }
+
+    const YAML::Node max_connection_node = server_node["max_connection"];
+    if (max_connection_node) {
+      if (!max_connection_node.IsScalar()) {
+        throw std::runtime_error("server.max_connection must be a number");
+      }
+      const auto max_connection_value = max_connection_node.as<long long>();
+      if (max_connection_value <= 0) {
+        throw std::runtime_error("server.max_connection must be greater than 0");
+      }
+      max_connection = static_cast<std::size_t>(max_connection_value);
+    }
+  }
+
+  if (has_max_connection && max_connection == 0) {
+    throw std::runtime_error(
+        "server.max_connection must be greater than 0 when "
+        "server.has_max_connection is true");
   }
 
   ExecutorConfig executor =
@@ -336,6 +364,8 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
 
   ServerConfig config{
       .thread_count = thread_count,
+      .has_max_connection = has_max_connection,
+      .max_connection = max_connection,
       .executor = std::move(executor),
       .listeners = ParseListeners(root["listeners"]),
       .global = ParseGlobal(root["global"]),

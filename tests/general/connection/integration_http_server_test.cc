@@ -1,9 +1,16 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/tcp.hpp>
+
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
+#include <thread>
 
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/core/http_server.h"
@@ -16,6 +23,7 @@ using bsrvcore::test::DoRequestWithRetry;
 using bsrvcore::test::ServerGuard;
 using bsrvcore::test::StartServerWithRoutes;
 namespace http = boost::beast::http;
+using tcp = boost::asio::ip::tcp;
 
 std::filesystem::path MakeTempPath(const std::string& prefix) {
   static std::size_t counter = 0;
@@ -26,6 +34,41 @@ std::filesystem::path MakeTempPath(const std::string& prefix) {
 std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
+
+bool WaitUntilSocketClosed(tcp::socket& socket, std::chrono::milliseconds timeout) {
+  boost::system::error_code set_non_blocking_ec;
+  socket.non_blocking(true, set_non_blocking_ec);
+  if (set_non_blocking_ec) {
+    return false;
+  }
+
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  char byte = 0;
+  while (std::chrono::steady_clock::now() < deadline) {
+    boost::system::error_code read_ec;
+    const std::size_t bytes =
+        socket.read_some(boost::asio::buffer(&byte, 1), read_ec);
+    if (!read_ec && bytes > 0) {
+      return false;
+    }
+    if (read_ec == boost::asio::error::would_block ||
+        read_ec == boost::asio::error::try_again) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      continue;
+    }
+    if (read_ec == boost::asio::error::eof ||
+        read_ec == boost::asio::error::connection_reset ||
+        read_ec == boost::asio::error::operation_aborted ||
+        read_ec == boost::asio::error::bad_descriptor) {
+      return true;
+    }
+    if (read_ec) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 }  // namespace
@@ -53,6 +96,54 @@ TEST(HttpServerIntegrationTest, BasicGetAndPost) {
   auto post_res = DoRequestWithRetry(http::verb::post, port, "/echo", "hello");
   EXPECT_EQ(post_res.result(), http::status::ok);
   EXPECT_EQ(post_res.body(), "hello");
+}
+
+TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
+  bsrvcore::HttpServerRuntimeOptions options;
+  options.core_thread_num = 2;
+  options.max_thread_num = 2;
+  options.has_max_connection = true;
+  options.max_connection = 1;
+
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  server->SetHeaderReadExpiry(500)->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kGet, "/ping",
+      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+        task->SetBody("pong");
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  boost::asio::io_context ioc;
+  tcp::socket first(ioc);
+  first.connect({boost::asio::ip::make_address("127.0.0.1"), port});
+
+  tcp::socket second(ioc);
+  second.connect({boost::asio::ip::make_address("127.0.0.1"), port});
+
+  EXPECT_TRUE(
+      WaitUntilSocketClosed(second, std::chrono::milliseconds(1500)));
+
+  boost::system::error_code ignore_ec;
+  second.close(ignore_ec);
+  first.close(ignore_ec);
+
+  bool recovered = false;
+  for (int i = 0; i < 100; ++i) {
+    try {
+      const auto res = DoRequestWithRetry(http::verb::get, port, "/ping", "");
+      if (res.result() == http::status::ok && res.body() == "pong") {
+        recovered = true;
+        break;
+      }
+    } catch (const std::exception&) {
+      // Release path is async; retry in a short loop.
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  EXPECT_TRUE(recovered);
 }
 
 // Verify aspect order across global/method/route hooks.

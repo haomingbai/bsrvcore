@@ -75,24 +75,26 @@ int RunMain(int argc, char** argv) {
     const std::string config_path = ResolveConfigPath(cli_path);
     const ServerConfig config = LoadConfigFromFile(config_path);
 
-    bsrvcore::HttpServerExecutorOptions executor_options;
+    bsrvcore::HttpServerRuntimeOptions runtime_options;
     if (config.executor.configured) {
-      executor_options.core_thread_num = config.executor.core_thread_num;
-      executor_options.max_thread_num = config.executor.max_thread_num;
-      executor_options.fast_queue_capacity =
+      runtime_options.core_thread_num = config.executor.core_thread_num;
+      runtime_options.max_thread_num = config.executor.max_thread_num;
+      runtime_options.fast_queue_capacity =
           config.executor.fast_queue_capacity;
-      executor_options.thread_clean_interval =
+      runtime_options.thread_clean_interval =
           config.executor.thread_clean_interval;
-      executor_options.task_scan_interval = config.executor.task_scan_interval;
-      executor_options.suspend_time = config.executor.suspend_time;
+      runtime_options.task_scan_interval = config.executor.task_scan_interval;
+      runtime_options.suspend_time = config.executor.suspend_time;
     } else {
       // Backward-compatible default for old config files.
-      executor_options.core_thread_num = config.thread_count;
-      executor_options.max_thread_num = config.thread_count;
+      runtime_options.core_thread_num = config.thread_count;
+      runtime_options.max_thread_num = config.thread_count;
     }
+    runtime_options.has_max_connection = config.has_max_connection;
+    runtime_options.max_connection = config.max_connection;
 
     PluginLoader loader;
-    auto server = AllocateUnique<bsrvcore::HttpServer>(executor_options);
+    auto server = AllocateUnique<bsrvcore::HttpServer>(runtime_options);
     ApplyConfigToServer(config, &loader, server.get());
 
     std::signal(SIGINT, HandleSignal);

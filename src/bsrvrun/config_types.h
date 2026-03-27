@@ -62,6 +62,9 @@ struct ExecutorConfig {
 struct ServerConfig {
   // Number of I/O threads passed to HttpServer::Start().
   std::size_t thread_count;
+  // Optional connection-cap controls (handled at accept/connection lifecycle).
+  bool has_max_connection{false};
+  std::size_t max_connection{0};
   // Optional worker executor configuration for HttpServer construction.
   ExecutorConfig executor;
   std::vector<ListenerConfig> listeners;

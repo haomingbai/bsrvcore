@@ -19,6 +19,7 @@
 #ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
 
+#include <atomic>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
@@ -28,6 +29,7 @@
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -305,15 +307,19 @@ class HttpServerConnection
    * @param srv HTTP server instance
    * @param header_read_expiry Header read timeout in milliseconds
    * @param keep_alive_timeout Keep-alive timeout in milliseconds
+   * @param has_max_connection Whether connection-cap control is enabled
+   * @param available_connection_num Shared approximate available slot counter
    */
   HttpServerConnection(boost::asio::strand<boost::asio::any_io_executor> strand,
                        HttpServer* srv, std::size_t header_read_expiry,
-                       std::size_t keep_alive_timeout);
+                       std::size_t keep_alive_timeout,
+                       bool has_max_connection,
+                       std::atomic<std::int64_t>* available_connection_num);
 
   /**
    * @brief Virtual destructor for proper cleanup
    */
-  virtual ~HttpServerConnection() = default;
+  virtual ~HttpServerConnection();
 
  protected:
   /**
@@ -383,6 +389,9 @@ class HttpServerConnection
       parser_;                      ///< HTTP request parser
   std::size_t header_read_expiry_;  ///< Header read timeout in ms
   std::size_t keep_alive_timeout_;  ///< Keep-alive timeout in ms
+  const bool kHasMaxConnection_;    ///< Whether connection-cap control is on.
+  std::atomic<std::int64_t>* available_connection_num_{
+      nullptr};  ///< Shared approximate available slot counter.
 
   // Per-connection allocator used for all Asio/Beast handlers.
   internal::HandlerAllocator handler_alloc_;

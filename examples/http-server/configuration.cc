@@ -23,13 +23,15 @@
 #include <memory>
 
 int main() {
-  bsrvcore::HttpServerExecutorOptions options;
+  bsrvcore::HttpServerRuntimeOptions options;
   options.core_thread_num = 2;
   options.max_thread_num = 2;
   options.fast_queue_capacity = 128;
   options.thread_clean_interval = 60000;
   options.task_scan_interval = 100;
   options.suspend_time = 1;
+  options.has_max_connection = true;
+  options.max_connection = 1024;
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server->SetDefaultReadExpiry(5000)

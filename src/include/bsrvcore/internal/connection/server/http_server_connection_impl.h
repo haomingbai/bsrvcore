@@ -38,6 +38,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -85,13 +86,15 @@ class HttpServerConnectionImpl : public HttpServerConnection {
  public:
   class MessageQueue;
 
-  // Keep original constructor signature for compatibility.
+  // Constructor receives shared server runtime controls from accept path.
   HttpServerConnectionImpl(
       S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
       HttpServer* srv, std::size_t header_read_expiry,
-      std::size_t keep_alive_timeout)
+      std::size_t keep_alive_timeout, bool has_max_connection,
+      std::atomic<std::int64_t>* available_connection_num)
       : HttpServerConnection(std::move(strand), srv, header_read_expiry,
-                             keep_alive_timeout),
+                             keep_alive_timeout, has_max_connection,
+                             available_connection_num),
         stream_(std::move(stream)),
         closed_(false) {
     // Do NOT create message_queue_ here by calling shared_from_this(),

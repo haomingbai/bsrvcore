@@ -197,7 +197,9 @@ void HttpServerConnection::DoCycle() {
 
 HttpServerConnection::HttpServerConnection(
     boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer* srv,
-    std::size_t header_read_expiry, std::size_t keep_alive_timeout)
+    std::size_t header_read_expiry, std::size_t keep_alive_timeout,
+    bool has_max_connection,
+    std::atomic<std::int64_t>* available_connection_num)
     : strand_(std::move(strand)),
       timer_(strand_),
       buf_(4096),
@@ -206,7 +208,19 @@ HttpServerConnection::HttpServerConnection(
                   boost::beast::http::string_body>>()),
       header_read_expiry_(header_read_expiry),
       keep_alive_timeout_(keep_alive_timeout),
-      handler_alloc_() {}
+      kHasMaxConnection_(has_max_connection),
+      available_connection_num_(available_connection_num),
+      handler_alloc_() {
+  if (kHasMaxConnection_ && available_connection_num_ != nullptr) {
+    available_connection_num_->fetch_sub(1, std::memory_order_relaxed);
+  }
+}
+
+HttpServerConnection::~HttpServerConnection() {
+  if (kHasMaxConnection_ && available_connection_num_ != nullptr) {
+    available_connection_num_->fetch_add(1, std::memory_order_relaxed);
+  }
+}
 
 bool HttpServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();

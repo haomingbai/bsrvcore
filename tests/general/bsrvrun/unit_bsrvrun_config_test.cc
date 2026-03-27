@@ -32,6 +32,8 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
   const auto path = WriteTempFile(
       "server:\n"
       "  thread_count: 2\n"
+      "  has_max_connection: true\n"
+      "  max_connection: 128\n"
       "  executor:\n"
       "    core_thread_num: 3\n"
       "    max_thread_num: 6\n"
@@ -59,6 +61,8 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
 
   const auto config = bsrvcore::runtime::LoadConfigFromFile(path.string());
   EXPECT_EQ(config.thread_count, 2u);
+  EXPECT_TRUE(config.has_max_connection);
+  EXPECT_EQ(config.max_connection, 128u);
   EXPECT_TRUE(config.executor.configured);
   EXPECT_EQ(config.executor.core_thread_num, 3u);
   EXPECT_EQ(config.executor.max_thread_num, 6u);
@@ -115,6 +119,27 @@ TEST(BsrvRunConfigTest, RejectExecutorMaxLessThanCore) {
       "    handler:\n"
       "      factory: \"/tmp/handler.so\"\n",
       "bsrvrun_test_invalid_executor.yaml");
+
+  EXPECT_THROW((void)bsrvcore::runtime::LoadConfigFromFile(path.string()),
+               std::runtime_error);
+
+  std::filesystem::remove(path);
+}
+
+TEST(BsrvRunConfigTest, RejectMissingMaxConnectionWhenEnabled) {
+  const auto path = WriteTempFile(
+      "server:\n"
+      "  thread_count: 2\n"
+      "  has_max_connection: true\n"
+      "listeners:\n"
+      "  - address: \"127.0.0.1\"\n"
+      "    port: 8081\n"
+      "routes:\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/x\"\n"
+      "    handler:\n"
+      "      factory: \"/tmp/handler.so\"\n",
+      "bsrvrun_test_invalid_max_connection.yaml");
 
   EXPECT_THROW((void)bsrvcore::runtime::LoadConfigFromFile(path.string()),
                std::runtime_error);

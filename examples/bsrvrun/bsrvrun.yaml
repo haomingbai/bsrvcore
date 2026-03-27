@@ -1,6 +1,9 @@
 server:
   # Number of I/O threads (passed to HttpServer::Start).
   thread_count: 4
+  # Optional connection-cap control.
+  has_max_connection: true
+  max_connection: 4096
   # Optional: full worker executor configuration.
   executor:
     core_thread_num: 4

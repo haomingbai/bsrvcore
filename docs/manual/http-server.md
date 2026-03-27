@@ -22,19 +22,23 @@ server->Stop();
 - `HttpServer(thread_num)` sets worker thread count (core=max=thread_num).
 - `Start(thread_count)` starts I/O threads (accept + read/write).
 
-To fully control worker executor behavior, use `HttpServerExecutorOptions`:
+To fully control runtime behavior, use `HttpServerRuntimeOptions`:
 
 ```cpp
-bsrvcore::HttpServerExecutorOptions options;
+bsrvcore::HttpServerRuntimeOptions options;
 options.core_thread_num = 4;
 options.max_thread_num = 8;
 options.fast_queue_capacity = 256;
 options.thread_clean_interval = 60000;
 options.task_scan_interval = 100;
 options.suspend_time = 1;
+options.has_max_connection = true;
+options.max_connection = 4096;
 
 auto server = std::make_unique<bsrvcore::HttpServer>(options);
 ```
+
+`HttpServerExecutorOptions` is kept as a compatibility alias.
 
 ## Configuration
 

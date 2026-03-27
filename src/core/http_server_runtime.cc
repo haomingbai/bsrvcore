@@ -36,15 +36,14 @@
 #include <string_view>
 #include <utility>
 
-#include "bsrvcore/session/context.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/logger.h"
+#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/route/http_route_table.h"
+#include "bsrvcore/internal/session/session_map.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
-#include "bsrvcore/core/http_server.h"
-#include "bsrvcore/internal/core/empty_logger.h"
-#include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
-#include "bsrvcore/internal/session/session_map.h"
-#include "bsrvcore/core/logger.h"
+#include "bsrvcore/session/context.h"
 
 using namespace bsrvcore;
 
@@ -64,7 +63,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
           if (!is_running_) {
             return;
           }
-          thread_pool_->post(std::move(fn));
+          boost::asio::post(thread_pool_->get_executor(), std::move(fn));
         }
       });
 }
@@ -76,7 +75,7 @@ void HttpServer::Post(std::function<void()> fn) {
     return;
   }
 
-  thread_pool_->post(std::move(fn));
+  boost::asio::post(thread_pool_->get_executor(), std::move(fn));
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {

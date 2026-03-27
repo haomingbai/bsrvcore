@@ -19,6 +19,7 @@
 #define BSRVCORE_CORE_HTTP_SERVER_H_
 
 #include <algorithm>
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
@@ -26,6 +27,7 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <limits>
@@ -60,19 +62,22 @@ class BluePrint;
 class ReuseableBluePrint;
 
 /**
- * @brief Parameters used to create the server worker executor.
+ * @brief Parameters used to create server runtime resources.
  *
- * These fields map one-to-one to internal worker-executor parameters so users
- * can fully control executor behavior at creation time.
+ * Includes worker-executor knobs and optional connection-cap controls.
  */
-struct HttpServerExecutorOptions {
+struct HttpServerRuntimeOptions {
   std::size_t core_thread_num{std::thread::hardware_concurrency()};
   std::size_t max_thread_num{std::numeric_limits<int>::max()};
   std::size_t fast_queue_capacity{0};
   std::size_t thread_clean_interval{60000};
   std::size_t task_scan_interval{100};
   std::size_t suspend_time{1};
+  bool has_max_connection{false};
+  std::size_t max_connection{0};
 };
+
+using HttpServerExecutorOptions = HttpServerRuntimeOptions;
 
 /**
  * @brief Main HTTP server with comprehensive web service capabilities
@@ -608,10 +613,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   HttpServer(std::size_t thread_num);
 
   /**
-   * @brief Construct HttpServer with full executor options.
-   * @param executor_options Full worker executor configuration.
+   * @brief Construct HttpServer with full runtime options.
+   * @param runtime_options Full runtime configuration.
    */
-  explicit HttpServer(HttpServerExecutorOptions executor_options);
+  explicit HttpServer(HttpServerRuntimeOptions runtime_options);
 
   /**
    * @brief Construct HttpServer with default thread pool size
@@ -644,8 +649,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   OwnedPtr<SessionMap> sessions_;         ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
-  HttpServerExecutorOptions
-      executor_options_;          ///< Worker executor options (persistent)
+  const HttpServerRuntimeOptions
+      kRuntimeOptions_;               ///< Immutable runtime options.
+  const bool kHasMaxConnection_;      ///< Whether max-connection control is on.
+  std::atomic<std::int64_t> available_connection_num_{
+      0};                       ///< Approximate available connection slots.
   std::atomic<bool> is_running_;  ///< Flag indicating if server is running
 };
 

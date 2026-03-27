@@ -21,6 +21,9 @@ If none exists, startup fails.
 server:
   # Number of I/O threads (used by HttpServer::Start)
   thread_count: 4
+  # Optional connection-cap control.
+  has_max_connection: true
+  max_connection: 4096
   # Optional worker executor settings (used by HttpServer constructor)
   executor:
     core_thread_num: 4
@@ -63,6 +66,8 @@ routes:
 ## Server threading notes
 
 - `server.thread_count` controls I/O thread count for accept/read/write.
+- `server.has_max_connection` + `server.max_connection` controls approximate
+  accepted-connection cap.
 - `server.executor` controls worker pool behavior for `Post` and timer callbacks.
 - If `server.executor` is omitted, worker core/max thread count falls back to `server.thread_count` for backward compatibility.
 

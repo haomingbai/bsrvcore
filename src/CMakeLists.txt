@@ -67,7 +67,7 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG v0.2.1
+  GIT_TAG v0.2.3
 )
 FetchContent_GetProperties(bthpool)
 if(NOT bthpool_POPULATED)
