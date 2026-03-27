@@ -1,5 +1,5 @@
 bsrvcore_add_test(unit_cookie_test unit_cookie_test.cc unit)
-bsrvcore_add_test(unit_http_server_task_test unit_http_server_task_test.cc unit)
+bsrvcore_add_test(acceptance_session_test acceptance_session_test.cc integration)
 bsrvcore_add_test(unit_http_client_task_test unit_http_client_task_test.cc unit)
 bsrvcore_add_test(unit_http_sse_client_task_test unit_http_sse_client_task_test.cc unit)
 bsrvcore_add_test(unit_request_body_processor_test unit_request_body_processor_test.cc unit)

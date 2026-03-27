@@ -43,9 +43,10 @@ struct ServerGuard {
   bsrvcore::OwnedPtr<bsrvcore::HttpServer> server;
 };
 
+template <typename ConfigureRequestFn>
 inline http::response<http::string_body> DoRequestTask(
     http::verb method, unsigned short port, const std::string& target,
-    const std::string& body = "") {
+    const std::string& body, ConfigureRequestFn&& configure_request) {
   boost::asio::io_context ioc;
 
   HttpClientOptions options;
@@ -63,6 +64,7 @@ inline http::response<http::string_body> DoRequestTask(
   // Populate request body before Start(). prepare_payload() is called
   // internally.
   task->Request().body() = body;
+  configure_request(task->Request());
 
   // Bridge the async task API into a synchronous helper used by tests.
   std::promise<http::response<http::string_body>> promise;
@@ -90,14 +92,21 @@ inline http::response<http::string_body> DoRequestTask(
   return future.get();
 }
 
-// Retry connection attempts for short startup races.
+inline http::response<http::string_body> DoRequestTask(
+    http::verb method, unsigned short port, const std::string& target,
+    const std::string& body = "") {
+  return DoRequestTask(method, port, target, body,
+                       [](http::request<http::string_body>&) {});
+}
+
+template <typename ConfigureRequestFn>
 inline http::response<http::string_body> DoRequestTaskWithRetry(
     http::verb method, unsigned short port, const std::string& target,
-    const std::string& body) {
+    const std::string& body, ConfigureRequestFn&& configure_request) {
   constexpr int kMaxAttempts = 5;
   for (int i = 0; i < kMaxAttempts; ++i) {
     try {
-      return DoRequestTask(method, port, target, body);
+      return DoRequestTask(method, port, target, body, configure_request);
     } catch (const std::exception&) {
       // A short startup race can happen between server thread start and accept.
       // Yield to avoid busy-spinning and to give the server time to bind.
@@ -107,7 +116,24 @@ inline http::response<http::string_body> DoRequestTaskWithRetry(
   throw std::runtime_error("Failed to connect to test server after retries");
 }
 
+// Retry connection attempts for short startup races.
+inline http::response<http::string_body> DoRequestTaskWithRetry(
+    http::verb method, unsigned short port, const std::string& target,
+    const std::string& body) {
+  return DoRequestTaskWithRetry(method, port, target, body,
+                                [](http::request<http::string_body>&) {});
+}
+
 // Keep compatibility with existing tests that use old helper function names.
+template <typename ConfigureRequestFn>
+inline http::response<http::string_body> DoRequestWithRetry(
+    http::verb method, unsigned short port, const std::string& target,
+    const std::string& body, ConfigureRequestFn&& configure_request) {
+  return DoRequestTaskWithRetry(method, port, target, body,
+                                std::forward<ConfigureRequestFn>(
+                                    configure_request));
+}
+
 inline http::response<http::string_body> DoRequestWithRetry(
     http::verb method, unsigned short port, const std::string& target,
     const std::string& body) {

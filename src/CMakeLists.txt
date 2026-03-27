@@ -141,12 +141,15 @@ target_compile_definitions(bsrvcore PRIVATE
   BOOST_ASIO_HAS_IO_URING=1
 )
 
-# Public include directories for build and install
+# Public headers stay under the top-level include/ tree so installed consumers
+# only see the supported API surface. Internal headers live under src/include/
+# and are available to this target only during the build.
 target_include_directories(bsrvcore
   PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>  # project headers for build
     $<INSTALL_INTERFACE:include>                               # project headers for install
   PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${ALLOCATOR_INCLUDE_DIRS}
 )
 
@@ -185,8 +188,8 @@ install(TARGETS bsrvcore
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Install public headers into devel component
-# Use top-level source include directory so this works when invoked from top-level build
+# Install public headers into devel component. Internal headers are kept under
+# src/include and are intentionally not installed.
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT devel
   FILES_MATCHING PATTERN "*.h*"

@@ -19,7 +19,7 @@ It is based on the current repository implementation (public headers + internal 
 | `Context` | Thread-safe key-value container | `Set`/`Get`/`Has` correctness; concurrent reads/writes | Uses public headers only |
 | `Attribute` / `CloneableAttribute` | Polymorphic attribute semantics | deep-copy via `Clone`; default `Type`/`Equals`/`Hash` behavior | Uses public headers only |
 | `ServerSetCookie` | `Set-Cookie` generation | missing name/value returns empty; correct combinations of `SameSite`/`HttpOnly`/`Secure`/`Max-Age`/`Path`/`Domain` | Uses public headers only |
-| `HttpRouteTable` (internal) | Route matching and parameter extraction | parameter routes vs exclusive routes vs default routes; invalid path handling | Needs internal headers (`include/bsrvcore/internal`) |
+| Routing behavior | Route matching and parameter extraction | parameter routes vs exclusive routes vs invalid route registration | Verified through public `HttpServer` acceptance tests |
 | `HttpRequestHandler` / `FunctionRouteHandler` | Exception handling and logging path | handler exceptions do not crash the server path | Verify logger calls with a mock logger (gmock) |
 
 ### 2) Integration tests
@@ -107,6 +107,6 @@ ctest --test-dir build -L stress --output-on-failure
 ## Test visibility and dependencies
 
 - Most tests use public headers only.
-- Some routing/session internals are tested via `include/bsrvcore/internal` headers.
-  This is a **test-only visibility** choice and is documented in CMake.
+- Routing and session behavior are tested through public `HttpServer` and `HttpServerTask` APIs only.
+- Tests no longer require `src/include/bsrvcore/internal` visibility.
 - Public APIs are not changed for tests. If test hooks become necessary later, they must be behind a build-time switch and recorded in this document.
