@@ -26,9 +26,9 @@ using namespace bsrvcore;
 
 namespace {
 
-bthpool::detail::BThreadPoolParam ToThreadPoolParam(
+bthpool::BThreadPoolParam ToThreadPoolParam(
     const HttpServerRuntimeOptions& options) {
-  bthpool::detail::BThreadPoolParam param;
+  bthpool::BThreadPoolParam param;
   param.core_thread_num = options.core_thread_num;
   param.max_thread_num = options.max_thread_num;
   param.fast_queue_capacity =
@@ -51,15 +51,36 @@ HttpServerRuntimeOptions MakeRuntimeOptionsFromThreadNum(
 
 }  // namespace
 
+struct HttpServer::ThreadPoolState {
+  explicit ThreadPoolState(bthpool::BThreadPoolParam param)
+      : pool(std::move(param), Allocator<std::byte>{}) {}
+
+  bthpool::BThreadPool<Allocator<std::byte>> pool;
+};
+
+OwnedPtr<HttpServer::ThreadPoolState> HttpServer::CreateThreadPool(
+    const HttpServerRuntimeOptions& runtime_options) {
+  return bsrvcore::AllocateUnique<ThreadPoolState>(
+      ToThreadPoolParam(runtime_options));
+}
+
+boost::asio::any_io_executor HttpServer::GetThreadPoolExecutor() noexcept {
+  return thread_pool_->pool.get_executor();
+}
+
+void HttpServer::JoinThreadPool() { thread_pool_->pool.join(); }
+
+void HttpServer::ResetThreadPool() {
+  thread_pool_ = CreateThreadPool(kRuntimeOptions_);
+}
+
 HttpServer::HttpServer(std::size_t thread_num)
     : HttpServer(MakeRuntimeOptionsFromThreadNum(thread_num)) {}
 
 HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
     : context_(bsrvcore::AllocateShared<Context>()),
       logger_(bsrvcore::AllocateShared<internal::EmptyLogger>()),
-      thread_pool_(
-          bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(
-              ToThreadPoolParam(runtime_options))),
+      thread_pool_(CreateThreadPool(runtime_options)),
       route_table_(bsrvcore::AllocateUnique<HttpRouteTable>()),
       sessions_(
           bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),

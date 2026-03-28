@@ -20,7 +20,6 @@
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
-#include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <memory>
 #include <shared_mutex>
@@ -31,23 +30,6 @@
 #include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
 
 using namespace bsrvcore;
-
-namespace {
-
-bthpool::BThreadPoolParam ToThreadPoolParam(
-    const HttpServerRuntimeOptions& options) {
-  bthpool::BThreadPoolParam param;
-  param.core_thread_num = options.core_thread_num;
-  param.max_thread_num = options.max_thread_num;
-  param.fast_queue_capacity =
-      options.fast_queue_capacity == 0 ? 1 : options.fast_queue_capacity;
-  param.thread_clean_interval = options.thread_clean_interval;
-  param.task_scan_interval = options.task_scan_interval;
-  param.suspend_time = options.suspend_time;
-  return param;
-}
-
-}  // namespace
 
 bool HttpServer::Start(std::size_t thread_cnt) {
   if (thread_cnt == 0) {
@@ -106,14 +88,12 @@ void HttpServer::Stop() {
     io_work_guard_.reset();
   }
 
-  thread_pool_->join();
+  JoinThreadPool();
   for (auto& it : io_threads_) {
     it.join();
   }
 
-  thread_pool_ =
-      bsrvcore::AllocateUnique<bthpool::BThreadPool<Allocator<std::byte>>>(
-          ToThreadPoolParam(kRuntimeOptions_), Allocator<std::byte>{});
+  ResetThreadPool();
   io_threads_.clear();
   acceptors_.clear();
   for (auto ep : eps) {

@@ -18,7 +18,6 @@
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
-#include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -53,7 +52,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
           if (!is_running_) {
             return;
           }
-          boost::asio::post(thread_pool_->get_executor(), std::move(fn));
+          boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
         }
       });
 }
@@ -65,7 +64,7 @@ void HttpServer::Post(std::function<void()> fn) {
     return;
   }
 
-  boost::asio::post(thread_pool_->get_executor(), std::move(fn));
+  boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {
@@ -88,7 +87,7 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
 boost::asio::io_context& HttpServer::GetIoContext() noexcept { return ioc_; }
 
 boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
-  return thread_pool_->get_executor();
+  return GetThreadPoolExecutor();
 }
 
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,

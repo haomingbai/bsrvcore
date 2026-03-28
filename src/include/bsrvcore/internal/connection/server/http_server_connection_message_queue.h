@@ -112,7 +112,19 @@ class HttpServerConnectionImpl<S>::MessageQueue
     std::shared_ptr<
         boost::beast::http::response<boost::beast::http::empty_body>>
         resp_sp;
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
     boost::beast::http::response_serializer<boost::beast::http::empty_body> sr;
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
     explicit HeaderMessage(
         boost::beast::http::response_header<boost::beast::http::fields>&&

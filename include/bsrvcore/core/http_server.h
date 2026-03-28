@@ -48,11 +48,6 @@
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
 
-namespace bthpool {
-template <class Allocator>
-class BThreadPool;
-}
-
 namespace bsrvcore {
 
 class HttpRouteTable;
@@ -628,6 +623,13 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   ~HttpServer();
 
  private:
+  struct ThreadPoolState;
+
+  static OwnedPtr<ThreadPoolState> CreateThreadPool(
+      const HttpServerRuntimeOptions& runtime_options);
+  boost::asio::any_io_executor GetThreadPoolExecutor() noexcept;
+  void JoinThreadPool();
+  void ResetThreadPool();
   void DoAccept(boost::asio::ip::tcp::acceptor& acc);
 
   std::optional<boost::asio::ssl::context>
@@ -642,8 +644,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_mutex mtx_;             ///< Mutex for thread synchronization
   std::shared_ptr<Context> context_;  ///< Global server context
   std::shared_ptr<Logger> logger_;    ///< Logger for server events
-  OwnedPtr<bthpool::BThreadPool<Allocator<std::byte>>>
-      thread_pool_;                       ///< Worker executor backend
+  OwnedPtr<ThreadPoolState> thread_pool_;  ///< Worker executor backend
   OwnedPtr<HttpRouteTable> route_table_;  ///< Route table for request routing
   OwnedPtr<SessionMap> sessions_;         ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
