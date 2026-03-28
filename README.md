@@ -166,6 +166,25 @@ The `examples/` folder contains runnable programs:
 
 - See [docs/manual/testing.md](docs/manual/testing.md)
 
+## Formatting
+
+Format the repository with `clang-format`:
+
+```bash
+./scripts/format.sh
+```
+
+Use IWYU to remove unused includes and normalize include blocks:
+
+```bash
+./scripts/iwyu.sh --dry-run
+./scripts/iwyu.sh
+```
+
+The IWYU script reuses an existing `compile_commands.json` when available and
+otherwise configures a build directory automatically. If IWYU is not installed,
+it prints a message and exits without changing files.
+
 ## Benchmarking
 
 Build the standalone benchmark suite:
