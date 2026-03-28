@@ -19,8 +19,6 @@
 #include <string>
 #include <utility>
 
-#include "bsrvcore/session/attribute.h"
-
 using bsrvcore::Context;
 
 std::shared_ptr<bsrvcore::Attribute> Context::GetAttribute(

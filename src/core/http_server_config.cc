@@ -12,21 +12,10 @@
  * limits.
  */
 
-#include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/bind_executor.hpp>
-#include <boost/asio/detail/chrono.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/asio/ssl/context.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/asio/strand.hpp>
-#include <boost/asio/thread_pool.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
-#include <boost/beast/http/verb.hpp>
-#include <boost/beast/ssl.hpp>
-#include <boost/beast/ssl/ssl_stream.hpp>
 #include <cstddef>
-#include <cstring>
 #include <memory>
 #include <shared_mutex>
 #include <string_view>
@@ -35,14 +24,11 @@
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
-#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
-#include "bsrvcore/internal/core/empty_logger.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/session/session_map.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"
-#include "bsrvcore/route/http_route_result.h"
 
 using namespace bsrvcore;
 

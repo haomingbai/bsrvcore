@@ -16,11 +16,9 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
-#include <boost/system/error_code.hpp>
 #include <chrono>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "bsrvcore/connection/server/http_server_task.h"

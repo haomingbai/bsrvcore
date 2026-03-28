@@ -16,7 +16,6 @@
 #include <boost/asio/write_at.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
-#include <boost/system/error_code.hpp>
 #include <cctype>
 #include <cstddef>
 #include <filesystem>

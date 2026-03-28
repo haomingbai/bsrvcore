@@ -27,7 +27,6 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cstddef>
-#include <cstdint>
 #include <functional>
 #include <future>
 #include <limits>

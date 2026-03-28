@@ -14,7 +14,6 @@
 #include "bsrvcore/connection/server/server_set_cookie.h"
 
 #include <cctype>
-#include <cstdint>
 #include <string>
 #include <utility>
 

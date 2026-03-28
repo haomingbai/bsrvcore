@@ -14,16 +14,15 @@
 #include "bsrvcore/internal/session/session_map.h"
 
 #include <algorithm>
-#include <boost/system/detail/error_code.hpp>
 #include <chrono>
 #include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/internal/session/session_context_entry.h"
-#include "bsrvcore/internal/session/session_key_heap_entry.h"
 #include "bsrvcore/session/context.h"
 
 using bsrvcore::SessionMap;

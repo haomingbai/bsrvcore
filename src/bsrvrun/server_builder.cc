@@ -14,6 +14,8 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <stdexcept>
 
+#include "bsrvcore/core/http_server.h"
+
 namespace bsrvcore::runtime {
 
 void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,

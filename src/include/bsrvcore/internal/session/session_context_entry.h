@@ -21,9 +21,9 @@
 #include <memory>
 
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/session/context.h"
 
 namespace bsrvcore {
+class Context;
 
 namespace session_internal {
 

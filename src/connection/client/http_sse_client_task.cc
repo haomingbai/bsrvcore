@@ -20,13 +20,11 @@
 #include <boost/asio/ssl/verify_mode.hpp>
 #include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
-#include <boost/beast/core/error.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
 #include <cctype>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <utility>

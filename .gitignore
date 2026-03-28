@@ -7,3 +7,6 @@
 
 # Ignore the benchmark plotting virtual environment.
 .venv-benchmark/
+
+# Ignore the IDEA project files.
+.idea/
