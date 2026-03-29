@@ -35,9 +35,7 @@ class ComputingRouteHandler
   ~ComputingRouteHandler() override = default;
 
  private:
-  // Keep the wrapped handler alive until the dispatched worker callback
-  // finishes, even if the outer decorator is torn down during shutdown.
-  std::shared_ptr<HttpRequestHandler> handler_;
+  OwnedPtr<HttpRequestHandler> handler_;
 };
 
 /**

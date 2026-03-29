@@ -57,11 +57,6 @@ struct HttpTaskSharedState {
         keep_alive(true),
         manual_connection_management(false),
         is_cookie_parsed(false),
-        pre_completed(false),
-        service_completed(false),
-        post_completed(false),
-        lifecycle_managed(false),
-        response_committed(false),
         handler_alloc(std::move(in_handler_alloc)) {}
 
   HttpRequest req;
@@ -75,11 +70,6 @@ struct HttpTaskSharedState {
   std::atomic_bool keep_alive;
   std::atomic_bool manual_connection_management;
   bool is_cookie_parsed;
-  std::atomic_bool pre_completed;
-  std::atomic_bool service_completed;
-  std::atomic_bool post_completed;
-  std::atomic_bool lifecycle_managed;
-  std::atomic_bool response_committed;
 
   // Per-request allocator + executor, derived from the owning
   // connection/server.
@@ -211,31 +201,19 @@ inline void TryCloseConnection(
   state->conn.store(nullptr);
 }
 
-inline void ShortCircuitLifecycle(
+inline void FinalizeResponse(
     const std::shared_ptr<HttpTaskSharedState>& state) {
   if (!state) {
     return;
   }
 
-  if (state->response_committed.exchange(true)) {
-    return;
-  }
-
-  TryCloseConnection(state);
-}
-
-inline void FinalizeResponse(
-    const std::shared_ptr<HttpTaskSharedState>& state) {
-  if (!state || state->response_committed.exchange(true)) {
+  if (state->manual_connection_management.load()) {
     return;
   }
 
   auto conn = GetConnection(state);
-  if (!conn) {
-    return;
-  }
-
-  if (state->manual_connection_management.load()) {
+  if (!conn || !conn->IsStreamAvailable()) {
+    TryCloseConnection(state);
     return;
   }
 
@@ -248,6 +226,7 @@ inline void FinalizeResponse(
   }
 
   conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load());
+  state->conn.store(nullptr);
 }
 
 }  // namespace helper
@@ -277,18 +256,9 @@ void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
         state, ptr, sizeof(HttpPreServerTask), alignof(HttpPreServerTask));
   }
 
-  if (!state || !state->lifecycle_managed.load()) {
-    return;
-  }
-
-  if (!state->pre_completed.load()) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
-    return;
-  }
-
   if (state->route_result.handler == nullptr ||
       !connection_internal::helper::IsTaskEnvironmentAvailable(state)) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
+    connection_internal::helper::TryCloseConnection(state);
     return;
   }
 
@@ -307,17 +277,17 @@ void HttpServerTaskDeleter::operator()(HttpServerTask* ptr) const {
         state, ptr, sizeof(HttpServerTask), alignof(HttpServerTask));
   }
 
-  if (!state || !state->lifecycle_managed.load()) {
-    return;
-  }
-
-  if (!state->service_completed.load()) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
+  if (!state) {
     return;
   }
 
   if (!connection_internal::helper::IsTaskEnvironmentAvailable(state)) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
+    connection_internal::helper::TryCloseConnection(state);
+    return;
+  }
+
+  if (state->route_result.aspects.empty()) {
+    connection_internal::helper::FinalizeResponse(state);
     return;
   }
 
@@ -337,17 +307,12 @@ void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
         state, ptr, sizeof(HttpPostServerTask), alignof(HttpPostServerTask));
   }
 
-  if (!state || !state->lifecycle_managed.load()) {
-    return;
-  }
-
-  if (!state->post_completed.load()) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
+  if (!state) {
     return;
   }
 
   if (!connection_internal::helper::IsTaskEnvironmentAvailable(state)) {
-    connection_internal::helper::ShortCircuitLifecycle(state);
+    connection_internal::helper::TryCloseConnection(state);
     return;
   }
 
@@ -651,7 +616,6 @@ std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
   auto state = std::allocate_shared<task_internal::HttpTaskSharedState>(
       state_alloc, std::move(req), std::move(route_result), std::move(conn),
       handler_alloc);
-  state->lifecycle_managed.store(true);
 
   auto* raw =
       connection_internal::helper::AllocateTaskObject<HttpPreServerTask>(state);
@@ -668,21 +632,14 @@ HttpPreServerTask::~HttpPreServerTask() = default;
 
 void HttpPreServerTask::Start() {
   auto self = shared_from_this();
-  if (!GetSharedState()->conn.load()) {
-    GetState().pre_completed.store(true);
-    return;
+  if (GetSharedState()->conn.load()) {
+    self->DoPreService(0);
   }
-
-  self->DoPreService(0);
 }
 
 void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
   auto& state = GetState();
   if (curr_idx >= state.route_result.aspects.size()) {
-    if (curr_idx > state.route_result.aspects.size()) {
-      assert(0);
-    }
-    state.pre_completed.store(true);
     return;
   }
 
@@ -691,8 +648,6 @@ void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
     state.route_result.aspects[curr_idx]->PreService(self);
     ++curr_idx;
   }
-
-  state.pre_completed.store(true);
 }
 
 HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
@@ -710,11 +665,7 @@ HttpServerTask::HttpServerTask(
     std::shared_ptr<task_internal::HttpTaskSharedState> state)
     : HttpTaskBase(std::move(state)) {}
 
-HttpServerTask::~HttpServerTask() {
-  if (!GetState().lifecycle_managed.load()) {
-    connection_internal::helper::FinalizeResponse(GetSharedState());
-  }
-}
+HttpServerTask::~HttpServerTask() = default;
 
 void HttpServerTask::Start() {
   auto self = shared_from_this();
@@ -726,13 +677,11 @@ void HttpServerTask::Start() {
 void HttpServerTask::DoService() {
   auto& state = GetState();
   if (state.route_result.handler == nullptr) {
-    state.service_completed.store(true);
     return;
   }
 
   auto self = shared_from_this();
   state.route_result.handler->Service(self);
-  state.service_completed.store(true);
 }
 
 std::shared_ptr<HttpServerTask> HttpServerTask::Create(
@@ -750,13 +699,23 @@ std::shared_ptr<HttpServerTask> HttpServerTask::Create(
   new (raw) HttpServerTask(state);
   return std::shared_ptr<HttpServerTask>(
       raw,
-      // Standalone tasks do not chain phases; destruction finalizes response.
       [state](HttpServerTask* ptr) {
         if (ptr) {
           ptr->~HttpServerTask();
           connection_internal::helper::DestroyTaskObject(
               state, ptr, sizeof(HttpServerTask), alignof(HttpServerTask));
         }
+
+        if (!state) {
+          return;
+        }
+
+        if (!connection_internal::helper::IsTaskEnvironmentAvailable(state)) {
+          connection_internal::helper::TryCloseConnection(state);
+          return;
+        }
+
+        connection_internal::helper::FinalizeResponse(state);
       },
       state->handler_alloc);
 }
@@ -765,17 +724,12 @@ HttpPostServerTask::HttpPostServerTask(
     std::shared_ptr<task_internal::HttpTaskSharedState> state)
     : HttpTaskBase(std::move(state)) {}
 
-HttpPostServerTask::~HttpPostServerTask() {
-  if (!GetState().lifecycle_managed.load()) {
-    connection_internal::helper::FinalizeResponse(GetSharedState());
-  }
-}
+HttpPostServerTask::~HttpPostServerTask() = default;
 
 void HttpPostServerTask::Start() {
   auto self = shared_from_this();
   auto& state = GetState();
   if (state.route_result.aspects.empty()) {
-    state.post_completed.store(true);
     return;
   }
 
@@ -788,7 +742,6 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
   auto& state = GetState();
   if (curr_idx >= state.route_result.aspects.size()) {
     assert(0);
-    state.post_completed.store(true);
     return;
   }
 
@@ -797,7 +750,6 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
     state.route_result.aspects[curr_idx]->PostService(self);
 
     if (curr_idx == 0) {
-      state.post_completed.store(true);
       return;
     }
 

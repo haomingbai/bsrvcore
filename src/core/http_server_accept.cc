@@ -121,20 +121,22 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
                 if (ssl_ctx_.has_value()) {
                   boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
                       std::move(stream), ssl_ctx_.value());
+                  auto ssl_exec = sstream.get_executor();
                   connection_internal::HttpServerConnectionImpl<
                       boost::beast::ssl_stream<boost::beast::tcp_stream>>::
                       Create(std::move(sstream),
                              boost::asio::strand<boost::asio::any_io_executor>(
-                                 sstream.get_executor()),
+                                 ssl_exec),
                              this, header_read_expiry_, keep_alive_timeout_,
                              kHasMaxConnection_, &available_connection_num_)
                           ->Run();
                 } else {
+                  auto stream_exec = stream.get_executor();
                   connection_internal::HttpServerConnectionImpl<
                       boost::beast::tcp_stream>::
                       Create(std::move(stream),
                              boost::asio::strand<boost::asio::any_io_executor>(
-                                 stream.get_executor()),
+                                 stream_exec),
                              this, header_read_expiry_, keep_alive_timeout_,
                              kHasMaxConnection_, &available_connection_num_)
                           ->Run();
