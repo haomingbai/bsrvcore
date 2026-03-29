@@ -18,9 +18,10 @@ cpu_count() {
 CPU_COUNT="$(cpu_count)"
 BUILD_DIR="${BSRVCORE_BENCH_BUILD_DIR:-build-bench}"
 VENV_DIR="${BSRVCORE_BENCH_VENV:-.venv-benchmark}"
-OUTPUT_DIR="${ROOT_DIR}/docs/benchmark-results"
-PACKAGE_DIR="${OUTPUT_DIR}/package"
-TMP_DIR="${OUTPUT_DIR}/.tmp-benchmark"
+OUTPUT_DIR="${BSRVCORE_BENCH_OUTPUT_DIR:-}"
+RUN_ID="${BSRVCORE_BENCH_RUN_ID:-$(date -u +%Y%m%d-%H%M%SZ)}"
+PACKAGE_DIR=""
+TMP_DIR=""
 PREFIX="${BSRVCORE_BENCH_TAG:-benchmark-report}"
 SCENARIO="io"
 SWEEP_DEPTH="${BSRVCORE_BENCH_SWEEP_DEPTH:-standard}"
@@ -63,6 +64,7 @@ Common options:
   --scenario <name|io|all>
   --sweep-depth <quick|standard|full>
   --build-dir <dir>
+  --output-dir <dir>
   --venv-dir <dir>
   --tag <prefix>
   --warmup-ms <n>
@@ -87,6 +89,11 @@ SSH options:
 EOF
 }
 
+refresh_output_paths() {
+  PACKAGE_DIR="${OUTPUT_DIR}/package"
+  TMP_DIR="${OUTPUT_DIR}/.tmp-benchmark"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --scenario)
@@ -101,6 +108,10 @@ while [[ $# -gt 0 ]]; do
       BUILD_DIR="$2"
       BENCH_BIN="${ROOT_DIR}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark"
       BUNDLED_WRK_BIN="${ROOT_DIR}/${BUILD_DIR}/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk"
+      shift 2
+      ;;
+    --output-dir)
+      OUTPUT_DIR="$2"
       shift 2
       ;;
     --venv-dir)
@@ -220,6 +231,11 @@ case "${SWEEP_DEPTH}" in
     ;;
 esac
 
+if [[ -z "${OUTPUT_DIR}" ]]; then
+  OUTPUT_DIR="${ROOT_DIR}/.artifacts/benchmark-results/${RUN_ID}"
+fi
+refresh_output_paths
+
 mkdir -p "${OUTPUT_DIR}"
 
 dedupe_numbers() {
@@ -330,9 +346,23 @@ collect_env_json() {
 }
 
 prepare_outputs() {
-  rm -f "${OUTPUT_DIR}/${PREFIX}.json"
-  rm -f "${OUTPUT_DIR}/${PREFIX}.md"
-  rm -f "${OUTPUT_DIR}/${PREFIX}"*.png
+  local -a targets=(
+    "${OUTPUT_DIR}/${PREFIX}.json"
+    "${OUTPUT_DIR}/${PREFIX}.md"
+    "${OUTPUT_DIR}/${PREFIX}-capacity-overview.png"
+    "${OUTPUT_DIR}/${PREFIX}-peak-neighborhood.png"
+    "${OUTPUT_DIR}/${PREFIX}-thread-sensitivity.png"
+    "${OUTPUT_DIR}/${PREFIX}-loadgen-sensitivity.png"
+  )
+  local target
+  for target in "${targets[@]}"; do
+    if [[ -e "${target}" ]]; then
+      echo "Refusing to overwrite existing benchmark artifact: ${target}" >&2
+      echo "Use --output-dir or --tag to write a new report set." >&2
+      exit 1
+    fi
+  done
+
   rm -rf "${PACKAGE_DIR}" "${TMP_DIR}"
   mkdir -p "${PACKAGE_DIR}" "${TMP_DIR}/cells"
 }
@@ -580,6 +610,7 @@ package_results() {
   copy_package_artifacts
   printf 'Generated plots:\n'
   printf '  %s\n' "${generated_plots[@]}"
+  printf 'Benchmark artifacts: %s\n' "${OUTPUT_DIR}"
 }
 
 prepare_command() {
@@ -589,6 +620,7 @@ prepare_command() {
   printf 'benchmark binary: %s\n' "${BENCH_BIN}"
   printf 'wrk binary: %s\n' "${WRK_BIN}"
   printf 'plot python: %s\n' "${PLOT_PYTHON}"
+  printf 'output dir: %s\n' "${OUTPUT_DIR}"
 }
 
 run_local_command() {
@@ -611,7 +643,7 @@ run_local_command() {
   RUN_CELL_INDEX=0
   run_matrix_file local "${matrix_file}" coarse
   build_interim_json local "single-host" \
-    "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH}"
+    "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
   emit_refined_matrix
 
   local refine_total
@@ -622,7 +654,7 @@ run_local_command() {
   fi
 
   SERVER_ENV_JSON=""
-  package_results local "single-host" "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH}"
+  package_results local "single-host" "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
 }
 
 server_command() {
@@ -676,7 +708,7 @@ client_command() {
   RUN_CELL_INDEX=0
   run_matrix_file client "${matrix_file}" coarse
   build_interim_json client "dual-host-manual" \
-    "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH}"
+    "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
   emit_refined_matrix
 
   local refine_total
@@ -687,7 +719,7 @@ client_command() {
   fi
 
   package_results client "dual-host-manual" \
-    "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH}"
+    "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
 }
 
 ssh_args() {
@@ -792,7 +824,7 @@ ssh_run_command() {
   done < "${matrix_file}"
 
   package_results client "dual-host-ssh" \
-    "bash scripts/benchmark.sh ssh-run --scenario ${SCENARIO} --ssh-target ${SSH_TARGET} --sweep-depth ${SWEEP_DEPTH}"
+    "bash scripts/benchmark.sh ssh-run --scenario ${SCENARIO} --ssh-target ${SSH_TARGET} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
 }
 
 case "${COMMAND}" in

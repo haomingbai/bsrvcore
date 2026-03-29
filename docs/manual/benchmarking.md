@@ -51,7 +51,8 @@ bash scripts/benchmark.sh run \
 - sweeps benchmark pressure cells
 - writes a formatted JSON report
 - generates charts
-- writes a concise package summary under `docs/benchmark-results/package/`
+- writes a concise package summary under a gitignored run directory,
+  defaulting to `.artifacts/benchmark-results/<UTC timestamp>/package/`
 
 ## Dual-Host Workflow
 
@@ -124,7 +125,16 @@ one or two saturated points.
 
 ## Outputs
 
-Canonical outputs are written to `docs/benchmark-results/`:
+By default, each run writes outputs into a new gitignored directory:
+
+```bash
+.artifacts/benchmark-results/<UTC timestamp>/
+```
+
+This avoids accidental repository churn and prevents overwriting older report
+sets.
+
+The per-run output directory contains:
 
 - `benchmark-report.json`
 - `benchmark-report.md`
@@ -136,7 +146,7 @@ Canonical outputs are written to `docs/benchmark-results/`:
 The concise package is written under:
 
 ```bash
-docs/benchmark-results/package/
+.artifacts/benchmark-results/<UTC timestamp>/package/
 ```
 
 It contains:
@@ -144,6 +154,12 @@ It contains:
 - `summary.md`
 - collected environment snapshots
 - links back to the parent JSON and technical report
+
+You can still set a custom output directory explicitly:
+
+```bash
+bash scripts/benchmark.sh run --output-dir /path/to/your/output
+```
 
 `benchmark_plot.py` does **not** generate Markdown reports.
 
