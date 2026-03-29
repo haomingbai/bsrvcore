@@ -7,31 +7,31 @@ This package is intentionally concise. It records the benchmark facts, the winne
 - mode: `local`
 - topology: `single-host`
 - scenario: `http_get_static`
-- sweep_depth: `quick`
+- sweep_depth: `standard`
 - server_url: `local-started-per-cell`
-- benchmark_command: `bash scripts/benchmark.sh run --scenario http_get_static --sweep-depth quick`
-- cell_count: `106`
+- benchmark_command: `bash scripts/benchmark.sh run --scenario http_get_static --sweep-depth standard`
+- cell_count: `146`
 
 ## Winner
 
 | scenario | pressure | stability | mean_rps | p95_us | p99_us | server_io_threads | server_worker_threads | client_concurrency | client_processes | wrk_threads_per_process |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| http_get_static | io5-worker11-conc40-proc2-wrk1 | stable | 184256.43 | 244.88 | 259.99 | 5 | 11 | 40 | 2 | 1 |
+| http_get_static | io5-worker10-conc20-proc2-wrk1 | stable | 140095.48 | 167.26 | 181.28 | 5 | 10 | 20 | 2 | 1 |
 
 ## Top Cells
 
 | rank | scenario | pressure | stability | mean_rps | p95_us | server_io_threads | server_worker_threads | client_concurrency | client_processes | wrk_threads_per_process |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | http_get_static | io5-worker11-conc40-proc2-wrk1 | stable | 184256.43 | 244.88 | 5 | 11 | 40 | 2 | 1 |
-| 2 | http_get_static | io5-worker10-conc56-proc1-wrk2 | stable | 183682.24 | 341.44 | 5 | 10 | 56 | 1 | 2 |
-| 3 | http_get_static | io5-worker10-conc40-proc1-wrk2 | stable | 183445.24 | 244.83 | 5 | 10 | 40 | 1 | 2 |
-| 4 | http_get_static | io5-worker10-conc60-proc2-wrk1 | stable | 182486.30 | 373.73 | 5 | 10 | 60 | 2 | 1 |
-| 5 | http_get_static | io6-worker11-conc40-proc2-wrk1 | stable | 182484.93 | 250.17 | 6 | 11 | 40 | 2 | 1 |
-| 6 | http_get_static | io5-worker10-conc38-proc2-wrk1 | stable | 182334.57 | 258.12 | 5 | 10 | 38 | 2 | 1 |
-| 7 | http_get_static | io5-worker10-conc40-proc2-wrk1 | stable | 182202.62 | 275.82 | 5 | 10 | 40 | 2 | 1 |
-| 8 | http_get_static | io5-worker10-conc56-proc1-wrk1 | stable | 182196.75 | 344.11 | 5 | 10 | 56 | 1 | 1 |
-| 9 | http_get_static | io5-worker10-conc56-proc4-wrk2 | stable | 181967.86 | 345.00 | 5 | 10 | 56 | 4 | 2 |
-| 10 | http_get_static | io5-worker10-conc56-proc4-wrk1 | stable | 181861.43 | 346.10 | 5 | 10 | 56 | 4 | 1 |
+| 1 | http_get_static | io5-worker10-conc20-proc2-wrk1 | stable | 140095.48 | 167.26 | 5 | 10 | 20 | 2 | 1 |
+| 2 | http_get_static | io5-worker10-conc28-proc1-wrk2 | stable | 139717.50 | 234.83 | 5 | 10 | 28 | 1 | 2 |
+| 3 | http_get_static | io5-worker10-conc36-proc2-wrk1 | stable | 139675.33 | 309.86 | 5 | 10 | 36 | 2 | 1 |
+| 4 | http_get_static | io5-worker15-conc20-proc2-wrk1 | stable | 139324.00 | 168.22 | 5 | 15 | 20 | 2 | 1 |
+| 5 | http_get_static | io5-worker12-conc20-proc2-wrk1 | stable | 139137.47 | 167.47 | 5 | 12 | 20 | 2 | 1 |
+| 6 | http_get_static | io5-worker13-conc20-proc2-wrk1 | stable | 139037.90 | 169.73 | 5 | 13 | 20 | 2 | 1 |
+| 7 | http_get_static | io5-worker10-conc30-proc2-wrk1 | stable | 139037.50 | 250.00 | 5 | 10 | 30 | 2 | 1 |
+| 8 | http_get_static | io5-worker10-conc24-proc2-wrk1 | stable | 138965.83 | 203.64 | 5 | 10 | 24 | 2 | 1 |
+| 9 | http_get_static | io5-worker8-conc20-proc2-wrk1 | stable | 138872.26 | 170.22 | 5 | 8 | 20 | 2 | 1 |
+| 10 | http_get_static | io5-worker10-conc14-proc2-wrk1 | stable | 138849.35 | 122.53 | 5 | 10 | 14 | 2 | 1 |
 
 ## Sweep Space
 
@@ -39,8 +39,8 @@ This package is intentionally concise. It records the benchmark facts, the winne
 | --- | --- |
 | scenario | http_get_static |
 | server_io_threads | 1, 3, 4, 5, 6, 7, 10 |
-| server_worker_threads | 1, 6, 7, 8, 9, 10, 11, 12, 13, 14, 20 |
-| client_concurrency | 1, 2, 4, 8, 10, 16, 20, 24, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 56, 60, 64, 80, 160 |
+| server_worker_threads | 1, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 20, 40 |
+| client_concurrency | 1, 2, 4, 5, 8, 10, 12, 14, 15, 16, 18, 20, 22, 24, 25, 26, 28, 30, 32, 36, 40, 44, 48, 52, 80, 160, 320 |
 | client_processes | 1, 2, 3, 4 |
 | wrk_threads_per_process | 1, 2 |
 
