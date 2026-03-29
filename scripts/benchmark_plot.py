@@ -22,6 +22,11 @@ COLORS = [
 ]
 
 
+def finalize_figure(figure: plt.Figure, top: float = 0.965) -> None:
+    """Reserve extra headroom so long chart titles do not overlap plot text."""
+    figure.tight_layout(rect=(0.0, 0.0, 1.0, top))
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", required=True)
@@ -318,7 +323,9 @@ def save_capacity_overview(
         )
 
     axes[0].set_title(
-        f"Capacity Overview: {winner['scenario']} on representative server/loadgen shapes"
+        f"Capacity Overview: {winner['scenario']} representative families",
+        pad=12,
+        wrap=True,
     )
     axes[0].set_ylabel("Mean RPS")
     axes[0].grid(alpha=0.25)
@@ -328,7 +335,7 @@ def save_capacity_overview(
     axes[1].set_xlabel("Client concurrency")
     axes[1].grid(alpha=0.25)
 
-    figure.tight_layout()
+    finalize_figure(figure)
     figure.savefig(output)
     plt.close(figure)
     return output
@@ -356,7 +363,13 @@ def save_peak_neighborhood(rows: list[dict], winner: dict, output: Path) -> Path
     p95 = [row["p95_us"] for row in ordered]
     p99 = [row["p99_us"] for row in ordered]
 
+    ref_scenario, ref_io, ref_worker, ref_proc, ref_wrk = reference_key
     figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    figure.suptitle(
+        f"Peak Neighborhood: io={ref_io} worker={ref_worker} "
+        f"proc={ref_proc} wrk={ref_wrk}",
+        y=0.985,
+    )
     axes[0].plot(x, rps, color="#d97706", linewidth=1.8, marker="o")
     axes[0].scatter(
         winner["client_concurrency"],
@@ -365,28 +378,33 @@ def save_peak_neighborhood(rows: list[dict], winner: dict, output: Path) -> Path
         s=90,
         zorder=5,
     )
+    top_of_band = max(max(rps), winner["mean_rps"])
+    bottom_of_band = min(min(rps), winner["mean_rps"])
+    span = max(top_of_band - bottom_of_band, 1.0)
+    annotate_below = (winner["mean_rps"] - bottom_of_band) / span > 0.8
+    offset = (8, -14) if annotate_below else (8, 10)
+    vertical_align = "top" if annotate_below else "bottom"
     axes[0].annotate(
         f"winner: conc={winner['client_concurrency']}\n{winner['mean_rps']:.0f} rps",
         xy=(winner["client_concurrency"], winner["mean_rps"]),
-        xytext=(8, 10),
+        xytext=offset,
         textcoords="offset points",
-    )
-    ref_scenario, ref_io, ref_worker, ref_proc, ref_wrk = reference_key
-    axes[0].set_title(
-        f"Peak Neighborhood: {ref_scenario} io={ref_io} worker={ref_worker} "
-        f"proc={ref_proc} wrk={ref_wrk} reference family, exact top cell highlighted"
+        va=vertical_align,
+        bbox={"boxstyle": "round,pad=0.2", "fc": "white", "ec": "none", "alpha": 0.85},
     )
     axes[0].set_ylabel("Mean RPS")
     axes[0].grid(alpha=0.25)
+    axes[0].margins(y=0.10)
 
     axes[1].plot(x, p95, color="#1d4ed8", linewidth=1.6, marker="o", label="p95")
     axes[1].plot(x, p99, color="#7c3aed", linewidth=1.6, marker="o", label="p99")
     axes[1].set_ylabel("Latency (us)")
     axes[1].set_xlabel("Client concurrency")
     axes[1].grid(alpha=0.25)
+    axes[1].margins(y=0.08)
     axes[1].legend(loc="best")
 
-    figure.tight_layout()
+    finalize_figure(figure, top=0.95)
     figure.savefig(output)
     plt.close(figure)
     return output
@@ -420,6 +438,11 @@ def save_thread_sensitivity(
         return None
 
     figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    figure.suptitle(
+        f"Server Thread Sensitivity: conc={winner['client_concurrency']} "
+        f"proc={winner['client_processes']} wrk={winner['wrk_threads_per_process']}",
+        y=0.985,
+    )
     for index, (io_threads, series) in enumerate(ranked_series):
         color = COLORS[index % len(COLORS)]
         x = [row["server_worker_threads"] for row in series]
@@ -436,19 +459,17 @@ def save_thread_sensitivity(
         s=90,
         zorder=5,
     )
-    axes[0].set_title(
-        f"Server Thread Sensitivity at conc={winner['client_concurrency']} "
-        f"proc={winner['client_processes']} wrk={winner['wrk_threads_per_process']}"
-    )
     axes[0].set_ylabel("Mean RPS")
     axes[0].grid(alpha=0.25)
+    axes[0].margins(y=0.10)
     axes[0].legend(loc="best")
 
     axes[1].set_ylabel("p95 latency (us)")
     axes[1].set_xlabel("Server worker threads")
     axes[1].grid(alpha=0.25)
+    axes[1].margins(y=0.08)
 
-    figure.tight_layout()
+    finalize_figure(figure, top=0.95)
     figure.savefig(output)
     plt.close(figure)
     return output
@@ -502,8 +523,10 @@ def save_loadgen_sensitivity(
         )
 
     axes[0].set_title(
-        f"Load Generator Sensitivity at io={server_io_threads} "
-        f"worker={server_worker_threads}"
+        f"Load Generator Sensitivity: io={server_io_threads} "
+        f"worker={server_worker_threads}",
+        pad=12,
+        wrap=True,
     )
     axes[0].set_ylabel("Mean RPS")
     axes[0].grid(alpha=0.25)
@@ -513,7 +536,7 @@ def save_loadgen_sensitivity(
     axes[1].set_xlabel("Client concurrency")
     axes[1].grid(alpha=0.25)
 
-    figure.tight_layout()
+    finalize_figure(figure)
     figure.savefig(output)
     plt.close(figure)
     return output
