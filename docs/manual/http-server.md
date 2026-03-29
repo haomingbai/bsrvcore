@@ -75,8 +75,9 @@ You can disable HTTPS later with `UnsetSslContext()`.
 
 The server can also run background work:
 
-- `Post(fn)` / `FuturedPost(fn, ...)`
+- `Post(fn)` / `Dispatch(fn)` / `FuturedPost(fn, ...)`
 - `SetTimer(timeout_ms, fn)`
+- `PostToIoContext(fn)` / `DispatchToIoContext(fn)`
 
 These are useful when you want to do work on the server's executors.
 For example: update shared state, schedule cleanup, or run a periodic task.
@@ -85,6 +86,8 @@ Execution model:
 
 - `SetTimer` uses `io_context` for timing, then dispatches callback to worker pool.
 - `Post` always dispatches callback to worker pool.
+- `Dispatch` targets the worker pool too, but may run inline when already on that executor.
+- `PostToIoContext` / `DispatchToIoContext` target the raw server `io_context`.
 - `GetExecutor()` returns a type-erased `boost::asio::any_io_executor` backed by the worker pool.
 - For I/O-related operations, use `GetIoContext()`.
 

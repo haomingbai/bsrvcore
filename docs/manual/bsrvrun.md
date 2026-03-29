@@ -51,6 +51,7 @@ routes:
   - method: "GET"
     path: "/hello/{name}"
     ignore_default_route: false
+    cpu: false
     handler:
       factory: "/opt/bsrv/plugins/libhello_handler.so"
       params:
@@ -68,13 +69,14 @@ routes:
 - `server.thread_count` controls I/O thread count for accept/read/write.
 - `server.has_max_connection` + `server.max_connection` controls approximate
   accepted-connection cap.
-- `server.executor` controls worker pool behavior for `Post` and timer callbacks.
+- `server.executor` controls worker pool behavior for `Post`, `Dispatch`, computing routes, and timer callbacks.
 - If `server.executor` is omitted, worker core/max thread count falls back to `server.thread_count` for backward compatibility.
 
 - `method` supports only existing `HttpRequestMethod` values:
   - `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`
 - `path` follows the same parameter syntax as C++ API (for example `/users/{id}`).
 - `ignore_default_route: true` maps to exclusive route registration.
+- `cpu: true` maps the route to `AddComputingRouteEntry()` semantics so the handler body runs on the worker pool while keeping the normal task lifecycle.
 
 ## Plugin ABI contract
 

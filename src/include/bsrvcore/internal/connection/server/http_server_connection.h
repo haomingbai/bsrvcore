@@ -114,19 +114,36 @@ class HttpServerConnection
    *
    * @details
    * This is intended for general/CPU work and follows HttpServer::Post
-   * semantics. For short I/O-path sequencing on io_context, use Dispatch.
+   * semantics. For short I/O-path sequencing on io_context, use
+   * PostToIoContext() or DispatchToIoContext().
    */
   void Post(std::function<void()> fn);
 
   /**
    * @brief Dispatch a function on the connection's strand.
+   * @param fn Function to execute.
    *
    * @details
-   * If called from the same strand context, the callback may run inline.
-   * Otherwise it is enqueued to the strand. This is useful for keeping
-   * short synchronous request lifecycle steps on the I/O path.
+   * Dispatches onto the server worker pool. For short I/O-context work, use
+   * PostToIoContext() or DispatchToIoContext().
    */
   void Dispatch(std::function<void()> fn);
+
+  /**
+   * @brief Post a short function onto the server io_context.
+   * @param fn Function to execute asynchronously.
+   */
+  void PostToIoContext(std::function<void()> fn);
+
+  /**
+   * @brief Dispatch a short function onto the server io_context.
+   * @param fn Function to execute.
+   *
+   * @details
+   * Uses the raw io_context executor and therefore does not preserve any
+   * per-connection strand ordering.
+   */
+  void DispatchToIoContext(std::function<void()> fn);
 
   /**
    * @brief Post a function with arguments and return a future for the result

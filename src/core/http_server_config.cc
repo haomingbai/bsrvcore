@@ -24,6 +24,7 @@
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/internal/route/computing_route_handler.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/session/session_map.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
@@ -43,6 +44,14 @@ HttpServer* HttpServer::AddRouteEntry(HttpRequestMethod method,
 
   route_table_->AddRouteEntry(method, url, std::move(handler));
   return this;
+}
+
+HttpServer* HttpServer::AddComputingRouteEntry(
+    HttpRequestMethod method, const std::string_view url,
+    OwnedPtr<HttpRequestHandler> handler) {
+  return AddRouteEntry(method, url,
+                       route_internal::WrapComputingHandler(
+                           std::move(handler)));
 }
 
 HttpServer* HttpServer::AddExclusiveRouteEntry(

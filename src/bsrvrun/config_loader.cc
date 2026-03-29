@@ -160,11 +160,13 @@ std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {
     }
 
     const YAML::Node ignore_node = route_node["ignore_default_route"];
+    const YAML::Node cpu_node = route_node["cpu"];
 
     RouteConfig route{
         .method = ParseMethod(route_node["method"], ctx.str()),
         .path = path_node.as<std::string>(),
         .ignore_default_route = ignore_node ? ignore_node.as<bool>() : false,
+        .cpu = cpu_node ? cpu_node.as<bool>() : false,
         .handler =
             ParseFactoryConfig(route_node["handler"], ctx.str() + ".handler"),
         .aspects = ParseFactoryConfigList(route_node["aspects"],

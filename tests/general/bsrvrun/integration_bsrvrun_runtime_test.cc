@@ -2,8 +2,11 @@
 
 #include <filesystem>
 #include <fstream>
+#include <future>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <thread>
 
 #include "bsrvcore/core/http_server.h"
 #include "config_loader.h"
@@ -31,6 +34,12 @@ std::filesystem::path WriteConfig(const std::string& body,
   out << body;
   out.close();
   return path;
+}
+
+std::string ThreadIdToString(std::thread::id id) {
+  std::ostringstream oss;
+  oss << id;
+  return oss.str();
 }
 
 }  // namespace
@@ -139,6 +148,71 @@ TEST(BsrvRunRuntimeIntegrationTest, IgnoreDefaultRouteMapsToExclusiveRoute) {
 
   EXPECT_EQ(res.result(), http::status::ok);
   EXPECT_EQ(res.body(), "exclusive|");
+
+  std::filesystem::remove(config_path);
+}
+
+TEST(BsrvRunRuntimeIntegrationTest, CpuRouteRunsOnWorkerPool) {
+  const unsigned short port = bsrvcore::test::FindFreePort();
+
+  const std::string yaml =
+      "server:\n"
+      "  thread_count: 1\n"
+      "listeners:\n"
+      "  - address: \"127.0.0.1\"\n"
+      "    port: " +
+      std::to_string(port) +
+      "\n"
+      "routes:\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/cpu\"\n"
+      "    cpu: true\n"
+      "    handler:\n"
+      "      factory: \"" +
+      EscapePath(BSRVRUN_TEST_HANDLER_PLUGIN) +
+      "\"\n"
+      "      params:\n"
+      "        body: \"cpu|\"\n"
+      "        thread_id: \"true\"\n";
+
+  const auto config_path =
+      WriteConfig(yaml, "bsrvrun_runtime_integration_cpu.yaml");
+
+  const auto config =
+      bsrvcore::runtime::LoadConfigFromFile(config_path.string());
+  bsrvcore::runtime::PluginLoader loader;
+  auto server =
+      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
+
+  ASSERT_TRUE(server->Start(1));
+
+  auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto worker_promise =
+      bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto io_future = io_promise->get_future();
+  auto worker_future = worker_promise->get_future();
+
+  server->PostToIoContext(
+      [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
+  server->Post(
+      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+
+  ASSERT_EQ(io_future.wait_for(std::chrono::seconds(10)),
+            std::future_status::ready);
+  ASSERT_EQ(worker_future.wait_for(std::chrono::seconds(10)),
+            std::future_status::ready);
+
+  const auto io_thread_id = io_future.get();
+  const auto worker_thread_id = worker_future.get();
+
+  const auto res = DoRequestWithRetry(http::verb::get, port, "/cpu", "");
+  server->Stop();
+  server.reset();
+
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "cpu|" + ThreadIdToString(worker_thread_id));
+  EXPECT_NE(res.body(), "cpu|" + ThreadIdToString(io_thread_id));
 
   std::filesystem::remove(config_path);
 }

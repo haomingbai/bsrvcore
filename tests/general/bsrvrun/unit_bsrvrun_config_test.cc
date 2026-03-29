@@ -53,6 +53,7 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
       "  - method: \"GET\"\n"
       "    path: \"/health\"\n"
       "    ignore_default_route: true\n"
+      "    cpu: true\n"
       "    handler:\n"
       "      factory: \"/tmp/handler.so\"\n"
       "      params:\n"
@@ -79,6 +80,7 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
 
   ASSERT_EQ(config.routes.size(), 1u);
   EXPECT_TRUE(config.routes[0].ignore_default_route);
+  EXPECT_TRUE(config.routes[0].cpu);
   EXPECT_EQ(config.routes[0].path, "/health");
   EXPECT_EQ(config.routes[0].handler.params.at("body"), "ok|");
 

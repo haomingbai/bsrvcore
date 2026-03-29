@@ -158,6 +158,32 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   void Post(std::function<void()> fn);
 
   /**
+   * @brief Dispatch a function on the server worker executor.
+   * @param fn Function to execute.
+   *
+   * @details
+   * Uses `boost::asio::dispatch` on the worker pool, so the callback may run
+   * inline when already executing on that executor.
+   */
+  void Dispatch(std::function<void()> fn);
+
+  /**
+   * @brief Post a short function onto the server io_context.
+   * @param fn Function to execute asynchronously on the I/O context.
+   */
+  void PostToIoContext(std::function<void()> fn);
+
+  /**
+   * @brief Dispatch a short function onto the server io_context.
+   * @param fn Function to execute on the I/O context.
+   *
+   * @details
+   * Uses `boost::asio::dispatch` on the raw io_context executor. It does not
+   * preserve any per-connection strand ordering.
+   */
+  void DispatchToIoContext(std::function<void()> fn);
+
+  /**
    * @brief Post a function with arguments and return a future for the result
    * @tparam Fn Function type
    * @tparam Args Argument types
@@ -209,6 +235,22 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                             OwnedPtr<HttpRequestHandler> handler);
 
   /**
+   * @brief Add a route whose handler body runs on the worker pool.
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param handler Request handler to wrap.
+   * @return Pointer to server for method chaining.
+   *
+   * @details
+   * The registered handler is wrapped with a decorator that dispatches the
+   * route work to the server worker pool while preserving the normal
+   * `HttpServerTask` lifecycle semantics.
+   */
+  HttpServer* AddComputingRouteEntry(HttpRequestMethod method,
+                                     const std::string_view url,
+                                     OwnedPtr<HttpRequestHandler> handler);
+
+  /**
    * @brief Add a route with a function object (lambda or function pointer)
    * @tparam Func Callable type accepting std::shared_ptr<HttpServerTask>
    * @param method HTTP method
@@ -225,6 +267,25 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     auto handler = AllocateUnique<FunctionRouteHandler<Func>>(func);
 
     return AddRouteEntry(method, str, std::move(handler));
+  }
+
+  /**
+   * @brief Add a computing route with a function object.
+   * @tparam Func Callable type accepting std::shared_ptr<HttpServerTask>.
+   * @param method HTTP method.
+   * @param str Route pattern.
+   * @param func Callable to handle requests on the worker pool.
+   * @return Pointer to server for method chaining.
+   */
+  template <typename Func>
+    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+      { fn(task) };
+    }
+  HttpServer* AddComputingRouteEntry(HttpRequestMethod method,
+                                     const std::string_view str, Func&& func) {
+    auto handler = AllocateUnique<FunctionRouteHandler<Func>>(func);
+
+    return AddComputingRouteEntry(method, str, std::move(handler));
   }
 
   /**

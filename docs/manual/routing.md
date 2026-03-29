@@ -17,6 +17,25 @@ server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
   });
 ```
 
+## AddComputingRouteEntry
+
+`AddComputingRouteEntry()` wraps the handler with a small decorator and
+dispatches the handler body onto the server worker pool.
+
+Use it for longer CPU-bound work when you still want to keep the normal
+`HttpServerTask` lifecycle and synchronous handler style:
+
+```cpp
+server->AddComputingRouteEntry(
+  bsrvcore::HttpRequestMethod::kGet, "/report",
+  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    task->SetBody("heavy result");
+  });
+```
+
+The task lifetime rules stay the same: post aspects still wait until the last
+`HttpServerTask` reference is released.
+
 ## Path parameters
 
 Route patterns can contain parameters in braces.

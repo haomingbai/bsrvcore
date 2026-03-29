@@ -14,6 +14,7 @@
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
@@ -58,13 +59,63 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
 }
 
 void HttpServer::Post(std::function<void()> fn) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  boost::asio::any_io_executor exec;
+  {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
 
-  if (!is_running_) {
-    return;
+    if (!is_running_) {
+      return;
+    }
+
+    exec = GetThreadPoolExecutor();
   }
 
-  boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
+  boost::asio::post(exec, std::move(fn));
+}
+
+void HttpServer::Dispatch(std::function<void()> fn) {
+  boost::asio::any_io_executor exec;
+  {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+
+    if (!is_running_) {
+      return;
+    }
+
+    exec = GetThreadPoolExecutor();
+  }
+
+  boost::asio::dispatch(exec, std::move(fn));
+}
+
+void HttpServer::PostToIoContext(std::function<void()> fn) {
+  boost::asio::any_io_executor exec;
+  {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+
+    if (!is_running_) {
+      return;
+    }
+
+    exec = ioc_.get_executor();
+  }
+
+  boost::asio::post(exec, std::move(fn));
+}
+
+void HttpServer::DispatchToIoContext(std::function<void()> fn) {
+  boost::asio::any_io_executor exec;
+  {
+    std::shared_lock<std::shared_mutex> lock(mtx_);
+
+    if (!is_running_) {
+      return;
+    }
+
+    exec = ioc_.get_executor();
+  }
+
+  boost::asio::dispatch(exec, std::move(fn));
 }
 
 void HttpServer::Log(LogLevel level, std::string message) {

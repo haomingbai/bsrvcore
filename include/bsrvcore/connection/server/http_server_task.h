@@ -199,6 +199,32 @@ class HttpTaskBase {
   void Post(std::function<void()> fn);
 
   /**
+   * @brief Dispatch callback on the server worker executor.
+   * @param fn Callback.
+   *
+   * @details
+   * Uses `boost::asio::dispatch` on the worker pool, so the callback may run
+   * inline when already executing there.
+   */
+  void Dispatch(std::function<void()> fn);
+
+  /**
+   * @brief Post a short callback onto the server io_context.
+   * @param fn Callback.
+   */
+  void PostToIoContext(std::function<void()> fn);
+
+  /**
+   * @brief Dispatch a short callback onto the server io_context.
+   * @param fn Callback.
+   *
+   * @details
+   * This targets the raw `io_context` executor and does not preserve any
+   * per-connection strand ordering.
+   */
+  void DispatchToIoContext(std::function<void()> fn);
+
+  /**
    * @brief Post callback and get future result.
    * @tparam Fn Callable type.
    * @tparam Args Argument types.

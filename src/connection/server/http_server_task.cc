@@ -16,7 +16,6 @@
 
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_allocator.hpp>
-#include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/http/field.hpp>
@@ -43,12 +42,6 @@
 #include "bsrvcore/session/context.h"
 
 namespace bsrvcore {
-
-namespace {
-
-constexpr std::size_t kAspectContinuationChunk = 16;
-
-}  // namespace
 
 namespace task_internal {
 
@@ -534,6 +527,50 @@ void HttpTaskBase::Post(std::function<void()> fn) {
                                          [fn = std::move(fn)]() { fn(); }));
 }
 
+void HttpTaskBase::Dispatch(std::function<void()> fn) {
+  if (!state_ || state_->srv == nullptr || !state_->srv->IsRunning()) {
+    return;
+  }
+
+  auto conn = state_->conn.load();
+  if (!conn) {
+    return;
+  }
+
+  conn->Dispatch(boost::asio::bind_allocator(state_->handler_alloc,
+                                             [fn = std::move(fn)]() { fn(); }));
+}
+
+void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
+  if (!state_ || state_->srv == nullptr || !state_->srv->IsRunning()) {
+    return;
+  }
+
+  auto conn = state_->conn.load();
+  if (!conn) {
+    return;
+  }
+
+  conn->PostToIoContext(
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() { fn(); }));
+}
+
+void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
+  if (!state_ || state_->srv == nullptr || !state_->srv->IsRunning()) {
+    return;
+  }
+
+  auto conn = state_->conn.load();
+  if (!conn) {
+    return;
+  }
+
+  conn->DispatchToIoContext(
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() { fn(); }));
+}
+
 void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
   if (!state_ || state_->srv == nullptr || !state_->srv->IsRunning()) {
     return;
@@ -630,42 +667,29 @@ HttpPreServerTask::HttpPreServerTask(
 HttpPreServerTask::~HttpPreServerTask() = default;
 
 void HttpPreServerTask::Start() {
-  auto conn = GetSharedState()->conn.load();
-  if (!conn) {
+  auto self = shared_from_this();
+  if (!GetSharedState()->conn.load()) {
     GetState().pre_completed.store(true);
     return;
   }
 
-  conn->Dispatch([self = shared_from_this()] { self->DoPreService(0); });
+  self->DoPreService(0);
 }
 
 void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
   auto& state = GetState();
-  if (curr_idx > state.route_result.aspects.size()) {
-    assert(0);
-    state.pre_completed.store(true);
-    return;
-  }
-
-  if (curr_idx == state.route_result.aspects.size()) {
+  if (curr_idx >= state.route_result.aspects.size()) {
+    if (curr_idx > state.route_result.aspects.size()) {
+      assert(0);
+    }
     state.pre_completed.store(true);
     return;
   }
 
   auto self = shared_from_this();
-  std::size_t handled_in_batch = 0;
   while (curr_idx < state.route_result.aspects.size()) {
     state.route_result.aspects[curr_idx]->PreService(self);
-    curr_idx++;
-    handled_in_batch++;
-
-    if (curr_idx < state.route_result.aspects.size() &&
-        handled_in_batch >= kAspectContinuationChunk) {
-      if (auto conn = GetSharedState()->conn.load()) {
-        conn->Dispatch([self, curr_idx] { self->DoPreService(curr_idx); });
-      }
-      return;
-    }
+    ++curr_idx;
   }
 
   state.pre_completed.store(true);
@@ -693,8 +717,9 @@ HttpServerTask::~HttpServerTask() {
 }
 
 void HttpServerTask::Start() {
-  if (auto conn = GetSharedState()->conn.load()) {
-    conn->Dispatch([self = shared_from_this()] { self->DoService(); });
+  auto self = shared_from_this();
+  if (GetSharedState()->conn.load()) {
+    self->DoService();
   }
 }
 
@@ -747,16 +772,15 @@ HttpPostServerTask::~HttpPostServerTask() {
 }
 
 void HttpPostServerTask::Start() {
+  auto self = shared_from_this();
   auto& state = GetState();
   if (state.route_result.aspects.empty()) {
     state.post_completed.store(true);
     return;
   }
 
-  if (auto conn = GetSharedState()->conn.load()) {
-    conn->Dispatch([self = shared_from_this()] {
-      self->DoPostService(self->GetState().route_result.aspects.size() - 1);
-    });
+  if (GetSharedState()->conn.load()) {
+    self->DoPostService(state.route_result.aspects.size() - 1);
   }
 }
 
@@ -769,10 +793,8 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
   }
 
   auto self = shared_from_this();
-  std::size_t handled_in_batch = 0;
   while (true) {
     state.route_result.aspects[curr_idx]->PostService(self);
-    ++handled_in_batch;
 
     if (curr_idx == 0) {
       state.post_completed.store(true);
@@ -780,12 +802,6 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
     }
 
     --curr_idx;
-    if (handled_in_batch >= kAspectContinuationChunk) {
-      if (auto conn = GetSharedState()->conn.load()) {
-        conn->Dispatch([self, curr_idx] { self->DoPostService(curr_idx); });
-      }
-      return;
-    }
   }
 }
 

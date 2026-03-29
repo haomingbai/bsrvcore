@@ -40,6 +40,7 @@ struct RouteConfig {
   bsrvcore::HttpRequestMethod method;
   std::string path;
   bool ignore_default_route;
+  bool cpu{false};
   FactoryConfig handler;
   std::vector<FactoryConfig> aspects;
 };

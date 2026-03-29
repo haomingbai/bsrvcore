@@ -133,3 +133,37 @@ TEST(Server, GetExecutorSupportsAsioPost) {
 
   server.Stop();
 }
+
+TEST(Server, DispatchAndIoContextHelpersTargetExpectedExecutors) {
+  using namespace bsrvcore;
+
+  HttpServerRuntimeOptions options;
+  options.core_thread_num = 1;
+  options.max_thread_num = 1;
+
+  HttpServer server(options);
+  ASSERT_TRUE(server.Start(1));
+
+  auto caller_id = std::this_thread::get_id();
+  auto worker_promise = AllocateShared<std::promise<std::thread::id>>();
+  auto io_promise = AllocateShared<std::promise<std::thread::id>>();
+  auto worker_future = worker_promise->get_future();
+  auto io_future = io_promise->get_future();
+
+  server.Dispatch(
+      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+  server.DispatchToIoContext(
+      [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
+
+  ASSERT_EQ(worker_future.wait_for(kAsyncWaitTimeout),
+            std::future_status::ready);
+  ASSERT_EQ(io_future.wait_for(kAsyncWaitTimeout), std::future_status::ready);
+
+  const auto worker_id = worker_future.get();
+  const auto io_id = io_future.get();
+  EXPECT_NE(worker_id, caller_id);
+  EXPECT_NE(io_id, caller_id);
+  EXPECT_NE(worker_id, io_id);
+
+  server.Stop();
+}

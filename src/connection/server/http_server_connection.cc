@@ -45,9 +45,32 @@ void HttpServerConnection::Post(std::function<void()> fn) {
 }
 
 void HttpServerConnection::Dispatch(std::function<void()> fn) {
-  boost::asio::dispatch(
-      strand_, boost::asio::bind_allocator(GetHandlerAllocator(),
-                                           [fn = std::move(fn)]() { fn(); }));
+  if (!srv_) {
+    return;
+  }
+
+  srv_->Dispatch(boost::asio::bind_allocator(GetHandlerAllocator(),
+                                             [fn = std::move(fn)]() { fn(); }));
+}
+
+void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
+  if (!srv_) {
+    return;
+  }
+
+  srv_->PostToIoContext(
+      boost::asio::bind_allocator(GetHandlerAllocator(),
+                                  [fn = std::move(fn)]() { fn(); }));
+}
+
+void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
+  if (!srv_) {
+    return;
+  }
+
+  srv_->DispatchToIoContext(
+      boost::asio::bind_allocator(GetHandlerAllocator(),
+                                  [fn = std::move(fn)]() { fn(); }));
 }
 
 void HttpServerConnection::SetTimer(std::size_t timeout,

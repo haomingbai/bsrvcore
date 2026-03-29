@@ -56,13 +56,9 @@ server->AddAspect(
 Execution model notes:
 
 - Aspects are treated as **small synchronous tasks**.
-- After routing, bsrvcore dispatches to the request I/O strand and runs pre
-  aspects in order.
-- Main handler is scheduled with `post` after pre aspects finish.
-- Post aspects are scheduled after the handler phase reaches lifecycle
-  completion.
-- For very long aspect chains, bsrvcore inserts internal `post` continuation
-  points to avoid deep stack growth.
+- Pre aspects run directly on the request I/O execution path in registration order.
+- The route handler then runs immediately unless the route was registered with `AddComputingRouteEntry()`.
+- Post aspects begin only after the last `HttpServerTask` reference is released, so asynchronous handler work can defer the second half of the lifecycle naturally.
 
 This is a common "stack" pattern:
 

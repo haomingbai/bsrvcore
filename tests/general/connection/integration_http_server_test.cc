@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 
@@ -33,6 +34,12 @@ std::filesystem::path MakeTempPath(const std::string& prefix) {
 std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
+
+std::string ThreadIdToString(std::thread::id id) {
+  std::ostringstream oss;
+  oss << id;
+  return oss.str();
 }
 
 bool WaitUntilSocketClosed(tcp::socket& socket,
@@ -241,4 +248,54 @@ TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
 
   std::error_code ec;
   std::filesystem::remove(path, ec);
+}
+
+TEST(HttpServerIntegrationTest,
+     ComputingRouteRunsOnWorkerPoolWhileNormalRouteStaysOnIoThread) {
+  bsrvcore::HttpServerRuntimeOptions options;
+  options.core_thread_num = 1;
+  options.max_thread_num = 1;
+
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  server
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/io",
+                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                        task->SetBody(ThreadIdToString(std::this_thread::get_id()));
+                      })
+      ->AddComputingRouteEntry(
+          bsrvcore::HttpRequestMethod::kGet, "/cpu",
+          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+            task->SetBody(ThreadIdToString(std::this_thread::get_id()));
+          });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto worker_promise =
+      bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto io_future = io_promise->get_future();
+  auto worker_future = worker_promise->get_future();
+
+  guard.server->PostToIoContext(
+      [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
+  guard.server->Post(
+      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+
+  ASSERT_EQ(io_future.wait_for(std::chrono::seconds(10)),
+            std::future_status::ready);
+  ASSERT_EQ(worker_future.wait_for(std::chrono::seconds(10)),
+            std::future_status::ready);
+
+  const auto io_thread_id = io_future.get();
+  const auto worker_thread_id = worker_future.get();
+
+  const auto io_res = DoRequestWithRetry(http::verb::get, port, "/io", "");
+  const auto cpu_res = DoRequestWithRetry(http::verb::get, port, "/cpu", "");
+
+  EXPECT_EQ(io_res.result(), http::status::ok);
+  EXPECT_EQ(cpu_res.result(), http::status::ok);
+  EXPECT_EQ(io_res.body(), ThreadIdToString(io_thread_id));
+  EXPECT_EQ(cpu_res.body(), ThreadIdToString(worker_thread_id));
+  EXPECT_NE(io_res.body(), cpu_res.body());
 }
