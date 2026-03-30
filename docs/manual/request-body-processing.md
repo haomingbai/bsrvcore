@@ -39,8 +39,8 @@ bsrvcore::MultipartParser multipart(request);
 bsrvcore::PutProcessor put(request);
 ```
 
-If you want the callback-based async overloads from a plain `HttpRequest`,
-provide an executor:
+If you want any async dump overload from a plain `HttpRequest`, provide an
+executor:
 
 ```cpp
 boost::asio::io_context ioc;
@@ -166,18 +166,15 @@ callback if file open/write/close fails.
 
 ## File I/O backend
 
-File dumping uses Boost.Asio file objects. On Linux, bsrvcore enables Asio's
-`io_uring` file support for these operations.
+File dumping currently uses synchronous `std::ofstream` writes, but the write
+work is scheduled asynchronously onto the server worker pool (or onto the
+executor you provide when constructing from a plain `HttpRequest`).
 
 This does **not** change the server socket backend:
 
-- network I/O still uses the existing server runtime path
-- Linux networking is still not forced onto `io_uring`
-- this feature only affects request-body file dumping
-
-## Build note
-
-Because Asio file support is enabled through Linux `io_uring`, `liburing` is a
-required build dependency for bsrvcore.
+- network I/O still uses the existing server I/O path
+- file dumping no longer uses a dedicated file runtime
+- blocking file writes consume ordinary worker threads, which is acceptable for
+  the intended low-throughput upload/dump scenarios
 
 Next: [SSE server](sse-server.md).

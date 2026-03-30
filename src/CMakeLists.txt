@@ -194,7 +194,7 @@ endif()
 # pkg-config must expose TLS libraries publicly because consumer translation
 # units can directly instantiate boost::asio::ssl::context from public headers.
 set(BSRVCORE_PC_PUBLIC_LIBS "-lssl -lcrypto")
-set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url -luring")
+set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bsrvcore.pc.in
                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)

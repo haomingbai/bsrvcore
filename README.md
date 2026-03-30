@@ -24,7 +24,6 @@ API reference:
 - CMake 3.25+
 - Boost (components: system, url, asio, beast)
 - OpenSSL
-- liburing
 
 ## Build and Install
 

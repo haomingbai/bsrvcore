@@ -133,6 +133,16 @@ TEST(RequestBodyProcessorTest, MultipartParserRejectsNonFilePartDump) {
       parser.AsyncDumpToDisk(0, MakeTempPath("multipart-noop"), [](bool) {}));
 }
 
+TEST(RequestBodyProcessorTest, MultipartParserRequiresExecutorForAsyncDump) {
+  bsrvcore::HttpRequest request;
+  request.set(http::field::content_type,
+              "multipart/form-data; boundary=boundary123");
+  request.body() = BuildMultipartBody();
+
+  bsrvcore::MultipartParser parser(request);
+  EXPECT_FALSE(parser.AsyncDumpToDisk(1, MakeTempPath("multipart-no-exec")));
+}
+
 TEST(RequestBodyProcessorTest, PutProcessorAsyncDumpWritesPutBody) {
   IoContextRunner runner;
 
@@ -164,11 +174,22 @@ TEST(RequestBodyProcessorTest, PutProcessorRejectsNonPutRequests) {
       processor.AsyncDumpToDisk(MakeTempPath("put-noop"), [](bool) {}));
 }
 
-TEST(RequestBodyProcessorTest, PutProcessorCanIgnoreCompletionCallback) {
+TEST(RequestBodyProcessorTest, PutProcessorRequiresExecutorForAsyncDump) {
   bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
   request.body() = "ignored-callback";
 
   bsrvcore::PutProcessor processor(request);
+  EXPECT_FALSE(processor.AsyncDumpToDisk(MakeTempPath("put-no-exec")));
+}
+
+TEST(RequestBodyProcessorTest,
+     PutProcessorCanIgnoreCompletionCallbackWhenExecutorProvided) {
+  IoContextRunner runner;
+
+  bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
+  request.body() = "ignored-callback";
+
+  bsrvcore::PutProcessor processor(request, runner.Get().get_executor());
   const auto path = MakeTempPath("put-ignore");
 
   ASSERT_TRUE(processor.AsyncDumpToDisk(path));

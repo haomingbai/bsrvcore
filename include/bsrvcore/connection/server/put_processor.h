@@ -25,6 +25,10 @@ namespace bsrvcore {
 
 /**
  * @brief Wraps an already-buffered PUT request body for async disk dumping.
+ *
+ * The task-based constructor dispatches dump work and completion callbacks on
+ * the owning server's worker executor. When constructed from a request alone,
+ * async dump helpers require a valid executor argument in the constructor.
  */
 class PutProcessor {
  public:
@@ -55,7 +59,8 @@ class PutProcessor {
 
  private:
   std::string body_;
-  boost::asio::any_io_executor executor_;
+  boost::asio::any_io_executor work_executor_;
+  boost::asio::any_io_executor callback_executor_;
   bool is_put_{false};
 };
 

@@ -30,10 +30,9 @@ namespace bsrvcore {
  * @brief Parses an already-buffered multipart/form-data request body.
  *
  * The parser operates on the current request body snapshot. When constructed
- * from a task, async dump callbacks are dispatched on that task's worker
- * executor. When constructed from a request alone, callback-based async dump
- * helpers require a valid executor argument in the constructor. The overloads
- * that ignore completion can run without a caller-provided executor.
+ * from a task, async dump work and completion callbacks are dispatched on that
+ * task's worker executor. When constructed from a request alone, async dump
+ * helpers require a valid executor argument in the constructor.
  */
 class MultipartParser {
  public:
@@ -95,7 +94,8 @@ class MultipartParser {
   void Parse(const HttpRequest& request);
 
   std::vector<PartData> parts_;
-  boost::asio::any_io_executor executor_;
+  boost::asio::any_io_executor work_executor_;
+  boost::asio::any_io_executor callback_executor_;
 };
 
 }  // namespace bsrvcore

@@ -8,9 +8,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <algorithm>
-#include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
@@ -22,7 +19,6 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <utility>
 #include <vector>
 
@@ -32,25 +28,6 @@
 namespace bsrvcore {
 
 namespace {
-
-constexpr std::size_t kMaxFileIoThreads = 4;
-
-struct FileIoRuntime {
-  FileIoRuntime() : guard(boost::asio::make_work_guard(ioc)) {
-    auto thread_count =
-        std::max<std::size_t>(1, std::thread::hardware_concurrency());
-    thread_count = std::min(thread_count, kMaxFileIoThreads);
-    threads.reserve(thread_count);
-    for (std::size_t idx = 0; idx < thread_count; ++idx) {
-      threads.emplace_back([this]() { ioc.run(); });
-    }
-  }
-
-  boost::asio::io_context ioc;
-  boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
-      guard;
-  std::vector<std::thread> threads;
-};
 
 std::string_view TrimAscii(std::string_view sv) {
   constexpr std::string_view kWhitespace = " \t\r\n";
@@ -177,11 +154,6 @@ void ParsePartHeaders(std::string_view header_block, std::string* content_type,
   }
 }
 
-FileIoRuntime& GetFileIoRuntime() {
-  static auto* runtime = new FileIoRuntime();
-  return *runtime;
-}
-
 void DispatchCallback(boost::asio::any_io_executor executor,
                       std::function<void(bool)> callback, bool ok) {
   if (!callback) {
@@ -246,13 +218,14 @@ struct AsyncFileWriteState {
   std::function<void(bool)> callback;
 };
 
-void AsyncDumpPayload(boost::asio::any_io_executor executor,
+void AsyncDumpPayload(boost::asio::any_io_executor work_executor,
+                      boost::asio::any_io_executor callback_executor,
                       std::filesystem::path path, std::string payload,
                       std::function<void(bool)> callback) {
   auto state = std::make_shared<AsyncFileWriteState>(
-      std::move(executor), std::move(path), std::move(payload),
+      std::move(callback_executor), std::move(path), std::move(payload),
       std::move(callback));
-  boost::asio::post(GetFileIoRuntime().ioc,
+  boost::asio::post(std::move(work_executor),
                     [state = std::move(state)]() { state->Run(); });
 }
 
@@ -263,7 +236,7 @@ MultipartParser::MultipartParser(HttpTaskBase& task)
 
 MultipartParser::MultipartParser(const HttpRequest& request,
                                  boost::asio::any_io_executor executor)
-    : executor_(std::move(executor)) {
+    : work_executor_(executor), callback_executor_(std::move(executor)) {
   Parse(request);
 }
 
@@ -289,13 +262,13 @@ bool MultipartParser::IsFile(std::size_t part_idx) const noexcept {
 bool MultipartParser::AsyncDumpToDisk(std::size_t part_idx,
                                       std::filesystem::path path,
                                       DumpCallback callback) const {
-  if ((callback && !executor_) || part_idx >= parts_.size() ||
-      !parts_[part_idx].is_file || path.empty()) {
+  if (!work_executor_ || (callback && !callback_executor_) ||
+      part_idx >= parts_.size() || !parts_[part_idx].is_file || path.empty()) {
     return false;
   }
 
-  AsyncDumpPayload(executor_, std::move(path), parts_[part_idx].payload,
-                   std::move(callback));
+  AsyncDumpPayload(work_executor_, callback_executor_, std::move(path),
+                   parts_[part_idx].payload, std::move(callback));
   return true;
 }
 
@@ -363,16 +336,19 @@ PutProcessor::PutProcessor(HttpTaskBase& task)
 PutProcessor::PutProcessor(const HttpRequest& request,
                            boost::asio::any_io_executor executor)
     : body_(request.body()),
-      executor_(std::move(executor)),
+      work_executor_(executor),
+      callback_executor_(std::move(executor)),
       is_put_(request.method() == boost::beast::http::verb::put) {}
 
 bool PutProcessor::AsyncDumpToDisk(std::filesystem::path path,
                                    DumpCallback callback) const {
-  if ((callback && !executor_) || !is_put_ || path.empty()) {
+  if (!work_executor_ || (callback && !callback_executor_) || !is_put_ ||
+      path.empty()) {
     return false;
   }
 
-  AsyncDumpPayload(executor_, std::move(path), body_, std::move(callback));
+  AsyncDumpPayload(work_executor_, callback_executor_, std::move(path), body_,
+                   std::move(callback));
   return true;
 }
 
