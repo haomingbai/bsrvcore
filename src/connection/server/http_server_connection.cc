@@ -14,7 +14,6 @@
 
 #include "bsrvcore/internal/connection/server/http_server_connection.h"
 
-#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
@@ -40,8 +39,7 @@ void HttpServerConnection::Post(std::function<void()> fn) {
     return;
   }
 
-  srv_->Post(boost::asio::bind_allocator(GetHandlerAllocator(),
-                                         [fn = std::move(fn)]() { fn(); }));
+  srv_->Post([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpServerConnection::Dispatch(std::function<void()> fn) {
@@ -49,8 +47,7 @@ void HttpServerConnection::Dispatch(std::function<void()> fn) {
     return;
   }
 
-  srv_->Dispatch(boost::asio::bind_allocator(GetHandlerAllocator(),
-                                             [fn = std::move(fn)]() { fn(); }));
+  srv_->Dispatch([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
@@ -58,9 +55,7 @@ void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
     return;
   }
 
-  srv_->PostToIoContext(
-      boost::asio::bind_allocator(GetHandlerAllocator(),
-                                  [fn = std::move(fn)]() { fn(); }));
+  srv_->PostToIoContext([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
@@ -68,9 +63,7 @@ void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
     return;
   }
 
-  srv_->DispatchToIoContext(
-      boost::asio::bind_allocator(GetHandlerAllocator(),
-                                  [fn = std::move(fn)]() { fn(); }));
+  srv_->DispatchToIoContext([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpServerConnection::SetTimer(std::size_t timeout,
@@ -79,10 +72,8 @@ void HttpServerConnection::SetTimer(std::size_t timeout,
     return;
   }
 
-  srv_->SetTimer(
-      timeout, boost::asio::bind_allocator(
-                   GetHandlerAllocator(),
-                   [callback = std::move(callback)]() mutable { callback(); }));
+  srv_->SetTimer(timeout,
+                 [callback = std::move(callback)]() mutable { callback(); });
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {
@@ -120,25 +111,14 @@ void HttpServerConnection::Run() {
   }
 
   boost::asio::dispatch(
-      strand_, boost::asio::bind_allocator(
-                   GetHandlerAllocator(), [self = shared_from_this(), this] {
-                     if (header_read_expiry_) {
-                       timer_.expires_after(
-                           std::chrono::milliseconds(header_read_expiry_));
-                       timer_.async_wait(boost::asio::bind_allocator(
-                           GetHandlerAllocator(),
-                           [self, this](boost::system::error_code ec) {
-                             if (!ec) {
-                               DoClose();
-                             }
-                           }));
-                     }
-                     DoReadHeader();
-                   }));
+      strand_, [self = shared_from_this(), this] {
+        ArmTimeout(header_read_expiry_);
+        DoReadHeader();
+      });
 }
 
 void HttpServerConnection::DoRoute() {
-  timer_.cancel();
+  CancelTimeout();
 
   if (!parser_->is_header_done()) {
     DoClose();
@@ -161,16 +141,7 @@ void HttpServerConnection::DoRoute() {
     return;
   }
 
-  if (route_result_.read_expiry) {
-    timer_.expires_after(std::chrono::milliseconds(route_result_.read_expiry));
-    timer_.async_wait(boost::asio::bind_allocator(
-        GetHandlerAllocator(),
-        [self = shared_from_this(), this](boost::system::error_code ec) {
-          if (!ec) {
-            DoClose();
-          }
-        }));
-  }
+  ArmTimeout(route_result_.read_expiry);
 
   if (route_result_.max_body_size) {
     parser_->body_limit(route_result_.max_body_size);
@@ -185,7 +156,7 @@ void HttpServerConnection::DoForwardRequest() {
     return;
   }
 
-  timer_.cancel();
+  CancelTimeout();
   std::shared_ptr<HttpPreServerTask> task = HttpPreServerTask::Create(
       parser_->release(), std::move(route_result_), shared_from_this());
   task->Start();
@@ -197,17 +168,7 @@ void HttpServerConnection::DoCycle() {
     route_result_ = {};
     parser_ = AllocateUnique<
         boost::beast::http::request_parser<boost::beast::http::string_body>>();
-    if (header_read_expiry_ + keep_alive_timeout_) {
-      timer_.expires_after(
-          std::chrono::milliseconds(header_read_expiry_ + keep_alive_timeout_));
-      timer_.async_wait(boost::asio::bind_allocator(
-          GetHandlerAllocator(),
-          [self = shared_from_this(), this](boost::system::error_code ec) {
-            if (!ec) {
-              DoClose();
-            }
-          }));
-    }
+    ArmTimeout(header_read_expiry_ + keep_alive_timeout_);
 
     Run();
   } else {
@@ -256,6 +217,22 @@ HttpServerConnection::GetParser() noexcept {
 std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
   return keep_alive_timeout_ / 1000 ? keep_alive_timeout_ / 1000 : 1;
 }
+
+void HttpServerConnection::ArmTimeout(std::size_t timeout) {
+  if (timeout == 0) {
+    return;
+  }
+
+  timer_.expires_after(std::chrono::milliseconds(timeout));
+  timer_.async_wait(
+      [self = shared_from_this(), this](boost::system::error_code ec) {
+        if (!ec) {
+          DoClose();
+        }
+      });
+}
+
+void HttpServerConnection::CancelTimeout() { timer_.cancel(); }
 
 boost::asio::strand<boost::asio::any_io_executor>&
 HttpServerConnection::GetStrand() {

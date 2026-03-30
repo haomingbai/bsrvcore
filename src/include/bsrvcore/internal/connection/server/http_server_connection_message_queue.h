@@ -20,7 +20,6 @@
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_MESSAGE_QUEUE_H_
 
 #include <atomic>
-#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/post.hpp>
@@ -51,18 +50,17 @@ class HttpServerConnectionImpl<S>::MessageQueue
   //
   // Threading: may be called from arbitrary threads; internally posts work to
   // the connection executor/strand.
-  void AddBody(std::string body) {
-    BodyMessage message{AllocateShared<std::string>(std::move(body))};
+  void AddBody(std::string body, std::size_t write_expiry) {
+    BodyMessage message{AllocateShared<std::string>(std::move(body)),
+                        write_expiry};
     auto self_sp = this->shared_from_this();
 
     if (auto conn_sp = conn_wp_.lock()) {
       boost::asio::post(
           conn_sp->GetExecutor(),
-          boost::asio::bind_allocator(
-              conn_sp->GetHandlerAllocator(),
-              [conn_sp, self_sp, message = std::move(message)]() mutable {
-                self_sp->EnqueueBodyOnStrand(std::move(message));
-              }));
+          [conn_sp, self_sp, message = std::move(message)]() mutable {
+            self_sp->EnqueueBodyOnStrand(std::move(message));
+          });
     } else {
       MarkConnectionDeadAndNotify();
     }
@@ -73,18 +71,17 @@ class HttpServerConnectionImpl<S>::MessageQueue
   // Threading: may be called from arbitrary threads; internally posts work to
   // the connection executor/strand.
   void AddHeader(
-      boost::beast::http::response_header<boost::beast::http::fields> header) {
-    HeaderMessage message{std::move(header)};
+      boost::beast::http::response_header<boost::beast::http::fields> header,
+      std::size_t write_expiry) {
+    HeaderMessage message{std::move(header), write_expiry};
     auto self_sp = this->shared_from_this();
 
     if (auto conn_sp = conn_wp_.lock()) {
       boost::asio::post(
           conn_sp->GetExecutor(),
-          boost::asio::bind_allocator(
-              conn_sp->GetHandlerAllocator(),
-              [conn_sp, self_sp, message = std::move(message)]() mutable {
-                self_sp->EnqueueHeaderOnStrand(std::move(message));
-              }));
+          [conn_sp, self_sp, message = std::move(message)]() mutable {
+            self_sp->EnqueueHeaderOnStrand(std::move(message));
+          });
     } else {
       MarkConnectionDeadAndNotify();
     }
@@ -106,6 +103,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
   // ---- messages ----
   struct BodyMessage {
     std::shared_ptr<std::string> msg;
+    std::size_t write_expiry;
   };
 
   struct HeaderMessage {
@@ -126,13 +124,17 @@ class HttpServerConnectionImpl<S>::MessageQueue
 #pragma GCC diagnostic pop
 #endif
 
+    std::size_t write_expiry;
+
     explicit HeaderMessage(
         boost::beast::http::response_header<boost::beast::http::fields>&&
-            header)
+            header,
+        std::size_t expiry)
         : resp_sp(AllocateShared<
                   boost::beast::http::response<boost::beast::http::empty_body>>(
               std::move(header))),
-          sr(*resp_sp) {}
+          sr(*resp_sp),
+          write_expiry(expiry) {}
   };
 
   // ---- enqueue helpers (run on strand) ----
@@ -178,16 +180,16 @@ class HttpServerConnectionImpl<S>::MessageQueue
       return;
     }
 
+    conn_sp->ArmTimeout(task.write_expiry);
     boost::asio::async_write(
         conn_sp->stream_, buf,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            boost::asio::bind_allocator(conn_sp->GetHandlerAllocator(),
-                                        [conn_sp, mq = this->shared_from_this(),
-                                         msg_sp](boost::system::error_code ec,
-                                                 [[maybe_unused]] std::size_t) {
-                                          mq->HandleBodyWriteComplete(ec);
-                                        })));
+            [conn_sp, mq = this->shared_from_this(),
+             msg_sp](boost::system::error_code ec,
+                     [[maybe_unused]] std::size_t) {
+              mq->HandleBodyWriteComplete(ec);
+            }));
   }
 
   void StartWriteHeader(HeaderMessage& task) {
@@ -201,21 +203,23 @@ class HttpServerConnectionImpl<S>::MessageQueue
     // Keep resp_sp alive by capturing it.
     auto resp_keeper = task.resp_sp;
 
+    conn_sp->ArmTimeout(task.write_expiry);
     boost::beast::http::async_write_header(
         conn_sp->stream_, task.sr,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            boost::asio::bind_allocator(
-                conn_sp->GetHandlerAllocator(),
-                [conn_sp, mq = this->shared_from_this(), resp_keeper](
-                    boost::system::error_code ec,
-                    [[maybe_unused]] std::size_t) {
-                  mq->HandleHeaderWriteComplete(ec);
-                })));
+            [conn_sp, mq = this->shared_from_this(),
+             resp_keeper](boost::system::error_code ec,
+                          [[maybe_unused]] std::size_t) {
+              mq->HandleHeaderWriteComplete(ec);
+            }));
   }
 
   // ---- completion handlers (run on strand) ----
   void HandleBodyWriteComplete(const boost::system::error_code& ec) {
+    if (auto conn_sp = conn_wp_.lock()) {
+      conn_sp->CancelTimeout();
+    }
     if (ec) {
       HandleWriteError(ec);
       return;
@@ -226,6 +230,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
   }
 
   void HandleHeaderWriteComplete(const boost::system::error_code& ec) {
+    if (auto conn_sp = conn_wp_.lock()) {
+      conn_sp->CancelTimeout();
+    }
     if (ec) {
       HandleWriteError(ec);
       return;

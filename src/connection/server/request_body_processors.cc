@@ -12,13 +12,12 @@
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/asio/random_access_file.hpp>
-#include <boost/asio/write_at.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cctype>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <memory>
 #include <optional>
 #include <string>
@@ -208,42 +207,29 @@ std::string_view GetHeaderValue(const HttpRequest& request,
   return it->value();
 }
 
-struct AsyncFileWriteState
-    : public std::enable_shared_from_this<AsyncFileWriteState> {
+struct AsyncFileWriteState {
   AsyncFileWriteState(boost::asio::any_io_executor callback_executor_in,
                       std::filesystem::path path_in, std::string payload_in,
                       std::function<void(bool)> callback_in)
-      : file(GetFileIoRuntime().ioc),
-        callback_executor(std::move(callback_executor_in)),
+      : callback_executor(std::move(callback_executor_in)),
         path(std::move(path_in)),
         payload(std::move(payload_in)),
         callback(std::move(callback_in)) {}
 
-  void Start() {
-    boost::system::error_code ec;
-    file.open(path.string(),
-              boost::asio::file_base::write_only |
-                  boost::asio::file_base::create |
-                  boost::asio::file_base::truncate,
-              ec);
-    if (ec) {
+  void Run() {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out.is_open()) {
       Finish(false);
       return;
     }
 
-    auto self = shared_from_this();
-    boost::asio::async_write_at(file, 0, boost::asio::buffer(payload),
-                                [self](boost::system::error_code write_ec,
-                                       std::size_t bytes_transferred) {
-                                  self->OnWrite(write_ec, bytes_transferred);
-                                });
-  }
-
-  void OnWrite(const boost::system::error_code& write_ec,
-               std::size_t bytes_transferred) {
-    boost::system::error_code close_ec;
-    file.close(close_ec);
-    Finish(!write_ec && !close_ec && bytes_transferred == payload.size());
+    if (!payload.empty()) {
+      out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
+    }
+    out.flush();
+    const bool ok = out.good();
+    out.close();
+    Finish(ok);
   }
 
   void Finish(bool ok) {
@@ -254,7 +240,6 @@ struct AsyncFileWriteState
     DispatchCallback(std::move(callback_executor), std::move(callback), ok);
   }
 
-  boost::asio::random_access_file file;
   boost::asio::any_io_executor callback_executor;
   std::filesystem::path path;
   std::string payload;
@@ -268,7 +253,7 @@ void AsyncDumpPayload(boost::asio::any_io_executor executor,
       std::move(executor), std::move(path), std::move(payload),
       std::move(callback));
   boost::asio::post(GetFileIoRuntime().ioc,
-                    [state = std::move(state)]() { state->Start(); });
+                    [state = std::move(state)]() { state->Run(); });
 }
 
 }  // namespace

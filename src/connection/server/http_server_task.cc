@@ -15,7 +15,6 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/http/field.hpp>
@@ -225,7 +224,8 @@ inline void FinalizeResponse(
     }
   }
 
-  conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load());
+  conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load(),
+                        state->route_result.write_expiry);
   state->conn.store(nullptr);
 }
 
@@ -465,7 +465,7 @@ void HttpTaskBase::WriteBody(std::string body) {
     return;
   }
 
-  conn->DoFlushResponseBody(std::move(body));
+  conn->DoFlushResponseBody(std::move(body), state_->route_result.write_expiry);
 }
 
 void HttpTaskBase::WriteHeader(bsrvcore::HttpResponseHeader header) {
@@ -475,7 +475,8 @@ void HttpTaskBase::WriteHeader(bsrvcore::HttpResponseHeader header) {
     return;
   }
 
-  conn->DoFlushResponseHeader(std::move(header));
+  conn->DoFlushResponseHeader(std::move(header),
+                              state_->route_result.write_expiry);
 }
 
 void HttpTaskBase::Post(std::function<void()> fn) {
@@ -488,8 +489,7 @@ void HttpTaskBase::Post(std::function<void()> fn) {
     return;
   }
 
-  conn->Post(boost::asio::bind_allocator(state_->handler_alloc,
-                                         [fn = std::move(fn)]() { fn(); }));
+  conn->Post([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpTaskBase::Dispatch(std::function<void()> fn) {
@@ -502,8 +502,7 @@ void HttpTaskBase::Dispatch(std::function<void()> fn) {
     return;
   }
 
-  conn->Dispatch(boost::asio::bind_allocator(state_->handler_alloc,
-                                             [fn = std::move(fn)]() { fn(); }));
+  conn->Dispatch([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
@@ -516,9 +515,7 @@ void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
     return;
   }
 
-  conn->PostToIoContext(
-      boost::asio::bind_allocator(state_->handler_alloc,
-                                  [fn = std::move(fn)]() { fn(); }));
+  conn->PostToIoContext([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
@@ -531,9 +528,7 @@ void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
     return;
   }
 
-  conn->DispatchToIoContext(
-      boost::asio::bind_allocator(state_->handler_alloc,
-                                  [fn = std::move(fn)]() { fn(); }));
+  conn->DispatchToIoContext([fn = std::move(fn)]() { fn(); });
 }
 
 void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
@@ -546,9 +541,7 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  conn->SetTimer(timeout,
-                 boost::asio::bind_allocator(state_->handler_alloc,
-                                             [fn = std::move(fn)]() { fn(); }));
+  conn->SetTimer(timeout, [fn = std::move(fn)]() { fn(); });
 }
 
 bool HttpTaskBase::IsAvailable() noexcept {

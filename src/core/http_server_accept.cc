@@ -13,7 +13,6 @@
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
@@ -104,48 +103,45 @@ void HttpServer::Stop() {
 }
 
 void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
-  static bsrvcore::Allocator<std::byte> accept_alloc{};
-
   acc.async_accept(
       boost::asio::make_strand(ioc_),
-      boost::asio::bind_allocator(
-          accept_alloc, [this, &acc](boost::system::error_code ec,
-                                     boost::asio::ip::tcp::socket skt) {
-            if (!ec) {
-              if (kHasMaxConnection_ && available_connection_num_.load(
-                                            std::memory_order_relaxed) <= 0) {
-                boost::system::error_code close_ec;
-                skt.close(close_ec);
-              } else {
-                boost::beast::tcp_stream stream(std::move(skt));
-                if (ssl_ctx_.has_value()) {
-                  boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
-                      std::move(stream), ssl_ctx_.value());
-                  auto ssl_exec = sstream.get_executor();
-                  connection_internal::HttpServerConnectionImpl<
-                      boost::beast::ssl_stream<boost::beast::tcp_stream>>::
-                      Create(std::move(sstream),
-                             boost::asio::strand<boost::asio::any_io_executor>(
-                                 ssl_exec),
-                             this, header_read_expiry_, keep_alive_timeout_,
-                             kHasMaxConnection_, &available_connection_num_)
-                          ->Run();
-                } else {
-                  auto stream_exec = stream.get_executor();
-                  connection_internal::HttpServerConnectionImpl<
-                      boost::beast::tcp_stream>::
-                      Create(std::move(stream),
-                             boost::asio::strand<boost::asio::any_io_executor>(
-                                 stream_exec),
-                             this, header_read_expiry_, keep_alive_timeout_,
-                             kHasMaxConnection_, &available_connection_num_)
-                          ->Run();
-                }
-              }
+      [this, &acc](boost::system::error_code ec,
+                   boost::asio::ip::tcp::socket skt) {
+        if (!ec) {
+          if (kHasMaxConnection_ &&
+              available_connection_num_.load(std::memory_order_relaxed) <= 0) {
+            boost::system::error_code close_ec;
+            skt.close(close_ec);
+          } else {
+            boost::beast::tcp_stream stream(std::move(skt));
+            if (ssl_ctx_.has_value()) {
+              boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
+                  std::move(stream), ssl_ctx_.value());
+              auto ssl_exec = sstream.get_executor();
+              connection_internal::HttpServerConnectionImpl<
+                  boost::beast::ssl_stream<boost::beast::tcp_stream>>::
+                  Create(std::move(sstream),
+                         boost::asio::strand<boost::asio::any_io_executor>(
+                             ssl_exec),
+                         this, header_read_expiry_, keep_alive_timeout_,
+                         kHasMaxConnection_, &available_connection_num_)
+                      ->Run();
+            } else {
+              auto stream_exec = stream.get_executor();
+              connection_internal::HttpServerConnectionImpl<
+                  boost::beast::tcp_stream>::
+                  Create(std::move(stream),
+                         boost::asio::strand<boost::asio::any_io_executor>(
+                             stream_exec),
+                         this, header_read_expiry_, keep_alive_timeout_,
+                         kHasMaxConnection_, &available_connection_num_)
+                      ->Run();
             }
+          }
+        }
 
-            if (is_running_) {
-              DoAccept(acc);
-            }
-          }));
+        if (is_running_) {
+          DoAccept(acc);
+        }
+      });
 }

@@ -83,7 +83,8 @@ class Context;
  *     // TCP-specific body reading implementation
  *   }
  *
- *   void DoWriteResponse(HttpResponse resp, bool keep_alive) override {
+ *   void DoWriteResponse(HttpResponse resp, bool keep_alive,
+ *                        std::size_t write_expiry) override {
  *     // TCP-specific response writing
  *   }
  *
@@ -285,22 +286,25 @@ class HttpServerConnection
    * @brief Write complete HTTP response to client (pure virtual)
    * @param resp HTTP response to write
    * @param keep_alive Whether to keep connection alive
+   * @param write_expiry Write timeout in milliseconds for this response
    */
-  virtual void DoWriteResponse(HttpResponse resp, bool keep_alive) = 0;
+  virtual void DoWriteResponse(HttpResponse resp, bool keep_alive,
+                               std::size_t write_expiry) = 0;
 
   /**
    * @brief Flush response headers to client (pure virtual)
    * @param header HTTP response headers
    */
   virtual void DoFlushResponseHeader(
-      boost::beast::http::response_header<boost::beast::http::fields>
-          header) = 0;
+      boost::beast::http::response_header<boost::beast::http::fields> header,
+      std::size_t write_expiry) = 0;
 
   /**
    * @brief Flush response body to client (pure virtual)
    * @param body Response body content
    */
-  virtual void DoFlushResponseBody(std::string body) = 0;
+  virtual void DoFlushResponseBody(std::string body,
+                                   std::size_t write_expiry) = 0;
 
   /**
    * @brief Close the connection (pure virtual)
@@ -393,6 +397,17 @@ class HttpServerConnection
    * @return timeout in seconds (convenient to be set)
    */
   std::size_t GetKeepAliveTimeout() const noexcept;
+
+  /**
+   * @brief Arm the shared connection timer for the current connection phase.
+   * @param timeout Timeout in milliseconds; zero disables the timer.
+   */
+  void ArmTimeout(std::size_t timeout);
+
+  /**
+   * @brief Cancel the currently armed connection timer, if any.
+   */
+  void CancelTimeout();
 
  private:
   boost::asio::strand<boost::asio::any_io_executor>
