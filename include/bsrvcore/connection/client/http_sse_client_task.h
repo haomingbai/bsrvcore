@@ -165,6 +165,8 @@ class HttpSseClientTask
   class Impl;
 
   explicit HttpSseClientTask(std::shared_ptr<Impl> impl);
+  static std::shared_ptr<HttpSseClientTask> CreateTask(
+      std::shared_ptr<Impl> impl);
 
   std::shared_ptr<Impl> impl_;
 };

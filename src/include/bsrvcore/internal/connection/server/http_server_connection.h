@@ -38,6 +38,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/core/async_invoke_helpers.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_route_result.h"
@@ -176,16 +177,9 @@ class HttpServerConnection
   template <typename Fn, typename... Args>
   auto FuturedPost(Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
-    using RT = typename std::invoke_result_t<Fn, Args...>;
-
-    auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
-    auto future = task->get_future();
-    std::function<void()> to_post = [task]() { (*task)(); };
-
-    Post(to_post);
-
-    return future;
+    return internal::async_invoke::StartWithFuture(
+        [this](std::function<void()> callback) { Post(std::move(callback)); },
+        std::move(fn), std::forward<Args>(args)...);
   }
 
   /**
@@ -197,12 +191,9 @@ class HttpServerConnection
    */
   template <typename Fn, typename... Args>
   void Post(Fn fn, Args&&... args) {
-    auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    std::function<void()> to_post = [binded_fn]() { binded_fn(); };
-
-    Post(to_post);
-
-    return;
+    internal::async_invoke::StartBound(
+        [this](std::function<void()> callback) { Post(std::move(callback)); },
+        std::move(fn), std::forward<Args>(args)...);
   }
 
   /**
@@ -229,16 +220,11 @@ class HttpServerConnection
   template <typename Fn, typename... Args>
   auto SetTimer(std::size_t timeout, Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
-    using RT = typename std::invoke_result_t<Fn, Args...>;
-
-    auto binded_fn = std::bind(fn, std::forward<Args>(args)...);
-    auto task = AllocateShared<std::packaged_task<RT()>>(binded_fn);
-    auto future = task->get_future();
-    std::function<void()> to_post = [task]() { (*task)(); };
-
-    SetTimer(timeout, to_post);
-
-    return future;
+    return internal::async_invoke::StartWithFuture(
+        [this, timeout](std::function<void()> callback) mutable {
+          SetTimer(timeout, std::move(callback));
+        },
+        std::move(fn), std::forward<Args>(args)...);
   }
 
   /**

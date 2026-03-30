@@ -1,27 +1,21 @@
 /**
- * @file config_loader.cc
- * @brief YAML config loader for bsrvrun.
+ * @file config_loader_parsing.cc
+ * @brief YAML-to-config parsing helpers for bsrvrun.
  * @author Haoming Bai <haomingbai@hotmail.com>
- * @date   2026-03-16
+ * @date   2026-03-30
  *
  * Copyright © 2026 Haoming Bai
  * SPDX-License-Identifier: MIT
  */
 
-#include "config_loader.h"
+#include "config_loader_detail.h"
 
-#include <yaml-cpp/yaml.h>
-
-#include <filesystem>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 
-namespace bsrvcore::runtime {
-
-namespace {
+namespace bsrvcore::runtime::config_loader_detail {
 
 bsrvcore::HttpRequestMethod ParseMethod(const YAML::Node& node,
                                         const std::string& context) {
@@ -62,18 +56,21 @@ FactoryConfig ParseFactoryConfig(const YAML::Node& node,
   config.library = factory_node.as<std::string>();
 
   const YAML::Node params_node = node["params"];
-  if (params_node) {
-    if (!params_node.IsMap()) {
-      throw std::runtime_error(context + ": field `params` must be an object");
+  if (!params_node) {
+    return config;
+  }
+
+  if (!params_node.IsMap()) {
+    throw std::runtime_error(context + ": field `params` must be an object");
+  }
+
+  for (const auto& item : params_node) {
+    if (!item.first.IsScalar() || !item.second.IsScalar()) {
+      throw std::runtime_error(context +
+                               ": `params` keys and values must be strings");
     }
-    for (const auto& item : params_node) {
-      if (!item.first.IsScalar() || !item.second.IsScalar()) {
-        throw std::runtime_error(context +
-                                 ": `params` keys and values must be strings");
-      }
-      config.params.emplace(item.first.as<std::string>(),
-                            item.second.as<std::string>());
-    }
+    config.params.emplace(item.first.as<std::string>(),
+                          item.second.as<std::string>());
   }
 
   return config;
@@ -281,102 +278,58 @@ ExecutorConfig ParseExecutorConfig(const YAML::Node& node) {
   return config;
 }
 
-}  // namespace
-
-std::string ResolveConfigPath(const std::optional<std::string>& cli_path) {
-  if (cli_path.has_value()) {
-    const std::filesystem::path configured_path(*cli_path);
-    if (!std::filesystem::exists(configured_path)) {
-      throw std::runtime_error("config file not found: " +
-                               configured_path.string());
-    }
-    return configured_path.string();
+ServerSectionConfig ParseServerSection(const YAML::Node& node) {
+  // The server block is optional. This helper centralizes its defaults and
+  // validation so file loading can stay focused on assembling the final model.
+  ServerSectionConfig config;
+  if (!node) {
+    return config;
   }
 
-  const std::filesystem::path cwd_default =
-      std::filesystem::current_path() / "bsrvrun.yaml";
-  if (std::filesystem::exists(cwd_default)) {
-    return cwd_default.string();
+  if (!node.IsMap()) {
+    throw std::runtime_error("server must be an object");
   }
 
-  const std::filesystem::path etc_default = "/etc/bsrvrun/bsrvrun.yaml";
-  if (std::filesystem::exists(etc_default)) {
-    return etc_default.string();
-  }
-
-  throw std::runtime_error(
-      "cannot find config file; checked ./bsrvrun.yaml and "
-      "/etc/bsrvrun/bsrvrun.yaml");
-}
-
-ServerConfig LoadConfigFromFile(const std::string& path) {
-  const YAML::Node root = YAML::LoadFile(path);
-  if (!root || !root.IsMap()) {
-    throw std::runtime_error("config root must be an object");
-  }
-
-  std::size_t thread_count = 4;
-  bool has_max_connection = false;
-  std::size_t max_connection = 0;
-  const YAML::Node server_node = root["server"];
-  if (server_node) {
-    if (!server_node.IsMap()) {
-      throw std::runtime_error("server must be an object");
+  const YAML::Node thread_count_node = node["thread_count"];
+  if (thread_count_node) {
+    if (!thread_count_node.IsScalar()) {
+      throw std::runtime_error("server.thread_count must be a number");
     }
-    const YAML::Node thread_count_node = server_node["thread_count"];
-    if (thread_count_node) {
-      if (!thread_count_node.IsScalar()) {
-        throw std::runtime_error("server.thread_count must be a number");
-      }
-      thread_count = thread_count_node.as<std::size_t>();
-      if (thread_count == 0) {
-        throw std::runtime_error("server.thread_count must be greater than 0");
-      }
-    }
-
-    const YAML::Node has_max_connection_node =
-        server_node["has_max_connection"];
-    if (has_max_connection_node) {
-      if (!has_max_connection_node.IsScalar()) {
-        throw std::runtime_error("server.has_max_connection must be a bool");
-      }
-      has_max_connection = has_max_connection_node.as<bool>();
-    }
-
-    const YAML::Node max_connection_node = server_node["max_connection"];
-    if (max_connection_node) {
-      if (!max_connection_node.IsScalar()) {
-        throw std::runtime_error("server.max_connection must be a number");
-      }
-      const auto max_connection_value = max_connection_node.as<long long>();
-      if (max_connection_value <= 0) {
-        throw std::runtime_error(
-            "server.max_connection must be greater than 0");
-      }
-      max_connection = static_cast<std::size_t>(max_connection_value);
+    config.thread_count = thread_count_node.as<std::size_t>();
+    if (config.thread_count == 0) {
+      throw std::runtime_error("server.thread_count must be greater than 0");
     }
   }
 
-  if (has_max_connection && max_connection == 0) {
+  const YAML::Node has_max_connection_node = node["has_max_connection"];
+  if (has_max_connection_node) {
+    if (!has_max_connection_node.IsScalar()) {
+      throw std::runtime_error("server.has_max_connection must be a bool");
+    }
+    config.has_max_connection = has_max_connection_node.as<bool>();
+  }
+
+  const YAML::Node max_connection_node = node["max_connection"];
+  if (max_connection_node) {
+    if (!max_connection_node.IsScalar()) {
+      throw std::runtime_error("server.max_connection must be a number");
+    }
+
+    const auto max_connection_value = max_connection_node.as<long long>();
+    if (max_connection_value <= 0) {
+      throw std::runtime_error("server.max_connection must be greater than 0");
+    }
+    config.max_connection = static_cast<std::size_t>(max_connection_value);
+  }
+
+  if (config.has_max_connection && config.max_connection == 0) {
     throw std::runtime_error(
         "server.max_connection must be greater than 0 when "
         "server.has_max_connection is true");
   }
 
-  ExecutorConfig executor =
-      ParseExecutorConfig(server_node ? server_node["executor"] : YAML::Node{});
-
-  ServerConfig config{
-      .thread_count = thread_count,
-      .has_max_connection = has_max_connection,
-      .max_connection = max_connection,
-      .executor = std::move(executor),
-      .listeners = ParseListeners(root["listeners"]),
-      .global = ParseGlobal(root["global"]),
-      .routes = ParseRoutes(root["routes"]),
-  };
-
+  config.executor = ParseExecutorConfig(node["executor"]);
   return config;
 }
 
-}  // namespace bsrvcore::runtime
+}  // namespace bsrvcore::runtime::config_loader_detail

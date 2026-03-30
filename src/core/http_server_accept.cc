@@ -103,30 +103,37 @@ void HttpServer::Stop() {
 }
 
 void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
+  const auto close_socket = [](boost::asio::ip::tcp::socket& socket) {
+    boost::system::error_code close_ec;
+    socket.close(close_ec);
+  };
+
   acc.async_accept(
       boost::asio::make_strand(ioc_),
-      [this, &acc](boost::system::error_code ec,
-                   boost::asio::ip::tcp::socket skt) {
-        if (!ec) {
-          if (kHasMaxConnection_ &&
-              available_connection_num_.load(std::memory_order_relaxed) <= 0) {
-            boost::system::error_code close_ec;
-            skt.close(close_ec);
-          } else {
-            boost::beast::tcp_stream stream(std::move(skt));
-            if (ssl_ctx_.has_value()) {
-              boost::beast::ssl_stream<boost::beast::tcp_stream> sstream(
-                  std::move(stream), ssl_ctx_.value());
-              auto ssl_exec = sstream.get_executor();
-              connection_internal::HttpServerConnectionImpl<
-                  boost::beast::ssl_stream<boost::beast::tcp_stream>>::
-                  Create(std::move(sstream),
-                         boost::asio::strand<boost::asio::any_io_executor>(
-                             ssl_exec),
-                         this, header_read_expiry_, keep_alive_timeout_,
-                         kHasMaxConnection_, &available_connection_num_)
-                      ->Run();
-            } else {
+      [this, &acc, close_socket](boost::system::error_code ec,
+                                 boost::asio::ip::tcp::socket skt) {
+        const auto should_reject_socket = [&]() {
+          return kHasMaxConnection_ &&
+                 available_connection_num_.load(std::memory_order_relaxed) <=
+                     0;
+        };
+
+        const auto start_ssl_connection = [&](boost::beast::tcp_stream stream) {
+          boost::beast::ssl_stream<boost::beast::tcp_stream> ssl_stream(
+              std::move(stream), ssl_ctx_.value());
+          auto ssl_exec = ssl_stream.get_executor();
+          connection_internal::HttpServerConnectionImpl<
+              boost::beast::ssl_stream<boost::beast::tcp_stream>>::
+              Create(std::move(ssl_stream),
+                     boost::asio::strand<boost::asio::any_io_executor>(
+                         ssl_exec),
+                     this, header_read_expiry_, keep_alive_timeout_,
+                     kHasMaxConnection_, &available_connection_num_)
+                  ->Run();
+        };
+
+        const auto start_plain_connection =
+            [&](boost::beast::tcp_stream stream) {
               auto stream_exec = stream.get_executor();
               connection_internal::
                   HttpServerConnectionImpl<boost::beast::tcp_stream>::Create(
@@ -136,6 +143,19 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
                       this, header_read_expiry_, keep_alive_timeout_,
                       kHasMaxConnection_, &available_connection_num_)
                       ->Run();
+            };
+
+        // Keep the accept callback as a coordinator: reject overflow sockets,
+        // choose the transport-specific connection type, then re-arm the loop.
+        if (!ec) {
+          if (should_reject_socket()) {
+            close_socket(skt);
+          } else {
+            boost::beast::tcp_stream stream(std::move(skt));
+            if (ssl_ctx_.has_value()) {
+              start_ssl_connection(std::move(stream));
+            } else {
+              start_plain_connection(std::move(stream));
             }
           }
         }

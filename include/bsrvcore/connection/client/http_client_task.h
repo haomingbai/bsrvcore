@@ -209,6 +209,7 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
   class Impl;
 
   explicit HttpClientTask(std::shared_ptr<Impl> impl);
+  static std::shared_ptr<HttpClientTask> CreateTask(std::shared_ptr<Impl> impl);
 
   std::shared_ptr<Impl> impl_;
 };

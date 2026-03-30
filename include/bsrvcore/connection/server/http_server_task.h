@@ -435,6 +435,7 @@ class HttpPreServerTask
   explicit HttpPreServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
+  static void RunScheduledPrePhase(std::shared_ptr<HttpPreServerTask> self);
   void DoPreService(std::size_t curr_idx);
 };
 
@@ -478,6 +479,7 @@ class HttpServerTask : public HttpTaskBase,
   explicit HttpServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
+  static void RunScheduledServicePhase(std::shared_ptr<HttpServerTask> self);
   void DoService();
 };
 
@@ -509,6 +511,8 @@ class HttpPostServerTask
   explicit HttpPostServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
+  static void RunScheduledPostPhase(std::shared_ptr<HttpPostServerTask> self,
+                                    std::size_t curr_idx);
   void DoPostService(std::size_t curr_idx);
 };
 

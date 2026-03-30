@@ -76,7 +76,8 @@ bsrvcore_resolve_yaml_cpp_target(BSRVCORE_YAML_CPP_TARGET)
 
 add_library(
   bsrvrun_runtime
-  ${CMAKE_CURRENT_SOURCE_DIR}/config_loader.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/config_loader_parsing.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/config_loader_loading.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/parameter_map_impl.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/plugin_loader.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server_builder.cc
