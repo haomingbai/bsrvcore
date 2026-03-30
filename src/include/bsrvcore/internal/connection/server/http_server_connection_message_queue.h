@@ -126,10 +126,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
     std::size_t write_expiry;
 
-    explicit HeaderMessage(
-        boost::beast::http::response_header<boost::beast::http::fields>&&
-            header,
-        std::size_t expiry)
+    explicit HeaderMessage(boost::beast::http::response_header<
+                               boost::beast::http::fields>&& header,
+                           std::size_t expiry)
         : resp_sp(AllocateShared<
                   boost::beast::http::response<boost::beast::http::empty_body>>(
               std::move(header))),
@@ -185,9 +184,8 @@ class HttpServerConnectionImpl<S>::MessageQueue
         conn_sp->stream_, buf,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            [conn_sp, mq = this->shared_from_this(),
-             msg_sp](boost::system::error_code ec,
-                     [[maybe_unused]] std::size_t) {
+            [conn_sp, mq = this->shared_from_this(), msg_sp](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
               mq->HandleBodyWriteComplete(ec);
             }));
   }
@@ -208,9 +206,8 @@ class HttpServerConnectionImpl<S>::MessageQueue
         conn_sp->stream_, task.sr,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            [conn_sp, mq = this->shared_from_this(),
-             resp_keeper](boost::system::error_code ec,
-                          [[maybe_unused]] std::size_t) {
+            [conn_sp, mq = this->shared_from_this(), resp_keeper](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
               mq->HandleHeaderWriteComplete(ec);
             }));
   }

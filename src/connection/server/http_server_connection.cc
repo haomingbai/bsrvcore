@@ -110,11 +110,10 @@ void HttpServerConnection::Run() {
     return;
   }
 
-  boost::asio::dispatch(
-      strand_, [self = shared_from_this(), this] {
-        ArmTimeout(header_read_expiry_);
-        DoReadHeader();
-      });
+  boost::asio::dispatch(strand_, [self = shared_from_this(), this] {
+    ArmTimeout(header_read_expiry_);
+    DoReadHeader();
+  });
 }
 
 void HttpServerConnection::DoRoute() {

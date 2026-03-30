@@ -150,8 +150,9 @@ TEST(Server, DispatchAndIoContextHelpersTargetExpectedExecutors) {
   auto worker_future = worker_promise->get_future();
   auto io_future = io_promise->get_future();
 
-  server.Dispatch(
-      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+  server.Dispatch([worker_promise] {
+    worker_promise->set_value(std::this_thread::get_id());
+  });
   server.DispatchToIoContext(
       [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
 

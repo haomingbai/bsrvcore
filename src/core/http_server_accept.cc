@@ -128,13 +128,13 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
                       ->Run();
             } else {
               auto stream_exec = stream.get_executor();
-              connection_internal::HttpServerConnectionImpl<
-                  boost::beast::tcp_stream>::
-                  Create(std::move(stream),
-                         boost::asio::strand<boost::asio::any_io_executor>(
-                             stream_exec),
-                         this, header_read_expiry_, keep_alive_timeout_,
-                         kHasMaxConnection_, &available_connection_num_)
+              connection_internal::
+                  HttpServerConnectionImpl<boost::beast::tcp_stream>::Create(
+                      std::move(stream),
+                      boost::asio::strand<boost::asio::any_io_executor>(
+                          stream_exec),
+                      this, header_read_expiry_, keep_alive_timeout_,
+                      kHasMaxConnection_, &available_connection_num_)
                       ->Run();
             }
           }

@@ -56,8 +56,7 @@ class TestAspectFactory
       const auto post_value =
           parameters->Get(bsrvcore::bsrvrun::String("post")).ToStdString();
       const auto thread_id =
-          parameters->Get(bsrvcore::bsrvrun::String("thread_id"))
-              .ToStdString();
+          parameters->Get(bsrvcore::bsrvrun::String("thread_id")).ToStdString();
       if (!pre_value.empty()) {
         pre = pre_value;
       }

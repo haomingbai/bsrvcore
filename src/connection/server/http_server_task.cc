@@ -559,18 +559,16 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
       AllocateShared<boost::asio::steady_timer>(state_->srv->GetIoContext());
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
   timer->async_wait(boost::asio::bind_allocator(
-      state_->handler_alloc,
-      [state = state_, timer, fn = std::move(fn)](
-          boost::system::error_code ec) mutable {
+      state_->handler_alloc, [state = state_, timer, fn = std::move(fn)](
+                                 boost::system::error_code ec) mutable {
         if (ec || !state || state->srv == nullptr || !state->srv->IsRunning()) {
           return;
         }
 
-        boost::asio::post(
-            state->srv->GetExecutor(),
-            boost::asio::bind_allocator(
-                state->handler_alloc,
-                [fn = std::move(fn)]() mutable { fn(); }));
+        boost::asio::post(state->srv->GetExecutor(),
+                          boost::asio::bind_allocator(
+                              state->handler_alloc,
+                              [fn = std::move(fn)]() mutable { fn(); }));
       }));
 }
 

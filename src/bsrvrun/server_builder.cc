@@ -45,8 +45,8 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
   for (const auto& route : config.routes) {
     auto route_handler = loader->CreateHandler(route.handler);
     if (route.cpu) {
-      route_handler =
-          bsrvcore::route_internal::WrapComputingHandler(std::move(route_handler));
+      route_handler = bsrvcore::route_internal::WrapComputingHandler(
+          std::move(route_handler));
     }
 
     if (route.ignore_default_route) {

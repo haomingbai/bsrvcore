@@ -41,8 +41,7 @@ class TestHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
         body = value;
       }
       const auto thread_id =
-          parameters->Get(bsrvcore::bsrvrun::String("thread_id"))
-              .ToStdString();
+          parameters->Get(bsrvcore::bsrvrun::String("thread_id")).ToStdString();
       append_thread_id =
           (thread_id == "1" || thread_id == "true" || thread_id == "TRUE");
     }

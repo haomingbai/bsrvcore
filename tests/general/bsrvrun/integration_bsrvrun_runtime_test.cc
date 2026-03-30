@@ -195,8 +195,9 @@ TEST(BsrvRunRuntimeIntegrationTest, CpuRouteRunsOnWorkerPool) {
 
   server->PostToIoContext(
       [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
-  server->Post(
-      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+  server->Post([worker_promise] {
+    worker_promise->set_value(std::this_thread::get_id());
+  });
 
   ASSERT_EQ(io_future.wait_for(std::chrono::seconds(10)),
             std::future_status::ready);
@@ -269,8 +270,9 @@ TEST(BsrvRunRuntimeIntegrationTest,
 
   server->PostToIoContext(
       [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
-  server->Post(
-      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+  server->Post([worker_promise] {
+    worker_promise->set_value(std::this_thread::get_id());
+  });
 
   ASSERT_EQ(io_future.wait_for(std::chrono::seconds(10)),
             std::future_status::ready);

@@ -260,35 +260,36 @@ TEST(HttpServerIntegrationTest,
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/io",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->AppendBody("handler:" +
-                                         ThreadIdToString(std::this_thread::get_id()) +
-                                         "|");
+                        task->AppendBody(
+                            "handler:" +
+                            ThreadIdToString(std::this_thread::get_id()) + "|");
                       })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/io",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
-            task->AppendBody("pre:" +
-                             ThreadIdToString(std::this_thread::get_id()) + "|");
+            task->AppendBody(
+                "pre:" + ThreadIdToString(std::this_thread::get_id()) + "|");
           },
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
-            task->AppendBody("post:" +
-                             ThreadIdToString(std::this_thread::get_id()) + "|");
+            task->AppendBody(
+                "post:" + ThreadIdToString(std::this_thread::get_id()) + "|");
           })
       ->AddComputingRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/cpu",
           [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-            task->AppendBody("handler:" +
-                             ThreadIdToString(std::this_thread::get_id()) + "|");
+            task->AppendBody(
+                "handler:" + ThreadIdToString(std::this_thread::get_id()) +
+                "|");
           })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/cpu",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
-            task->AppendBody("pre:" +
-                             ThreadIdToString(std::this_thread::get_id()) + "|");
+            task->AppendBody(
+                "pre:" + ThreadIdToString(std::this_thread::get_id()) + "|");
           },
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
-            task->AppendBody("post:" +
-                             ThreadIdToString(std::this_thread::get_id()) + "|");
+            task->AppendBody(
+                "post:" + ThreadIdToString(std::this_thread::get_id()) + "|");
           });
 
   ServerGuard guard(std::move(server));
@@ -302,8 +303,9 @@ TEST(HttpServerIntegrationTest,
 
   guard.server->PostToIoContext(
       [io_promise] { io_promise->set_value(std::this_thread::get_id()); });
-  guard.server->Post(
-      [worker_promise] { worker_promise->set_value(std::this_thread::get_id()); });
+  guard.server->Post([worker_promise] {
+    worker_promise->set_value(std::this_thread::get_id());
+  });
 
   ASSERT_EQ(io_future.wait_for(std::chrono::seconds(10)),
             std::future_status::ready);
@@ -320,11 +322,9 @@ TEST(HttpServerIntegrationTest,
 
   EXPECT_EQ(io_res.result(), http::status::ok);
   EXPECT_EQ(cpu_res.result(), http::status::ok);
-  EXPECT_EQ(io_res.body(),
-            "pre:" + io_thread + "|handler:" + io_thread + "|post:" +
-                io_thread + "|");
-  EXPECT_EQ(cpu_res.body(),
-            "pre:" + io_thread + "|handler:" + worker_thread + "|post:" +
-                io_thread + "|");
+  EXPECT_EQ(io_res.body(), "pre:" + io_thread + "|handler:" + io_thread +
+                               "|post:" + io_thread + "|");
+  EXPECT_EQ(cpu_res.body(), "pre:" + io_thread + "|handler:" + worker_thread +
+                                "|post:" + io_thread + "|");
   EXPECT_NE(io_res.body(), cpu_res.body());
 }

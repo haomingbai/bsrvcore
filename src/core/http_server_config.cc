@@ -49,9 +49,8 @@ HttpServer* HttpServer::AddRouteEntry(HttpRequestMethod method,
 HttpServer* HttpServer::AddComputingRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     OwnedPtr<HttpRequestHandler> handler) {
-  return AddRouteEntry(method, url,
-                       route_internal::WrapComputingHandler(
-                           std::move(handler)));
+  return AddRouteEntry(
+      method, url, route_internal::WrapComputingHandler(std::move(handler)));
 }
 
 HttpServer* HttpServer::AddExclusiveRouteEntry(

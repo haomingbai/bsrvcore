@@ -114,26 +114,25 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::post(
-        GetStrand(), [self = this->shared_from_this(), this] {
-          if (!helper::GetLowestSocket(stream_).is_open()) {
-            return;
-          }
+    boost::asio::post(GetStrand(), [self = this->shared_from_this(), this] {
+      if (!helper::GetLowestSocket(stream_).is_open()) {
+        return;
+      }
 
-          if constexpr (helper::IsBeastSslStream<S>::value) {
-            stream_.async_shutdown(boost::asio::bind_executor(
-                GetExecutor(),
-                [self, this]([[maybe_unused]] boost::system::error_code ec) {
-                  boost::system::error_code socket_ec;
-                  helper::GetLowestSocket(stream_).close(socket_ec);
-                }));
-          } else {
-            boost::system::error_code ec;
-            helper::GetLowestSocket(stream_).shutdown(
-                boost::asio::ip::tcp::socket::shutdown_both, ec);
-            helper::GetLowestSocket(stream_).close(ec);
-          }
-        });
+      if constexpr (helper::IsBeastSslStream<S>::value) {
+        stream_.async_shutdown(boost::asio::bind_executor(
+            GetExecutor(),
+            [self, this]([[maybe_unused]] boost::system::error_code ec) {
+              boost::system::error_code socket_ec;
+              helper::GetLowestSocket(stream_).close(socket_ec);
+            }));
+      } else {
+        boost::system::error_code ec;
+        helper::GetLowestSocket(stream_).shutdown(
+            boost::asio::ip::tcp::socket::shutdown_both, ec);
+        helper::GetLowestSocket(stream_).close(ec);
+      }
+    });
   }
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }
@@ -146,9 +145,8 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
 
     boost::asio::dispatch(
-        GetStrand(),
-        [self = this->shared_from_this(), this, keep_alive, write_expiry,
-         response = std::move(resp)]() mutable {
+        GetStrand(), [self = this->shared_from_this(), this, keep_alive,
+                      write_expiry, response = std::move(resp)]() mutable {
           if (!IsServerRunning() || !IsStreamAvailable()) {
             DoClose();
             return;
@@ -184,8 +182,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       boost::beast::http::response_header<boost::beast::http::fields> header,
       std::size_t write_expiry) override;
 
-  void DoFlushResponseBody(std::string body, std::size_t write_expiry)
-      override;
+  void DoFlushResponseBody(std::string body, std::size_t write_expiry) override;
 
  protected:
   void DoReadHeader() override {
@@ -197,8 +194,8 @@ class HttpServerConnectionImpl : public HttpServerConnection {
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
             GetExecutor(),
-            [self = this->shared_from_this(), this](boost::system::error_code ec,
-                                                    [[maybe_unused]] std::size_t) {
+            [self = this->shared_from_this(), this](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
               if (ec) {
                 DoClose();
               } else {
@@ -216,8 +213,8 @@ class HttpServerConnectionImpl : public HttpServerConnection {
         stream_, GetBuffer(), *GetParser(),
         boost::asio::bind_executor(
             GetExecutor(),
-            [self = this->shared_from_this(), this](boost::system::error_code ec,
-                                                    [[maybe_unused]] std::size_t) {
+            [self = this->shared_from_this(), this](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
               if (ec) {
                 DoClose();
               } else {
@@ -268,8 +265,8 @@ void HttpServerConnectionImpl<S>::DoFlushResponseHeader(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoFlushResponseBody(std::string body,
-                                                      std::size_t write_expiry) {
+void HttpServerConnectionImpl<S>::DoFlushResponseBody(
+    std::string body, std::size_t write_expiry) {
   EnsureMessageQueueCreated();
   message_queue_->AddBody(std::move(body), write_expiry);
 }

@@ -701,13 +701,13 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       io_work_guard_;  ///< Keeps io_context alive while running
   std::vector<std::thread> io_threads_;  ///< Threads to run I/O context
   std::vector<boost::asio::ip::tcp::acceptor>
-      acceptors_;                     ///< Acceptors to accept sockets
-  std::shared_mutex mtx_;             ///< Mutex for thread synchronization
-  std::shared_ptr<Context> context_;  ///< Global server context
-  std::shared_ptr<Logger> logger_;    ///< Logger for server events
+      acceptors_;                          ///< Acceptors to accept sockets
+  std::shared_mutex mtx_;                  ///< Mutex for thread synchronization
+  std::shared_ptr<Context> context_;       ///< Global server context
+  std::shared_ptr<Logger> logger_;         ///< Logger for server events
   OwnedPtr<ThreadPoolState> thread_pool_;  ///< Worker executor backend
-  OwnedPtr<HttpRouteTable> route_table_;  ///< Route table for request routing
-  OwnedPtr<SessionMap> sessions_;         ///< Session manager
+  OwnedPtr<HttpRouteTable> route_table_;   ///< Route table for request routing
+  OwnedPtr<SessionMap> sessions_;          ///< Session manager
   std::size_t header_read_expiry_;  ///< Default expiry for reading headers (ms)
   std::size_t keep_alive_timeout_;  ///< Timeout for keep-alive connections (ms)
   const HttpServerRuntimeOptions
