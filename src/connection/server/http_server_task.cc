@@ -15,6 +15,8 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/bind_allocator.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/http/field.hpp>
@@ -489,7 +491,10 @@ void HttpTaskBase::Post(std::function<void()> fn) {
     return;
   }
 
-  conn->Post([fn = std::move(fn)]() { fn(); });
+  boost::asio::post(
+      state_->srv->GetExecutor(),
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() mutable { fn(); }));
 }
 
 void HttpTaskBase::Dispatch(std::function<void()> fn) {
@@ -502,7 +507,10 @@ void HttpTaskBase::Dispatch(std::function<void()> fn) {
     return;
   }
 
-  conn->Dispatch([fn = std::move(fn)]() { fn(); });
+  boost::asio::dispatch(
+      state_->srv->GetExecutor(),
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() mutable { fn(); }));
 }
 
 void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
@@ -515,7 +523,10 @@ void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
     return;
   }
 
-  conn->PostToIoContext([fn = std::move(fn)]() { fn(); });
+  boost::asio::post(
+      state_->srv->GetIoContext(),
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() mutable { fn(); }));
 }
 
 void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
@@ -528,7 +539,10 @@ void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
     return;
   }
 
-  conn->DispatchToIoContext([fn = std::move(fn)]() { fn(); });
+  boost::asio::dispatch(
+      state_->srv->GetIoContext(),
+      boost::asio::bind_allocator(state_->handler_alloc,
+                                  [fn = std::move(fn)]() mutable { fn(); }));
 }
 
 void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
@@ -541,7 +555,23 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  conn->SetTimer(timeout, [fn = std::move(fn)]() { fn(); });
+  auto timer =
+      AllocateShared<boost::asio::steady_timer>(state_->srv->GetIoContext());
+  timer->expires_after(boost::asio::chrono::milliseconds(timeout));
+  timer->async_wait(boost::asio::bind_allocator(
+      state_->handler_alloc,
+      [state = state_, timer, fn = std::move(fn)](
+          boost::system::error_code ec) mutable {
+        if (ec || !state || state->srv == nullptr || !state->srv->IsRunning()) {
+          return;
+        }
+
+        boost::asio::post(
+            state->srv->GetExecutor(),
+            boost::asio::bind_allocator(
+                state->handler_alloc,
+                [fn = std::move(fn)]() mutable { fn(); }));
+      }));
 }
 
 bool HttpTaskBase::IsAvailable() noexcept {
@@ -624,10 +654,15 @@ HttpPreServerTask::HttpPreServerTask(
 HttpPreServerTask::~HttpPreServerTask() = default;
 
 void HttpPreServerTask::Start() {
-  auto self = shared_from_this();
-  if (GetSharedState()->conn.load()) {
-    self->DoPreService(0);
+  auto conn = GetSharedState()->conn.load();
+  if (!conn) {
+    return;
   }
+
+  auto self = shared_from_this();
+  conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
+      GetState().handler_alloc,
+      [self = std::move(self)]() mutable { self->DoPreService(0); }));
 }
 
 void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
@@ -661,10 +696,15 @@ HttpServerTask::HttpServerTask(
 HttpServerTask::~HttpServerTask() = default;
 
 void HttpServerTask::Start() {
-  auto self = shared_from_this();
-  if (GetSharedState()->conn.load()) {
-    self->DoService();
+  auto conn = GetSharedState()->conn.load();
+  if (!conn) {
+    return;
   }
+
+  auto self = shared_from_this();
+  conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
+      GetState().handler_alloc,
+      [self = std::move(self)]() mutable { self->DoService(); }));
 }
 
 void HttpServerTask::DoService() {
@@ -720,15 +760,23 @@ HttpPostServerTask::HttpPostServerTask(
 HttpPostServerTask::~HttpPostServerTask() = default;
 
 void HttpPostServerTask::Start() {
-  auto self = shared_from_this();
   auto& state = GetState();
   if (state.route_result.aspects.empty()) {
     return;
   }
 
-  if (GetSharedState()->conn.load()) {
-    self->DoPostService(state.route_result.aspects.size() - 1);
+  auto conn = GetSharedState()->conn.load();
+  if (!conn) {
+    return;
   }
+
+  auto self = shared_from_this();
+  conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
+      state.handler_alloc,
+      [self = std::move(self),
+       last_idx = state.route_result.aspects.size() - 1]() mutable {
+        self->DoPostService(last_idx);
+      }));
 }
 
 void HttpPostServerTask::DoPostService(std::size_t curr_idx) {

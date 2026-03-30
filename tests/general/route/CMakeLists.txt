@@ -1,2 +1,3 @@
 bsrvcore_add_test(unit_blue_print_test unit_blue_print_test.cc unit)
+bsrvcore_add_test(unit_route_table_teardown_test unit_route_table_teardown_test.cc unit)
 bsrvcore_add_test(acceptance_routing_test acceptance_routing_test.cc integration)

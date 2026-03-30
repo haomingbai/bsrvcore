@@ -673,6 +673,50 @@ HttpRouteTable::HttpRouteTable() noexcept
   }
 }
 
+HttpRouteTable::~HttpRouteTable() noexcept {
+  for (auto& root : entrance_) {
+    DestroyLayerTreeIterative(root);
+  }
+}
+
+void HttpRouteTable::CollectChildLayers(
+    HttpRouteTableLayer& layer,
+    std::vector<OwnedPtr<HttpRouteTableLayer>>& pending) {
+  if (layer.default_route_ != nullptr) {
+    pending.emplace_back(std::move(layer.default_route_));
+  }
+
+  pending.reserve(pending.size() + layer.map_.size());
+  for (auto& [key, child] : layer.map_) {
+    (void)key;
+    if (child != nullptr) {
+      pending.emplace_back(std::move(child));
+    }
+  }
+
+  layer.map_.clear();
+}
+
+void HttpRouteTable::DestroyLayerTreeIterative(
+    OwnedPtr<HttpRouteTableLayer>& root) noexcept {
+  if (root == nullptr) {
+    return;
+  }
+
+  std::vector<OwnedPtr<HttpRouteTableLayer>> pending;
+  pending.emplace_back(std::move(root));
+
+  while (!pending.empty()) {
+    auto current = std::move(pending.back());
+    pending.pop_back();
+    if (current == nullptr) {
+      continue;
+    }
+
+    CollectChildLayers(*current, pending);
+  }
+}
+
 bool HttpRouteTable::MountAt(std::string_view prefix, HttpRouteTable&& source) {
   if (!route_internal::IsValidParametricTarget(prefix)) {
     return false;

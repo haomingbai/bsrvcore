@@ -20,6 +20,7 @@
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
 
 #include <atomic>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/asio/strand.hpp>
@@ -145,6 +146,24 @@ class HttpServerConnection
    * per-connection strand ordering.
    */
   void DispatchToIoContext(std::function<void()> fn);
+
+  /**
+   * @brief Dispatch a handler onto the connection strand.
+   * @tparam Handler Callable type.
+   * @param handler Handler to schedule on the per-connection I/O strand.
+   *
+   * @details
+   * This preserves the handler's associated allocator/executor properties and
+   * keeps request-lifecycle phase transitions serialized with connection I/O.
+   */
+  template <typename Handler>
+  void DispatchToConnectionExecutor(Handler&& handler) {
+    if (!srv_) {
+      return;
+    }
+
+    boost::asio::dispatch(strand_, std::forward<Handler>(handler));
+  }
 
   /**
    * @brief Post a function with arguments and return a future for the result

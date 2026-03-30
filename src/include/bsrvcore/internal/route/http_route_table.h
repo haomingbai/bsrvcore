@@ -200,6 +200,11 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   HttpRouteTable() noexcept;
 
   /**
+   * @brief Destroy the route table without recursively walking deep trees.
+   */
+  ~HttpRouteTable() noexcept;
+
+  /**
    * @brief Mount another route table under a prefix by moving its tree.
    * @param prefix Prefix path where the source table is attached.
    * @param source Source route table to consume.
@@ -313,6 +318,13 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
 
   static bool CloneLayer(const route_internal::HttpRouteTableLayer& src,
                          OwnedPtr<route_internal::HttpRouteTableLayer>& dst);
+
+  static void CollectChildLayers(
+      route_internal::HttpRouteTableLayer& layer,
+      std::vector<OwnedPtr<route_internal::HttpRouteTableLayer>>& pending);
+
+  static void DestroyLayerTreeIterative(
+      OwnedPtr<route_internal::HttpRouteTableLayer>& root) noexcept;
 
   static constexpr size_t kHttpRequestMethodNum = 9;
   std::shared_mutex mtx_;  ///< Read-write lock for thread safety

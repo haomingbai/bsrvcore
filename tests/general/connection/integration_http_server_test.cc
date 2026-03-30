@@ -251,7 +251,7 @@ TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
 }
 
 TEST(HttpServerIntegrationTest,
-     ComputingRouteRunsOnWorkerPoolWhileNormalRouteStaysOnIoThread) {
+     RouteThreadingKeepsNormalLifecycleOnIoAndComputingHandlerOnWorker) {
   bsrvcore::HttpServerRuntimeOptions options;
   options.core_thread_num = 1;
   options.max_thread_num = 1;
@@ -260,12 +260,35 @@ TEST(HttpServerIntegrationTest,
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/io",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->SetBody(ThreadIdToString(std::this_thread::get_id()));
+                        task->AppendBody("handler:" +
+                                         ThreadIdToString(std::this_thread::get_id()) +
+                                         "|");
                       })
+      ->AddAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/io",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("pre:" +
+                             ThreadIdToString(std::this_thread::get_id()) + "|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("post:" +
+                             ThreadIdToString(std::this_thread::get_id()) + "|");
+          })
       ->AddComputingRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/cpu",
           [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-            task->SetBody(ThreadIdToString(std::this_thread::get_id()));
+            task->AppendBody("handler:" +
+                             ThreadIdToString(std::this_thread::get_id()) + "|");
+          })
+      ->AddAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/cpu",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("pre:" +
+                             ThreadIdToString(std::this_thread::get_id()) + "|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("post:" +
+                             ThreadIdToString(std::this_thread::get_id()) + "|");
           });
 
   ServerGuard guard(std::move(server));
@@ -292,10 +315,16 @@ TEST(HttpServerIntegrationTest,
 
   const auto io_res = DoRequestWithRetry(http::verb::get, port, "/io", "");
   const auto cpu_res = DoRequestWithRetry(http::verb::get, port, "/cpu", "");
+  const auto io_thread = ThreadIdToString(io_thread_id);
+  const auto worker_thread = ThreadIdToString(worker_thread_id);
 
   EXPECT_EQ(io_res.result(), http::status::ok);
   EXPECT_EQ(cpu_res.result(), http::status::ok);
-  EXPECT_EQ(io_res.body(), ThreadIdToString(io_thread_id));
-  EXPECT_EQ(cpu_res.body(), ThreadIdToString(worker_thread_id));
+  EXPECT_EQ(io_res.body(),
+            "pre:" + io_thread + "|handler:" + io_thread + "|post:" +
+                io_thread + "|");
+  EXPECT_EQ(cpu_res.body(),
+            "pre:" + io_thread + "|handler:" + worker_thread + "|post:" +
+                io_thread + "|");
   EXPECT_NE(io_res.body(), cpu_res.body());
 }
