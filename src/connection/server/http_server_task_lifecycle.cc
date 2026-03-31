@@ -8,13 +8,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/connection/server/http_server_task.h"
-
 #include <cassert>
 #include <cstddef>
 #include <memory>
 #include <utility>
 
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/internal/connection/server/http_server_task_detail.h"
 
 namespace bsrvcore {
@@ -27,8 +26,9 @@ using connection_internal::helper::IsTaskEnvironmentAvailable;
 using connection_internal::helper::TryCloseConnection;
 
 template <typename Task>
-inline void DestroyLifecycleTask(const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
-                                 Task* ptr) {
+inline void DestroyLifecycleTask(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
+    Task* ptr) {
   if (!ptr) {
     return;
   }
@@ -51,7 +51,8 @@ void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
   // Releasing the pre task is the exact point where pre hooks stop mutating
   // shared request state, so the next lifecycle hop can safely build the
   // service task.
-  if (state->route_result.handler == nullptr || !IsTaskEnvironmentAvailable(state)) {
+  if (state->route_result.handler == nullptr ||
+      !IsTaskEnvironmentAvailable(state)) {
     TryCloseConnection(state);
     return;
   }
@@ -59,8 +60,8 @@ void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
   auto* raw =
       connection_internal::helper::AllocateTaskObject<HttpServerTask>(state);
   new (raw) HttpServerTask(state);
-  auto task = std::shared_ptr<HttpServerTask>(
-      raw, HttpServerTaskDeleter{state}, state->handler_alloc);
+  auto task = std::shared_ptr<HttpServerTask>(raw, HttpServerTaskDeleter{state},
+                                              state->handler_alloc);
   task->Start();
 }
 
@@ -111,8 +112,8 @@ void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
 std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<HttpServerConnection> conn) {
-  auto state = CreateTaskState(std::move(req), std::move(route_result),
-                               std::move(conn));
+  auto state =
+      CreateTaskState(std::move(req), std::move(route_result), std::move(conn));
   auto* raw =
       connection_internal::helper::AllocateTaskObject<HttpPreServerTask>(state);
   new (raw) HttpPreServerTask(state);
@@ -134,8 +135,7 @@ void HttpPreServerTask::Start() {
 
   auto self = shared_from_this();
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
-      GetState().handler_alloc,
-      [self = std::move(self)]() mutable {
+      GetState().handler_alloc, [self = std::move(self)]() mutable {
         RunScheduledPrePhase(std::move(self));
       }));
 }
@@ -153,7 +153,10 @@ void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
 
   auto self = shared_from_this();
   while (curr_idx < state.route_result.aspects.size()) {
-    state.route_result.aspects[curr_idx]->PreService(self);
+    try {
+      state.route_result.aspects[curr_idx]->PreService(self);
+    } catch (...) {
+    }
     ++curr_idx;
   }
 }
@@ -177,8 +180,7 @@ void HttpServerTask::Start() {
 
   auto self = shared_from_this();
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
-      GetState().handler_alloc,
-      [self = std::move(self)]() mutable {
+      GetState().handler_alloc, [self = std::move(self)]() mutable {
         RunScheduledServicePhase(std::move(self));
       }));
 }
@@ -195,14 +197,17 @@ void HttpServerTask::DoService() {
   }
 
   auto self = shared_from_this();
-  state.route_result.handler->Service(self);
+  try {
+    state.route_result.handler->Service(self);
+  } catch (...) {
+  }
 }
 
 std::shared_ptr<HttpServerTask> HttpServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<HttpServerConnection> conn) {
-  auto state = CreateTaskState(std::move(req), std::move(route_result),
-                               std::move(conn));
+  auto state =
+      CreateTaskState(std::move(req), std::move(route_result), std::move(conn));
   auto* raw =
       connection_internal::helper::AllocateTaskObject<HttpServerTask>(state);
   new (raw) HttpServerTask(state);
@@ -230,8 +235,7 @@ void HttpPostServerTask::Start() {
 
   auto self = shared_from_this();
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
-      state.handler_alloc,
-      [self = std::move(self), last_idx]() mutable {
+      state.handler_alloc, [self = std::move(self), last_idx]() mutable {
         RunScheduledPostPhase(std::move(self), last_idx);
       }));
 }
@@ -250,7 +254,10 @@ void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
 
   auto self = shared_from_this();
   while (true) {
-    state.route_result.aspects[curr_idx]->PostService(self);
+    try {
+      state.route_result.aspects[curr_idx]->PostService(self);
+    } catch (...) {
+    }
     if (curr_idx == 0) {
       return;
     }
