@@ -86,13 +86,14 @@ class HttpServerConnectionImpl : public HttpServerConnection {
   class MessageQueue;
 
   // Constructor receives shared server runtime controls from accept path.
-  HttpServerConnectionImpl(S stream, HttpServer* srv,
-                           std::size_t header_read_expiry,
-                           std::size_t keep_alive_timeout,
-                           bool has_max_connection,
-                           std::atomic<std::int64_t>* available_connection_num)
-      : HttpServerConnection(srv, header_read_expiry, keep_alive_timeout,
-                             has_max_connection, available_connection_num),
+  HttpServerConnectionImpl(
+      S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
+      HttpServer* srv, std::size_t header_read_expiry,
+      std::size_t keep_alive_timeout, bool has_max_connection,
+      std::atomic<std::int64_t>* available_connection_num)
+      : HttpServerConnection(std::move(strand), srv, header_read_expiry,
+                             keep_alive_timeout, has_max_connection,
+                             available_connection_num),
         stream_(std::move(stream)),
         closed_(false) {
     // Do NOT create message_queue_ here by calling shared_from_this(),
@@ -113,27 +114,25 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    if (!helper::GetLowestSocket(stream_).is_open()) {
-      return;
-    }
+    boost::asio::post(GetStrand(), [self = this->shared_from_this(), this] {
+      if (!helper::GetLowestSocket(stream_).is_open()) {
+        return;
+      }
 
-    if constexpr (helper::IsBeastSslStream<S>::value) {
-      stream_.async_shutdown(
-          [self = this->shared_from_this()](
-              [[maybe_unused]] boost::system::error_code ec) {
-            if (auto impl =
-                    std::dynamic_pointer_cast<HttpServerConnectionImpl<S>>(
-                        self)) {
+      if constexpr (helper::IsBeastSslStream<S>::value) {
+        stream_.async_shutdown(boost::asio::bind_executor(
+            GetExecutor(),
+            [self, this]([[maybe_unused]] boost::system::error_code ec) {
               boost::system::error_code socket_ec;
-              helper::GetLowestSocket(impl->stream_).close(socket_ec);
-            }
-          });
-    } else {
-      boost::system::error_code ec;
-      helper::GetLowestSocket(stream_).shutdown(
-          boost::asio::ip::tcp::socket::shutdown_both, ec);
-      helper::GetLowestSocket(stream_).close(ec);
-    }
+              helper::GetLowestSocket(stream_).close(socket_ec);
+            }));
+      } else {
+        boost::system::error_code ec;
+        helper::GetLowestSocket(stream_).shutdown(
+            boost::asio::ip::tcp::socket::shutdown_both, ec);
+        helper::GetLowestSocket(stream_).close(ec);
+      }
+    });
   }
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }
@@ -145,31 +144,37 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    if (!IsServerRunning() || !IsStreamAvailable()) {
-      DoClose();
-      return;
-    }
-
-    ArmTimeout(write_expiry);
-
-    resp.keep_alive(keep_alive);
-    resp.set(boost::beast::http::field::keep_alive,
-             std::to_string(GetKeepAliveTimeout()));
-    resp.prepare_payload();
-    resp_ = std::move(resp);
-
-    boost::beast::http::async_write(
-        stream_, resp_,
-        [self = this->shared_from_this(), this, keep_alive](
-            boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-          CancelTimeout();
-          if (ec) {
+    boost::asio::dispatch(
+        GetStrand(), [self = this->shared_from_this(), this, keep_alive,
+                      write_expiry, response = std::move(resp)]() mutable {
+          if (!IsServerRunning() || !IsStreamAvailable()) {
             DoClose();
-          } else if (!keep_alive) {
-            DoClose();
-          } else {
-            DoCycle();
+            return;
           }
+
+          ArmTimeout(write_expiry);
+
+          response.keep_alive(keep_alive);
+          response.set(boost::beast::http::field::keep_alive,
+                       std::to_string(GetKeepAliveTimeout()));
+          response.prepare_payload();
+          resp_ = std::move(response);
+
+          boost::beast::http::async_write(
+              stream_, resp_,
+              boost::asio::bind_executor(
+                  GetExecutor(),
+                  [self, this, keep_alive](boost::system::error_code ec,
+                                           [[maybe_unused]] std::size_t) {
+                    CancelTimeout();
+                    if (ec) {
+                      DoClose();
+                    } else if (!keep_alive) {
+                      DoClose();
+                    } else {
+                      DoCycle();
+                    }
+                  }));
         });
   }
 
@@ -187,14 +192,16 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
     boost::beast::http::async_read_header(
         stream_, GetBuffer(), *GetParser(),
-        [self = this->shared_from_this(), this](boost::system::error_code ec,
-                                                [[maybe_unused]] std::size_t) {
-          if (ec) {
-            DoClose();
-          } else {
-            DoRoute();
-          }
-        });
+        boost::asio::bind_executor(
+            GetExecutor(),
+            [self = this->shared_from_this(), this](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+              if (ec) {
+                DoClose();
+              } else {
+                DoRoute();
+              }
+            }));
   }
 
   void DoReadBody() override {
@@ -204,14 +211,16 @@ class HttpServerConnectionImpl : public HttpServerConnection {
     }
     boost::beast::http::async_read(
         stream_, GetBuffer(), *GetParser(),
-        [self = this->shared_from_this(), this](boost::system::error_code ec,
-                                                [[maybe_unused]] std::size_t) {
-          if (ec) {
-            DoClose();
-          } else {
-            DoForwardRequest();
-          }
-        });
+        boost::asio::bind_executor(
+            GetExecutor(),
+            [self = this->shared_from_this(), this](
+                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+              if (ec) {
+                DoClose();
+              } else {
+                DoForwardRequest();
+              }
+            }));
   }
 
   void ClearMessage() override;
