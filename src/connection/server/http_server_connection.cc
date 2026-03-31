@@ -14,7 +14,6 @@
 
 #include "bsrvcore/internal/connection/server/http_server_connection.h"
 
-#include <boost/asio/dispatch.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/parser.hpp>
@@ -110,10 +109,8 @@ void HttpServerConnection::Run() {
     return;
   }
 
-  boost::asio::dispatch(strand_, [self = shared_from_this(), this] {
-    ArmTimeout(header_read_expiry_);
-    DoReadHeader();
-  });
+  ArmTimeout(header_read_expiry_);
+  DoReadHeader();
 }
 
 void HttpServerConnection::DoRoute() {
@@ -177,12 +174,10 @@ void HttpServerConnection::DoCycle() {
 }
 
 HttpServerConnection::HttpServerConnection(
-    boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer* srv,
-    std::size_t header_read_expiry, std::size_t keep_alive_timeout,
-    bool has_max_connection,
+    HttpServer* srv, std::size_t header_read_expiry,
+    std::size_t keep_alive_timeout, bool has_max_connection,
     std::atomic<std::int64_t>* available_connection_num)
-    : strand_(std::move(strand)),
-      timer_(strand_),
+    : timer_(srv->GetExecutor()),
       buf_(4096),
       srv_(srv),
       parser_(AllocateUnique<boost::beast::http::request_parser<
@@ -232,16 +227,6 @@ void HttpServerConnection::ArmTimeout(std::size_t timeout) {
 }
 
 void HttpServerConnection::CancelTimeout() { timer_.cancel(); }
-
-boost::asio::strand<boost::asio::any_io_executor>&
-HttpServerConnection::GetStrand() {
-  return strand_;
-}
-
-boost::asio::strand<boost::asio::any_io_executor>
-HttpServerConnection::GetExecutor() {
-  return strand_;
-}
 
 boost::beast::flat_buffer& HttpServerConnection::GetBuffer() { return buf_; }
 

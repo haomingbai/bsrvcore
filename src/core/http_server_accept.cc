@@ -120,28 +120,23 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
         const auto start_ssl_connection = [&](boost::beast::tcp_stream stream) {
           boost::beast::ssl_stream<boost::beast::tcp_stream> ssl_stream(
               std::move(stream), ssl_ctx_.value());
-          auto ssl_exec = ssl_stream.get_executor();
           connection_internal::HttpServerConnectionImpl<
               boost::beast::ssl_stream<boost::beast::tcp_stream>>::
-              Create(
-                  std::move(ssl_stream),
-                  boost::asio::strand<boost::asio::any_io_executor>(ssl_exec),
-                  this, header_read_expiry_, keep_alive_timeout_,
-                  kHasMaxConnection_, &available_connection_num_)
+              Create(std::move(ssl_stream), this, header_read_expiry_,
+                     keep_alive_timeout_, kHasMaxConnection_,
+                     &available_connection_num_)
                   ->Run();
         };
 
         const auto start_plain_connection =
             [&](boost::beast::tcp_stream stream) {
-              auto stream_exec = stream.get_executor();
-              connection_internal::
-                  HttpServerConnectionImpl<boost::beast::tcp_stream>::Create(
-                      std::move(stream),
-                      boost::asio::strand<boost::asio::any_io_executor>(
-                          stream_exec),
-                      this, header_read_expiry_, keep_alive_timeout_,
-                      kHasMaxConnection_, &available_connection_num_)
-                      ->Run();
+              connection_internal::HttpServerConnectionImpl<
+                  boost::beast::tcp_stream>::Create(std::move(stream), this,
+                                                    header_read_expiry_,
+                                                    keep_alive_timeout_,
+                                                    kHasMaxConnection_,
+                                                    &available_connection_num_)
+                  ->Run();
             };
 
         // Keep the accept callback as a coordinator: reject overflow sockets,

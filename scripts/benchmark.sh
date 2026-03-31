@@ -16,6 +16,7 @@ cpu_count() {
 }
 
 CPU_COUNT="$(cpu_count)"
+MATRIX_CPU_COUNT="${BSRVCORE_BENCH_MATRIX_CPU_COUNT:-${CPU_COUNT}}"
 BUILD_DIR="${BSRVCORE_BENCH_BUILD_DIR:-build-bench}"
 VENV_DIR="${BSRVCORE_BENCH_VENV:-.venv-benchmark}"
 OUTPUT_DIR="${BSRVCORE_BENCH_OUTPUT_DIR:-}"
@@ -46,6 +47,7 @@ SSH_LOG_PATH="/tmp/bsrvcore-benchmark-server.log"
 SERVER_ENV_JSON=""
 PARALLELISM="${BSRVCORE_BUILD_PARALLEL:-${CPU_COUNT}}"
 WRK_BIN=""
+SKIP_BUILD="${BSRVCORE_BENCH_SKIP_BUILD:-OFF}"
 BENCH_BIN="${ROOT_DIR}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark"
 BUNDLED_WRK_BIN="${ROOT_DIR}/${BUILD_DIR}/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk"
 PLOT_PYTHON=""
@@ -273,6 +275,10 @@ ensure_named_scenario() {
 }
 
 build_benchmark() {
+  if [[ "${SKIP_BUILD}" == "ON" && -x "${BENCH_BIN}" ]]; then
+    printf 'Using existing benchmark binary: %s\n' "${BENCH_BIN}"
+    return
+  fi
   BSRVCORE_BUILD_DIR="${BUILD_DIR}" \
   BSRVCORE_BUILD_TYPE=Release \
   BSRVCORE_BUILD_TESTS=OFF \
@@ -285,6 +291,10 @@ build_benchmark() {
 }
 
 resolve_wrk_bin() {
+  if [[ -n "${BSRVCORE_BENCHMARK_WRK_BIN:-}" && -x "${BSRVCORE_BENCHMARK_WRK_BIN}" ]]; then
+    WRK_BIN="${BSRVCORE_BENCHMARK_WRK_BIN}"
+    return
+  fi
   if [[ -x "${BUNDLED_WRK_BIN}" ]]; then
     WRK_BIN="${BUNDLED_WRK_BIN}"
     return
@@ -369,13 +379,13 @@ prepare_outputs() {
 
 server_pairs_for_depth() {
   local half_cpu quarter_cpu double_cpu
-  half_cpu="$(max1 $(( CPU_COUNT / 2 )))"
-  quarter_cpu="$(max1 $(( CPU_COUNT / 4 )))"
-  double_cpu="$(max1 $(( CPU_COUNT * 2 )))"
+  half_cpu="$(max1 $(( MATRIX_CPU_COUNT / 2 )))"
+  quarter_cpu="$(max1 $(( MATRIX_CPU_COUNT / 4 )))"
+  double_cpu="$(max1 $(( MATRIX_CPU_COUNT * 2 )))"
 
   echo "1 1"
   echo "${quarter_cpu} ${half_cpu}"
-  echo "${half_cpu} ${CPU_COUNT}"
+  echo "${half_cpu} ${MATRIX_CPU_COUNT}"
   if [[ "${SWEEP_DEPTH}" != "quick" ]]; then
     echo "${half_cpu} ${double_cpu}"
   fi
@@ -756,6 +766,53 @@ sys.exit(1)
 PY
 }
 
+run_ssh_grouped_matrix() {
+  local matrix_file="$1"
+  local prefix="$2"
+  local server_host="$3"
+  local ssh_extra=(-n)
+  [[ -n "${SSH_PORT}" ]] && ssh_extra+=(-p "${SSH_PORT}")
+  [[ -n "${SSH_KEY}" ]] && ssh_extra+=(-i "${SSH_KEY}")
+
+  local -A group_seen=()
+  local label io_threads worker_threads client_concurrency client_processes wrk_threads
+  while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
+    [[ -z "${label}" ]] && continue
+    local group_key="${io_threads}|${worker_threads}"
+    if [[ -n "${group_seen[${group_key}]:-}" ]]; then
+      continue
+    fi
+    group_seen["${group_key}"]=1
+
+    local remote_pid
+    remote_pid="$(
+      ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
+        "python3 -c 'import subprocess, sys; log = open(sys.argv[1], \"w\"); proc = subprocess.Popen(sys.argv[2:], stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, start_new_session=True); print(proc.pid)' '${SSH_LOG_PATH}' '${SSH_REMOTE_ROOT}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark' --mode server --scenario '${SCENARIO}' --listen-host '${LISTEN_HOST}' --listen-port '${LISTEN_PORT}' --pressure-label server-mode --server-io-threads '${io_threads}' --server-worker-threads '${worker_threads}' --client-concurrency 1"
+    )"
+
+    wait_for_tcp "${server_host}" "${LISTEN_PORT}"
+    local subgroup_file="${TMP_DIR}/${prefix}-subgroup-${io_threads}-${worker_threads}.tsv"
+    awk -F'\t' -v io="${io_threads}" -v worker="${worker_threads}" '$2 == io && $3 == worker' \
+      "${matrix_file}" > "${subgroup_file}"
+
+    local index=0
+    local subgroup_total
+    subgroup_total="$(wc -l < "${subgroup_file}" | tr -d ' ')"
+    while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
+      [[ -z "${label}" ]] && continue
+      index=$(( index + 1 ))
+      RUN_CELL_INDEX=$(( RUN_CELL_INDEX + 1 ))
+      printf '[%s %s/%s] %s\n' "${prefix}" "${index}" "${subgroup_total}" "${label}"
+      run_cell client "${label}" "${io_threads}" "${worker_threads}" \
+        "${client_concurrency}" "${client_processes}" "${wrk_threads}" \
+        "${TMP_DIR}/cells/cell-${RUN_CELL_INDEX}.json"
+    done < "${subgroup_file}"
+
+    ssh "${ssh_extra[@]}" "${SSH_TARGET}" "kill '${remote_pid}' >/dev/null 2>&1 || true"
+    sleep 1
+  done < "${matrix_file}"
+}
+
 ssh_run_command() {
   ensure_named_scenario
   if [[ -z "${SSH_TARGET}" ]]; then
@@ -774,57 +831,52 @@ ssh_run_command() {
     server_host="${server_host%%:*}"
   fi
 
-  local ssh_extra=()
+  local ssh_extra=(-n)
   [[ -n "${SSH_PORT}" ]] && ssh_extra+=(-p "${SSH_PORT}")
   [[ -n "${SSH_KEY}" ]] && ssh_extra+=(-i "${SSH_KEY}")
 
-  ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
-    "cd '${SSH_REMOTE_ROOT}' && BSRVCORE_BUILD_DIR='${BUILD_DIR}' BSRVCORE_BUILD_TYPE=Release BSRVCORE_BUILD_TESTS=OFF BSRVCORE_BUILD_EXAMPLES=OFF BSRVCORE_BUILD_BENCHMARKS=ON BSRVCORE_BUILD_TOOLS=OFF BSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON BSRVCORE_BUILD_PARALLEL='${PARALLELISM}' bash scripts/build.sh bsrvcore_http_benchmark"
+  if [[ "${SKIP_BUILD}" == "ON" ]]; then
+    ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
+      "test -x '${SSH_REMOTE_ROOT}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark'"
+  else
+    ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
+      "cd '${SSH_REMOTE_ROOT}' && BSRVCORE_BUILD_DIR='${BUILD_DIR}' BSRVCORE_BUILD_TYPE=Release BSRVCORE_BUILD_TESTS=OFF BSRVCORE_BUILD_EXAMPLES=OFF BSRVCORE_BUILD_BENCHMARKS=ON BSRVCORE_BUILD_TOOLS=OFF BSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON BSRVCORE_BUILD_PARALLEL='${PARALLELISM}' bash scripts/build.sh bsrvcore_http_benchmark"
+  fi
 
   ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
     "cd '${SSH_REMOTE_ROOT}' && python3 scripts/benchmark_collect_env.py --role server --output /tmp/bsrvcore-benchmark-server-env.json && cat /tmp/bsrvcore-benchmark-server-env.json" \
     > "${TMP_DIR}/server-env.json"
   SERVER_ENV_JSON="${TMP_DIR}/server-env.json"
+  MATRIX_CPU_COUNT="$(
+    python3 -c 'import json, sys; data = json.load(open(sys.argv[1], encoding="utf-8")); print(max(1, int(data.get("logical_cpu_count") or 1)))' \
+      "${TMP_DIR}/server-env.json"
+  )"
+  printf 'Using remote server CPU count %s to generate SSH benchmark matrix\n' "${MATRIX_CPU_COUNT}"
 
   local matrix_file="${TMP_DIR}/matrix.tsv"
   : > "${matrix_file}"
   emit_local_matrix "${matrix_file}"
+  SERVER_URL="http://${server_host}:${LISTEN_PORT}"
 
-  local -A group_seen=()
-  local label io_threads worker_threads client_concurrency client_processes wrk_threads
-  while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
-    [[ -z "${label}" ]] && continue
-    local group_key="${io_threads}|${worker_threads}"
-    if [[ -z "${group_seen[${group_key}]:-}" ]]; then
-      group_seen["${group_key}"]=1
-      local remote_pid
-      remote_pid="$(
-        ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
-          "cd '${SSH_REMOTE_ROOT}' && nohup bash scripts/benchmark.sh server --scenario '${SCENARIO}' --build-dir '${BUILD_DIR}' --listen-host '${LISTEN_HOST}' --listen-port '${LISTEN_PORT}' --server-io-threads '${io_threads}' --server-worker-threads '${worker_threads}' > '${SSH_LOG_PATH}' 2>&1 & echo \$!"
-      )"
-      wait_for_tcp "${server_host}" "${LISTEN_PORT}"
-      SERVER_URL="http://${server_host}:${LISTEN_PORT}"
-      local subgroup_file="${TMP_DIR}/subgroup-${io_threads}-${worker_threads}.tsv"
-      awk -F'\t' -v io="${io_threads}" -v worker="${worker_threads}" '$2 == io && $3 == worker' \
-        "${matrix_file}" > "${subgroup_file}"
-      local index=0
-      local subgroup_total
-      subgroup_total="$(wc -l < "${subgroup_file}" | tr -d ' ')"
-      while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
-        [[ -z "${label}" ]] && continue
-        index=$(( index + 1 ))
-        printf '[ssh %s/%s] %s\n' "${index}" "${subgroup_total}" "${label}"
-        run_cell client "${label}" "${io_threads}" "${worker_threads}" \
-          "${client_concurrency}" "${client_processes}" "${wrk_threads}" \
-          "${TMP_DIR}/cells/cell-${io_threads}-${worker_threads}-${index}.json"
-      done < "${subgroup_file}"
-      ssh "${ssh_extra[@]}" "${SSH_TARGET}" "kill '${remote_pid}' >/dev/null 2>&1 || true"
-      sleep 1
-    fi
-  done < "${matrix_file}"
+  local coarse_total
+  coarse_total="$(wc -l < "${matrix_file}" | tr -d ' ')"
+  printf 'Running coarse SSH sweep with %s cells against %s\n' "${coarse_total}" "${SERVER_URL}"
+  RUN_CELL_INDEX=0
+  run_ssh_grouped_matrix "${matrix_file}" coarse "${server_host}"
+
+  build_interim_json client "dual-host-ssh" \
+    "bash scripts/benchmark.sh ssh-run --scenario ${SCENARIO} --ssh-target ${SSH_TARGET} --ssh-remote-root ${SSH_REMOTE_ROOT} --server-host ${server_host} --build-dir ${BUILD_DIR} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
+  emit_refined_matrix
+
+  local refine_total
+  refine_total="$(wc -l < "${TMP_DIR}/refine-only.tsv" | tr -d ' ')"
+  if (( refine_total > 0 )); then
+    printf 'Running fine SSH sweep with %s additional cells near peak regions\n' "${refine_total}"
+    run_ssh_grouped_matrix "${TMP_DIR}/refine-only.tsv" fine "${server_host}"
+  fi
 
   package_results client "dual-host-ssh" \
-    "bash scripts/benchmark.sh ssh-run --scenario ${SCENARIO} --ssh-target ${SSH_TARGET} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
+    "bash scripts/benchmark.sh ssh-run --scenario ${SCENARIO} --ssh-target ${SSH_TARGET} --ssh-remote-root ${SSH_REMOTE_ROOT} --server-host ${server_host} --build-dir ${BUILD_DIR} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
 }
 
 case "${COMMAND}" in

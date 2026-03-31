@@ -57,7 +57,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
     if (auto conn_sp = conn_wp_.lock()) {
       boost::asio::post(
-          conn_sp->GetExecutor(),
+          conn_sp->GetServer()->GetExecutor(),
           [conn_sp, self_sp, message = std::move(message)]() mutable {
             self_sp->EnqueueBodyOnStrand(std::move(message));
           });
@@ -78,7 +78,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
     if (auto conn_sp = conn_wp_.lock()) {
       boost::asio::post(
-          conn_sp->GetExecutor(),
+          conn_sp->GetServer()->GetExecutor(),
           [conn_sp, self_sp, message = std::move(message)]() mutable {
             self_sp->EnqueueHeaderOnStrand(std::move(message));
           });
@@ -182,12 +182,10 @@ class HttpServerConnectionImpl<S>::MessageQueue
     conn_sp->ArmTimeout(task.write_expiry);
     boost::asio::async_write(
         conn_sp->stream_, buf,
-        boost::asio::bind_executor(
-            conn_sp->GetExecutor(),
-            [conn_sp, mq = this->shared_from_this(), msg_sp](
-                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-              mq->HandleBodyWriteComplete(ec);
-            }));
+        [conn_sp, mq = this->shared_from_this(), msg_sp](
+            boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+          mq->HandleBodyWriteComplete(ec);
+        });
   }
 
   void StartWriteHeader(HeaderMessage& task) {
@@ -204,12 +202,10 @@ class HttpServerConnectionImpl<S>::MessageQueue
     conn_sp->ArmTimeout(task.write_expiry);
     boost::beast::http::async_write_header(
         conn_sp->stream_, task.sr,
-        boost::asio::bind_executor(
-            conn_sp->GetExecutor(),
-            [conn_sp, mq = this->shared_from_this(), resp_keeper](
-                boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-              mq->HandleHeaderWriteComplete(ec);
-            }));
+        [conn_sp, mq = this->shared_from_this(), resp_keeper](
+            boost::system::error_code ec, [[maybe_unused]] std::size_t) {
+          mq->HandleHeaderWriteComplete(ec);
+        });
   }
 
   // ---- completion handlers (run on strand) ----
