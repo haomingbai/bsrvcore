@@ -2,23 +2,26 @@
 
 ## 1. Scope And Method
 
-This run targets the `http_get_static` path only. The goal is not to claim an exact machine-limit number. The goal is to locate a credible near-peak operating region on the current host, then explain how throughput and latency change around that region.
+This run targets the `http_get_static` path only. The goal is not to claim a timeless machine-limit number. The goal is to locate a credible near-peak operating region on the current dual-host path, then explain how throughput and latency move around that region.
 
 This point matters for interpreting the charts:
 
-- topology: `single-host`
-- host: `haomingbai-PC`
-- CPU: `20` logical CPUs, `13th Gen Intel(R) Core(TM) i9-13900H`
-- OS: `Fedora Linux 43 (Workstation Edition)`
-- kernel: `Linux 6.19.8-200.fc43.x86_64`
-- command: `bash scripts/benchmark.sh run --build-dir build-bench --scenario http_get_static --sweep-depth standard`
+- topology: `dual-host-ssh`
+- client host: `haomingbai-PC`
+- client CPU: `20` logical CPUs, `13th Gen Intel(R) Core(TM) i9-13900H`
+- client OS: `Fedora Linux 43 (Workstation Edition)`
+- server host: `ubuntu-SYS-7048GR-TR`
+- server CPU: `48` logical CPUs, `Intel(R) Xeon(R) CPU E5-2678 v3 @ 2.50GHz`
+- server OS: `Ubuntu 24.04.4 LTS`
+- server URL: `http://10.68.170.210:18080`
+- command: `bash scripts/benchmark.sh ssh-run --scenario http_get_static --ssh-target server --ssh-remote-root /home/haomingbai/bsrvcore --server-host 10.68.170.210 --build-dir build --sweep-depth standard --output-dir /home/haomingbai/my_projects/bsrvcore/.artifacts/benchmark-results/20260331-dual-host-standard-refined`
 - warmup / duration / cooldown: `1000 ms / 3000 ms / 500 ms`
 - repetitions: `2`
-- search shape: `58` coarse cells + `88` fine cells = `146` total cells
+- search shape: `58` coarse cells + `90` fine cells = `148` total cells
 - winner rule: stable-first, then highest `mean_rps`, then lower `p95`, then lower `p99`
-- reporting rule in this document: use the exact top cell as a reference, but treat all stable cells within `1%` of the top as one near-peak band
+- reporting rule in this document: still use stable cells within `1%` of the winner as the strict near-peak band, but also discuss a wider `3%` operating band because this run's `1%` band collapses to one point
 
-Because both server and load generator run on the same machine, the absolute top number is a conservative single-host ceiling, not a pure server-only upper bound. Small differences between adjacent cells can be distorted by local scheduling noise, wrk-side CPU usage, and loopback stack contention. For that reason, the main conclusion below is a near-peak interval, not a single sacred point.
+Because the load generator now runs on a separate machine, this report is more trustworthy than the earlier single-host ceiling for end-to-end behavior on the current path. It is still not a pure server-only limit: the result still includes the current client host, the current network path, and wrk-side shaping.
 
 The formatted raw data is in [benchmark-report.json](benchmark-report.json).
 
@@ -28,164 +31,205 @@ The exact top stable cell in this run is:
 
 | scenario | io_threads | worker_threads | concurrency | client_processes | wrk_threads | mean_rps | p95_us | p99_us |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `http_get_static` | `6` | `12` | `80` | `2` | `1` | `178563.83` | `501.22` | `529.00` |
+| `http_get_static` | `24` | `96` | `412` | `4` | `2` | `44247.33` | `24942.84` | `35918.12` |
 
-For practical use, the more important result is the near-peak band. Stable cells within `1%` of the winner are:
+Strictly applying the old `1%` rule, the near-peak band contains only that single point. That is a useful result in itself: compared with the single-host report, the dual-host crest is much narrower and cleaner.
+
+For practical tuning, the more useful band in this run is the stable `3%` operating band:
 
 | pressure | mean_rps | p95_us | gap_to_top |
 | --- | --- | --- | --- |
-| `io6-worker12-conc80-proc2-wrk1` | `178563.83` | `501.22` | `0.00%` |
-| `io5-worker10-conc60-proc1-wrk2` | `178442.71` | `371.11` | `0.07%` |
-| `io5-worker10-conc108-proc2-wrk1` | `178264.67` | `670.03` | `0.17%` |
-| `io6-worker7-conc80-proc2-wrk1` | `178238.09` | `501.07` | `0.18%` |
-| `io5-worker10-conc90-proc2-wrk1` | `178219.00` | `559.78` | `0.19%` |
-| `io6-worker9-conc80-proc2-wrk1` | `177956.67` | `503.72` | `0.34%` |
-| `io5-worker10-conc104-proc2-wrk1` | `177785.67` | `645.81` | `0.44%` |
-| `io5-worker10-conc86-proc2-wrk1` | `177750.67` | `531.75` | `0.46%` |
-| `io5-worker15-conc80-proc2-wrk1` | `177712.83` | `494.17` | `0.48%` |
-| `io6-worker8-conc80-proc2-wrk1` | `177578.83` | `510.33` | `0.55%` |
-| `io5-worker9-conc80-proc2-wrk1` | `177561.13` | `492.39` | `0.56%` |
-| `io6-worker13-conc80-proc2-wrk1` | `177523.17` | `508.83` | `0.58%` |
-| `io5-worker14-conc80-proc2-wrk1` | `177452.09` | `494.23` | `0.62%` |
-| `io5-worker10-conc74-proc2-wrk1` | `177242.17` | `464.81` | `0.74%` |
-
-That band is much healthier than the earlier kernel-update outlier run and now matches the restored anchor checks: a broad plateau around `177k-178.5k`, centered mainly on `io=5-6`, with two dominant loadgen shapes.
+| `io24-worker96-conc412-proc4-wrk2` | `44247.33` | `24942.84` | `0.00%` |
+| `io24-worker96-conc384-proc3-wrk2` | `43687.01` | `20529.11` | `1.27%` |
+| `io25-worker97-conc384-proc4-wrk2` | `43250.83` | `22609.08` | `2.25%` |
+| `io24-worker98-conc384-proc4-wrk2` | `43236.09` | `24475.01` | `2.29%` |
+| `io25-worker93-conc384-proc4-wrk2` | `43226.04` | `22267.75` | `2.31%` |
+| `io24-worker96-conc416-proc4-wrk2` | `43210.63` | `26851.49` | `2.34%` |
+| `io24-worker96-conc408-proc4-wrk2` | `43170.03` | `24717.60` | `2.43%` |
+| `io24-worker96-conc400-proc4-wrk2` | `43038.60` | `27724.19` | `2.73%` |
+| `io24-worker96-conc384-proc1-wrk2` | `43012.03` | `19470.00` | `2.79%` |
+| `io24-worker96-conc384-proc4-wrk2` | `42959.60` | `22321.59` | `2.91%` |
 
 The most defensible recommendation from this run is:
 
-- server near-peak center: `io_threads=5-6`
-- useful worker band at that center: roughly `worker_threads=7-15`
-- client near-peak band on this host: mainly `concurrency=60-108`
-- best client shapes in that band: `proc=2,wrk=1` across a wide plateau, plus one especially strong alternate `proc=1,wrk=2` point at `conc=60`
-- if latency matters more than the last `0.1%-0.7%` of throughput, prefer the lower-latency alternate `proc=1,wrk=2` near `conc=60` instead of pushing `proc=2,wrk=1` into `90+`
+- server near-peak center: `io_threads=24-25`
+- worker is a secondary topology parameter on this `/ping` path; in the main sweep the broad safe neighborhood was roughly `worker_threads=93-99`
+- client near-peak band on this path: mainly `concurrency=384-416`
+- dominant loadgen family in the main sweep: `proc=4,wrk=2`
+- targeted extension on `2026-04-01`: `wrk>2` created a few near-ties, but none beat `io24, worker96, conc412, proc4, wrk2`
+- best lower-latency alternate near the crest: `proc=3,wrk=2` or `proc=1,wrk=2` at `conc=384`
 
 ## 3. Capacity Overview
 
-The first chart compares representative capacity curves. It is intentionally not "all cells at once". The purpose is to show the baseline, the winner family, a same-server comparison family, and a higher-thread comparison family on the same axes.
+The first chart compares the baseline against the high-throughput region and its nearby server-thread variants.
 
 ![Capacity Overview](./benchmark-report-capacity-overview.png)
 
 The main takeaways are:
 
-- The single-thread baseline tops out at `89770.48 rps` (`io1-worker1-conc8-proc4-wrk1`). The top cell is `98.91%` higher than that baseline, so the gain is real server scaling, not just wrk-side reshaping.
-- The dense winner-family reference `io5-worker10-proc2-wrk1` forms a broad high-throughput plateau from roughly `conc=56` through `108`, mostly in the `176k-178k` band.
-- The same-server alternate family `io5-worker10-proc1-wrk2` reaches `178442.71 rps` at `conc=60`, only `0.07%` below the exact winner, while keeping p95 much lower at `371.11 us`.
-- The chart's higher-thread comparison family `io10-worker20-proc4-wrk2` peaks at `167447.26 rps` (`conc=80`), which is `6.22%` below the top cell. By `conc=160`, its p95 has already stretched to `1087.50 us`.
-- The even heavier server pair `io10-worker40` recovers part of that gap but still tops out at only `169312.10 rps` (`conc=160, proc=4, wrk=2`), still `5.18%` below the winner and with `1056.62 us` p95.
+- The single-thread baseline tops out at `3228.00 rps` (`io1-worker1-conc8-proc4-wrk1`). The top cell is `13.71x` higher, so the gain is real server-side and path-side scaling, not a tiny benchmark artifact.
+- The useful crest now sits around `io=24-25`, `worker=96-98`, `conc=384-416`, with throughput in the `43k-44k` band.
+- Dropping to `io22-worker96-conc384-proc4-wrk2` still reaches `41349.50 rps`, but that is already `6.55%` below the winner.
+- Pushing up to `io26-worker96-conc384-proc4-wrk2` reaches only `40538.17 rps`, `8.39%` below the winner.
+- The server pair `io23-worker93-99` is a bad neighborhood on this path. Most points there are unstable and land only around `25k-35k`, with p95 already in the `32-46 ms` range.
 
-So the broad conclusion from this chart is now cleaner: the anomalous `140k` ceiling is gone, but simply stacking more server threads is still not the answer. On this host the useful crest lives in the `io=5-6` region, and over-threading still costs about five to six percent of throughput while burning much more latency budget.
+So the high-level conclusion from the first chart is clean: the dual-host run replaces the old same-host ambiguity with a narrower, more convincing crest centered on `io=24-25`. Moving below or above that center now costs a visible amount of throughput.
 
 ## 4. Peak Neighborhood
 
-The next chart zooms into the densest near-peak family. In this run the exact winner belongs to the adjacent `io6-worker12-proc2-wrk1` family, but the reference curve is still the richer `io5-worker10-proc2-wrk1` family because it has the cleanest dense neighborhood around the crest.
+The next chart zooms into the richest near-peak family, `io24-worker96-proc4-wrk2`.
 
 ![Peak Neighborhood](./benchmark-report-peak-neighborhood.png)
 
-This curve shows a real near-peak interval, not a single spike:
+This family is informative because it shows both the real crest and the amount of local irregularity still left in a short dual-host sweep:
 
-- `conc=56` reaches `176229.73 rps` at `352.89 us` p95
-- `conc=60` reaches `176688.50 rps` at `372.47 us` p95
-- `conc=74` reaches `177242.17 rps` at `464.81 us` p95
-- `conc=86` reaches `177750.67 rps` at `531.75 us` p95
-- `conc=90` reaches `178219.00 rps` at `559.78 us` p95
-- `conc=104` reaches `177785.67 rps` at `645.81 us` p95
-- `conc=108` reaches `178264.67 rps` at `670.03 us` p95
+- `conc=288` reaches `38363.55 rps` at `17074.94 us` p95
+- `conc=372` reaches `42319.99 rps` at `20450.16 us` p95
+- `conc=384` reaches `42959.60 rps` at `22321.59 us` p95
+- `conc=400` reaches `43038.60 rps` at `27724.19 us` p95
+- `conc=408` reaches `43170.03 rps` at `24717.60 us` p95
+- `conc=412` reaches `44247.33 rps` at `24942.84 us` p95
+- `conc=416` reaches `43210.63 rps` at `26851.49 us` p95
+- `conc=480` still reaches `42762.87 rps`, but p95 has stretched to `30211.20 us`
 
-Those points are all within `0.17%-0.74%` of the top cell. That is exactly the kind of spread that should be treated as one near-peak band under a single-host benchmark method.
+The curve is not perfectly monotonic. There are visible local dents around `conc=364-380`. The important point is that those dents do not move the center of gravity: the best stable concentration is still the `384-416` block, and the exact crest lands at `412`.
 
-Latency explains why this report should still describe a band, not a single number:
+That gives a practical operating split:
 
-- `conc≈56-60` keeps p95 in the `353-372 us` range
-- `conc≈74-90` stays near peak in throughput, but p95 rises into roughly `465-560 us`
-- `conc≈104-108` is still within `0.17%-0.44%` of the top, but p95 is already `646-670 us`
-
-So the practical crest is:
-
-- lower-latency high-throughput crest: `conc≈56-60`
-- balanced throughput crest: `conc≈74-90`
-- extreme single-host throughput crest: `conc≈104-108`
+- lower-latency high-throughput choice: stay near `conc=384` but use a better loadgen shape
+- maximum throughput choice: `conc=412`, `proc=4`, `wrk=2`
+- avoid pushing much beyond `416` unless you explicitly accept a larger p95 budget
 
 ## 5. Server Thread Sensitivity
 
-The next chart fixes the client shape at `conc=80, proc=2, wrk=1` and varies server thread counts. This is the cleanest way to see whether the winner is a one-off.
+The next chart fixes the client shape at `conc=384, proc=4, wrk=2` and varies server threads around the crest.
 
 ![Thread Sensitivity](./benchmark-report-thread-sensitivity.png)
 
-The answer is no. The winner is real, but the plateau around it is broad and non-monotonic:
+This chart shows a broad plateau, but only after the server enters the right IO region:
 
-- `io6-worker12-conc80-proc2-wrk1`: `178563.83 rps`, `501.22 us` p95
-- `io6-worker7-conc80-proc2-wrk1`: `178238.09 rps`, `501.07 us` p95, only `0.18%` lower
-- `io6-worker9-conc80-proc2-wrk1`: `177956.67 rps`, `503.72 us` p95, only `0.34%` lower
-- `io5-worker15-conc80-proc2-wrk1`: `177712.83 rps`, `494.17 us` p95, only `0.48%` lower
-- `io5-worker9-conc80-proc2-wrk1`: `177561.13 rps`, `492.39 us` p95, only `0.56%` lower
+- `io24-worker92-conc384-proc4-wrk2`: `41384.56 rps`, `23529.99 us` p95
+- `io24-worker96-conc384-proc4-wrk2`: `42959.60 rps`, `22321.59 us` p95
+- `io24-worker98-conc384-proc4-wrk2`: `43236.09 rps`, `24475.01 us` p95
+- `io25-worker93-conc384-proc4-wrk2`: `43226.04 rps`, `22267.75 us` p95
+- `io25-worker97-conc384-proc4-wrk2`: `43250.83 rps`, `22609.08 us` p95
+- `io26-worker96-conc384-proc4-wrk2`: `40538.17 rps`, `24536.30 us` p95
 
-There is also an important non-monotonic detail: inside the `io=5` family, `worker=5` starts very strong at `176444.67 rps`, `worker=7` dips to `171625.33 rps`, and then `worker=14-15` climbs back to `177452.09-177712.83 rps`. That is the signature of a same-host thread scheduling tradeoff, not a simple "more workers is better" slope.
+The practical reading here is deliberately conservative:
 
-That gives a robust server-side conclusion:
+- `io23` is mostly the wrong neighborhood. Even `worker=97` only reaches `35178.94 rps`, and the family is largely unstable.
+- Once the run enters `io24-25`, the worker plateau becomes broad. Many points in `worker=93-101` stay between roughly `42k` and `43.3k`.
+- There are still pathological pockets inside the same family, for example `io24-worker94-conc384-proc4-wrk2` at only `11260.10 rps`. That is another reason to recommend a band, not a single magical worker number.
 
-- `io=5-6` is the clear center in this run
-- the useful worker region at that center is broad, roughly `7-15`
-- moving `io` down to `4` costs a few percent and removes some headroom
-- moving `io` up to `10` still works, but costs about `6%-8%` of throughput and much more latency
+For this plain static GET path, `worker` should therefore be treated as a secondary runtime-topology knob rather than as evidence that the handler body is fundamentally worker-bound. The main tuning signal still comes from `io`, `concurrency`, and client shape.
 
-For example:
+So the robust server-side conclusion is:
 
-- `io4-worker11-conc80-proc2-wrk1`: `171270.67 rps`, `510.53 us` p95, `4.08%` below the winner
-- `io10-worker20-conc80-proc2-wrk1`: `164469.43 rps`, `606.26 us` p95, `7.89%` below the winner
+- `io=24-25` is the clear center in this run
+- worker does not need a magic exact value here; keeping it in the broad `93-99` neighborhood is good enough for this path
+- moving down to `io=22` costs around `6%-7%`
+- moving up to `io=26` costs around `8%`
 
 ## 6. Load Generator Sensitivity
 
-Because this is a single-host run, client-side shape matters. The next chart fixes the server at the richest comparable pair, `io=5, worker=10`, and compares several `proc/wrk` families across concurrency.
+Because this is now a dual-host run, the load generator still matters, but less chaotically than in the old same-host report. The chart below fixes the server at `io24-worker96` and compares client shapes.
 
 ![Load Generator Sensitivity](./benchmark-report-loadgen-sensitivity.png)
 
-This chart is the strongest evidence that the benchmark method itself materially changes the measured ceiling:
+At the same comparable server pair, the loadgen shape result is:
 
-- `proc=1,wrk=2` reaches `178442.71 rps` at `conc=60`, only `0.07%` below the top, with `371.11 us` p95
-- `proc=2,wrk=1` reaches `178264.67 rps` at `conc=108`, only `0.17%` below the top, but with much higher `670.03 us` p95
-- `proc=4,wrk=1` peaks at `175400.46 rps` at `conc=72`, already `1.77%` below the top
-- `proc=2,wrk=2` peaks at `175917.74 rps` at `conc=60`, `1.48%` below the top
-- the naive `proc=1,wrk=1` family never becomes competitive here; its best point is only `173270.25 rps` at `conc=88`, which is `2.96%` below the winner
+- exact top point: `proc=4,wrk=2` at `conc=412`, `44247.33 rps`, `24942.84 us` p95
+- best alternate: `proc=3,wrk=2` at `conc=384`, `43687.01 rps`, `20529.11 us` p95, only `1.27%` below the top
+- lower-latency alternate: `proc=1,wrk=2` at `conc=384`, `43012.03 rps`, `19470.00 us` p95, only `2.79%` below the top
+- `proc=2,wrk=1` at `conc=384` still does well at `41284.79 rps`, but it is `6.70%` below the winner
+- `proc=4,wrk=1` never becomes attractive here; even its best stable point at `conc=376` reaches only `41861.26 rps`, `5.39%` below the winner
 
-This is exactly what a same-host benchmark should look like:
+That is an important dual-host result:
 
-- server threads, client threads, and loopback sockets all compete on the same CPU pool
-- a different wrk fan-out still moves the apparent ceiling by several percent
-- small deltas inside the best families are useful for locating a band, but the ceiling is a property of the whole arrangement, not only the server
+- `wrk=2` is the dominant choice on this path
+- process fan-out matters less than it did on the single-host run
+- several `wrk=2` shapes cluster within `1.3%-2.9%` of the top, which means client-side CPU interference is lower and the server-side tuning signal is cleaner
 
-## 7. What This Means For Single-Host Benchmarking
+## 7. Targeted wrk And High-IO Extension
 
-This run is good enough to locate the near-peak region, and it cleanly replaces the earlier kernel-update outlier report. It should still not be used to overstate precision.
+A follow-up targeted extension was run on `2026-04-01` to answer two explicit coverage gaps from the main sweep:
+
+- `wrk_threads_per_process > 2`
+- explicit `io=48` and `io=96` probes
+
+That extension fixed the server-side anchor at `worker=96` and stored its raw artifacts in [../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.md](../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.md). The extension winner stayed with the existing main-shape baseline:
+
+- `io24-worker96-conc412-proc4-wrk2`: `44918.95 rps`, `24435.56 us` p95
+
+The `wrk>2` result is nuanced:
+
+- `io24-worker96-conc384-proc4-wrk3`: `44562.18 rps`, `23673.08 us` p95, only `0.79%` below the extension winner
+- `io24-worker96-conc412-proc4-wrk4`: `43949.01 rps`, `23974.73 us` p95, `2.16%` below the extension winner
+- `io24-worker96-conc384-proc1-wrk4`: `44029.02 rps`, `19770.00 us` p95, `1.98%` below the extension winner
+- `io24-worker96-conc384-proc1-wrk8`: `44081.94 rps`, `19969.44 us` p95, `1.86%` below the extension winner
+- `io24-worker96-conc412-proc4-wrk3`: `41903.94 rps`, already `6.71%` below
+- `io24-worker96-conc384-proc4-wrk4`: `40426.16 rps`, `10.00%` below
+
+So `wrk>2` is worth knowing about, but not worth promoting to the default recommendation:
+
+- more `wrk` can create new near-tie client shapes
+- no `wrk>2` shape beat the existing `proc=4,wrk=2@conc412` winner
+- aggressive extra per-process fan-out is still non-monotonic
+
+The high-io probe is cleaner:
+
+- `io48-worker96-conc412-proc4-wrk2`: `44488.80 rps`, `24382.06 us` p95, only `0.96%` below the extension winner
+- `io96-worker96-conc384-proc4-wrk2`: `43167.23 rps`, `23648.33 us` p95, `3.90%` below
+- `io96-worker96-conc412-proc4-wrk2`: `43113.32 rps`, `24770.39 us` p95, `4.02%` below
+- `io96-worker96-conc768-proc4-wrk2`: `38513.65 rps`, `65918.72 us` p95, `14.26%` below
+- `io48-worker96-conc768-proc4-wrk2` became unstable at `32184.78 rps`
+
+That targeted extension does not overturn the main report:
+
+- `io=24` remains the cleanest center
+- `io=48` is a legitimate near-tie probe if you want a higher-io alternate
+- `io=96` does not open a better crest on this path
+
+## 8. What This Means For Dual-Host Benchmarking
+
+This run is strong enough to replace the earlier same-host report as the main tuning reference for the current client/server path.
 
 The disciplined way to read it is:
 
-- The single-host benchmark is valid for relative tuning.
-  It clearly separates the baseline, the near-peak server thread region, and the over-threaded region.
-- The single-host benchmark is not a pure server ceiling.
-  The best points still depend strongly on the wrk process/thread layout, which means the measurement includes wrk-side CPU and loopback overhead.
-- The right output is a band, not a point.
-  On this run the credible near-peak band is centered on `io=5-6`, `worker=7-15`, mainly with `concurrency=60-108`, and shaped by two dominant loadgen families: `proc=2,wrk=1` and `proc=1,wrk=2`.
+- The dual-host benchmark is valid for relative tuning.
+  It cleanly separates the bad server-thread regions, the true crest around `io24-25`, and the over/under-threaded regions.
+- The strict `1%` band is narrow.
+  In this run it contains only the exact winner, so the crest should be treated as sharp rather than broad.
+- The practical operating band is wider than the strict `1%` rule.
+  Stable cells within `3%` of the top still form a useful operating plateau around `43k`.
+- The result is end-to-end for the current path, not a pure server-only ceiling.
+  It still includes the current client host and the current network path to `10.68.170.210`.
 
-If the next step is to estimate server-only headroom, the correct follow-up is still a dual-host run with the server fixed near this band and only the client side swept from a second machine.
+If the next step is to estimate pure server-side headroom, the right follow-up is a cleaner remote load path with the server fixed near `io24-25, worker96-98`, then a narrower client sweep from the second machine.
 
-## 8. Recommended Configurations
+## 9. Recommended Configurations
 
-For this machine and this benchmark path:
+For this server and this benchmark path:
 
-- Best single-host point from this run:
-  `io=6, worker=12, conc=80, proc=2, wrk=1`
+- Best exact point from this run:
+  `io=24, worker=96, conc=412, proc=4, wrk=2`
 - Best balanced near-peak point:
-  `io=5, worker=10, conc=60, proc=1, wrk=2`
-  It is only `0.07%` below the top, but p95 drops from `501.22 us` to `371.11 us`.
-- Best lower-latency high-throughput point:
-  `io=5, worker=10, conc=20, proc=1, wrk=2`
-  It reaches `175478.23 rps` with only `127.50 us` p95, while staying just `1.73%` below the exact top.
-- Best simpler high-throughput point if you want to keep the same `proc=2,wrk=1` client shape as the winner family:
-  `io=5, worker=10, conc=74, proc=2, wrk=1`
-  It reaches `177242.17 rps`, only `0.74%` below the top, with materially lower p95 than the most aggressive `90-108` points.
+  `io=24, worker=96, conc=384, proc=3, wrk=2`
+  It is only `1.27%` below the top, but p95 drops from `24942.84 us` to `20529.11 us`.
+- Best lower-latency near-peak point:
+  `io=24, worker=96, conc=384, proc=1, wrk=2`
+  It is `2.79%` below the top, but p95 drops further to `19470.00 us`.
+- Best robust server-side alternate if you want to stay in the same thread neighborhood but avoid the exact winner point:
+  `io=25, worker=97, conc=384, proc=4, wrk=2`
+  It is `2.25%` below the top, with slightly lower p95 at `22609.08 us`.
+- Best higher-io alternate from the targeted extension:
+  `io=48, worker=96, conc=412, proc=4, wrk=2`
+  It stayed within `0.96%` of the extension winner, but still did not beat the `io=24` center.
 
-## 9. Artifacts
+## 10. Artifacts
 
 - Report: [benchmark-report.md](benchmark-report.md)
 - Data: [benchmark-report.json](benchmark-report.json)
-- Concise package: [package/summary.md](./package/summary.md)
+- Summary: [package/summary.md](./package/summary.md)
+- Extension Report: [../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.md](../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.md)
+- Extension Data: [../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.json](../../.artifacts/benchmark-results/20260401-dual-host-extended-wrk-io/extended-report.json)
