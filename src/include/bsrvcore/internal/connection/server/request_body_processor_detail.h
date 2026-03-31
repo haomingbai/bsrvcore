@@ -60,7 +60,8 @@ inline std::string Unquote(std::string_view sv) {
   return std::string(sv);
 }
 
-inline std::optional<std::string> ExtractBoundary(std::string_view content_type) {
+inline std::optional<std::string> ExtractBoundary(
+    std::string_view content_type) {
   const auto semi = content_type.find(';');
   const auto mime = ToLowerAscii(TrimAscii(content_type.substr(0, semi)));
   if (mime != "multipart/form-data" || semi == std::string_view::npos) {
@@ -176,10 +177,9 @@ inline void DispatchDumpCallback(boost::asio::any_io_executor executor,
   }
 
   if (executor) {
-    boost::asio::post(executor,
-                      [callback = std::move(callback), ok]() mutable {
-                        callback(ok);
-                      });
+    boost::asio::post(executor, [callback = std::move(callback), ok]() mutable {
+      callback(ok);
+    });
     return;
   }
 

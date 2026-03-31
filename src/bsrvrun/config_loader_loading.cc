@@ -8,14 +8,13 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "config_loader.h"
+#include <yaml-cpp/yaml.h>
 
 #include <filesystem>
 #include <stdexcept>
 #include <string>
 
-#include <yaml-cpp/yaml.h>
-
+#include "config_loader.h"
 #include "config_loader_detail.h"
 
 namespace bsrvcore::runtime {
@@ -55,8 +54,7 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
   // Top-level loading only coordinates the individual parsers. Keeping the
   // assembly step small makes it easier to verify what defaults come from each
   // section and where validation errors originate.
-  const auto server =
-      config_loader_detail::ParseServerSection(root["server"]);
+  const auto server = config_loader_detail::ParseServerSection(root["server"]);
 
   ServerConfig config{
       .thread_count = server.thread_count,

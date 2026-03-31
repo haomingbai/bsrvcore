@@ -8,8 +8,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/connection/server/http_server_task.h"
-
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
@@ -23,6 +21,7 @@
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/internal/connection/server/http_server_task_detail.h"
 #include "bsrvcore/session/context.h"
@@ -50,10 +49,10 @@ inline bool CanRunTaskCallback(
 inline void PostTaskTimerCallback(
     const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
     std::function<void()> fn) {
-  boost::asio::post(state->srv->GetExecutor(),
-                    boost::asio::bind_allocator(
-                        state->handler_alloc,
-                        [fn = std::move(fn)]() mutable { fn(); }));
+  boost::asio::post(
+      state->srv->GetExecutor(),
+      boost::asio::bind_allocator(state->handler_alloc,
+                                  [fn = std::move(fn)]() mutable { fn(); }));
 }
 
 /**
@@ -66,8 +65,8 @@ inline void PostTaskTimerCallback(
  */
 inline void OnTaskTimerExpired(
     std::shared_ptr<task_internal::HttpTaskSharedState> state,
-    std::shared_ptr<boost::asio::steady_timer> timer,
-    std::function<void()> fn, boost::system::error_code ec) {
+    std::shared_ptr<boost::asio::steady_timer> timer, std::function<void()> fn,
+    boost::system::error_code ec) {
   (void)timer;
   if (ec || !CanRunTaskCallback(state)) {
     return;
@@ -266,20 +265,19 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer = AllocateShared<boost::asio::steady_timer>(state_->srv->GetIoContext());
+  auto timer =
+      AllocateShared<boost::asio::steady_timer>(state_->srv->GetIoContext());
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
   timer->async_wait(boost::asio::bind_allocator(
       state_->handler_alloc,
-      [state = state_, timer = std::move(timer), fn = std::move(fn)](
-          boost::system::error_code ec) mutable {
+      [state = state_, timer = std::move(timer),
+       fn = std::move(fn)](boost::system::error_code ec) mutable {
         OnTaskTimerExpired(std::move(state), std::move(timer), std::move(fn),
                            ec);
       }));
 }
 
-bool HttpTaskBase::IsAvailable() noexcept {
-  return CanRunTaskCallback(state_);
-}
+bool HttpTaskBase::IsAvailable() noexcept { return CanRunTaskCallback(state_); }
 
 const std::string& HttpTaskBase::GetCurrentLocation() {
   return state_->route_result.current_location;

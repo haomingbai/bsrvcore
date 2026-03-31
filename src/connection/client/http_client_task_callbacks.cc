@@ -12,7 +12,8 @@
 
 namespace bsrvcore {
 
-void HttpClientTask::Impl::SetSession(std::weak_ptr<HttpClientSession> session) {
+void HttpClientTask::Impl::SetSession(
+    std::weak_ptr<HttpClientSession> session) {
   std::lock_guard<std::mutex> lock(callback_mutex_);
   session_ = std::move(session);
 }

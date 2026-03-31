@@ -48,8 +48,9 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateTask(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
-    boost::asio::any_io_executor executor, std::string host, std::string port,
-    std::string target, http::verb method, HttpClientOptions options) {
+    boost::asio::io_context::executor_type executor, std::string host,
+    std::string port, std::string target, http::verb method,
+    HttpClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                    std::move(port), std::move(target), method,
                                    std::move(options), false, nullptr);
@@ -57,9 +58,9 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target, http::verb method,
-    HttpClientOptions options) {
+    boost::asio::io_context::executor_type executor,
+    boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
+    std::string target, http::verb method, HttpClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                    std::move(port), std::move(target), method,
                                    std::move(options), true, &ssl_ctx);
@@ -67,8 +68,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
-    boost::asio::any_io_executor executor, std::string url, http::verb method,
-    HttpClientOptions options) {
+    boost::asio::io_context::executor_type executor, std::string url,
+    http::verb method, HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,
@@ -90,8 +91,9 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string url, http::verb method, HttpClientOptions options) {
+    boost::asio::io_context::executor_type executor,
+    boost::asio::ssl::context& ssl_ctx, std::string url, http::verb method,
+    HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,

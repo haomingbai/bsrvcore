@@ -14,7 +14,7 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_H_
 #define BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_SESSION_H_
 
-#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cstddef>
@@ -51,26 +51,27 @@ class HttpClientSession
 
   /** @brief Create plain HTTP task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttp(
-      boost::asio::any_io_executor executor, std::string host, std::string port,
-      std::string target, boost::beast::http::verb method,
+      boost::asio::io_context::executor_type executor, std::string host,
+      std::string port, std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
   /** @brief Create HTTPS task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttps(
-      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string host, std::string port, std::string target,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      boost::asio::io_context::executor_type executor,
+      boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
+      HttpClientOptions options = {});
 
   /** @brief Create task from URL without SSL context. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::any_io_executor executor, std::string url,
+      boost::asio::io_context::executor_type executor, std::string url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /** @brief Create task from URL with SSL context. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string url, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      boost::asio::io_context::executor_type executor,
+      boost::asio::ssl::context& ssl_ctx, std::string url,
+      boost::beast::http::verb method, HttpClientOptions options = {});
 
   /** @brief Remove all stored cookies. */
   void ClearCookies();

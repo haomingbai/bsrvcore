@@ -49,9 +49,8 @@ inline bool PrepareMultipartBody(std::string_view body,
 inline bool ParseMultipartPart(std::string_view body,
                                const std::string& delimiter,
                                const std::string& boundary_marker,
-                               std::size_t* cursor,
-                               std::string* content_type, std::string* payload,
-                               bool* is_file) {
+                               std::size_t* cursor, std::string* content_type,
+                               std::string* payload, bool* is_file) {
   if (!cursor || !content_type || !payload || !is_file ||
       body.compare(*cursor, delimiter.size(), delimiter) != 0) {
     return false;
@@ -81,7 +80,8 @@ inline bool ParseMultipartPart(std::string_view body,
     return false;
   }
 
-  *payload = std::string(body.substr(payload_start, next_boundary - payload_start));
+  *payload =
+      std::string(body.substr(payload_start, next_boundary - payload_start));
   *cursor = next_boundary + 2;
   return true;
 }
@@ -162,8 +162,7 @@ void MultipartParser::Parse(const HttpRequest& request) {
 
     PartData part;
     if (!ParseMultipartPart(body, delimiter, boundary_marker, &cursor,
-                            &part.content_type, &part.payload,
-                            &part.is_file)) {
+                            &part.content_type, &part.payload, &part.is_file)) {
       parts_.clear();
       return;
     }

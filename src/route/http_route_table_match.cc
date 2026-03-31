@@ -8,8 +8,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/internal/route/http_route_table.h"
-
 #include <algorithm>
 #include <boost/url/parse.hpp>
 #include <cstddef>
@@ -20,6 +18,7 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/route/http_route_table_detail.h"
 
 using bsrvcore::HttpRequestAspectHandler;
@@ -47,7 +46,8 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
   std::string current_location;
   std::vector<std::string> parameter_values;
-  if (!MatchSegments(*parsed, route_layer, current_location, parameter_values)) {
+  if (!MatchSegments(*parsed, route_layer, current_location,
+                     parameter_values)) {
     return BuildDefaultRouteResult(method);
   }
 
@@ -60,16 +60,16 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
   auto max_body_size = route_layer->GetMaxBodySize()
                            ? route_layer->GetMaxBodySize()
                            : default_max_body_size_;
-  auto read_expiry =
-      route_layer->GetReadExpiry() ? route_layer->GetReadExpiry()
-                                   : default_read_expiry_;
-  auto write_expiry =
-      route_layer->GetWriteExpiry() ? route_layer->GetWriteExpiry()
-                                    : default_write_expiry_;
+  auto read_expiry = route_layer->GetReadExpiry() ? route_layer->GetReadExpiry()
+                                                  : default_read_expiry_;
+  auto write_expiry = route_layer->GetWriteExpiry()
+                          ? route_layer->GetWriteExpiry()
+                          : default_write_expiry_;
 
   return {.current_location = std::move(current_location),
           .route_template = route_layer->GetRouteTemplate(),
-          .parameters = BuildParameterMap(*route_layer, std::move(parameter_values)),
+          .parameters =
+              BuildParameterMap(*route_layer, std::move(parameter_values)),
           .aspects = std::move(aspects),
           .handler = handler,
           .max_body_size = max_body_size,

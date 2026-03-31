@@ -8,8 +8,6 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "impl/http_sse_client_task_impl.h"
-
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
@@ -21,6 +19,8 @@
 #include <cctype>
 #include <utility>
 
+#include "impl/http_sse_client_task_impl.h"
+
 namespace bsrvcore {
 
 namespace http = http_sse_detail::http;
@@ -28,10 +28,9 @@ namespace http = http_sse_detail::http;
 namespace {
 
 std::string ToLower(std::string value) {
-  std::transform(value.begin(), value.end(), value.begin(),
-                 [](unsigned char c) {
-                   return static_cast<char>(std::tolower(c));
-                 });
+  std::transform(
+      value.begin(), value.end(), value.begin(),
+      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
   return value;
 }
 
@@ -40,8 +39,7 @@ std::string ToLower(std::string value) {
 HttpSseClientTask::Impl::Impl(boost::asio::any_io_executor executor,
                               std::string host, std::string port,
                               std::string target, HttpSseClientOptions options,
-                              bool use_ssl,
-                              boost::asio::ssl::context* ssl_ctx)
+                              bool use_ssl, boost::asio::ssl::context* ssl_ctx)
     : executor_(std::move(executor)),
       strand_(executor_),
       resolver_(executor_),
@@ -67,10 +65,10 @@ HttpRequest& HttpSseClientTask::Impl::Request() noexcept { return request_; }
 
 void HttpSseClientTask::Impl::Start(Callback cb) {
   auto self = shared_from_this();
-  boost::asio::post(
-      strand_, [self = std::move(self), cb = std::move(cb)]() mutable {
-        RunPostedStart(std::move(self), std::move(cb));
-      });
+  boost::asio::post(strand_,
+                    [self = std::move(self), cb = std::move(cb)]() mutable {
+                      RunPostedStart(std::move(self), std::move(cb));
+                    });
 }
 
 void HttpSseClientTask::Impl::Cancel() {
@@ -89,8 +87,8 @@ HttpSseClientErrorStage HttpSseClientTask::Impl::ErrorStage() const noexcept {
   return error_stage_;
 }
 
-void HttpSseClientTask::Impl::SetCreateError(boost::system::error_code ec,
-                                             HttpSseClientErrorStage error_stage) {
+void HttpSseClientTask::Impl::SetCreateError(
+    boost::system::error_code ec, HttpSseClientErrorStage error_stage) {
   create_error_ = ec;
   create_error_stage_ = error_stage;
 }
@@ -154,10 +152,9 @@ void HttpSseClientTask::Impl::OnResolve(boost::system::error_code ec,
     boost::beast::get_lowest_layer(*ssl_stream_)
         .async_connect(results,
                        boost::asio::bind_executor(
-                           strand_,
-                           [self = shared_from_this()](
-                               boost::system::error_code conn_ec,
-                               const tcp::endpoint&) {
+                           strand_, [self = shared_from_this()](
+                                        boost::system::error_code conn_ec,
+                                        const tcp::endpoint&) {
                              self->OnConnect(conn_ec);
                            }));
     return;
@@ -168,11 +165,9 @@ void HttpSseClientTask::Impl::OnResolve(boost::system::error_code ec,
   tcp_stream_->async_connect(
       results,
       boost::asio::bind_executor(
-          strand_,
-          [self = shared_from_this()](boost::system::error_code conn_ec,
-                                      const tcp::endpoint&) {
-            self->OnConnect(conn_ec);
-          }));
+          strand_, [self = shared_from_this()](
+                       boost::system::error_code conn_ec,
+                       const tcp::endpoint&) { self->OnConnect(conn_ec); }));
 }
 
 void HttpSseClientTask::Impl::OnConnect(boost::system::error_code ec) {
@@ -182,11 +177,10 @@ void HttpSseClientTask::Impl::OnConnect(boost::system::error_code ec) {
   }
 
   if (use_ssl_) {
-    if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(),
-                                 host_.c_str()) != 1) {
-      boost::system::error_code sni_ec{
-          static_cast<int>(::ERR_get_error()),
-          boost::asio::error::get_ssl_category()};
+    if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
+        1) {
+      boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
+                                       boost::asio::error::get_ssl_category()};
       FailStart(HttpSseClientErrorStage::kTlsHandshake, sni_ec);
       return;
     }

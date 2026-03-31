@@ -34,7 +34,8 @@ inline std::string_view ExtractParamName(std::string_view segment) noexcept {
   return segment.substr(1, segment.size() - 2);
 }
 
-inline std::vector<std::string_view> SplitTargetSegments(std::string_view target) {
+inline std::vector<std::string_view> SplitTargetSegments(
+    std::string_view target) {
   std::vector<std::string_view> segments;
   std::string_view url = StripQuery(target);
 

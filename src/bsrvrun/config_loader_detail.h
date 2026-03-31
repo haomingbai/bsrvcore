@@ -13,11 +13,11 @@
 #ifndef BSRVCORE_BSRVRUN_CONFIG_LOADER_DETAIL_H_
 #define BSRVCORE_BSRVRUN_CONFIG_LOADER_DETAIL_H_
 
+#include <yaml-cpp/yaml.h>
+
 #include <cstddef>
 #include <string>
 #include <vector>
-
-#include <yaml-cpp/yaml.h>
 
 #include "config_types.h"
 

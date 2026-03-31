@@ -135,8 +135,7 @@ HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
 }
 
 HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
-                                       std::string_view url,
-                                       std::size_t size) {
+                                       std::string_view url, std::size_t size) {
   std::shared_lock<std::shared_mutex> lock(mtx_);
   if (is_running_) {
     return this;

@@ -170,8 +170,8 @@ inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
                   if (it == it_end) {
                     return {};
                   }
-                  const auto len = static_cast<std::size_t>(
-                      ranges::distance(it, it_end));
+                  const auto len =
+                      static_cast<std::size_t>(ranges::distance(it, it_end));
                   return TrimView(std::string_view{it, len});
                 });
 

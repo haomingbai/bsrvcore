@@ -8,12 +8,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "config_loader_detail.h"
-
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+
+#include "config_loader_detail.h"
 
 namespace bsrvcore::runtime::config_loader_detail {
 

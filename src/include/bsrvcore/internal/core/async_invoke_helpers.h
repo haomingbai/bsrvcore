@@ -24,8 +24,7 @@ namespace bsrvcore::internal::async_invoke {
 
 template <typename Fn, typename... Args>
 std::function<void()> BindVoid(Fn&& fn, Args&&... args) {
-  auto bound =
-      std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
+  auto bound = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
   return [bound = std::move(bound)]() mutable { bound(); };
 }
 
@@ -34,8 +33,7 @@ auto StartWithFuture(Starter&& starter, Fn&& fn, Args&&... args)
     -> std::future<std::invoke_result_t<Fn, Args...>> {
   using RT = std::invoke_result_t<Fn, Args...>;
 
-  auto bound =
-      std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
+  auto bound = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
   auto task = AllocateShared<std::packaged_task<RT()>>(std::move(bound));
   auto future = task->get_future();
 

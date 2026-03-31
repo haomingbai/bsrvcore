@@ -114,8 +114,7 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
                                  boost::asio::ip::tcp::socket skt) {
         const auto should_reject_socket = [&]() {
           return kHasMaxConnection_ &&
-                 available_connection_num_.load(std::memory_order_relaxed) <=
-                     0;
+                 available_connection_num_.load(std::memory_order_relaxed) <= 0;
         };
 
         const auto start_ssl_connection = [&](boost::beast::tcp_stream stream) {
@@ -124,11 +123,11 @@ void HttpServer::DoAccept(boost::asio::ip::tcp::acceptor& acc) {
           auto ssl_exec = ssl_stream.get_executor();
           connection_internal::HttpServerConnectionImpl<
               boost::beast::ssl_stream<boost::beast::tcp_stream>>::
-              Create(std::move(ssl_stream),
-                     boost::asio::strand<boost::asio::any_io_executor>(
-                         ssl_exec),
-                     this, header_read_expiry_, keep_alive_timeout_,
-                     kHasMaxConnection_, &available_connection_num_)
+              Create(
+                  std::move(ssl_stream),
+                  boost::asio::strand<boost::asio::any_io_executor>(ssl_exec),
+                  this, header_read_expiry_, keep_alive_timeout_,
+                  kHasMaxConnection_, &available_connection_num_)
                   ->Run();
         };
 

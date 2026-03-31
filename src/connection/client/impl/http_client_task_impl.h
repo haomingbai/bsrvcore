@@ -42,9 +42,9 @@ class HttpClientTask::Impl
   using tcp = boost::asio::ip::tcp;
 
   Impl(boost::asio::any_io_executor executor, std::string host,
-       std::string port, std::string target, http_client_detail::http::verb method,
-       HttpClientOptions options, bool use_ssl,
-       boost::asio::ssl::context* ssl_ctx);
+       std::string port, std::string target,
+       http_client_detail::http::verb method, HttpClientOptions options,
+       bool use_ssl, boost::asio::ssl::context* ssl_ctx);
 
   HttpClientRequest& Request() noexcept;
   void SetSession(std::weak_ptr<HttpClientSession> session);

@@ -8,11 +8,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "impl/http_sse_client_task_impl.h"
-
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/post.hpp>
 #include <utility>
+
+#include "impl/http_sse_client_task_impl.h"
 
 namespace bsrvcore {
 
@@ -20,10 +20,10 @@ namespace http = http_sse_detail::http;
 
 void HttpSseClientTask::Impl::Next(Callback cb) {
   auto self = shared_from_this();
-  boost::asio::post(
-      strand_, [self = std::move(self), cb = std::move(cb)]() mutable {
-        RunPostedNext(std::move(self), std::move(cb));
-      });
+  boost::asio::post(strand_,
+                    [self = std::move(self), cb = std::move(cb)]() mutable {
+                      RunPostedNext(std::move(self), std::move(cb));
+                    });
 }
 
 void HttpSseClientTask::Impl::RunPostedNext(std::shared_ptr<Impl> self,
@@ -32,8 +32,7 @@ void HttpSseClientTask::Impl::RunPostedNext(std::shared_ptr<Impl> self,
     HttpSseClientResult result;
     result.stage = HttpSseClientStage::kNext;
     result.error_stage = HttpSseClientErrorStage::kReadBody;
-    result.ec =
-        make_error_code(boost::system::errc::operation_not_permitted);
+    result.ec = make_error_code(boost::system::errc::operation_not_permitted);
     cb(result);
     return;
   }

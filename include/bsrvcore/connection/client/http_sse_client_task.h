@@ -13,7 +13,7 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_SSE_CLIENT_TASK_H_
 #define BSRVCORE_CONNECTION_CLIENT_HTTP_SSE_CLIENT_TASK_H_
 
-#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
@@ -112,14 +112,14 @@ class HttpSseClientTask
 
   /** @brief Create plain HTTP SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttp(
-      boost::asio::any_io_executor executor, std::string host, std::string port,
-      std::string target, HttpSseClientOptions options = {});
+      boost::asio::io_context::executor_type executor, std::string host,
+      std::string port, std::string target, HttpSseClientOptions options = {});
 
   /** @brief Create HTTPS SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
-      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string host, std::string port, std::string target,
-      HttpSseClientOptions options = {});
+      boost::asio::io_context::executor_type executor,
+      boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
+      std::string target, HttpSseClientOptions options = {});
 
   /**
    * @brief Create SSE task from URL without SSL context.
@@ -128,13 +128,14 @@ class HttpSseClientTask
    * `invalid_argument` and error stage `kCreate`.
    */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      boost::asio::any_io_executor executor, std::string url,
+      boost::asio::io_context::executor_type executor, std::string url,
       HttpSseClientOptions options = {});
 
   /** @brief Create SSE task from URL with SSL context. */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string url, HttpSseClientOptions options = {});
+      boost::asio::io_context::executor_type executor,
+      boost::asio::ssl::context& ssl_ctx, std::string url,
+      HttpSseClientOptions options = {});
 
   /** @brief Access mutable request before Start(). */
   HttpRequest& Request() noexcept;

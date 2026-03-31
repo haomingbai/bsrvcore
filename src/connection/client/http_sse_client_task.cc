@@ -45,8 +45,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateTask(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
-    boost::asio::any_io_executor executor, std::string host, std::string port,
-    std::string target, HttpSseClientOptions options) {
+    boost::asio::io_context::executor_type executor, std::string host,
+    std::string port, std::string target, HttpSseClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                    std::move(port), std::move(target),
                                    std::move(options), false, nullptr);
@@ -54,9 +54,9 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target,
-    HttpSseClientOptions options) {
+    boost::asio::io_context::executor_type executor,
+    boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
+    std::string target, HttpSseClientOptions options) {
   auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
                                    std::move(port), std::move(target),
                                    std::move(options), true, &ssl_ctx);
@@ -64,7 +64,7 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
-    boost::asio::any_io_executor executor, std::string url,
+    boost::asio::io_context::executor_type executor, std::string url,
     HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
@@ -87,8 +87,9 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
-    boost::asio::any_io_executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string url, HttpSseClientOptions options) {
+    boost::asio::io_context::executor_type executor,
+    boost::asio::ssl::context& ssl_ctx, std::string url,
+    HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/",
