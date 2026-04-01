@@ -84,20 +84,22 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
       result.cancelled = true;
       result.ec = ec;
       next_pending_ = false;
-      if (next_callback_) {
-        next_callback_(result);
-      }
       done_ = true;
+      Callback callback = std::move(next_callback_);
+      if (callback) {
+        callback(result);
+      }
       return;
     }
 
     if (ec == http::error::end_of_stream || ec == boost::asio::error::eof) {
       result.eof = true;
       next_pending_ = false;
-      if (next_callback_) {
-        next_callback_(result);
-      }
       done_ = true;
+      Callback callback = std::move(next_callback_);
+      if (callback) {
+        callback(result);
+      }
       return;
     }
 
@@ -107,10 +109,11 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
     result.error_stage = error_stage_;
     result.ec = ec;
     next_pending_ = false;
-    if (next_callback_) {
-      next_callback_(result);
-    }
     done_ = true;
+    Callback callback = std::move(next_callback_);
+    if (callback) {
+      callback(result);
+    }
     return;
   }
 
@@ -126,8 +129,9 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
   }
 
   next_pending_ = false;
-  if (next_callback_) {
-    next_callback_(result);
+  Callback callback = std::move(next_callback_);
+  if (callback) {
+    callback(result);
   }
 }
 

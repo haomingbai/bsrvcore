@@ -13,7 +13,7 @@ It also provides client-side helper tasks:
 
 - C++23 compiler
 - CMake 3.25+
-- Boost: `system`, `url`, `asio`, `beast`
+- Boost: `headers`, `system`, `url`, `json`, `program_options`
 - OpenSSL (for HTTPS)
 
 ## Build

@@ -298,8 +298,9 @@ void HttpSseClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   result.stage = HttpSseClientStage::kStart;
   result.error_stage = HttpSseClientErrorStage::kNone;
   result.header = msg.base();
-  if (start_callback_) {
-    start_callback_(result);
+  Callback callback = std::move(start_callback_);
+  if (callback) {
+    callback(result);
   }
 }
 
@@ -320,10 +321,12 @@ void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
   result.cancelled =
       cancelled_ || (ec == boost::asio::error::operation_aborted);
 
-  if (start_callback_) {
-    start_callback_(result);
-  }
   done_ = true;
+
+  Callback callback = std::move(start_callback_);
+  if (callback) {
+    callback(result);
+  }
 }
 
 void HttpSseClientTask::Impl::DoCancel() {

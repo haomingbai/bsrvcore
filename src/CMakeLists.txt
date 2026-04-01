@@ -84,6 +84,7 @@ add_subdirectory(session)
 add_subdirectory(connection)
 add_subdirectory(core)
 add_subdirectory(bsrvrun)
+add_subdirectory(oai)
 
 # List source files explicitly for better incremental builds
 set(BSRVCORE_SOURCES
@@ -93,6 +94,7 @@ set(BSRVCORE_SOURCES
   ${CONNECTION_SOURCES}
   ${CORE_SOURCES}
   ${BSRVRUN_COMMON_SOURCES}
+  ${OAI_SOURCES}
 )
 
 # Create library (static or shared follows BUILD_SHARED_LIBS)
@@ -112,6 +114,7 @@ target_link_libraries(bsrvcore
     PRIVATE
         Boost::system
         Boost::url
+    Boost::json
     PUBLIC
         Boost::headers
         OpenSSL::SSL
@@ -194,7 +197,7 @@ endif()
 # pkg-config must expose TLS libraries publicly because consumer translation
 # units can directly instantiate boost::asio::ssl::context from public headers.
 set(BSRVCORE_PC_PUBLIC_LIBS "-lssl -lcrypto")
-set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url")
+set(BSRVCORE_PC_PRIVATE_LIBS "-lboost_system -lboost_url -lboost_json")
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/bsrvcore.pc.in
                ${CMAKE_CURRENT_BINARY_DIR}/bsrvcore.pc @ONLY)

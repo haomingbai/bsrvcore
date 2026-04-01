@@ -24,7 +24,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Require Boost headers for the public API, plus linkable components used
 # internally and by the bsrvrun CLI.
-find_package(Boost 1.75 COMPONENTS headers system url program_options CONFIG REQUIRED)
+find_package(Boost 1.75 COMPONENTS headers system url program_options json CONFIG REQUIRED)
 
 # OpenSSL is part of the public developer-facing dependency surface because
 # installed headers expose boost::asio::ssl::context in public APIs.
@@ -163,11 +163,11 @@ set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
 # - Linking against bsrvcore also needs Boost.System and Boost.URL dev files.
 if(BUILD_SHARED_LIBS)
   set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
-    "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
+    "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION}), libboost-dev, libboost-system-dev, libboost-url-dev, libboost-json-dev, libssl-dev"
   )
 else()
   set(CPACK_DEBIAN_DEVEL_PACKAGE_DEPENDS
-    "libboost-dev, libboost-system-dev, libboost-url-dev, libssl-dev"
+    "libboost-dev, libboost-system-dev, libboost-url-dev, libboost-json-dev, libssl-dev"
   )
 endif()
 

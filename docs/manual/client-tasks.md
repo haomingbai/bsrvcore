@@ -88,9 +88,11 @@ auto task = bsrvcore::HttpSseClientTask::CreateFromUrl(
   ioc.get_executor(),
   "http://127.0.0.1:8080/events");
 
-auto pull_next = std::make_shared<std::function<void()>>();
-*pull_next = [task, &parser, pull_next]() {
-  task->Next([&parser, pull_next](const bsrvcore::HttpSseClientResult& r) {
+// Keep the pull-loop callback alive while ioc.run() is active.
+// Avoid capturing a shared_ptr to the callback itself (that creates a cycle).
+std::function<void()> pull_next;
+pull_next = [task, &parser, &pull_next]() {
+  task->Next([&parser, &pull_next](const bsrvcore::HttpSseClientResult& r) {
     if (r.ec || r.cancelled || r.eof) {
       return;
     }
@@ -99,18 +101,23 @@ auto pull_next = std::make_shared<std::function<void()>>();
       // ev.event / ev.data / ev.id / ev.retry_ms
     }
 
-    (*pull_next)();
+    pull_next();
   });
 };
 
-task->Start([pull_next](const bsrvcore::HttpSseClientResult& r) {
+task->Start([&pull_next](const bsrvcore::HttpSseClientResult& r) {
   if (!r.ec && !r.cancelled) {
-    (*pull_next)();
+    pull_next();
   }
 });
 
 ioc.run();
 ```
+
+## Higher-level client: OAI completion
+
+If you want a chat-completions facade on top of `HttpClientTask` / `HttpSseClientTask`,
+see: [OAI completion (chat)](oai-completion.md).
 
 ## Cancellation
 

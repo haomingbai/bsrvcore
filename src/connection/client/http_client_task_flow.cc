@@ -301,7 +301,7 @@ void HttpClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   header.version(msg.version());
   header.result(msg.result());
   for (const auto& f : msg.base()) {
-    header.set(f.name(), f.value());
+    header.set(f.name_string(), f.value());
   }
 
   EmitHeader(header, boost::system::error_code{});
