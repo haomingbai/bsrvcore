@@ -243,8 +243,13 @@ void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
     return;
   }
 
+  auto conn = GetConnection(state_);
+  if (!conn) {
+    return;
+  }
+
   boost::asio::post(
-      state_->srv->GetIoContext(),
+      conn->GetIoExecutor(),
       boost::asio::bind_allocator(state_->handler_alloc,
                                   [fn = std::move(fn)]() mutable { fn(); }));
 }
@@ -254,8 +259,13 @@ void HttpTaskBase::DispatchToIoContext(std::function<void()> fn) {
     return;
   }
 
+  auto conn = GetConnection(state_);
+  if (!conn) {
+    return;
+  }
+
   boost::asio::dispatch(
-      state_->srv->GetIoContext(),
+      conn->GetIoExecutor(),
       boost::asio::bind_allocator(state_->handler_alloc,
                                   [fn = std::move(fn)]() mutable { fn(); }));
 }
@@ -265,8 +275,12 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer =
-      AllocateShared<boost::asio::steady_timer>(state_->srv->GetIoContext());
+  auto conn = GetConnection(state_);
+  if (!conn) {
+    return;
+  }
+
+  auto timer = AllocateShared<boost::asio::steady_timer>(conn->GetIoExecutor());
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
   timer->async_wait(boost::asio::bind_allocator(
       state_->handler_alloc,
@@ -324,8 +338,13 @@ void HttpTaskBase::DoCycle() {
   state_->conn.store(nullptr);
 }
 
-boost::asio::io_context& HttpTaskBase::GetIoContext() noexcept {
-  return state_->conn.load()->GetServer()->GetIoContext();
+boost::asio::any_io_executor HttpTaskBase::GetIoExecutor() noexcept {
+  auto conn = GetConnection(state_);
+  if (!conn) {
+    return {};
+  }
+
+  return conn->GetIoExecutor();
 }
 
 boost::asio::any_io_executor HttpTaskBase::GetExecutor() noexcept {
@@ -333,6 +352,20 @@ boost::asio::any_io_executor HttpTaskBase::GetExecutor() noexcept {
     return {};
   }
   return state_->srv->GetExecutor();
+}
+
+std::vector<boost::asio::any_io_executor>
+HttpTaskBase::GetEndpointExecutors() noexcept {
+  auto conn = GetConnection(state_);
+  return conn ? conn->GetEndpointExecutors()
+              : std::vector<boost::asio::any_io_executor>{};
+}
+
+std::vector<boost::asio::any_io_executor>
+HttpTaskBase::GetGlobalExecutors() noexcept {
+  auto conn = GetConnection(state_);
+  return conn ? conn->GetGlobalExecutors()
+              : std::vector<boost::asio::any_io_executor>{};
 }
 
 }  // namespace bsrvcore

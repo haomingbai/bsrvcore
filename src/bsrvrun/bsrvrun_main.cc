@@ -99,7 +99,7 @@ int RunMain(int argc, char** argv) {
     std::signal(SIGINT, HandleSignal);
     std::signal(SIGTERM, HandleSignal);
 
-    if (!server->Start(config.thread_count)) {
+    if (!server->Start()) {
       std::cerr << "failed to start server" << std::endl;
       return 3;
     }

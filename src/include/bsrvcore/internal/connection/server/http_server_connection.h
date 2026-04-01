@@ -20,10 +20,10 @@
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
 
 #include <atomic>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/dispatch.hpp>
-#include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
@@ -34,6 +34,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
@@ -74,7 +75,8 @@ class Context;
  * public:
  *   HttpTcpConnection(boost::asio::ip::tcp::socket socket,
  *                     std::shared_ptr<HttpServer> srv)
- *     : HttpServerConnection(socket.get_executor(), srv, 30000, 15000),
+ *     : HttpServerConnection(socket.get_executor(), srv, 30000, 15000,
+ *                            false, nullptr, 0),
  *       stream_(std::move(socket)) {}
  *
  *   void DoReadHeader() override {
@@ -123,47 +125,66 @@ class HttpServerConnection
   void Post(std::function<void()> fn);
 
   /**
-   * @brief Dispatch a function on the connection's strand.
+   * @brief Dispatch a function on the server worker executor.
    * @param fn Function to execute.
    *
    * @details
-   * Dispatches onto the server worker pool. For short I/O-context work, use
+   * Dispatches onto the server worker pool. For short connection I/O work, use
    * PostToIoContext() or DispatchToIoContext().
    */
   void Dispatch(std::function<void()> fn);
 
   /**
-   * @brief Post a short function onto the server io_context.
+   * @brief Post a short function onto this connection's io executor.
    * @param fn Function to execute asynchronously.
    */
   void PostToIoContext(std::function<void()> fn);
 
   /**
-   * @brief Dispatch a short function onto the server io_context.
+   * @brief Dispatch a short function onto this connection's io executor.
    * @param fn Function to execute.
    *
    * @details
-   * Uses the raw io_context executor and therefore does not preserve any
-   * per-connection strand ordering.
+   * Uses the per-connection io executor. Because each endpoint shard runs a
+   * single io_context thread, this preserves per-connection sequencing without
+   * an explicit strand object.
    */
   void DispatchToIoContext(std::function<void()> fn);
 
   /**
-   * @brief Dispatch a handler onto the connection strand.
+   * @brief Get the io executor bound to this connection.
+   * @return Type-erased io executor.
+   */
+  boost::asio::any_io_executor GetIoExecutor() const noexcept;
+
+  /**
+   * @brief Get all io executors for the current endpoint.
+   * @return Endpoint-local io executors.
+   */
+  std::vector<boost::asio::any_io_executor> GetEndpointExecutors() const;
+
+  /**
+   * @brief Get all io executors across all endpoints.
+   * @return Global io executors.
+   */
+  std::vector<boost::asio::any_io_executor> GetGlobalExecutors() const;
+
+  /**
+   * @brief Dispatch a handler onto the connection io executor.
    * @tparam Handler Callable type.
-   * @param handler Handler to schedule on the per-connection I/O strand.
+   * @param handler Handler to schedule on the per-connection I/O executor.
    *
    * @details
-   * This preserves the handler's associated allocator/executor properties and
+   * This uses post (not inline dispatch) to avoid lifecycle re-entrancy and
    * keeps request-lifecycle phase transitions serialized with connection I/O.
    */
   template <typename Handler>
   void DispatchToConnectionExecutor(Handler&& handler) {
-    if (!srv_) {
+    if (!srv_ || !IsServerRunning()) {
       return;
     }
 
-    boost::asio::dispatch(strand_, std::forward<Handler>(handler));
+    boost::asio::post(io_executor_, std::forward<Handler>(handler));
   }
 
   /**
@@ -329,17 +350,19 @@ class HttpServerConnection
 
   /**
    * @brief Construct a HTTP server connection
-   * @param strand ASIO strand for thread-safe operation sequencing
+   * @param io_executor ASIO io executor for this connection
    * @param srv HTTP server instance
    * @param header_read_expiry Header read timeout in milliseconds
    * @param keep_alive_timeout Keep-alive timeout in milliseconds
    * @param has_max_connection Whether connection-cap control is enabled
    * @param available_connection_num Shared approximate available slot counter
+   * @param endpoint_index Endpoint index in AddListen registration order
    */
-  HttpServerConnection(boost::asio::strand<boost::asio::any_io_executor> strand,
+  HttpServerConnection(boost::asio::any_io_executor io_executor,
                        HttpServer* srv, std::size_t header_read_expiry,
                        std::size_t keep_alive_timeout, bool has_max_connection,
-                       std::atomic<std::int64_t>* available_connection_num);
+                       std::atomic<std::int64_t>* available_connection_num,
+                       std::size_t endpoint_index);
 
   /**
    * @brief Virtual destructor for proper cleanup
@@ -355,9 +378,9 @@ class HttpServerConnection
 
   /**
    * @brief Get the executor for this connection
-   * @return ASIO strand executor
+   * @return ASIO io executor
    */
-  boost::asio::strand<boost::asio::any_io_executor> GetExecutor();
+  boost::asio::any_io_executor GetExecutor() const noexcept;
 
   /**
    * @brief Get the HTTP request parser
@@ -392,12 +415,6 @@ class HttpServerConnection
   void DoForwardRequest();
 
   /**
-   * @brief Get the strand for this connection
-   * @return Reference to ASIO strand
-   */
-  boost::asio::strand<boost::asio::any_io_executor>& GetStrand();
-
-  /**
    * @brief Get the timeout of the keep_alive connection.
    * @return timeout in seconds (convenient to be set)
    */
@@ -415,19 +432,19 @@ class HttpServerConnection
   void CancelTimeout();
 
  private:
-  boost::asio::strand<boost::asio::any_io_executor>
-      strand_;  ///< Strand for thread-safe operation sequencing
-  boost::asio::steady_timer timer_;  ///< Timer for timeouts
-  boost::beast::flat_buffer buf_;    ///< Buffer for reading requests
-  HttpRouteResult route_result_;     ///< Result of routing the current request
-  HttpServer* srv_;                  ///< Reference to HTTP server
+  boost::asio::any_io_executor io_executor_;  ///< Connection-local io executor.
+  boost::asio::steady_timer timer_;           ///< Timer for timeouts
+  boost::beast::flat_buffer buf_;             ///< Buffer for reading requests
+  HttpRouteResult route_result_;  ///< Result of routing the current request
+  HttpServer* srv_;               ///< Reference to HTTP server
   OwnedPtr<boost::beast::http::request_parser<boost::beast::http::string_body>>
       parser_;                      ///< HTTP request parser
   std::size_t header_read_expiry_;  ///< Header read timeout in ms
   std::size_t keep_alive_timeout_;  ///< Keep-alive timeout in ms
   const bool kHasMaxConnection_;    ///< Whether connection-cap control is on.
   std::atomic<std::int64_t>* available_connection_num_{
-      nullptr};  ///< Shared approximate available slot counter.
+      nullptr};                 ///< Shared approximate available slot counter.
+  std::size_t endpoint_index_;  ///< Endpoint index owning this connection.
 
   // Per-connection allocator used for all Asio/Beast handlers.
   internal::HandlerAllocator handler_alloc_;

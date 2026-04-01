@@ -48,10 +48,10 @@ int main() {
                            "text/plain; charset=utf-8");
             task->SetBody("Default limits and timeouts are configured.\n");
           })
-      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8081});
+      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8081}, 1);
 
-  if (!server->Start(1)) {  // I/O threads
-    std::cerr << "Failed to start server." << std::endl;
+  if (!server->Start()) {
+    std::cerr << "failed to start server" << std::endl;
     return 1;
   }
 

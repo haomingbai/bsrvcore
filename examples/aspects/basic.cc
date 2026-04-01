@@ -46,9 +46,9 @@ int main() {
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->SetField("X-Route-Aspect", "post");
           })
-      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8083});
+      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8083}, 1);
 
-  if (!server->Start(1)) {
+  if (!server->Start()) {
     std::cerr << "Failed to start server." << std::endl;
     return 1;
   }

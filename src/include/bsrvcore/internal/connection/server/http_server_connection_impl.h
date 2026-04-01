@@ -86,14 +86,15 @@ class HttpServerConnectionImpl : public HttpServerConnection {
   class MessageQueue;
 
   // Constructor receives shared server runtime controls from accept path.
-  HttpServerConnectionImpl(
-      S stream, boost::asio::strand<boost::asio::any_io_executor> strand,
-      HttpServer* srv, std::size_t header_read_expiry,
-      std::size_t keep_alive_timeout, bool has_max_connection,
-      std::atomic<std::int64_t>* available_connection_num)
-      : HttpServerConnection(std::move(strand), srv, header_read_expiry,
+  HttpServerConnectionImpl(S stream, boost::asio::any_io_executor io_executor,
+                           HttpServer* srv, std::size_t header_read_expiry,
+                           std::size_t keep_alive_timeout,
+                           bool has_max_connection,
+                           std::atomic<std::int64_t>* available_connection_num,
+                           std::size_t endpoint_index)
+      : HttpServerConnection(std::move(io_executor), srv, header_read_expiry,
                              keep_alive_timeout, has_max_connection,
-                             available_connection_num),
+                             available_connection_num, endpoint_index),
         stream_(std::move(stream)),
         closed_(false) {
     // Do NOT create message_queue_ here by calling shared_from_this(),
@@ -114,7 +115,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::post(GetStrand(), [self = this->shared_from_this(), this] {
+    boost::asio::post(GetExecutor(), [self = this->shared_from_this(), this] {
       if (!helper::GetLowestSocket(stream_).is_open()) {
         return;
       }
@@ -144,9 +145,9 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::dispatch(
-        GetStrand(), [self = this->shared_from_this(), this, keep_alive,
-                      write_expiry, response = std::move(resp)]() mutable {
+    boost::asio::post(
+        GetExecutor(), [self = this->shared_from_this(), this, keep_alive,
+                        write_expiry, response = std::move(resp)]() mutable {
           if (!IsServerRunning() || !IsStreamAvailable()) {
             DoClose();
             return;

@@ -147,8 +147,9 @@ inline unsigned short StartServerWithRoutes(ServerGuard& guard) {
     unsigned short port = FindFreePort();
     // Bind may still fail due to the race window (or OS reuse); retry a few
     // times.
-    guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
-    if (guard.server->Start(1)) {
+    guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port},
+                            1);
+    if (guard.server->Start()) {
       return port;
     }
     guard.server->Stop();

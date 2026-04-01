@@ -98,10 +98,9 @@ int main() {
                                                      "text/plain; charset=utf-8");
                         task->SetBody("Hello, bsrvcore.");
                     })
-            ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080});
+                ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080}, 2);
 
-    // I/O threads for accept/read/write.
-    if (!server->Start(2)) {
+              if (!server->Start()) {
         std::cerr << "Failed to start server." << std::endl;
         return 1;
     }

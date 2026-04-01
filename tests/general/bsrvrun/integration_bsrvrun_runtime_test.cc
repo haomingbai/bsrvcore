@@ -90,7 +90,7 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
-  ASSERT_TRUE(server->Start(1));
+  ASSERT_TRUE(server->Start());
   auto res = DoRequestWithRetry(http::verb::get, port, "/demo", "");
   server->Stop();
   server.reset();
@@ -141,7 +141,7 @@ TEST(BsrvRunRuntimeIntegrationTest, IgnoreDefaultRouteMapsToExclusiveRoute) {
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
-  ASSERT_TRUE(server->Start(1));
+  ASSERT_TRUE(server->Start());
   auto res = DoRequestWithRetry(http::verb::get, port, "/static/abc", "");
   server->Stop();
   server.reset();
@@ -185,7 +185,7 @@ TEST(BsrvRunRuntimeIntegrationTest, CpuRouteRunsOnWorkerPool) {
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
-  ASSERT_TRUE(server->Start(1));
+  ASSERT_TRUE(server->Start());
 
   auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
   auto worker_promise =
@@ -260,7 +260,7 @@ TEST(BsrvRunRuntimeIntegrationTest,
       bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
-  ASSERT_TRUE(server->Start(1));
+  ASSERT_TRUE(server->Start());
 
   auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
   auto worker_promise =

@@ -47,8 +47,9 @@ TEST(StressRoutingAcceptanceTest,
 
   bsrvcore::test::ServerGuard guard(std::move(server));
   const auto port = bsrvcore::test::FindFreePort();
-  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
-  ASSERT_TRUE(guard.server->Start(cfg.threads));
+  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port},
+                          cfg.threads);
+  ASSERT_TRUE(guard.server->Start());
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   WaitCounter done(cfg.threads);
@@ -123,8 +124,9 @@ TEST(StressRoutingAcceptanceTest, DistinctParamTargetsRemainStableUnderLoad) {
 
   bsrvcore::test::ServerGuard guard(std::move(server));
   const auto port = bsrvcore::test::FindFreePort();
-  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
-  ASSERT_TRUE(guard.server->Start(cfg.threads));
+  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port},
+                          cfg.threads);
+  ASSERT_TRUE(guard.server->Start());
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   WaitCounter done(cfg.threads);

@@ -39,9 +39,9 @@ int main() {
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/hello/{name}",
                       bsrvcore::AllocateUnique<HelloHandler>())
-      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8082});
+      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8082}, 1);
 
-  if (!server->Start(1)) {
+  if (!server->Start()) {
     std::cerr << "Failed to start server." << std::endl;
     return 1;
   }

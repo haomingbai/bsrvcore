@@ -22,16 +22,16 @@ The task gives access to:
 - Request body wrappers: `MultipartParser(*task)`, `PutProcessor(*task)`
 - Response helpers: `SetBody()`, `AppendBody()`, `SetField()`, `SetKeepAlive()`
 - Async helpers: `Post()`, `Dispatch()`, `FuturedPost()`, `SetTimer()`
-- I/O helpers: `PostToIoContext()`, `DispatchToIoContext()`, `GetIoContext()`
+- I/O helpers: `PostToIoContext()`, `DispatchToIoContext()`, `GetIoExecutor()`, `GetEndpointExecutors()`, `GetGlobalExecutors()`
 - Connection control: `IsAvailable()`, `DoClose()`, `DoCycle()`
 
 Async execution semantics:
 
 - `Post()` callbacks run on the server worker pool.
 - `Dispatch()` targets the same worker pool, but may run inline when already on that executor.
-- `SetTimer()` uses server I/O context for timeout tracking, then runs callback on the worker pool.
+- `SetTimer()` uses the connection-local I/O executor for timeout tracking, then runs callback on the worker pool.
 - `GetExecutor()` can be used when integrating with APIs that require `boost::asio::any_io_executor`.
-- `PostToIoContext()` / `DispatchToIoContext()` target the raw server `io_context` and do not preserve per-connection strand ordering.
+- `PostToIoContext()` / `DispatchToIoContext()` target the connection-local I/O executor.
 - The request lifecycle itself advances in-place without extra internal dispatch hops.
 - Pre runs first, then the main handler task is created, and post starts only after the last `HttpServerTask` reference is released.
 

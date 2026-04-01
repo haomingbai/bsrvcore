@@ -146,8 +146,9 @@ StartedServer StartServerWithRetry(
     auto server = BuildServer(scenario, pressure);
     try {
       const auto port = FindFreePort();
-      server->AddListen({asio::ip::make_address("127.0.0.1"), port});
-      if (!server->Start(pressure.server_io_threads)) {
+      server->AddListen({asio::ip::make_address("127.0.0.1"), port},
+                        pressure.server_io_threads);
+      if (!server->Start()) {
         last_error = "HttpServer::Start returned false";
         server->Stop();
         continue;
@@ -175,8 +176,9 @@ StartedServer StartServerAt(
     const bsrvcore::benchmark::PressureSettings& pressure,
     std::string_view listen_host, unsigned short port) {
   auto server = BuildServer(scenario, pressure);
-  server->AddListen({asio::ip::make_address(std::string(listen_host)), port});
-  if (!server->Start(pressure.server_io_threads)) {
+  server->AddListen({asio::ip::make_address(std::string(listen_host)), port},
+                    pressure.server_io_threads);
+  if (!server->Start()) {
     throw std::runtime_error("HttpServer::Start returned false");
   }
   return {bsrvcore::AllocateUnique<ServerGuard>(std::move(server)), port};

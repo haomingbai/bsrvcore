@@ -34,8 +34,8 @@ TEST(StressServerRuntimeTest, CyclicServerStartStop) {
                            task->SetBody("pong");
                          });
     const auto port = FindFreePort();
-    server.AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
-    ASSERT_TRUE(server.Start(1));
+    server.AddListen({boost::asio::ip::make_address("127.0.0.1"), port}, 1);
+    ASSERT_TRUE(server.Start());
 
     auto res = DoRequestWithRetry(http::verb::get, port, "/ping", "");
     EXPECT_EQ(res.result(), http::status::ok);
@@ -58,10 +58,10 @@ TEST(StressServerRuntimeTest, MultipleListenersUnderConcurrentLoad) {
   for (int i = 0; i < 3; ++i) {
     auto port = FindFreePort();
     ports.push_back(port);
-    server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
+    server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port}, 1);
   }
 
-  ASSERT_TRUE(server->Start(1));
+  ASSERT_TRUE(server->Start());
 
   std::barrier sync(static_cast<std::ptrdiff_t>(cfg.threads));
   WaitCounter done(cfg.threads);
@@ -99,7 +99,7 @@ TEST(StressServerRuntimeTest, PostQueueCompletesAllTasks) {
   const auto cfg = LoadStressConfig(6, 120, 120000);
 
   bsrvcore::HttpServer server(cfg.threads);
-  ASSERT_TRUE(server.Start(1));
+  ASSERT_TRUE(server.Start());
 
   const std::size_t total = cfg.threads * cfg.iterations;
   std::atomic<std::size_t> executed{0};

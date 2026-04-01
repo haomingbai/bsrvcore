@@ -34,6 +34,7 @@ struct FactoryConfig {
 struct ListenerConfig {
   std::string address;
   std::uint16_t port;
+  std::size_t io_threads{1};
 };
 
 struct RouteConfig {
@@ -61,7 +62,7 @@ struct ExecutorConfig {
 };
 
 struct ServerConfig {
-  // Number of I/O threads passed to HttpServer::Start().
+  // Legacy worker-thread count fallback when server.executor is not configured.
   std::size_t thread_count;
   // Optional connection-cap controls (handled at accept/connection lifecycle).
   bool has_max_connection{false};

@@ -82,8 +82,8 @@ HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
       logger_(bsrvcore::AllocateShared<internal::EmptyLogger>()),
       thread_pool_(CreateThreadPool(runtime_options)),
       route_table_(bsrvcore::AllocateUnique<HttpRouteTable>()),
-      sessions_(
-          bsrvcore::AllocateUnique<SessionMap>(ioc_.get_executor(), this)),
+      sessions_(bsrvcore::AllocateUnique<SessionMap>(
+          control_ioc_.get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
       kRuntimeOptions_(std::move(runtime_options)),
@@ -92,7 +92,14 @@ HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
           kHasMaxConnection_
               ? static_cast<std::int64_t>(kRuntimeOptions_.max_connection)
               : static_cast<std::int64_t>(0)),
-      is_running_(false) {}
+      is_running_(false) {
+  endpoint_io_execs_snapshot_.store(
+      AllocateShared<std::vector<std::vector<boost::asio::any_io_executor>>>(),
+      std::memory_order_release);
+  global_io_execs_snapshot_.store(
+      AllocateShared<std::vector<boost::asio::any_io_executor>>(),
+      std::memory_order_release);
+}
 
 HttpServer::HttpServer() : HttpServer(HttpServerRuntimeOptions{}) {}
 

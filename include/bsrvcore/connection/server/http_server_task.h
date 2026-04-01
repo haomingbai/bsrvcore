@@ -37,6 +37,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
@@ -162,10 +163,22 @@ class HttpTaskBase {
   std::shared_ptr<Context> GetContext() noexcept;
 
   /**
-   * @brief Get the IO context of the executor to post IO tasks.
-   * @return The IO context of the server.
+   * @brief Get this request's connection-local io executor.
+   * @return Type-erased io executor.
    */
-  boost::asio::io_context& GetIoContext() noexcept;
+  boost::asio::any_io_executor GetIoExecutor() noexcept;
+
+  /**
+   * @brief Get io executors for the current endpoint.
+   * @return Endpoint-local io executors, or empty when unavailable.
+   */
+  std::vector<boost::asio::any_io_executor> GetEndpointExecutors() noexcept;
+
+  /**
+   * @brief Get global io executors for all endpoints.
+   * @return Global io executors, or empty when unavailable.
+   */
+  std::vector<boost::asio::any_io_executor> GetGlobalExecutors() noexcept;
 
   /**
    * @brief Get the server worker executor for async callbacks.
@@ -209,18 +222,17 @@ class HttpTaskBase {
   void Dispatch(std::function<void()> fn);
 
   /**
-   * @brief Post a short callback onto the server io_context.
+   * @brief Post a short callback onto the connection io executor.
    * @param fn Callback.
    */
   void PostToIoContext(std::function<void()> fn);
 
   /**
-   * @brief Dispatch a short callback onto the server io_context.
+   * @brief Dispatch a short callback onto the connection io executor.
    * @param fn Callback.
    *
    * @details
-   * This targets the raw `io_context` executor and does not preserve any
-   * per-connection strand ordering.
+   * This targets the per-connection io executor.
    */
   void DispatchToIoContext(std::function<void()> fn);
 

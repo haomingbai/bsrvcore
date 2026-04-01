@@ -138,9 +138,9 @@ int main() {
             ScheduleCounter(task, state);
             ScheduleHeartbeat(task, state);
           })
-      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8086});
+      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8086}, 1);
 
-  if (!server->Start(1)) {
+  if (!server->Start()) {
     std::cerr << "Failed to start server." << std::endl;
     return 1;
   }

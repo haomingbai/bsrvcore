@@ -168,8 +168,9 @@ TEST(StressKeepAliveRouteParamTest,
 
   bsrvcore::test::ServerGuard guard(std::move(server));
   const auto port = bsrvcore::test::FindFreePort();
-  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port});
-  ASSERT_TRUE(guard.server->Start(cfg.server_threads));
+  guard.server->AddListen({boost::asio::ip::make_address("127.0.0.1"), port},
+                          cfg.server_threads);
+  ASSERT_TRUE(guard.server->Start());
 
   std::atomic<std::size_t> failures{0};
   std::mutex error_mutex;

@@ -60,9 +60,9 @@ int main() {
             task->SetBody("sessionId=" + session_id + "\nuser=" + user_name +
                           "\n");
           })
-      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8085});
+      ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8085}, 1);
 
-  if (!server->Start(1)) {
+  if (!server->Start()) {
     std::cerr << "Failed to start server." << std::endl;
     return 1;
   }

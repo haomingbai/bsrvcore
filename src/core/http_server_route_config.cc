@@ -9,7 +9,7 @@
  */
 
 #include <memory>
-#include <shared_mutex>
+#include <mutex>
 #include <string_view>
 #include <utility>
 
@@ -26,7 +26,7 @@ using namespace bsrvcore;
 HttpServer* HttpServer::AddRouteEntry(HttpRequestMethod method,
                                       const std::string_view url,
                                       OwnedPtr<HttpRequestHandler> handler) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -45,7 +45,7 @@ HttpServer* HttpServer::AddComputingRouteEntry(
 HttpServer* HttpServer::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     OwnedPtr<HttpRequestHandler> handler) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -57,7 +57,7 @@ HttpServer* HttpServer::AddExclusiveRouteEntry(
 HttpServer* HttpServer::AddAspect(HttpRequestMethod method,
                                   const std::string_view url,
                                   OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -68,7 +68,7 @@ HttpServer* HttpServer::AddAspect(HttpRequestMethod method,
 
 HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -79,7 +79,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 
 HttpServer* HttpServer::AddGlobalAspect(
     OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -90,7 +90,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 
 HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
                                      BluePrint&& blue_print) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -101,7 +101,7 @@ HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
 
 HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
                                      const ReuseableBluePrint& blue_print) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -113,7 +113,7 @@ HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
 HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
                                       std::string_view url,
                                       std::size_t expiry) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -125,7 +125,7 @@ HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
 HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
                                        std::string_view url,
                                        std::size_t expiry) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -136,7 +136,7 @@ HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
 
 HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
                                        std::string_view url, std::size_t size) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -146,7 +146,7 @@ HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
 }
 
 HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -156,7 +156,7 @@ HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -166,7 +166,7 @@ HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -177,7 +177,7 @@ HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
 
 HttpServer* HttpServer::SetDefaultHandler(
     OwnedPtr<HttpRequestHandler> handler) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }

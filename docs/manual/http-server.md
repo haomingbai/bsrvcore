@@ -10,9 +10,9 @@ This chapter maps to `include/bsrvcore/core/http_server.h`.
 
 ```cpp
 auto server = std::make_unique<bsrvcore::HttpServer>(4);
-server->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080});
+server->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080}, 2);
 
-if (!server->Start(2)) {
+if (!server->Start()) {
   // failed to start
 }
 
@@ -20,7 +20,8 @@ server->Stop();
 ```
 
 - `HttpServer(thread_num)` sets worker thread count (core=max=thread_num).
-- `Start(thread_count)` starts I/O threads (accept + read/write).
+- `AddListen(endpoint, io_threads)` declares endpoint I/O shard count.
+- `Start()` materializes endpoint shards and starts accept/read/write loops.
 
 To fully control runtime behavior, use `HttpServerRuntimeOptions`:
 
@@ -87,8 +88,10 @@ Execution model:
 - `SetTimer` uses `io_context` for timing, then dispatches callback to worker pool.
 - `Post` always dispatches callback to worker pool.
 - `Dispatch` targets the worker pool too, but may run inline when already on that executor.
-- `PostToIoContext` / `DispatchToIoContext` target the raw server `io_context`.
+- `PostToIoContext` / `DispatchToIoContext` target endpoint I/O executors.
 - `GetExecutor()` returns a type-erased `boost::asio::any_io_executor` backed by the worker pool.
-- For I/O-related operations, use `GetIoContext()`.
+- `GetIoExecutor()` returns one selected endpoint I/O executor.
+- `GetEndpointExecutors(idx)` returns the executor list for one endpoint.
+- `GetGlobalExecutors()` returns the flattened executor list for all endpoints.
 
 Next: [Routing](routing.md).

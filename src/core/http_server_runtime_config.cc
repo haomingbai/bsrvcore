@@ -11,7 +11,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <memory>
-#include <shared_mutex>
+#include <mutex>
 #include <utility>
 
 #include "bsrvcore/core/http_server.h"
@@ -20,18 +20,24 @@
 
 using namespace bsrvcore;
 
-HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep,
+                                  std::size_t io_threads) {
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
 
-  acceptors_.emplace_back(ioc_, ep);
+  if (io_threads == 0) {
+    io_threads = 1;
+  }
+
+  endpoint_configs_.push_back(
+      EndpointListenConfig{std::move(ep), std::move(io_threads)});
   return this;
 }
 
 HttpServer* HttpServer::SetHeaderReadExpiry(std::size_t expiry) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -41,7 +47,7 @@ HttpServer* HttpServer::SetHeaderReadExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -51,7 +57,7 @@ HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
 }
 
 HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -61,7 +67,7 @@ HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
 }
 
 HttpServer* HttpServer::UnsetSslContext() {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -71,7 +77,7 @@ HttpServer* HttpServer::UnsetSslContext() {
 }
 
 HttpServer* HttpServer::SetLogger(std::shared_ptr<Logger> logger) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::lock_guard<std::mutex> lock(mtx_);
   if (is_running_) {
     return this;
   }

@@ -15,6 +15,7 @@
 #include "bsrvcore/internal/connection/server/http_server_connection.h"
 
 #include <boost/asio/dispatch.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/beast.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/parser.hpp>
@@ -51,29 +52,58 @@ void HttpServerConnection::Dispatch(std::function<void()> fn) {
 }
 
 void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
-  if (!srv_) {
+  if (!srv_ || !IsServerRunning()) {
     return;
   }
 
-  srv_->PostToIoContext([fn = std::move(fn)]() { fn(); });
+  boost::asio::post(io_executor_, [fn = std::move(fn)]() { fn(); });
 }
 
 void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
-  if (!srv_) {
+  if (!srv_ || !IsServerRunning()) {
     return;
   }
 
-  srv_->DispatchToIoContext([fn = std::move(fn)]() { fn(); });
+  boost::asio::dispatch(io_executor_, [fn = std::move(fn)]() { fn(); });
+}
+
+boost::asio::any_io_executor HttpServerConnection::GetIoExecutor()
+    const noexcept {
+  return io_executor_;
+}
+
+std::vector<boost::asio::any_io_executor>
+HttpServerConnection::GetEndpointExecutors() const {
+  if (!srv_ || !IsServerRunning()) {
+    return {};
+  }
+  return srv_->GetEndpointExecutors(endpoint_index_);
+}
+
+std::vector<boost::asio::any_io_executor>
+HttpServerConnection::GetGlobalExecutors() const {
+  if (!srv_ || !IsServerRunning()) {
+    return {};
+  }
+  return srv_->GetGlobalExecutors();
 }
 
 void HttpServerConnection::SetTimer(std::size_t timeout,
                                     std::function<void()> callback) {
-  if (!srv_) {
+  if (!srv_ || !IsServerRunning()) {
     return;
   }
 
-  srv_->SetTimer(timeout,
-                 [callback = std::move(callback)]() mutable { callback(); });
+  auto timer = AllocateShared<boost::asio::steady_timer>(io_executor_);
+  timer->expires_after(std::chrono::milliseconds(timeout));
+  timer->async_wait([this, callback = std::move(callback),
+                     timer](boost::system::error_code ec) mutable {
+    (void)timer;
+    if (ec || !IsServerRunning()) {
+      return;
+    }
+    callback();
+  });
 }
 
 std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {
@@ -110,7 +140,7 @@ void HttpServerConnection::Run() {
     return;
   }
 
-  boost::asio::dispatch(strand_, [self = shared_from_this(), this] {
+  boost::asio::post(io_executor_, [self = shared_from_this(), this] {
     ArmTimeout(header_read_expiry_);
     DoReadHeader();
   });
@@ -177,12 +207,13 @@ void HttpServerConnection::DoCycle() {
 }
 
 HttpServerConnection::HttpServerConnection(
-    boost::asio::strand<boost::asio::any_io_executor> strand, HttpServer* srv,
+    boost::asio::any_io_executor io_executor, HttpServer* srv,
     std::size_t header_read_expiry, std::size_t keep_alive_timeout,
     bool has_max_connection,
-    std::atomic<std::int64_t>* available_connection_num)
-    : strand_(std::move(strand)),
-      timer_(strand_),
+    std::atomic<std::int64_t>* available_connection_num,
+    std::size_t endpoint_index)
+    : io_executor_(std::move(io_executor)),
+      timer_(io_executor_),
       buf_(4096),
       srv_(srv),
       parser_(AllocateUnique<boost::beast::http::request_parser<
@@ -191,6 +222,7 @@ HttpServerConnection::HttpServerConnection(
       keep_alive_timeout_(keep_alive_timeout),
       kHasMaxConnection_(has_max_connection),
       available_connection_num_(available_connection_num),
+      endpoint_index_(endpoint_index),
       handler_alloc_() {
   if (kHasMaxConnection_ && available_connection_num_ != nullptr) {
     available_connection_num_->fetch_sub(1, std::memory_order_relaxed);
@@ -233,14 +265,9 @@ void HttpServerConnection::ArmTimeout(std::size_t timeout) {
 
 void HttpServerConnection::CancelTimeout() { timer_.cancel(); }
 
-boost::asio::strand<boost::asio::any_io_executor>&
-HttpServerConnection::GetStrand() {
-  return strand_;
-}
-
-boost::asio::strand<boost::asio::any_io_executor>
-HttpServerConnection::GetExecutor() {
-  return strand_;
+boost::asio::any_io_executor HttpServerConnection::GetExecutor()
+    const noexcept {
+  return io_executor_;
 }
 
 boost::beast::flat_buffer& HttpServerConnection::GetBuffer() { return buf_; }

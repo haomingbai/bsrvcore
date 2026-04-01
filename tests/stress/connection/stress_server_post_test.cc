@@ -70,7 +70,7 @@ TEST(StressServerPostTest, FloodPostTasks) {
                << " timeout_ms=" << cfg.timeout.count());
 
   bsrvcore::HttpServer server(cfg.threads);
-  ASSERT_TRUE(server.Start(1));
+  ASSERT_TRUE(server.Start());
 
   const std::size_t total = cfg.threads * cfg.iterations;
   std::atomic<std::size_t> executed{0};

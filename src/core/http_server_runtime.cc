@@ -15,14 +15,13 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/detail/chrono.hpp>
 #include <boost/asio/dispatch.hpp>
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <cstddef>
 #include <functional>
 #include <memory>
-#include <shared_mutex>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -37,82 +36,84 @@
 
 using namespace bsrvcore;
 
-void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+boost::asio::any_io_executor HttpServer::SelectIoExecutorRoundRobin() noexcept {
+  auto global_snapshot =
+      global_io_execs_snapshot_.load(std::memory_order_acquire);
+  if (!global_snapshot || global_snapshot->empty()) {
+    return control_ioc_.get_executor();
+  }
 
-  if (!is_running_) {
+  const auto idx =
+      io_exec_round_robin_.fetch_add(1, std::memory_order_relaxed) %
+      global_snapshot->size();
+  return (*global_snapshot)[idx];
+}
+
+void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
+  if (!is_running_.load(std::memory_order_acquire)) {
     return;
   }
 
-  auto timer = AllocateShared<boost::asio::steady_timer>(ioc_);
+  auto io_exec = SelectIoExecutorRoundRobin();
+  if (!io_exec) {
+    return;
+  }
+
+  auto timer = AllocateShared<boost::asio::steady_timer>(io_exec);
   timer->expires_after(boost::asio::chrono::milliseconds(timeout));
   timer->async_wait(
       [this, fn = std::move(fn), timer](boost::system::error_code ec) mutable {
-        if (!ec) {
-          std::shared_lock<std::shared_mutex> callback_lock(mtx_);
-          if (!is_running_) {
-            return;
-          }
-          boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
+        if (ec) {
+          return;
         }
+
+        if (!is_running_.load(std::memory_order_acquire)) {
+          return;
+        }
+
+        Post(std::move(fn));
       });
 }
 
 void HttpServer::Post(std::function<void()> fn) {
-  boost::asio::any_io_executor exec;
-  {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-
-    if (!is_running_) {
-      return;
-    }
-
-    exec = GetThreadPoolExecutor();
+  std::lock_guard<std::mutex> lock(mtx_);
+  if (!is_running_) {
+    return;
   }
 
-  boost::asio::post(exec, std::move(fn));
+  boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
 }
 
 void HttpServer::Dispatch(std::function<void()> fn) {
-  boost::asio::any_io_executor exec;
-  {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
-
-    if (!is_running_) {
-      return;
-    }
-
-    exec = GetThreadPoolExecutor();
+  std::lock_guard<std::mutex> lock(mtx_);
+  if (!is_running_) {
+    return;
   }
 
-  boost::asio::dispatch(exec, std::move(fn));
+  boost::asio::dispatch(GetThreadPoolExecutor(), std::move(fn));
 }
 
 void HttpServer::PostToIoContext(std::function<void()> fn) {
-  boost::asio::any_io_executor exec;
-  {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
+  if (!is_running_.load(std::memory_order_acquire)) {
+    return;
+  }
 
-    if (!is_running_) {
-      return;
-    }
-
-    exec = ioc_.get_executor();
+  auto exec = SelectIoExecutorRoundRobin();
+  if (!exec) {
+    return;
   }
 
   boost::asio::post(exec, std::move(fn));
 }
 
 void HttpServer::DispatchToIoContext(std::function<void()> fn) {
-  boost::asio::any_io_executor exec;
-  {
-    std::shared_lock<std::shared_mutex> lock(mtx_);
+  if (!is_running_.load(std::memory_order_acquire)) {
+    return;
+  }
 
-    if (!is_running_) {
-      return;
-    }
-
-    exec = ioc_.get_executor();
+  auto exec = SelectIoExecutorRoundRobin();
+  if (!exec) {
+    return;
   }
 
   boost::asio::dispatch(exec, std::move(fn));
@@ -135,10 +136,51 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
   return sessions_->GetSession(std::move(sessionid));
 }
 
-boost::asio::io_context& HttpServer::GetIoContext() noexcept { return ioc_; }
+boost::asio::any_io_executor HttpServer::GetIoExecutor() noexcept {
+  if (!is_running_.load(std::memory_order_acquire)) {
+    return {};
+  }
+
+  return SelectIoExecutorRoundRobin();
+}
 
 boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
+  std::lock_guard<std::mutex> lock(mtx_);
+  if (!is_running_) {
+    return {};
+  }
+
   return GetThreadPoolExecutor();
+}
+
+std::vector<boost::asio::any_io_executor> HttpServer::GetEndpointExecutors(
+    std::size_t endpoint_index) noexcept {
+  if (!is_running_.load(std::memory_order_acquire)) {
+    return {};
+  }
+
+  auto endpoint_snapshot =
+      endpoint_io_execs_snapshot_.load(std::memory_order_acquire);
+  if (!endpoint_snapshot || endpoint_index >= endpoint_snapshot->size()) {
+    return {};
+  }
+
+  return (*endpoint_snapshot)[endpoint_index];
+}
+
+std::vector<boost::asio::any_io_executor>
+HttpServer::GetGlobalExecutors() noexcept {
+  if (!is_running_.load(std::memory_order_acquire)) {
+    return {};
+  }
+
+  auto global_snapshot =
+      global_io_execs_snapshot_.load(std::memory_order_acquire);
+  if (!global_snapshot) {
+    return {};
+  }
+
+  return *global_snapshot;
 }
 
 bool HttpServer::SetSessionTimeout(const std::string& sessionid,
@@ -157,4 +199,6 @@ std::shared_ptr<Context> HttpServer::GetContext() { return context_; }
 
 std::size_t HttpServer::GetKeepAliveTimeout() { return keep_alive_timeout_; }
 
-bool HttpServer::IsRunning() { return is_running_; }
+bool HttpServer::IsRunning() {
+  return is_running_.load(std::memory_order_acquire);
+}

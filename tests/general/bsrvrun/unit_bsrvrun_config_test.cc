@@ -44,6 +44,7 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
       "listeners:\n"
       "  - address: \"127.0.0.1\"\n"
       "    port: 8081\n"
+      "    io_threads: 2\n"
       "global:\n"
       "  aspects:\n"
       "    - factory: \"/tmp/aspect.so\"\n"
@@ -74,6 +75,7 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
   ASSERT_EQ(config.listeners.size(), 1u);
   EXPECT_EQ(config.listeners[0].address, "127.0.0.1");
   EXPECT_EQ(config.listeners[0].port, 8081);
+  EXPECT_EQ(config.listeners[0].io_threads, 2u);
 
   ASSERT_EQ(config.global.aspects.size(), 1u);
   EXPECT_EQ(config.global.aspects[0].library, "/tmp/aspect.so");

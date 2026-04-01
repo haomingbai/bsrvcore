@@ -112,6 +112,7 @@ std::vector<ListenerConfig> ParseListeners(const YAML::Node& node) {
 
     const YAML::Node address_node = item["address"];
     const YAML::Node port_node = item["port"];
+    const YAML::Node io_threads_node = item["io_threads"];
     if (!address_node || !address_node.IsScalar()) {
       throw std::runtime_error("listeners.address is required");
     }
@@ -124,8 +125,19 @@ std::vector<ListenerConfig> ParseListeners(const YAML::Node& node) {
       throw std::runtime_error("listeners.port must be in range [1, 65535]");
     }
 
-    listeners.push_back(
-        {address_node.as<std::string>(), static_cast<std::uint16_t>(port)});
+    std::size_t io_threads = 1;
+    if (io_threads_node) {
+      if (!io_threads_node.IsScalar()) {
+        throw std::runtime_error("listeners.io_threads must be a number");
+      }
+      io_threads = io_threads_node.as<std::size_t>();
+      if (io_threads == 0) {
+        throw std::runtime_error("listeners.io_threads must be greater than 0");
+      }
+    }
+
+    listeners.push_back({address_node.as<std::string>(),
+                         static_cast<std::uint16_t>(port), io_threads});
   }
 
   return listeners;

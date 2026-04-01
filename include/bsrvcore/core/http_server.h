@@ -31,8 +31,8 @@
 #include <future>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <optional>
-#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -114,8 +114,8 @@ using HttpServerExecutorOptions = HttpServerRuntimeOptions;
  *      ->SetDefaultReadExpiry(30000)    // 30 seconds
  *      ->SetDefaultMaxBodySize(1024*1024) // 1MB
  *      ->AddListen(boost::asio::ip::tcp::endpoint(
- *          boost::asio::ip::make_address("0.0.0.0"), 8080))
- *      ->Start(4);  // 4 worker threads
+ *          boost::asio::ip::make_address("0.0.0.0"), 8080), 4)
+ *      ->Start();
  * @endcode
  */
 class HttpServer : public NonCopyableNonMovable<HttpServer> {
@@ -168,18 +168,17 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   void Dispatch(std::function<void()> fn);
 
   /**
-   * @brief Post a short function onto the server io_context.
-   * @param fn Function to execute asynchronously on the I/O context.
+   * @brief Post a short function onto one endpoint I/O executor.
+   * @param fn Function to execute asynchronously on an endpoint I/O shard.
    */
   void PostToIoContext(std::function<void()> fn);
 
   /**
-   * @brief Dispatch a short function onto the server io_context.
-   * @param fn Function to execute on the I/O context.
+   * @brief Dispatch a short function onto one endpoint I/O executor.
+   * @param fn Function to execute on an endpoint I/O shard.
    *
    * @details
-   * Uses `boost::asio::dispatch` on the raw io_context executor. It does not
-   * preserve any per-connection strand ordering.
+   * Uses `boost::asio::dispatch` on a selected endpoint shard executor.
    */
   void DispatchToIoContext(std::function<void()> fn);
 
@@ -431,11 +430,13 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                            const ReuseableBluePrint& blue_print);
 
   /**
-   * @brief Add a listening endpoint
-   * @param ep TCP endpoint to listen on
-   * @return Pointer to server for method chaining
+   * @brief Add a listening endpoint and its I/O shard count.
+   * @param ep TCP endpoint to listen on.
+   * @param io_threads Number of acceptor/io_context shards for this endpoint.
+   * @return Pointer to server for method chaining.
    */
-  HttpServer* AddListen(boost::asio::ip::tcp::endpoint ep);
+  HttpServer* AddListen(boost::asio::ip::tcp::endpoint ep,
+                        std::size_t io_threads);
 
   /**
    * @brief Set read timeout for a specific route
@@ -616,16 +617,30 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::size_t GetKeepAliveTimeout();
 
   /**
-   * @brief Get the IO context of the executor to post IO tasks.
-   * @return The IO context of the server.
+   * @brief Get one I/O executor selected from endpoint shards.
+   * @return A valid executor while running; empty executor otherwise.
    */
-  boost::asio::io_context& GetIoContext() noexcept;
+  boost::asio::any_io_executor GetIoExecutor() noexcept;
 
   /**
    * @brief Get a type-erased worker executor for background tasks.
    * @return Any-IO executor backed by the server worker pool.
    */
   boost::asio::any_io_executor GetExecutor() noexcept;
+
+  /**
+   * @brief Get all I/O executors for one endpoint.
+   * @param endpoint_index Index in AddListen registration order.
+   * @return Endpoint executors, or empty when unavailable.
+   */
+  std::vector<boost::asio::any_io_executor> GetEndpointExecutors(
+      std::size_t endpoint_index) noexcept;
+
+  /**
+   * @brief Get all endpoint I/O executors in one flat vector.
+   * @return Global endpoint executors, or empty when unavailable.
+   */
+  std::vector<boost::asio::any_io_executor> GetGlobalExecutors() noexcept;
 
   /**
    * @brief Check if server is running
@@ -639,11 +654,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   void Stop();
 
   /**
-   * @brief Start the server with specified number of threads
-   * @param thread_count Number of worker threads
-   * @return true if server started successfully
+   * @brief Start the server.
+   * @return true if server started successfully.
    */
-  bool Start(std::size_t thread_count);
+  bool Start();
 
   /**
    * @brief Convert Boost.Beast HTTP verb to internal representation
@@ -684,25 +698,94 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   ~HttpServer();
 
  private:
+  struct EndpointListenConfig {
+    boost::asio::ip::tcp::endpoint endpoint;
+    std::size_t io_threads{1};
+  };
+
+  struct EndpointRuntime {
+    explicit EndpointRuntime(boost::asio::ip::tcp::endpoint ep)
+        : endpoint(std::move(ep)) {}
+
+    boost::asio::ip::tcp::endpoint endpoint;
+    std::size_t run_threads{1};
+    std::vector<OwnedPtr<boost::asio::io_context>> io_contexts;
+    std::vector<boost::asio::executor_work_guard<
+        boost::asio::io_context::executor_type>>
+        io_work_guards;
+    std::vector<boost::asio::ip::tcp::acceptor> acceptors;
+    std::vector<std::thread> io_threads;
+  };
+
   struct ThreadPoolState;
 
   static OwnedPtr<ThreadPoolState> CreateThreadPool(
       const HttpServerRuntimeOptions& runtime_options);
   boost::asio::any_io_executor GetThreadPoolExecutor() noexcept;
+  boost::asio::any_io_executor SelectIoExecutorRoundRobin() noexcept;
+  bool BuildEndpointRuntimesLocked(
+      std::vector<std::vector<boost::asio::any_io_executor>>& endpoint_execs,
+      std::vector<boost::asio::any_io_executor>& global_execs);
+    bool BuildFirstEndpointRuntimeLocked(
+      const EndpointListenConfig& cfg, OwnedPtr<EndpointRuntime>& runtime,
+      std::vector<boost::asio::any_io_executor>& endpoint_execs,
+      std::vector<boost::asio::any_io_executor>& global_execs);
+    bool BuildReusePortShardsLocked(
+      const EndpointListenConfig& cfg, EndpointRuntime& runtime,
+      std::size_t start_shard_index,
+      std::vector<boost::asio::any_io_executor>& endpoint_execs,
+      std::vector<boost::asio::any_io_executor>& global_execs);
+  bool BuildReusePortEndpointRuntimeLocked(
+      const EndpointListenConfig& cfg, EndpointRuntime& runtime,
+      std::vector<boost::asio::any_io_executor>& endpoint_execs,
+      std::vector<boost::asio::any_io_executor>& global_execs);
+    bool BuildFallbackEndpointRuntimeLocked(
+      const EndpointListenConfig& cfg, EndpointRuntime& runtime,
+      std::vector<boost::asio::any_io_executor>& endpoint_execs,
+      std::vector<boost::asio::any_io_executor>& global_execs);
+  void StartEndpointRuntimesLocked();
+  void StopEndpointIoLocked();
+  void JoinEndpointIoThreadsLocked();
+  void PublishExecutorSnapshotsLocked(
+      std::vector<std::vector<boost::asio::any_io_executor>> endpoint_execs,
+      std::vector<boost::asio::any_io_executor> global_execs);
+  void ClearExecutorSnapshotsLocked();
+  void ResetControlIoLocked();
+  void RollbackStartLocked();
   void JoinThreadPool();
   void ResetThreadPool();
-  void DoAccept(boost::asio::ip::tcp::acceptor& acc);
+  void StartAcceptedConnection(std::size_t endpoint_index,
+                               boost::asio::ip::tcp::socket socket);
+  void RearmAcceptIfRunning(std::size_t endpoint_index,
+                            std::size_t shard_index);
+  void HandleAcceptResult(std::size_t endpoint_index, std::size_t shard_index,
+                          boost::system::error_code ec,
+                          boost::asio::ip::tcp::socket socket);
+  void DoAccept(std::size_t endpoint_index, std::size_t shard_index);
 
   std::optional<boost::asio::ssl::context>
-      ssl_ctx_;                  ///< The SSL context of the server
-  boost::asio::io_context ioc_;  ///< The I/O context of the server
+      ssl_ctx_;  ///< The SSL context of the server
+  boost::asio::io_context
+      control_ioc_;  ///< Control io_context used by non-connection timers.
   std::optional<
       boost::asio::executor_work_guard<boost::asio::io_context::executor_type>>
-      io_work_guard_;  ///< Keeps io_context alive while running
-  std::vector<std::thread> io_threads_;  ///< Threads to run I/O context
-  std::vector<boost::asio::ip::tcp::acceptor>
-      acceptors_;                          ///< Acceptors to accept sockets
-  std::shared_mutex mtx_;                  ///< Mutex for thread synchronization
+      control_io_work_guard_;  ///< Keeps control_ioc alive while running.
+  std::optional<std::thread>
+      control_io_thread_;  ///< Thread running control_ioc.
+  std::vector<EndpointListenConfig>
+      endpoint_configs_;  ///< Listener declarations configured before Start().
+  std::vector<OwnedPtr<EndpointRuntime>>
+      endpoint_runtimes_;  ///< Runtime endpoint shards created at Start().
+  std::atomic<
+      std::shared_ptr<std::vector<std::vector<boost::asio::any_io_executor>>>>
+      endpoint_io_execs_snapshot_;  ///< Endpoint-local I/O executor snapshot.
+  std::atomic<std::shared_ptr<std::vector<boost::asio::any_io_executor>>>
+      global_io_execs_snapshot_;  ///< Flat global endpoint executor snapshot.
+  std::atomic<std::size_t> io_exec_round_robin_{
+      0};  ///< Round-robin cursor for GetIoExecutor.
+  bool reuse_port_supported_{
+      false};  ///< Runtime decision: true when REUSEPORT fan-out is enabled.
+  std::mutex mtx_;                         ///< Mutex for thread synchronization
   std::shared_ptr<Context> context_;       ///< Global server context
   std::shared_ptr<Logger> logger_;         ///< Logger for server events
   OwnedPtr<ThreadPoolState> thread_pool_;  ///< Worker executor backend
