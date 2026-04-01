@@ -69,6 +69,8 @@ FactoryConfig ParseFactoryConfig(const YAML::Node& node,
       throw std::runtime_error(context +
                                ": `params` keys and values must be strings");
     }
+    // Runtime plugins receive a string-only ParameterMap, so YAML parsing keeps
+    // that contract explicit here instead of inventing implicit type coercions.
     config.params.emplace(item.first.as<std::string>(),
                           item.second.as<std::string>());
   }
@@ -171,6 +173,9 @@ std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {
     const YAML::Node ignore_node = route_node["ignore_default_route"];
     const YAML::Node cpu_node = route_node["cpu"];
 
+    // These booleans map directly onto server builder decisions:
+    // ignore_default_route -> AddExclusiveRouteEntry()
+    // cpu -> AddComputingRouteEntry()-style wrapping.
     RouteConfig route{
         .method = ParseMethod(route_node["method"], ctx.str()),
         .path = path_node.as<std::string>(),
@@ -220,6 +225,8 @@ ExecutorConfig ParseExecutorConfig(const YAML::Node& node) {
 
   config.configured = true;
 
+  // Leaving a field absent means "inherit library defaults". The parser only
+  // validates fields the operator actually overrides in YAML.
   const YAML::Node core_thread_num_node = node["core_thread_num"];
   if (core_thread_num_node) {
     if (!core_thread_num_node.IsScalar()) {

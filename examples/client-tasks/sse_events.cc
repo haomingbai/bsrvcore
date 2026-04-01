@@ -1,3 +1,13 @@
+/**
+ * @file example_sse_events.cc
+ * @brief Consume an SSE endpoint with HttpSseClientTask and SseEventParser.
+ *
+ * Demonstrates:
+ * - starting an SSE client task
+ * - repeatedly pulling chunks with Next()
+ * - feeding incremental response data into SseEventParser
+ */
+
 #include <bsrvcore/allocator/allocator.h>
 #include <bsrvcore/connection/client/http_sse_client_task.h>
 #include <bsrvcore/connection/client/sse_event_parser.h>
@@ -24,6 +34,8 @@ int main() {
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, done, completion, &pull_next]() {
+    // Next() returns the next incremental body chunk, not a fully parsed SSE
+    // event. The example keeps a tiny pull loop so parser state stays explicit.
     client->Next([parser, events, done, completion,
                   &pull_next](const bsrvcore::HttpSseClientResult& result) {
       if (*done) {

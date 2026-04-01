@@ -124,6 +124,8 @@ void HttpClientTask::Impl::DoStart() {
       weak = session_;
     }
     if (auto session = weak.lock()) {
+      // Session-level cookies are injected after callers finish mutating the
+      // request but before prepare_payload() computes final framing headers.
       session->MaybeInjectCookies(request_, host_, target_, use_ssl_);
     }
   }
@@ -147,6 +149,8 @@ void HttpClientTask::Impl::OnResolve(boost::system::error_code ec,
   }
 
   if (use_ssl_) {
+    // The SSL and plain TCP branches intentionally stay structurally parallel
+    // so stage-specific timeout/error reporting remains easy to audit.
     ssl_stream_.emplace(executor_, *ssl_ctx_);
     boost::beast::get_lowest_layer(*ssl_stream_)
         .expires_after(options_.connect_timeout);
@@ -215,6 +219,9 @@ void HttpClientTask::Impl::OnHandshake(boost::system::error_code ec) {
     return;
   }
 
+  // Once transport setup completes, the rest of the flow is identical to the
+  // plain HTTP path: emit the stage transition, then write the prepared
+  // request.
   EmitConnected(boost::system::error_code{});
   DoWriteRequest();
 }

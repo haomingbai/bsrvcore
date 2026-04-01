@@ -20,6 +20,8 @@ namespace http = http_sse_detail::http;
 
 void HttpSseClientTask::Impl::Next(Callback cb) {
   auto self = shared_from_this();
+  // Next() is serialized onto the strand so user code can call it from any
+  // thread without racing parser state or overlapping read_some operations.
   boost::asio::post(strand_,
                     [self = std::move(self), cb = std::move(cb)]() mutable {
                       RunPostedNext(std::move(self), std::move(cb));
@@ -48,6 +50,8 @@ void HttpSseClientTask::Impl::RunPostedNext(std::shared_ptr<Impl> self,
 
   self->next_pending_ = true;
   self->next_callback_ = std::move(cb);
+  // Exactly one outstanding Next() maps to exactly one async_read_some() call.
+  // This keeps the incremental parser contract simple for consumers.
   self->DoReadNextChunk();
 }
 
@@ -119,6 +123,9 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
 
   const auto& body = parser_->get().body();
   if (body.size() > last_emitted_body_size_) {
+    // Beast's parser body is cumulative. Expose only the newly appended suffix
+    // so callers can feed an incremental SSE parser without reprocessing the
+    // full response buffer on every callback.
     result.chunk = body.substr(last_emitted_body_size_);
     last_emitted_body_size_ = body.size();
   }

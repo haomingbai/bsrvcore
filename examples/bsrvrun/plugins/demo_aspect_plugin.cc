@@ -1,3 +1,11 @@
+/**
+ * @file demo_aspect_plugin.cc
+ * @brief Minimal bsrvrun aspect plugin used by examples and tests.
+ *
+ * The exported factory returns an aspect that appends configured text in the
+ * pre and post phases, making aspect ordering visible in response bodies.
+ */
+
 #include <memory>
 #include <string>
 
@@ -57,5 +65,6 @@ DemoAspectFactory g_factory;
 
 extern "C" bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
 GetAspectFactory() {
+  // bsrvrun resolves this exact symbol name via dlsym().
   return &g_factory;
 }

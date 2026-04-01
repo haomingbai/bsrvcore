@@ -112,6 +112,8 @@ void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
 std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<HttpServerConnection> conn) {
+  // All three lifecycle task objects share one HttpTaskSharedState instance so
+  // request/response data, cookies, and connection state survive phase hops.
   auto state =
       CreateTaskState(std::move(req), std::move(route_result), std::move(conn));
   auto* raw =
@@ -134,6 +136,9 @@ void HttpPreServerTask::Start() {
   }
 
   auto self = shared_from_this();
+  // Lifecycle work always enters via the connection executor so request parse,
+  // handler execution, and response write sequencing stay serialized per
+  // connection without an extra strand object at the task layer.
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
       GetState().handler_alloc, [self = std::move(self)]() mutable {
         RunScheduledPrePhase(std::move(self));
@@ -154,6 +159,9 @@ void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
   auto self = shared_from_this();
   while (curr_idx < state.route_result.aspects.size()) {
     try {
+      // Pre aspects run in registration order and share mutable access to the
+      // eventual response. Exceptions are swallowed so one hook cannot abort
+      // the entire request pipeline implicitly.
       state.route_result.aspects[curr_idx]->PreService(self);
     } catch (...) {
     }
@@ -198,6 +206,9 @@ void HttpServerTask::DoService() {
 
   auto self = shared_from_this();
   try {
+    // Holding shared_ptr<HttpServerTask> beyond this call intentionally delays
+    // the custom-deleter transition into the post phase. That is how async
+    // handlers defer response finalization without extra state machines.
     state.route_result.handler->Service(self);
   } catch (...) {
   }
@@ -236,6 +247,8 @@ void HttpPostServerTask::Start() {
   auto self = shared_from_this();
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
       state.handler_alloc, [self = std::move(self), last_idx]() mutable {
+        // Post hooks unwind in reverse order, mirroring middleware stacks where
+        // the innermost route-local aspect exits before outer/global aspects.
         RunScheduledPostPhase(std::move(self), last_idx);
       }));
 }

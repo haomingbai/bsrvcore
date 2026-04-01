@@ -21,6 +21,8 @@ namespace bsrvcore::runtime {
 
 std::string ResolveConfigPath(const std::optional<std::string>& cli_path) {
   if (cli_path.has_value()) {
+    // Explicit CLI input always wins; missing files are treated as operator
+    // mistakes instead of silently falling back to another location.
     const std::filesystem::path configured_path(*cli_path);
     if (!std::filesystem::exists(configured_path)) {
       throw std::runtime_error("config file not found: " +
@@ -56,6 +58,9 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
   // section and where validation errors originate.
   const auto server = config_loader_detail::ParseServerSection(root["server"]);
 
+  // Top-level assembly is intentionally a thin projection step: every nested
+  // parser owns its validation rules so error messages still point at the
+  // originating section.
   ServerConfig config{
       .thread_count = server.thread_count,
       .has_max_connection = server.has_max_connection,

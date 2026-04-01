@@ -46,11 +46,15 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
   for (const auto& route : config.routes) {
     auto route_handler = loader->CreateHandler(route.handler);
     if (route.cpu) {
+      // cpu: true keeps the route in the normal lifecycle/aspect pipeline but
+      // moves handler body execution onto the worker pool wrapper.
       route_handler = bsrvcore::route_internal::WrapComputingHandler(
           std::move(route_handler));
     }
 
     if (route.ignore_default_route) {
+      // YAML uses a descriptive flag name while the core router expresses the
+      // behavior as an exclusive route entry.
       server->AddExclusiveRouteEntry(route.method, route.path,
                                      std::move(route_handler));
     } else {

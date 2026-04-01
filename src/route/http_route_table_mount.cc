@@ -44,6 +44,8 @@ std::string HttpRouteTable::JoinRouteTemplate(std::string_view prefix,
 void HttpRouteTable::PrefixRouteTemplates(HttpRouteTableLayer& layer,
                                           std::string_view prefix) {
   if (HasTerminalConfiguration(layer)) {
+    // Only layers that actually terminate behavior need user-visible route
+    // templates. Pure traversal nodes keep empty templates.
     layer.route_template_ = JoinRouteTemplate(prefix, layer.route_template_);
   }
 
@@ -61,6 +63,9 @@ void HttpRouteTable::PrefixRouteTemplates(HttpRouteTableLayer& layer,
 bool HttpRouteTable::CanMergeLayer(const HttpRouteTableLayer& dst,
                                    const HttpRouteTableLayer& src) noexcept {
   if (HasTerminalConfiguration(src) && HasTerminalConfiguration(dst)) {
+    // Mounting is rejected when both trees already define behavior at the same
+    // logical node; this keeps MountAt() from silently overwriting handlers or
+    // route-local policies.
     return false;
   }
 
@@ -115,6 +120,8 @@ void HttpRouteTable::MoveMergeLayer(HttpRouteTableLayer& dst,
     if (dst.default_route_ == nullptr) {
       dst.default_route_ = std::move(src.default_route_);
     } else {
+      // Child recursion is safe here because CanMergeLayer() already performed
+      // a full conflict preflight before any state mutation started.
       MoveMergeLayer(*dst.default_route_, *src.default_route_);
       src.default_route_.reset();
     }
@@ -146,6 +153,9 @@ bool HttpRouteTable::CloneLayer(const HttpRouteTableLayer& src,
   cloned->route_template_ = src.route_template_;
 
   if (src.handler_ != nullptr) {
+    // Clone-based mounting is only available for handlers/aspects that opt into
+    // the cloneable interfaces; runtime-only handler instances cannot be
+    // duplicated safely.
     auto* cloneable_handler =
         dynamic_cast<const CloneableHttpRequestHandler*>(src.handler_.get());
     if (cloneable_handler == nullptr) {
@@ -220,6 +230,8 @@ bool HttpRouteTable::MountAt(std::string_view prefix, HttpRouteTable&& source) {
     PrefixRouteTemplates(*source.entrance_[method_idx], prefix);
 
     auto* mount_root = get_or_create_mount_layer(entrance_[method_idx].get());
+    // First pass is validation only. Either every method tree can merge cleanly
+    // or the mount leaves the destination untouched.
     if (!CanMergeLayer(*mount_root, *source.entrance_[method_idx])) {
       return false;
     }

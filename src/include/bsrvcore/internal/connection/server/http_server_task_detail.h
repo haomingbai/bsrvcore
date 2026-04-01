@@ -40,6 +40,9 @@ namespace bsrvcore {
 
 namespace task_internal {
 
+// Shared request state survives the pre -> service -> post phase chain. The
+// custom deleters in http_server_task_lifecycle.cc advance the lifecycle by
+// constructing the next task object on top of this same state.
 struct HttpTaskSharedState {
   HttpTaskSharedState(HttpRequest in_req, HttpRouteResult in_route_result,
                       std::shared_ptr<HttpServerConnection> in_conn,
@@ -59,10 +62,15 @@ struct HttpTaskSharedState {
   std::unordered_map<std::string, std::string> cookies;
   std::optional<std::string> sessionid;
   std::vector<ServerSetCookie> set_cookies;
+  // The connection pointer is cleared when the response is finalized or the
+  // stream is closed. Subsequent task callbacks treat nullptr as "request is no
+  // longer schedulable".
   std::atomic<std::shared_ptr<HttpServerConnection>> conn;
   HttpRouteResult route_result;
   HttpServer* srv;
   std::atomic_bool keep_alive;
+  // Manual connection management is monotonic: once true, the lifecycle
+  // finalizer must not auto-write the accumulated response.
   std::atomic_bool manual_connection_management;
   bool is_cookie_parsed;
   bsrvcore::internal::HandlerAllocator handler_alloc;
@@ -109,6 +117,8 @@ inline T* AllocateTaskObject(
 inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<HttpServerConnection> conn) {
+  // Reuse the connection's small-object allocator so all lifecycle handlers and
+  // task objects stay consistent with the connection's Asio allocation policy.
   auto handler_alloc = conn ? conn->GetHandlerAllocator()
                             : bsrvcore::internal::HandlerAllocator{};
   bsrvcore::Allocator<HttpTaskSharedState> state_alloc;
@@ -214,6 +224,8 @@ inline void TryCloseConnection(
   if (conn->IsStreamAvailable()) {
     conn->DoClose();
   }
+  // Clearing conn is just as important as closing the stream: delayed callbacks
+  // use this as the guard that the request lifecycle has ended.
   state->conn.store(nullptr);
 }
 
@@ -240,6 +252,8 @@ inline void FinalizeResponse(
   }
 
   AppendSetCookies(*state);
+  // Finalization transfers ownership of the accumulated response to the
+  // connection writer and then marks the task environment unavailable.
   conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load(),
                         state->route_result.write_expiry);
   state->conn.store(nullptr);

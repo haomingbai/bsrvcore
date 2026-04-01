@@ -6,6 +6,9 @@ This is a **tutorial**: it teaches the ideas and the recommended way to use bsrv
 
 For complete API details (types, overloads, edge cases), use **Doxygen** generated from the public headers.
 
+If you need to understand the internal implementation instead of the public
+usage model, see the maintainer notes in [../design/index.md](../design/index.md).
+
 ## Learning path
 
 Read in this order:

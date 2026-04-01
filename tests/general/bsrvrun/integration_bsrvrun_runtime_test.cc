@@ -1,3 +1,13 @@
+/**
+ * @file integration_bsrvrun_runtime_test.cc
+ * @brief Integration tests for YAML loading + plugin-backed server assembly.
+ *
+ * Focus:
+ * - global and route-local plugin aspects
+ * - handler factory parameter wiring
+ * - YAML flags that map onto core routing behavior
+ */
+
 #include <gtest/gtest.h>
 
 #include <filesystem>

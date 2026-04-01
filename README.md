@@ -14,6 +14,10 @@ Tutorial-style manual (recommended):
 
 - See [docs/manual/index.md](docs/manual/index.md)
 
+Maintainer / internals notes:
+
+- See [docs/design/index.md](docs/design/index.md)
+
 API reference:
 
 - This project relies on Doxygen generated from public headers under `include/bsrvcore/`.

@@ -1,3 +1,13 @@
+/**
+ * @file example_http_client_request.cc
+ * @brief Minimal outbound HTTP request using HttpClientTask.
+ *
+ * Demonstrates:
+ * - creating a one-shot HTTP client task on an io_context
+ * - waiting for completion through OnDone + std::promise
+ * - inspecting the final response status and body size
+ */
+
 #include <bsrvcore/connection/client/http_client_task.h>
 
 #include <boost/asio/io_context.hpp>
@@ -11,6 +21,8 @@
 int main() {
   namespace http = boost::beast::http;
 
+  // The client task reuses the caller-provided io_context. Running the context
+  // drives resolve/connect/write/read completion until OnDone fires.
   boost::asio::io_context ioc;
 
   bsrvcore::HttpClientOptions options;

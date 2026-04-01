@@ -1,3 +1,11 @@
+/**
+ * @file demo_handler_plugin.cc
+ * @brief Minimal bsrvrun handler plugin used by examples and tests.
+ *
+ * The exported factory returns a handler that appends a configured body suffix.
+ * This keeps the plugin ABI example intentionally small and easy to copy.
+ */
+
 #include <memory>
 #include <string>
 
@@ -40,5 +48,6 @@ DemoHandlerFactory g_factory;
 }  // namespace
 
 extern "C" bsrvcore::bsrvrun::HttpRequestHandlerFactory* GetHandlerFactory() {
+  // bsrvrun resolves this exact symbol name via dlsym().
   return &g_factory;
 }

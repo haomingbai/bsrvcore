@@ -45,6 +45,8 @@ PluginLoader::~PluginLoader() {
 void* PluginLoader::GetOrOpenLibrary(const std::string& path) const {
   const auto it = handles_.find(path);
   if (it != handles_.end()) {
+    // Reuse one dlopen() handle per shared object so repeated factory creation
+    // does not reload plugin code or invalidate previously returned factories.
     return it->second;
   }
 
@@ -80,6 +82,8 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
                              config.library + "`");
   }
 
+  // Build a fresh ParameterMap per creation call so factories can treat it as
+  // request-local configuration instead of shared mutable plugin state.
   RuntimeParameterMap params = BuildMap(config);
   auto handler = factory->Ger(&params);
   if (!handler) {

@@ -85,6 +85,8 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
     aspects.emplace_back(a.get());
   }
 
+  // Routing failures still run the default handler inside the global aspect
+  // envelope so cross-cutting behavior such as logging/auth can stay uniform.
   return {.current_location = "/",
           .route_template = "/",
           .parameters = {},
@@ -119,6 +121,8 @@ bool HttpRouteTable::MatchSegments(
     }
 
     if (route_layer->GetIgnoreDefaultRoute()) {
+      // Exclusive routes intentionally stop parametric fallback at this node.
+      // Matching then ends at the exact layer that declared the exclusivity.
       break;
     }
 
@@ -164,6 +168,9 @@ std::unordered_map<std::string, std::string> HttpRouteTable::BuildParameterMap(
   const auto pair_count = std::min(param_names.size(), parameter_values.size());
   parameters.reserve(pair_count);
 
+  // Parameter names live on the terminal layer, while values are captured on
+  // the walk down the tree. Zip them only at the end so matching logic stays
+  // independent of how many static segments were traversed in between.
   for (std::size_t i = 0; i < pair_count; ++i) {
     parameters.emplace(param_names[i], std::move(parameter_values[i]));
   }
@@ -191,6 +198,9 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
     }
   }
 
+  // Route-local aspects are already stored in pre-order on the matched layer.
+  // Appending them after global/method aspects yields the expected nesting:
+  // global -> method -> route on entry, and the reverse on exit.
   auto route_aspects = route_layer->GetAspects();
   aspects.insert(aspects.end(), std::make_move_iterator(route_aspects.begin()),
                  std::make_move_iterator(route_aspects.end()));

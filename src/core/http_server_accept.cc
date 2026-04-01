@@ -48,6 +48,8 @@ bool TryEnableReusePort(tcp::acceptor& acceptor) {
     defined(__NetBSD__) || defined(__OpenBSD__)
 #if defined(SO_REUSEPORT)
   const int option = 1;
+  // REUSEADDR keeps restart behavior friendly, while REUSEPORT lets multiple
+  // acceptors on independent io_context shards bind the same endpoint.
   auto reuse_result = ::setsockopt(acceptor.native_handle(), SOL_SOCKET,
                                    SO_REUSEADDR, &option, sizeof(option));
   reuse_result |= ::setsockopt(acceptor.native_handle(), SOL_SOCKET,
@@ -123,6 +125,9 @@ void CloseAcceptor(tcp::acceptor& acceptor) {
 }  // namespace
 
 void HttpServer::ClearExecutorSnapshotsLocked() {
+  // Publish empty snapshots before shutdown work fans out so public
+  // Get*Executor callers immediately fail closed instead of seeing stale
+  // executors from a runtime that is already stopping.
   endpoint_io_execs_snapshot_.store(
       AllocateShared<std::vector<std::vector<boost::asio::any_io_executor>>>(),
       std::memory_order_release);
@@ -269,6 +274,9 @@ bool HttpServer::BuildFirstEndpointRuntimeLocked(
   global_execs.push_back(first_ioc.get_executor());
 
   if (!reuse_port_supported_) {
+    // Mixed runtime modes would make the external executor model surprising.
+    // The first endpoint therefore decides whether the whole server runs in
+    // "many acceptors" mode or "single acceptor, many run() threads" mode.
     return true;
   }
 
@@ -330,6 +338,7 @@ void HttpServer::StartEndpointRuntimesLocked() {
     }
 
     if (reuse_port_supported_) {
+      // One thread per shard keeps accept + connection IO affinity simple.
       for (auto& ioc : runtime->io_contexts) {
         runtime->io_threads.emplace_back(
             [raw_ioc = ioc.get()] { raw_ioc->run(); });
@@ -359,6 +368,9 @@ bool HttpServer::Start() {
 
   is_running_ = true;
 
+  // The control io_context backs server-wide timers and "no endpoint available
+  // yet" executor fallbacks. It must exist before endpoint runtimes publish
+  // snapshots that may point callers at it.
   control_ioc_.restart();
   control_io_work_guard_.emplace(boost::asio::make_work_guard(control_ioc_));
   control_io_thread_.emplace([this] { control_ioc_.run(); });
@@ -461,6 +473,9 @@ void HttpServer::HandleAcceptResult(std::size_t endpoint_index,
 
   if (!ec) {
     if (should_reject) {
+      // The accept loop keeps draining the kernel backlog even when the
+      // logical connection budget is exhausted; excess sockets are closed
+      // immediately instead of stalling future accepts.
       boost::system::error_code close_ec;
       socket.close(close_ec);
     } else {
@@ -485,6 +500,9 @@ void HttpServer::DoAccept(std::size_t endpoint_index, std::size_t shard_index) {
   acceptor.async_accept(
       [this, endpoint_index, shard_index](boost::system::error_code ec,
                                           boost::asio::ip::tcp::socket socket) {
+        // Completion stays tiny: hand off the socket (or reject it), then
+        // immediately re-arm the shard so accept throughput does not depend on
+        // downstream request processing.
         HandleAcceptResult(endpoint_index, shard_index, ec, std::move(socket));
       });
 }

@@ -104,6 +104,8 @@ void HttpTaskBase::GenerateCookiePairs() {
     return;
   }
 
+  // Cookies are parsed lazily so requests that never inspect cookie state do
+  // not pay the split/trim cost.
   auto cookie_raw = state_->req[boost::beast::http::field::cookie];
   using connection_internal::helper::ParseCookiePairView;
   using connection_internal::helper::SplitCookieHeaderUsingSplit;
@@ -127,6 +129,9 @@ const std::string& HttpTaskBase::GetSessionId() {
 
   for (const auto& it : state_->cookies) {
     using connection_internal::helper::ToLowerString;
+    // RFC cookie names are case-sensitive in theory, but real deployments tend
+    // to vary this header spelling. Normalize here so session recovery is
+    // tolerant to common client/proxy behavior.
     if (ToLowerString(it.first) == "sessionid") {
       state_->sessionid = it.second;
       break;
@@ -138,6 +143,8 @@ const std::string& HttpTaskBase::GetSessionId() {
     state_->sessionid = GenerateSessionId();
 
     if (state_->sessionid.has_value()) {
+      // Session creation is implicit on first access. Emitting Set-Cookie here
+      // keeps the rest of the session API free from "maybe create" branches.
       ServerSetCookie session_cookie;
       session_cookie.SetName("sessionId")
           .SetValue(state_->sessionid.value_or(""));
@@ -187,6 +194,8 @@ void HttpTaskBase::SetKeepAlive(bool value) noexcept {
 
 void HttpTaskBase::SetManualConnectionManagement(bool value) noexcept {
   if (!state_->manual_connection_management.load()) {
+    // This flag is intentionally one-way. Once user code opts into manual
+    // response control, later helpers must not silently re-enable auto write.
     state_->manual_connection_management.store(value);
   }
 }
@@ -203,6 +212,8 @@ void HttpTaskBase::WriteBody(std::string body) {
     return;
   }
 
+  // Manual mode can stream headers/body in multiple chunks; the lifecycle
+  // finalizer skips automatic DoWriteResponse() once this mode is enabled.
   conn->DoFlushResponseBody(std::move(body), state_->route_result.write_expiry);
 }
 
@@ -248,6 +259,8 @@ void HttpTaskBase::PostToIoContext(std::function<void()> fn) {
     return;
   }
 
+  // Use the connection-local IO executor when follow-up work must stay ordered
+  // with socket operations instead of hopping onto the general worker pool.
   boost::asio::post(
       conn->GetIoExecutor(),
       boost::asio::bind_allocator(state_->handler_alloc,
@@ -286,6 +299,9 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
       state_->handler_alloc,
       [state = state_, timer = std::move(timer),
        fn = std::move(fn)](boost::system::error_code ec) mutable {
+        // Timers are owned by the IO executor so cancellation/shutdown is
+        // aligned with connection lifetime, then the callback hops back to the
+        // worker pool via OnTaskTimerExpired().
         OnTaskTimerExpired(std::move(state), std::move(timer), std::move(fn),
                            ec);
       }));

@@ -73,6 +73,9 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
   auto* route_layer = entrance_[static_cast<std::size_t>(method)].get();
   for (auto word : route_internal::detail::SplitTargetSegments(target)) {
     if (route_internal::detail::IsParameterSegment(word)) {
+      // Parameter segments all share the dedicated default_route_ edge. This
+      // keeps the tree compact and lets matching choose "exact segment first,
+      // wildcard second" at each depth.
       if (HttpRouteTableLayer* next_layer = route_layer->GetDefaultRoute()) {
         route_layer = next_layer;
       } else {
@@ -94,6 +97,8 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
     }
   }
 
+  // Terminal metadata is rewritten on repeated registration so policies and
+  // parameter names always reflect the latest route definition for this path.
   route_layer->SetParamNames(ExtractParamNames(target));
   route_layer->SetRouteTemplate(NormalizeRouteTemplate(target));
   return route_layer;
@@ -240,6 +245,8 @@ void HttpRouteTable::DestroyLayerTreeIterative(
     return;
   }
 
+  // Deep route trees are user-controlled. Destroy iteratively so teardown
+  // depth is bounded by heap storage instead of the call stack.
   std::vector<OwnedPtr<HttpRouteTableLayer>> pending;
   pending.emplace_back(std::move(root));
   while (!pending.empty()) {

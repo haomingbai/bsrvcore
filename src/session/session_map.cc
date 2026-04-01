@@ -41,6 +41,8 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
   if (map_.count(sessionid) && map_.at(sessionid).GetExpiry() > now) {
     auto& map_entry = map_.at(sessionid);
     result = map_entry.GetContext();
+    // Touching a live session extends expiry monotonically. Never shorten an
+    // existing lease, even if the default timeout changed meanwhile.
     auto new_expiry =
         std::max(now + std::chrono::milliseconds(default_timeout_),
                  map_entry.GetExpiry());
@@ -52,6 +54,8 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
     map_entry.SetExpiry(new_expiry);
   } else {
     result = AllocateShared<Context>();
+    // Creating on demand keeps the public API small: callers ask for a session
+    // id and always get a context, regardless of whether it already existed.
     auto new_expiry = now + std::chrono::milliseconds(std::max<size_t>(
                                 kMinSessionTimeout, default_timeout_));
 
@@ -174,6 +178,9 @@ void SessionMap::SetCleaner() {
 
     HttpServer* server_ptr = server_;
     if (server_ptr != nullptr && server_ptr->IsRunning()) {
+      // The timer only triggers scheduling. Actual cleanup is posted onto the
+      // server worker pool so expiry work shares the same lifetime guarantees
+      // and allocator context as normal server-side tasks.
       server_ptr->Post([this] {
         std::lock_guard<std::mutex> lock(mtx_);
 
@@ -210,6 +217,9 @@ void SessionMap::SetSessionTimeout(const std::string& sessionid,
   auto it = map_.find(sessionid);
 
   if (it != map_.end()) {
+    // Timeout updates are additive-only for the same reason as GetSession():
+    // background configuration changes should not unexpectedly expire a live
+    // session earlier than its current lease.
     auto new_expiry = std::max(
         it->second.GetExpiry(),
         now + std::chrono::milliseconds(std::max(kMinSessionTimeout, timeout)));

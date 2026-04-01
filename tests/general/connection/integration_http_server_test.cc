@@ -1,3 +1,15 @@
+/**
+ * @file integration_http_server_test.cc
+ * @brief End-to-end server tests for core request lifecycle behavior.
+ *
+ * Focus:
+ * - basic request/response flow
+ * - connection-cap enforcement
+ * - aspect ordering
+ * - async handler lifetime semantics
+ * - request-body helpers such as PutProcessor
+ */
+
 #include <gtest/gtest.h>
 
 #include <boost/asio/buffer.hpp>

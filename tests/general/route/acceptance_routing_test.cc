@@ -1,3 +1,13 @@
+/**
+ * @file acceptance_routing_test.cc
+ * @brief Acceptance tests for public routing behavior.
+ *
+ * Focus:
+ * - invalid route registration should not become reachable
+ * - matched tasks should expose stable route metadata
+ * - exclusive routes should block parametric fallback
+ */
+
 #include <gtest/gtest.h>
 
 #include <boost/beast/core/string.hpp>

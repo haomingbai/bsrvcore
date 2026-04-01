@@ -37,12 +37,17 @@
 using namespace bsrvcore;
 
 boost::asio::any_io_executor HttpServer::SelectIoExecutorRoundRobin() noexcept {
+  // Start()/Stop() publish executor snapshots atomically, so hot-path reads can
+  // stay lock-free and simply fall back to the control io_context while the
+  // runtime is still coming up or already tearing down.
   auto global_snapshot =
       global_io_execs_snapshot_.load(std::memory_order_acquire);
   if (!global_snapshot || global_snapshot->empty()) {
     return control_ioc_.get_executor();
   }
 
+  // Per-request IO work does not need strong ordering across threads; relaxed
+  // round-robin is enough to spread short tasks over the available shards.
   const auto idx =
       io_exec_round_robin_.fetch_add(1, std::memory_order_relaxed) %
       global_snapshot->size();
@@ -71,6 +76,9 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
           return;
         }
 
+        // Keep timer bookkeeping on an IO shard, but run user callbacks on the
+        // worker pool so timer-driven work follows the same execution model as
+        // normal handlers and HttpServerTask helpers.
         Post(std::move(fn));
       });
 }
@@ -81,6 +89,8 @@ void HttpServer::Post(std::function<void()> fn) {
     return;
   }
 
+  // The mutex closes the race with Stop(), which tears the worker pool down
+  // under the same lock.
   boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
 }
 
@@ -125,6 +135,9 @@ void HttpServer::Log(LogLevel level, std::string message) {
 
 HttpRouteResult HttpServer::Route(HttpRequestMethod method,
                                   std::string_view target) {
+  // Routing stays centralized inside HttpRouteTable so server/runtime code does
+  // not need to understand tree structure, aspect collection order, or route
+  // policy inheritance.
   return route_table_->Route(method, target);
 }
 
@@ -141,6 +154,8 @@ boost::asio::any_io_executor HttpServer::GetIoExecutor() noexcept {
     return {};
   }
 
+  // Public callers only need "an IO executor" for short follow-up work, not a
+  // stable shard identity, so reuse the same round-robin selection strategy.
   return SelectIoExecutorRoundRobin();
 }
 
