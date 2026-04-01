@@ -48,8 +48,12 @@ bool TryEnableReusePort(tcp::acceptor& acceptor) {
     defined(__NetBSD__) || defined(__OpenBSD__)
 #if defined(SO_REUSEPORT)
   const int option = 1;
-  if (::setsockopt(acceptor.native_handle(), SOL_SOCKET, SO_REUSEPORT, &option,
-                   sizeof(option)) != 0) {
+  auto reuse_result = ::setsockopt(acceptor.native_handle(), SOL_SOCKET,
+                                   SO_REUSEADDR, &option, sizeof(option));
+  reuse_result |= ::setsockopt(acceptor.native_handle(), SOL_SOCKET,
+                               SO_REUSEPORT, &option, sizeof(option));
+
+  if (reuse_result != 0) {
     return false;
   }
   return true;
@@ -295,14 +299,12 @@ bool HttpServer::BuildEndpointRuntimesLocked(
       }
       mode_decided = true;
     } else if (reuse_port_supported_) {
-      if (!BuildReusePortEndpointRuntimeLocked(cfg, *runtime,
-                                               endpoint_execs.back(),
-                                               global_execs)) {
+      if (!BuildReusePortEndpointRuntimeLocked(
+              cfg, *runtime, endpoint_execs.back(), global_execs)) {
         return false;
       }
-    } else if (!BuildFallbackEndpointRuntimeLocked(cfg, *runtime,
-                                                   endpoint_execs.back(),
-                                                   global_execs)) {
+    } else if (!BuildFallbackEndpointRuntimeLocked(
+                   cfg, *runtime, endpoint_execs.back(), global_execs)) {
       return false;
     }
 
@@ -421,11 +423,13 @@ void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
   }
 
   auto stream_exec = stream.get_executor();
-  connection_internal::HttpServerConnectionImpl<boost::beast::tcp_stream>::
-      Create(std::move(stream), stream_exec, this, header_read_expiry_,
-             keep_alive_timeout_, kHasMaxConnection_, &available_connection_num_,
-             endpoint_index)
-          ->Run();
+  connection_internal::HttpServerConnectionImpl<
+      boost::beast::tcp_stream>::Create(std::move(stream), stream_exec, this,
+                                        header_read_expiry_,
+                                        keep_alive_timeout_, kHasMaxConnection_,
+                                        &available_connection_num_,
+                                        endpoint_index)
+      ->Run();
 }
 
 void HttpServer::RearmAcceptIfRunning(std::size_t endpoint_index,
