@@ -22,8 +22,8 @@
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http.hpp>
@@ -115,7 +115,8 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::post(GetExecutor(), [self = this->shared_from_this(), this] {
+    boost::asio::dispatch(GetExecutor(),
+                          [self = this->shared_from_this(), this] {
       if (!helper::GetLowestSocket(stream_).is_open()) {
         return;
       }
@@ -133,7 +134,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
             boost::asio::ip::tcp::socket::shutdown_both, ec);
         helper::GetLowestSocket(stream_).close(ec);
       }
-    });
+                          });
   }
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }
@@ -145,7 +146,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::post(
+    boost::asio::dispatch(
         GetExecutor(), [self = this->shared_from_this(), this, keep_alive,
                         write_expiry, response = std::move(resp)]() mutable {
           if (!IsServerRunning() || !IsStreamAvailable()) {

@@ -22,7 +22,6 @@
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/dispatch.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/fields.hpp>
@@ -175,8 +174,8 @@ class HttpServerConnection
    * @param handler Handler to schedule on the per-connection I/O executor.
    *
    * @details
-   * This uses post (not inline dispatch) to avoid lifecycle re-entrancy and
-   * keeps request-lifecycle phase transitions serialized with connection I/O.
+   * This uses dispatch to avoid unnecessary queue hops when already on the
+   * target executor, while preserving per-connection sequencing semantics.
    */
   template <typename Handler>
   void DispatchToConnectionExecutor(Handler&& handler) {
@@ -184,7 +183,7 @@ class HttpServerConnection
       return;
     }
 
-    boost::asio::post(io_executor_, std::forward<Handler>(handler));
+    boost::asio::dispatch(io_executor_, std::forward<Handler>(handler));
   }
 
   /**

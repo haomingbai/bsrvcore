@@ -22,7 +22,7 @@
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/post.hpp>
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/write.hpp>
 #include <boost/beast/http.hpp>
 #include <condition_variable>
@@ -56,7 +56,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
     auto self_sp = this->shared_from_this();
 
     if (auto conn_sp = conn_wp_.lock()) {
-      boost::asio::post(
+      boost::asio::dispatch(
           conn_sp->GetExecutor(),
           [conn_sp, self_sp, message = std::move(message)]() mutable {
             self_sp->EnqueueBodyOnStrand(std::move(message));
@@ -77,7 +77,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
     auto self_sp = this->shared_from_this();
 
     if (auto conn_sp = conn_wp_.lock()) {
-      boost::asio::post(
+      boost::asio::dispatch(
           conn_sp->GetExecutor(),
           [conn_sp, self_sp, message = std::move(message)]() mutable {
             self_sp->EnqueueHeaderOnStrand(std::move(message));
