@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 0.9.2 LANGUAGES CXX)
+project(bsrvcore VERSION 0.10.0 LANGUAGES CXX)
 
 # Keep historical default (shared) while still allowing callers/subprojects
 # to fully control the library type via BUILD_SHARED_LIBS.
