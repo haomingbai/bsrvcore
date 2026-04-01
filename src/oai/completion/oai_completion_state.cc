@@ -8,23 +8,29 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/oai/completion/oai_completion.h"
-
 #include <memory>
 #include <utility>
+
+#include "bsrvcore/oai/completion/oai_completion.h"
 
 namespace bsrvcore::oai::completion {
 
 OaiCompletionState::OaiCompletionState(
-    std::shared_ptr<OaiCompletionInfo> info, OaiMessage message,
+    std::shared_ptr<OaiCompletionInfo> info,
+    std::shared_ptr<OaiModelInfo> model_info, OaiMessage message,
     OaiRequestLog log, std::shared_ptr<OaiCompletionState> previous)
     : info_(std::move(info)),
+      model_info_(std::move(model_info)),
       message_(std::move(message)),
       log_(std::move(log)),
       previous_(std::move(previous)) {}
 
 std::shared_ptr<const OaiCompletionInfo> OaiCompletionState::GetInfo() const {
   return info_;
+}
+
+std::shared_ptr<const OaiModelInfo> OaiCompletionState::GetModelInfo() const {
+  return model_info_;
 }
 
 const OaiMessage& OaiCompletionState::GetMessage() const { return message_; }

@@ -726,11 +726,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   bool BuildEndpointRuntimesLocked(
       std::vector<std::vector<boost::asio::any_io_executor>>& endpoint_execs,
       std::vector<boost::asio::any_io_executor>& global_execs);
-    bool BuildFirstEndpointRuntimeLocked(
+  bool BuildFirstEndpointRuntimeLocked(
       const EndpointListenConfig& cfg, OwnedPtr<EndpointRuntime>& runtime,
       std::vector<boost::asio::any_io_executor>& endpoint_execs,
       std::vector<boost::asio::any_io_executor>& global_execs);
-    bool BuildReusePortShardsLocked(
+  bool BuildReusePortShardsLocked(
       const EndpointListenConfig& cfg, EndpointRuntime& runtime,
       std::size_t start_shard_index,
       std::vector<boost::asio::any_io_executor>& endpoint_execs,
@@ -739,7 +739,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       const EndpointListenConfig& cfg, EndpointRuntime& runtime,
       std::vector<boost::asio::any_io_executor>& endpoint_execs,
       std::vector<boost::asio::any_io_executor>& global_execs);
-    bool BuildFallbackEndpointRuntimeLocked(
+  bool BuildFallbackEndpointRuntimeLocked(
       const EndpointListenConfig& cfg, EndpointRuntime& runtime,
       std::vector<boost::asio::any_io_executor>& endpoint_execs,
       std::vector<boost::asio::any_io_executor>& global_execs);

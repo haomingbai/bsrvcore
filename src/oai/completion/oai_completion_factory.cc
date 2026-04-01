@@ -8,13 +8,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "bsrvcore/oai/completion/oai_completion.h"
-
 #include <chrono>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/oai/completion/oai_completion.h"
 
 namespace bsrvcore::oai::completion {
 
@@ -42,10 +41,10 @@ OaiCompletionFactory::StatePtr OaiCompletionFactory::AppendMessage(
     const OaiMessage& msg, StatePtr prev) const {
   OaiRequestLog log;
   log.status = OaiCompletionStatus::kLocal;
-  log.model = info_ ? info_->model : std::string{};
   log.timestamp = NowUnixMs();
-  return AllocateShared<OaiCompletionState>(info_, msg, std::move(log),
-                                            std::move(prev));
+  return AllocateShared<OaiCompletionState>(
+      info_, std::shared_ptr<OaiModelInfo>{}, msg, std::move(log),
+      std::move(prev));
 }
 
 }  // namespace bsrvcore::oai::completion

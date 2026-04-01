@@ -15,6 +15,7 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
+#include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -31,9 +32,16 @@ namespace bsrvcore::oai::completion {
 struct OaiCompletionInfo {
   std::string api_key{};
   std::string base_url{};
-  std::string model{};
   std::optional<std::string> organization{};
   std::optional<std::string> project{};
+};
+
+/**
+ * @brief Model selection and model-specific request parameters.
+ */
+struct OaiModelInfo {
+  std::string model{};
+  boost::json::object params{};
 };
 
 /**
@@ -51,7 +59,7 @@ enum class OaiCompletionStatus {
 struct OaiToolCall {
   std::string id{};
   std::string name{};
-  std::string arguments_json{};
+  boost::json::value arguments{};
 };
 
 /**
@@ -60,7 +68,7 @@ struct OaiToolCall {
 struct OaiToolDefinition {
   std::string name{};
   std::string description{};
-  std::string parameters_json{"{}"};
+  boost::json::object parameters{};
 };
 
 /**
@@ -93,17 +101,20 @@ struct OaiRequestLog {
  */
 class OaiCompletionState {
  public:
-  OaiCompletionState(std::shared_ptr<OaiCompletionInfo> info, OaiMessage message,
-                     OaiRequestLog log,
+  OaiCompletionState(std::shared_ptr<OaiCompletionInfo> info,
+                     std::shared_ptr<OaiModelInfo> model_info,
+                     OaiMessage message, OaiRequestLog log,
                      std::shared_ptr<OaiCompletionState> previous);
 
   std::shared_ptr<const OaiCompletionInfo> GetInfo() const;
+  std::shared_ptr<const OaiModelInfo> GetModelInfo() const;
   const OaiMessage& GetMessage() const;
   const OaiRequestLog& GetLog() const;
   std::shared_ptr<const OaiCompletionState> GetPreviousState() const;
 
  private:
   const std::shared_ptr<OaiCompletionInfo> info_;
+  const std::shared_ptr<OaiModelInfo> model_info_;
   const OaiMessage message_;
   const OaiRequestLog log_;
   const std::shared_ptr<OaiCompletionState> previous_;
@@ -124,25 +135,34 @@ class OaiCompletionFactory {
 
   StatePtr AppendMessage(const OaiMessage& msg, StatePtr prev) const;
 
-  bool FetchCompletion(StatePtr state, CompletionCallback cb) const;
-
-  bool FetchCompletion(StatePtr state, const std::vector<OaiToolDefinition>& tools,
+  bool FetchCompletion(StatePtr state, std::shared_ptr<OaiModelInfo> model_info,
                        CompletionCallback cb) const;
 
-  bool FetchStreamCompletion(StatePtr state, StreamDoneCallback on_done,
+  bool FetchCompletion(StatePtr state,
+                       const std::vector<OaiToolDefinition>& tools,
+                       std::shared_ptr<OaiModelInfo> model_info,
+                       CompletionCallback cb) const;
+
+  bool FetchStreamCompletion(StatePtr state,
+                             std::shared_ptr<OaiModelInfo> model_info,
+                             StreamDoneCallback on_done,
                              StreamDeltaCallback on_delta) const;
 
-  bool FetchStreamCompletion(StatePtr state, StreamDoneCallback on_done,
+  bool FetchStreamCompletion(StatePtr state,
+                             std::shared_ptr<OaiModelInfo> model_info,
+                             StreamDoneCallback on_done,
                              StreamDeltaCallback on_delta,
                              StreamDeltaCallback on_reasoning_delta) const;
 
   bool FetchStreamCompletion(StatePtr state,
                              const std::vector<OaiToolDefinition>& tools,
+                             std::shared_ptr<OaiModelInfo> model_info,
                              StreamDoneCallback on_done,
                              StreamDeltaCallback on_delta) const;
 
   bool FetchStreamCompletion(StatePtr state,
                              const std::vector<OaiToolDefinition>& tools,
+                             std::shared_ptr<OaiModelInfo> model_info,
                              StreamDoneCallback on_done,
                              StreamDeltaCallback on_delta,
                              StreamDeltaCallback on_reasoning_delta) const;

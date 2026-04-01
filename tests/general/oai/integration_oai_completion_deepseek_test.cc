@@ -20,6 +20,12 @@ using bsrvcore::oai::completion::OaiCompletionInfo;
 using bsrvcore::oai::completion::OaiCompletionState;
 using bsrvcore::oai::completion::OaiCompletionStatus;
 using bsrvcore::oai::completion::OaiMessage;
+using bsrvcore::oai::completion::OaiModelInfo;
+
+struct DeepSeekConfig {
+  OaiCompletionInfo info;
+  OaiModelInfo model_info;
+};
 
 std::optional<std::filesystem::path> FindConfigPath() {
   namespace fs = std::filesystem;
@@ -41,7 +47,7 @@ std::optional<std::filesystem::path> FindConfigPath() {
   return std::nullopt;
 }
 
-std::optional<OaiCompletionInfo> LoadDeepSeekConfig() {
+std::optional<DeepSeekConfig> LoadDeepSeekConfig() {
   const auto config_path = FindConfigPath();
   if (!config_path.has_value()) {
     return std::nullopt;
@@ -76,33 +82,36 @@ std::optional<OaiCompletionInfo> LoadDeepSeekConfig() {
     return std::nullopt;
   }
 
-  OaiCompletionInfo info;
-  info.base_url = std::string(base_url->as_string().c_str());
-  info.api_key = std::string(api_key->as_string().c_str());
-  info.model = std::string(model->as_string().c_str());
+  DeepSeekConfig config;
+  config.info.base_url = std::string(base_url->as_string().c_str());
+  config.info.api_key = std::string(api_key->as_string().c_str());
+  config.model_info.model = std::string(model->as_string().c_str());
 
-  if (info.base_url.empty() || info.api_key.empty() || info.model.empty()) {
+  if (config.info.base_url.empty() || config.info.api_key.empty() ||
+      config.model_info.model.empty()) {
     return std::nullopt;
   }
 
-  return info;
+  return config;
 }
 
 std::shared_ptr<OaiCompletionState> WaitCompletion(
     boost::asio::io_context& ioc, OaiCompletionFactory& factory,
-    std::shared_ptr<OaiCompletionState> state) {
+    std::shared_ptr<OaiCompletionState> state,
+    std::shared_ptr<OaiModelInfo> model_info) {
   std::promise<std::shared_ptr<OaiCompletionState>> promise;
   auto future = promise.get_future();
 
   bool fulfilled = false;
-  const bool started = factory.FetchCompletion(
-      std::move(state), [&](std::shared_ptr<OaiCompletionState> next) {
-        if (fulfilled) {
-          return;
-        }
-        fulfilled = true;
-        promise.set_value(std::move(next));
-      });
+  const bool started =
+      factory.FetchCompletion(std::move(state), std::move(model_info),
+                              [&](std::shared_ptr<OaiCompletionState> next) {
+                                if (fulfilled) {
+                                  return;
+                                }
+                                fulfilled = true;
+                                promise.set_value(std::move(next));
+                              });
   EXPECT_TRUE(started);
 
   ioc.run();
@@ -114,11 +123,13 @@ std::shared_ptr<OaiCompletionState> WaitCompletion(
 TEST(OaiCompletionIntegrationTest, DeepSeekCompletionSuccessWhenConfigPresent) {
   auto config = LoadDeepSeekConfig();
   if (!config.has_value()) {
-    GTEST_SKIP() << "Missing valid .artifacts/secrets/oai_completion_test_config.json";
+    GTEST_SKIP()
+        << "Missing valid .artifacts/secrets/oai_completion_test_config.json";
   }
 
   boost::asio::io_context ioc;
-  auto info = bsrvcore::AllocateShared<OaiCompletionInfo>(std::move(*config));
+  auto info = bsrvcore::AllocateShared<OaiCompletionInfo>(config->info);
+  auto model_info = bsrvcore::AllocateShared<OaiModelInfo>(config->model_info);
   OaiCompletionFactory factory(ioc.get_executor(), info);
 
   OaiMessage user;
@@ -126,22 +137,26 @@ TEST(OaiCompletionIntegrationTest, DeepSeekCompletionSuccessWhenConfigPresent) {
   user.message = "Reply with only OK.";
 
   auto state = factory.AppendMessage(user, nullptr);
-  auto result = WaitCompletion(ioc, factory, state);
+  auto result = WaitCompletion(ioc, factory, state, model_info);
 
   ASSERT_NE(result, nullptr);
   EXPECT_EQ(result->GetLog().status, OaiCompletionStatus::kSuccess);
+  EXPECT_EQ(result->GetModelInfo().get(), model_info.get());
   EXPECT_FALSE(result->GetMessage().message.empty());
   EXPECT_TRUE(result->GetLog().error_message.empty());
 }
 
-TEST(OaiCompletionIntegrationTest, DeepSeekStreamCompletionSuccessWhenConfigPresent) {
+TEST(OaiCompletionIntegrationTest,
+     DeepSeekStreamCompletionSuccessWhenConfigPresent) {
   auto config = LoadDeepSeekConfig();
   if (!config.has_value()) {
-    GTEST_SKIP() << "Missing valid .artifacts/secrets/oai_completion_test_config.json";
+    GTEST_SKIP()
+        << "Missing valid .artifacts/secrets/oai_completion_test_config.json";
   }
 
   boost::asio::io_context ioc;
-  auto info = bsrvcore::AllocateShared<OaiCompletionInfo>(std::move(*config));
+  auto info = bsrvcore::AllocateShared<OaiCompletionInfo>(config->info);
+  auto model_info = bsrvcore::AllocateShared<OaiModelInfo>(config->model_info);
   OaiCompletionFactory factory(ioc.get_executor(), info);
 
   OaiMessage user;
@@ -156,7 +171,7 @@ TEST(OaiCompletionIntegrationTest, DeepSeekStreamCompletionSuccessWhenConfigPres
   bool fulfilled = false;
 
   const bool started = factory.FetchStreamCompletion(
-      state,
+      state, model_info,
       [&](std::shared_ptr<OaiCompletionState> done_state) {
         if (fulfilled) {
           return;
@@ -172,6 +187,7 @@ TEST(OaiCompletionIntegrationTest, DeepSeekStreamCompletionSuccessWhenConfigPres
   auto result = done_future.get();
   ASSERT_NE(result, nullptr);
   EXPECT_EQ(result->GetLog().status, OaiCompletionStatus::kSuccess);
+  EXPECT_EQ(result->GetModelInfo().get(), model_info.get());
   EXPECT_FALSE(result->GetMessage().message.empty());
   EXPECT_GT(result->GetLog().delta_count, 0U);
   EXPECT_TRUE(result->GetLog().error_message.empty());

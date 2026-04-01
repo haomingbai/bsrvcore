@@ -115,26 +115,26 @@ class HttpServerConnectionImpl : public HttpServerConnection {
       return;
     }
 
-    boost::asio::dispatch(GetExecutor(),
-                          [self = this->shared_from_this(), this] {
-      if (!helper::GetLowestSocket(stream_).is_open()) {
-        return;
-      }
+    boost::asio::dispatch(
+        GetExecutor(), [self = this->shared_from_this(), this] {
+          if (!helper::GetLowestSocket(stream_).is_open()) {
+            return;
+          }
 
-      if constexpr (helper::IsBeastSslStream<S>::value) {
-        stream_.async_shutdown(boost::asio::bind_executor(
-            GetExecutor(),
-            [self, this]([[maybe_unused]] boost::system::error_code ec) {
-              boost::system::error_code socket_ec;
-              helper::GetLowestSocket(stream_).close(socket_ec);
-            }));
-      } else {
-        boost::system::error_code ec;
-        helper::GetLowestSocket(stream_).shutdown(
-            boost::asio::ip::tcp::socket::shutdown_both, ec);
-        helper::GetLowestSocket(stream_).close(ec);
-      }
-                          });
+          if constexpr (helper::IsBeastSslStream<S>::value) {
+            stream_.async_shutdown(boost::asio::bind_executor(
+                GetExecutor(),
+                [self, this]([[maybe_unused]] boost::system::error_code ec) {
+                  boost::system::error_code socket_ec;
+                  helper::GetLowestSocket(stream_).close(socket_ec);
+                }));
+          } else {
+            boost::system::error_code ec;
+            helper::GetLowestSocket(stream_).shutdown(
+                boost::asio::ip::tcp::socket::shutdown_both, ec);
+            helper::GetLowestSocket(stream_).close(ec);
+          }
+        });
   }
 
   bool IsStreamAvailable() const noexcept override { return !closed_; }

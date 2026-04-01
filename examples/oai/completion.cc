@@ -2,7 +2,6 @@
 #include <bsrvcore/oai/completion/oai_completion.h>
 
 #include <boost/asio/io_context.hpp>
-
 #include <cstdlib>
 #include <future>
 #include <iostream>
@@ -28,7 +27,8 @@ void PrintUsage(const char* argv0) {
   std::cerr
       << "Usage: " << argv0 << " [options]\n\n"
       << "Required:\n"
-      << "  --base_url <url>     Provider base URL (e.g. https://api.openai.com/v1)\n"
+      << "  --base_url <url>     Provider base URL (e.g. "
+         "https://api.openai.com/v1)\n"
       << "  --model <name>       Model name\n"
       << "  --user <text>        User prompt\n\n"
       << "Optional:\n"
@@ -151,13 +151,15 @@ int main(int argc, char** argv) {
   auto info = bsrvcore::AllocateShared<completion::OaiCompletionInfo>();
   info->base_url = options.base_url;
   info->api_key = options.api_key;
-  info->model = options.model;
   if (!options.organization.empty()) {
     info->organization = options.organization;
   }
   if (!options.project.empty()) {
     info->project = options.project;
   }
+
+  auto model_info = bsrvcore::AllocateShared<completion::OaiModelInfo>();
+  model_info->model = options.model;
 
   completion::OaiCompletionFactory factory(ioc.get_executor(), info);
 
@@ -181,8 +183,9 @@ int main(int argc, char** argv) {
     bool fulfilled = false;
 
     const bool started = factory.FetchCompletion(
-        state, [&promise, &fulfilled](completion::OaiCompletionFactory::StatePtr
-                                          done_state) mutable {
+        state, model_info,
+        [&promise, &fulfilled](
+            completion::OaiCompletionFactory::StatePtr done_state) mutable {
           if (fulfilled) {
             return;
           }
@@ -247,25 +250,26 @@ int main(int argc, char** argv) {
         };
   }
 
-  auto on_done = [&done_promise, &fulfilled](
-                     completion::OaiCompletionFactory::StatePtr
-                         done_state) mutable {
-    if (fulfilled) {
-      return;
-    }
-    fulfilled = true;
-    done_promise.set_value(std::move(done_state));
-  };
+  auto on_done =
+      [&done_promise, &fulfilled](
+          completion::OaiCompletionFactory::StatePtr done_state) mutable {
+        if (fulfilled) {
+          return;
+        }
+        fulfilled = true;
+        done_promise.set_value(std::move(done_state));
+      };
 
   completion::OaiCompletionFactory::StreamDeltaCallback on_delta =
       [](const std::string& delta) { std::cout << delta << std::flush; };
 
   bool started = false;
   if (on_reasoning_delta) {
-    started = factory.FetchStreamCompletion(state, on_done, on_delta,
-                                           on_reasoning_delta);
+    started = factory.FetchStreamCompletion(state, model_info, on_done,
+                                            on_delta, on_reasoning_delta);
   } else {
-    started = factory.FetchStreamCompletion(state, on_done, on_delta);
+    started =
+        factory.FetchStreamCompletion(state, model_info, on_done, on_delta);
   }
 
   if (!started) {
@@ -296,8 +300,8 @@ int main(int argc, char** argv) {
             << (log.status == completion::OaiCompletionStatus::kSuccess
                     ? "success"
                     : "fail")
-            << " http=" << log.http_status_code << " deltas="
-            << log.delta_count;
+            << " http=" << log.http_status_code
+            << " deltas=" << log.delta_count;
   if (!log.request_id.empty()) {
     std::cerr << " request_id=" << log.request_id;
   }

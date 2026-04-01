@@ -12,7 +12,8 @@ This chapter maps to:
 
 ## Data model
 
-- `OaiCompletionInfo`: provider connection info (`base_url`, `api_key`, `model`, ...)
+- `OaiCompletionInfo`: provider connection info (`base_url`, `api_key`, ...)
+- `OaiModelInfo`: model name plus model-specific JSON parameters
 - `OaiMessage`: one chat message (`role`, `message`, `tool_calls`, `reasoning`)
 - `OaiCompletionState`: one immutable node (message + request log + previous state)
 - `OaiRequestLog`: HTTP status, error message, request id, finish reason, timestamp, ...
@@ -37,6 +38,9 @@ You can keep older states.
 
 ```cpp
 bsrvcore::oai::completion::OaiCompletionFactory factory(ioc.get_executor(), info);
+auto model_info = bsrvcore::AllocateShared<bsrvcore::oai::completion::OaiModelInfo>();
+model_info->model = "deepseek-chat";
+model_info->params["temperature"] = 0.2;
 
 bsrvcore::oai::completion::OaiCompletionFactory::StatePtr state = nullptr;
 state = factory.AppendMessage({"system", "You are a helpful assistant.", {}}, state);
@@ -48,7 +52,7 @@ state = factory.AppendMessage({"user", "Say hello.", {}}, state);
 Use `FetchCompletion()`.
 
 ```cpp
-factory.FetchCompletion(state, [](auto done_state) {
+factory.FetchCompletion(state, model_info, [](auto done_state) {
   const auto& log = done_state->GetLog();
   const auto& msg = done_state->GetMessage();
   // log.status / log.http_status_code / log.error_message ...
@@ -67,6 +71,7 @@ Use `FetchStreamCompletion()`.
 ```cpp
 factory.FetchStreamCompletion(
   state,
+  model_info,
   [](auto done_state) {
     // Final aggregated message is in done_state->GetMessage().message
     // Final aggregated reasoning is in done_state->GetMessage().reasoning
@@ -83,9 +88,10 @@ factory.FetchStreamCompletion(
 ## Tools and tool_calls
 
 There are overloads that accept a `std::vector<OaiToolDefinition>`.
+`OaiToolDefinition::parameters` is now a `boost::json::object`.
 
 When the provider responds with tool calls, the final assistant message contains
-`OaiToolCall` entries with the accumulated `arguments_json`.
+`OaiToolCall` entries with the accumulated JSON `arguments`.
 
 ## Reasoning (reasoning_content)
 
