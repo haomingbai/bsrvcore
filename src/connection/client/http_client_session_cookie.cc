@@ -8,6 +8,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+// Fix the compilation error about http field
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
+// End fix
+
 #include <time.h>
 
 #include <algorithm>
@@ -15,7 +19,6 @@
 #include <cctype>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <ctime>
 #include <iomanip>
 #include <locale>
