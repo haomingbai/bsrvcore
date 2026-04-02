@@ -57,7 +57,7 @@ json::value ParseToolCallArgumentsValue(const json::value& arguments) {
   if (auto parsed = TryParseJsonValue(text)) {
     return std::move(*parsed);
   }
-  return {text};
+  return json::value(text);
 }
 
 std::vector<OaiToolCall> ParseToolCallsFromArray(const json::array& array) {
