@@ -140,7 +140,7 @@ The architecture impact is therefore both quantitative (higher RPS) and qualitat
 High-IO 3-run recheck (6s per run, wrk 8 threads / 512 connections):
 
 | io | rep1 | rep2 | rep3 | avg |
-|---:|---:|---:|---:|---:|
+| ---: | ---: | ---: | ---: | ---: |
 | 16 | 504744.59 | 512008.14 | 509418.36 | 508723.70 |
 | 20 | 504572.42 | 505130.38 | 476675.89 | 495459.56 |
 | 24 | 495765.27 | 475276.55 | 477434.53 | 482825.45 |
