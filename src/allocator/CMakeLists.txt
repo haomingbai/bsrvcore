@@ -24,12 +24,20 @@ if(TARGET mimalloc-obj)
   # Embed mimalloc object code into bsrvcore so exported static builds do not
   # depend on internal/unexported build targets.
   set(ALLOCATOR_OBJECT_SOURCES $<TARGET_OBJECTS:mimalloc-obj> PARENT_SCOPE)
-  set(ALLOCATOR_INCLUDE_DIRS ${mimalloc_SOURCE_DIR}/include PARENT_SCOPE)
 else()
   message(FATAL_ERROR "Unable to find target 'mimalloc-obj' after FetchContent_MakeAvailable.")
 endif()
 
-set(ALLOCATOR_SOURCES
+add_library(bsrvcore_allocator_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/allocator.cc
 )
-set(ALLOCATOR_SOURCES ${ALLOCATOR_SOURCES} PARENT_SCOPE)
+target_link_libraries(bsrvcore_allocator_obj PRIVATE bsrvcore_public_api)
+target_include_directories(bsrvcore_allocator_obj PRIVATE
+  ${mimalloc_SOURCE_DIR}/include
+)
+set_target_properties(bsrvcore_allocator_obj PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+
+set(BSRVCORE_OBJECT_TARGETS ${BSRVCORE_OBJECT_TARGETS} bsrvcore_allocator_obj
+    PARENT_SCOPE)

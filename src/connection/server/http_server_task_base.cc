@@ -17,6 +17,7 @@
 #include <boost/system/error_code.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>
@@ -29,15 +30,43 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/logger.h"
-#include "bsrvcore/internal/connection/server/http_server_task_detail.h"
+#include "internal/server/http_server_task_detail.h"
 #include "bsrvcore/session/context.h"
 
 namespace bsrvcore {
 
 namespace {
 
+namespace json = bsrvcore::json;
+
 using connection_internal::helper::CanScheduleOnServer;
 using connection_internal::helper::GetConnection;
+
+JsonErrorCode ParseJsonText(std::string_view text, JsonValue& out) {
+  JsonErrorCode ec;
+  JsonValue parsed = json::parse(text, ec);
+  if (ec) {
+    return ec;
+  }
+
+  out = std::move(parsed);
+  return {};
+}
+
+JsonErrorCode ParseJsonText(std::string_view text, JsonObject& out) {
+  JsonValue parsed;
+  JsonErrorCode ec = ParseJsonText(text, parsed);
+  if (ec) {
+    return ec;
+  }
+
+  if (!parsed.is_object()) {
+    return make_error_code(json::error::not_object);
+  }
+
+  out = parsed.as_object();
+  return {};
+}
 
 inline bool CanRunTaskCallback(
     const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
@@ -104,6 +133,24 @@ HttpTaskBase::GetSharedState() const noexcept {
 HttpRequest& HttpTaskBase::GetRequest() noexcept { return state_->req; }
 
 HttpResponse& HttpTaskBase::GetResponse() noexcept { return state_->resp; }
+
+JsonErrorCode HttpTaskBase::ParseRequestJson(JsonValue& out) const {
+  return ParseJsonText(GetState().req.body(), out);
+}
+
+JsonErrorCode HttpTaskBase::ParseRequestJson(JsonObject& out) const {
+  return ParseJsonText(GetState().req.body(), out);
+}
+
+bool HttpTaskBase::TryParseRequestJson(JsonValue& out) const {
+  const JsonErrorCode ec = ParseRequestJson(out);
+  return !ec;
+}
+
+bool HttpTaskBase::TryParseRequestJson(JsonObject& out) const {
+  const JsonErrorCode ec = ParseRequestJson(out);
+  return !ec;
+}
 
 void HttpTaskBase::GenerateCookiePairs() {
   if (state_->is_cookie_parsed) {
@@ -174,6 +221,15 @@ std::shared_ptr<Context> HttpTaskBase::GetContext() noexcept {
 bool HttpTaskBase::SetSessionTimeout(std::size_t timeout) {
   auto conn = GetConnection(state_);
   return conn ? conn->SetSessionTimeout(GetSessionId(), timeout) : false;
+}
+
+void HttpTaskBase::SetJson(const JsonValue& value) {
+  state_->resp.body() = json::serialize(value);
+  state_->resp.set(boost::beast::http::field::content_type, "application/json");
+}
+
+void HttpTaskBase::SetJson(JsonValue&& value) {
+  SetJson(static_cast<const JsonValue&>(value));
 }
 
 void HttpTaskBase::SetBody(std::string body) {

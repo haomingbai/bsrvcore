@@ -37,7 +37,7 @@
 #include <cassert>
 #include <condition_variable>
 #include <cstddef>
-#include <cstdint>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -240,7 +240,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
 // Keep the MessageQueue definition out of the main header to reduce size.
 // It remains a nested class (HttpServerConnectionImpl<S>::MessageQueue), so
 // it keeps access to the outer class' private members.
-#include "bsrvcore/internal/connection/server/http_server_connection_message_queue.h"
+#include "bsrvcore/internal/connection/server/detail/http_server_connection_message_queue.h"
 
 template <ValidStream S>
 template <typename... Args>

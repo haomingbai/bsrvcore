@@ -11,7 +11,7 @@
  * Implements a routing tree node that stores handlers, aspects, and children.
  */
 
-#include "bsrvcore/internal/route/http_route_table_layer.h"
+#include "internal/http_route_table_layer.h"
 
 #include <cstddef>
 #include <exception>

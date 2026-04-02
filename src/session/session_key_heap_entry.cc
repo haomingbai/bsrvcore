@@ -11,7 +11,7 @@
  * Implements a heap entry used for ordering sessions by expiry time.
  */
 
-#include "bsrvcore/internal/session/session_key_heap_entry.h"
+#include "bsrvcore/internal/session/detail/session_key_heap_entry.h"
 
 #include <chrono>
 #include <string>

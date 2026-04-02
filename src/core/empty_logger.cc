@@ -11,7 +11,7 @@
  * Discards log messages when no real logger is configured.
  */
 
-#include "bsrvcore/internal/core/empty_logger.h"
+#include "internal/empty_logger.h"
 
 #include <string>
 

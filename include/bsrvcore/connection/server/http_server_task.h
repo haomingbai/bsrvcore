@@ -30,6 +30,7 @@
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
 #include <future>
 #include <memory>
@@ -43,6 +44,7 @@
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/json.h"
 #include "bsrvcore/route/http_route_result.h"
 
 namespace bsrvcore {
@@ -98,6 +100,34 @@ class HttpTaskBase {
   HttpResponse& GetResponse() noexcept;
 
   /**
+   * @brief Parse request body as a JSON value.
+   * @param out Parsed JSON output.
+   * @return Parse error code, or success when parsing completed.
+   */
+  [[nodiscard]] JsonErrorCode ParseRequestJson(JsonValue& out) const;
+
+  /**
+   * @brief Parse request body as a JSON object.
+   * @param out Parsed JSON object output.
+   * @return Parse/type error code, or success when parsing completed.
+   */
+  [[nodiscard]] JsonErrorCode ParseRequestJson(JsonObject& out) const;
+
+  /**
+   * @brief Parse request body as a JSON value.
+   * @param out Parsed JSON output.
+   * @return True on success.
+   */
+  [[nodiscard]] bool TryParseRequestJson(JsonValue& out) const;
+
+  /**
+   * @brief Parse request body as a JSON object.
+   * @param out Parsed JSON object output.
+   * @return True on success.
+   */
+  [[nodiscard]] bool TryParseRequestJson(JsonObject& out) const;
+
+  /**
    * @brief Get current session by request sessionId.
    * @return Session context pointer, or nullptr if unavailable.
    *
@@ -113,6 +143,18 @@ class HttpTaskBase {
    * @return true if session timeout was updated.
    */
   bool SetSessionTimeout(std::size_t timeout);
+
+  /**
+   * @brief Replace response body with serialized JSON.
+   * @param value JSON value to serialize.
+   */
+  void SetJson(const JsonValue& value);
+
+  /**
+   * @brief Replace response body with serialized JSON.
+   * @param value JSON value to serialize.
+   */
+  void SetJson(JsonValue&& value);
 
   /**
    * @brief Replace response body.

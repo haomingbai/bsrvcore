@@ -38,7 +38,7 @@ struct HttpRouteResult {
   std::unordered_map<std::string, std::string>
       parameters;  ///< Extracted route parameters by name
   std::vector<HttpRequestAspectHandler*>
-      aspects;                  ///< Aspect handlers to execute
+      aspects;                    ///< Aspect handlers to execute
   HttpRequestHandler* handler{};  ///< Main request handler
   std::size_t max_body_size{};    ///< Maximum allowed request body size
   std::size_t read_expiry{};      ///< Read operation timeout

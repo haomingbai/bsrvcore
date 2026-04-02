@@ -17,6 +17,7 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>

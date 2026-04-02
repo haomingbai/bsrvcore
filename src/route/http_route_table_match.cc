@@ -21,8 +21,8 @@
 #include <vector>
 
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/internal/route/http_route_table_detail.h"
-#include "bsrvcore/internal/route/http_route_table_layer.h"
+#include "internal/http_route_table_detail.h"
+#include "internal/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
 

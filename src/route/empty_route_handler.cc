@@ -11,7 +11,7 @@
  * Provides the default fallback response when no route matches.
  */
 
-#include "bsrvcore/internal/route/empty_route_handler.h"
+#include "internal/empty_route_handler.h"
 
 #include <memory>
 

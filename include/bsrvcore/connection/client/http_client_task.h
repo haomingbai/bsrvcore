@@ -18,11 +18,13 @@
 #include <boost/beast/http.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/json.h"
 
 namespace bsrvcore {
 
@@ -119,6 +121,34 @@ struct HttpClientResult {
   HttpClientResponse response;
   /** @brief Incremental body bytes for kChunk callbacks. */
   std::string chunk;
+
+  /**
+   * @brief Parse response body as a JSON value.
+   * @param out Parsed JSON output.
+   * @return Parse error code, or success when parsing completed.
+   */
+  [[nodiscard]] JsonErrorCode ParseJsonBody(JsonValue& out) const;
+
+  /**
+   * @brief Parse response body as a JSON object.
+   * @param out Parsed JSON object output.
+   * @return Parse/type error code, or success when parsing completed.
+   */
+  [[nodiscard]] JsonErrorCode ParseJsonBody(JsonObject& out) const;
+
+  /**
+   * @brief Parse response body as a JSON value.
+   * @param out Parsed JSON output.
+   * @return True on success.
+   */
+  [[nodiscard]] bool TryParseJsonBody(JsonValue& out) const;
+
+  /**
+   * @brief Parse response body as a JSON object.
+   * @param out Parsed JSON object output.
+   * @return True on success.
+   */
+  [[nodiscard]] bool TryParseJsonBody(JsonObject& out) const;
 };
 
 /**
@@ -180,6 +210,18 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * @brief Access mutable request before Start().
    */
   HttpClientRequest& Request() noexcept;
+
+  /**
+   * @brief Replace request body with serialized JSON.
+   * @param value JSON value to serialize.
+   */
+  void SetJson(const JsonValue& value);
+
+  /**
+   * @brief Replace request body with serialized JSON.
+   * @param value JSON value to serialize.
+   */
+  void SetJson(JsonValue&& value);
 
   /**
    * @brief Attach a client session to this task.

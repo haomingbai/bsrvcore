@@ -29,10 +29,13 @@
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
 #include <cstddef>
-#include <cstdint>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
+#include <future>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
@@ -40,7 +43,6 @@
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/internal/core/async_invoke_helpers.h"
 #include "bsrvcore/route/http_route_result.h"
 
 namespace bsrvcore {
@@ -197,9 +199,15 @@ class HttpServerConnection
   template <typename Fn, typename... Args>
   auto FuturedPost(Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
-    return internal::async_invoke::StartWithFuture(
-        [this](std::function<void()> callback) { Post(std::move(callback)); },
-        std::move(fn), std::forward<Args>(args)...);
+    using RT = std::invoke_result_t<Fn, Args...>;
+    auto bound = std::bind(std::move(fn), std::forward<Args>(args)...);
+    auto task = AllocateShared<std::packaged_task<RT()>>(std::move(bound));
+    auto future = task->get_future();
+
+    Post(std::function<void()>{[task = std::move(task)]() mutable {
+      (*task)();
+    }});
+    return future;
   }
 
   /**
@@ -211,9 +219,10 @@ class HttpServerConnection
    */
   template <typename Fn, typename... Args>
   void Post(Fn fn, Args&&... args) {
-    internal::async_invoke::StartBound(
-        [this](std::function<void()> callback) { Post(std::move(callback)); },
-        std::move(fn), std::forward<Args>(args)...);
+    auto bound = std::bind(std::move(fn), std::forward<Args>(args)...);
+    Post(std::function<void()>{[bound = std::move(bound)]() mutable {
+      bound();
+    }});
   }
 
   /**
@@ -240,11 +249,15 @@ class HttpServerConnection
   template <typename Fn, typename... Args>
   auto SetTimer(std::size_t timeout, Fn fn, Args&&... args)
       -> std::future<std::invoke_result_t<Fn, Args...>> {
-    return internal::async_invoke::StartWithFuture(
-        [this, timeout](std::function<void()> callback) mutable {
-          SetTimer(timeout, std::move(callback));
-        },
-        std::move(fn), std::forward<Args>(args)...);
+    using RT = std::invoke_result_t<Fn, Args...>;
+    auto bound = std::bind(std::move(fn), std::forward<Args>(args)...);
+    auto task = AllocateShared<std::packaged_task<RT()>>(std::move(bound));
+    auto future = task->get_future();
+
+    SetTimer(timeout, std::function<void()>{[task = std::move(task)]() mutable {
+               (*task)();
+             }});
+    return future;
   }
 
   /**

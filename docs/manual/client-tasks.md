@@ -20,7 +20,7 @@ It reports progress using **stage callbacks**. This is a simple state-machine pa
 ### How to use it
 
 1. Create a task.
-2. (Optional) edit the request via `task->Request()`.
+2. (Optional) edit the request via `task->Request()` or `task->SetJson(...)`.
 3. Register callbacks.
 4. Call `Start()`.
 5. Run your `io_context`.
@@ -40,6 +40,34 @@ task->OnDone([](const bsrvcore::HttpClientResult& r) {
     return;
   }
   // r.response is valid on success
+});
+
+task->Start();
+ioc.run();
+```
+
+JSON helpers:
+
+- `task->SetJson(value)` serializes the request body and sets `Content-Type: application/json`
+- `result.ParseJsonBody(out)` parses `result.response.body()` and returns a `JsonErrorCode`
+- `result.TryParseJsonBody(out)` is the bool-only convenience wrapper
+
+Example:
+
+```cpp
+boost::asio::io_context ioc;
+
+auto task = bsrvcore::HttpClientTask::CreateFromUrl(
+  ioc.get_executor(),
+  "http://127.0.0.1:8080/echo-json",
+  boost::beast::http::verb::post);
+
+task->SetJson(bsrvcore::JsonObject{{"name", "bsrvcore"}});
+task->OnDone([](const bsrvcore::HttpClientResult& r) {
+  bsrvcore::JsonObject body;
+  if (!r.ec && !r.cancelled && !r.ParseJsonBody(body)) {
+    // body["name"] == "bsrvcore"
+  }
 });
 
 task->Start();

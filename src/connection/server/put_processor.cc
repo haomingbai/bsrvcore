@@ -16,7 +16,7 @@
 #include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
-#include "bsrvcore/internal/connection/server/request_body_processor_detail.h"
+#include "internal/server/request_body_processor_detail.h"
 
 namespace bsrvcore {
 

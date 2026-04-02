@@ -22,6 +22,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <memory>
 #include <optional>
 #include <ranges>

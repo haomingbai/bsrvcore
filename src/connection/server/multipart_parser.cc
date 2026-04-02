@@ -13,6 +13,7 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/beast/http/field.hpp>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -20,7 +21,7 @@
 #include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
-#include "bsrvcore/internal/connection/server/request_body_processor_detail.h"
+#include "internal/server/request_body_processor_detail.h"
 
 namespace bsrvcore {
 

@@ -1,4 +1,12 @@
-set(CONNECTION_SOURCES
+add_library(bsrvcore_connection_internal_api INTERFACE)
+target_link_libraries(bsrvcore_connection_internal_api INTERFACE
+  bsrvcore_public_api
+)
+target_include_directories(bsrvcore_connection_internal_api INTERFACE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include_exported
+)
+
+add_library(bsrvcore_connection_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_task.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_task_flow.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_task_callbacks.cc
@@ -16,5 +24,15 @@ set(CONNECTION_SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/server/http_server_task_lifecycle.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server/server_set_cookie.cc
 )
+target_link_libraries(bsrvcore_connection_obj PRIVATE
+  bsrvcore_connection_internal_api
+)
+target_include_directories(bsrvcore_connection_obj PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+set_target_properties(bsrvcore_connection_obj PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
 
-set(CONNECTION_SOURCES ${CONNECTION_SOURCES} PARENT_SCOPE)
+set(BSRVCORE_OBJECT_TARGETS ${BSRVCORE_OBJECT_TARGETS}
+    bsrvcore_connection_obj PARENT_SCOPE)

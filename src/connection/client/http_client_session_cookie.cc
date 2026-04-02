@@ -15,6 +15,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <ctime>
 #include <iomanip>
 #include <locale>

@@ -16,10 +16,10 @@
 #include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
-#include "bsrvcore/internal/route/empty_route_handler.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/internal/route/http_route_table_detail.h"
-#include "bsrvcore/internal/route/http_route_table_layer.h"
+#include "internal/empty_route_handler.h"
+#include "internal/http_route_table_detail.h"
+#include "internal/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"

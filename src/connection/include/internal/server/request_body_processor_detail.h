@@ -18,6 +18,7 @@
 #include <boost/beast/http/field.hpp>
 #include <cctype>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <filesystem>
 #include <fstream>
 #include <functional>

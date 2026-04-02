@@ -75,6 +75,16 @@ target_compile_definitions(bthpool_headers INTERFACE
 
 set(BTHPOOL_INCLUDE_DIR "${bthpool_SOURCE_DIR}/include")
 
+set(BSRVCORE_PUBLIC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+
+add_library(bsrvcore_public_api INTERFACE)
+target_compile_features(bsrvcore_public_api INTERFACE cxx_std_23)
+target_include_directories(bsrvcore_public_api INTERFACE
+  ${BSRVCORE_PUBLIC_INCLUDE_DIR}
+)
+
+set(BSRVCORE_OBJECT_TARGETS)
+
 # Add the subdirectories in this project.
 option(BSRVCORE_BUILD_TOOLS "Build bsrvcore runtime tools. Default: ON" ON)
 
@@ -86,26 +96,19 @@ add_subdirectory(core)
 add_subdirectory(bsrvrun)
 add_subdirectory(oai)
 
-# List source files explicitly for better incremental builds
-set(BSRVCORE_SOURCES
-  ${ALLOCATOR_SOURCES}
-  ${ROUTE_SOURCES}
-  ${SESSION_SOURCES}
-  ${CONNECTION_SOURCES}
-  ${CORE_SOURCES}
-  ${BSRVRUN_COMMON_SOURCES}
-  ${OAI_SOURCES}
-)
-
 # Create library (static or shared follows BUILD_SHARED_LIBS)
-add_library(bsrvcore ${BSRVCORE_SOURCES})
+add_library(bsrvcore)
 add_library(bsrvcore::bsrvcore ALIAS bsrvcore)
+
+foreach(object_target IN LISTS BSRVCORE_OBJECT_TARGETS)
+  target_sources(bsrvcore PRIVATE $<TARGET_OBJECTS:${object_target}>)
+endforeach()
 
 if(DEFINED ALLOCATOR_OBJECT_SOURCES)
   target_sources(bsrvcore PRIVATE ${ALLOCATOR_OBJECT_SOURCES})
 endif()
 
-# Ensure the library is built with C++23 (required by our internal bthpool usage).
+# Ensure the installed target advertises the project language level.
 target_compile_features(bsrvcore PUBLIC cxx_std_23)
 
 # OpenSSL and Boost.Json stay PUBLIC because installed headers expose
@@ -132,15 +135,13 @@ target_compile_definitions(bsrvcore PRIVATE
 )
 
 # Public headers stay under the top-level include/ tree so installed consumers
-# only see the supported API surface. Internal headers live under src/include/
-# and are available to this target only during the build.
+# only see the supported API surface. Internal headers now live under each
+# module's src/<module>/include* trees and are consumed through object-library
+# usage requirements during the build only.
 target_include_directories(bsrvcore
   PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>  # project headers for build
+    $<BUILD_INTERFACE:${BSRVCORE_PUBLIC_INCLUDE_DIR}>          # project headers for build
     $<INSTALL_INTERFACE:include>                               # project headers for install
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${ALLOCATOR_INCLUDE_DIRS}
 )
 
 # Set version and export name

@@ -15,7 +15,6 @@
 
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
-#include <boost/json.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -23,6 +22,8 @@
 #include <optional>
 #include <string>
 #include <vector>
+
+#include "bsrvcore/json.h"
 
 namespace bsrvcore::oai::completion {
 
@@ -41,7 +42,7 @@ struct OaiCompletionInfo {
  */
 struct OaiModelInfo {
   std::string model;
-  boost::json::object params;
+  JsonObject params;
 };
 
 /**
@@ -59,7 +60,7 @@ enum class OaiCompletionStatus {
 struct OaiToolCall {
   std::string id;
   std::string name;
-  boost::json::value arguments;
+  JsonValue arguments;
 };
 
 /**
@@ -68,7 +69,7 @@ struct OaiToolCall {
 struct OaiToolDefinition {
   std::string name;
   std::string description;
-  boost::json::object parameters;
+  JsonObject parameters;
 };
 
 /**

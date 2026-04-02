@@ -88,7 +88,7 @@ factory.FetchStreamCompletion(
 ## Tools and tool_calls
 
 There are overloads that accept a `std::vector<OaiToolDefinition>`.
-`OaiToolDefinition::parameters` is now a `boost::json::object`.
+`OaiToolDefinition::parameters` is now a `bsrvcore::JsonObject`.
 
 When the provider responds with tool calls, the final assistant message contains
 `OaiToolCall` entries with the accumulated JSON `arguments`.

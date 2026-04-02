@@ -16,6 +16,7 @@
 #include <boost/system/errc.hpp>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
@@ -26,9 +27,41 @@ namespace bsrvcore {
 
 namespace {
 
+namespace json = bsrvcore::json;
 namespace http = boost::beast::http;
 
 using connection_internal::ParseHttpUrl;
+
+JsonErrorCode ParseJsonText(std::string_view text, JsonValue& out) {
+  JsonErrorCode ec;
+  JsonValue parsed = json::parse(text, ec);
+  if (ec) {
+    return ec;
+  }
+
+  out = std::move(parsed);
+  return {};
+}
+
+JsonErrorCode ParseJsonText(std::string_view text, JsonObject& out) {
+  JsonValue parsed;
+  JsonErrorCode ec = ParseJsonText(text, parsed);
+  if (ec) {
+    return ec;
+  }
+
+  if (!parsed.is_object()) {
+    return make_error_code(json::error::not_object);
+  }
+
+  out = parsed.as_object();
+  return {};
+}
+
+void SetJsonBody(HttpClientRequest& request, const JsonValue& value) {
+  request.body() = json::serialize(value);
+  request.set(http::field::content_type, "application/json");
+}
 
 }  // namespace
 
@@ -133,6 +166,32 @@ HttpClientTask& HttpClientTask::OnDone(Callback cb) {
 
 HttpClientRequest& HttpClientTask::Request() noexcept {
   return impl_->Request();
+}
+
+JsonErrorCode HttpClientResult::ParseJsonBody(JsonValue& out) const {
+  return ParseJsonText(response.body(), out);
+}
+
+JsonErrorCode HttpClientResult::ParseJsonBody(JsonObject& out) const {
+  return ParseJsonText(response.body(), out);
+}
+
+bool HttpClientResult::TryParseJsonBody(JsonValue& out) const {
+  const JsonErrorCode ec = ParseJsonBody(out);
+  return !ec;
+}
+
+bool HttpClientResult::TryParseJsonBody(JsonObject& out) const {
+  const JsonErrorCode ec = ParseJsonBody(out);
+  return !ec;
+}
+
+void HttpClientTask::SetJson(const JsonValue& value) {
+  SetJsonBody(Request(), value);
+}
+
+void HttpClientTask::SetJson(JsonValue&& value) {
+  SetJson(static_cast<const JsonValue&>(value));
 }
 
 void HttpClientTask::AttachSession(std::weak_ptr<HttpClientSession> session) {

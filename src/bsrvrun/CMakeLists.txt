@@ -1,7 +1,15 @@
-set(BSRVRUN_COMMON_SOURCES
+add_library(bsrvcore_bsrvrun_common_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/string.cc
 )
-set(BSRVRUN_COMMON_SOURCES ${BSRVRUN_COMMON_SOURCES} PARENT_SCOPE)
+target_link_libraries(bsrvcore_bsrvrun_common_obj PRIVATE
+  bsrvcore_public_api
+)
+set_target_properties(bsrvcore_bsrvrun_common_obj PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+)
+
+set(BSRVCORE_OBJECT_TARGETS ${BSRVCORE_OBJECT_TARGETS}
+    bsrvcore_bsrvrun_common_obj PARENT_SCOPE)
 
 option(BSRVCORE_PREFER_STATIC_YAML_CPP
   "Prefer a static yaml-cpp when building bsrvrun; fall back to vendored static yaml-cpp if needed."
@@ -86,14 +94,13 @@ add_library(
 target_include_directories(bsrvrun_runtime
   PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
 
 target_link_libraries(bsrvrun_runtime
   PUBLIC
     bsrvcore
   PRIVATE
+    bsrvcore_route_internal_api
     ${BSRVCORE_YAML_CPP_TARGET}
 )
 

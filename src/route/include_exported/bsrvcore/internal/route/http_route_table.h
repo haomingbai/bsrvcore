@@ -28,7 +28,6 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/internal/route/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
 
@@ -37,6 +36,10 @@ namespace bsrvcore {
 class HttpRequestHandler;
 
 class HttpRequestAspectHandler;
+
+namespace route_internal {
+class HttpRouteTableLayer;
+}
 
 /**
  * @brief Thread-safe HTTP routing table with AOP support

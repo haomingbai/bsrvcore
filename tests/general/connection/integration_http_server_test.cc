@@ -27,6 +27,7 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/put_processor.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/json.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -35,6 +36,7 @@ using bsrvcore::test::DoRequestWithRetry;
 using bsrvcore::test::ServerGuard;
 using bsrvcore::test::StartServerWithRoutes;
 namespace http = boost::beast::http;
+namespace json = bsrvcore::json;
 using tcp = boost::asio::ip::tcp;
 
 std::filesystem::path MakeTempPath(const std::string& prefix) {
@@ -260,6 +262,89 @@ TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
 
   std::error_code ec;
   std::filesystem::remove(path, ec);
+}
+
+TEST(HttpServerIntegrationTest, JsonHelpersParseAndSetObjectBody) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kPost, "/json",
+      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+        bsrvcore::JsonObject request_json;
+        const bsrvcore::JsonErrorCode ec = task->ParseRequestJson(request_json);
+        if (ec) {
+          task->GetResponse().result(http::status::bad_request);
+          task->SetBody(ec.message());
+          return;
+        }
+
+        bsrvcore::JsonObject response_json;
+        response_json["echo"] = request_json;
+        task->SetJson(std::move(response_json));
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  const auto res = DoRequestWithRetry(
+      http::verb::post, port, "/json", R"({"name":"bsrvcore","count":2})",
+      [](http::request<http::string_body>& request) {
+        request.set(http::field::content_type, "application/json");
+      });
+
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res[http::field::content_type], "application/json");
+
+  bsrvcore::JsonErrorCode ec;
+  const bsrvcore::JsonValue root = json::parse(res.body(), ec);
+  ASSERT_FALSE(ec);
+  ASSERT_TRUE(root.is_object());
+  const auto& body = root.as_object();
+  const auto& echoed = body.at("echo").as_object();
+  EXPECT_EQ(json::value_to<std::string>(echoed.at("name")), "bsrvcore");
+  EXPECT_EQ(echoed.at("count").as_int64(), 2);
+}
+
+TEST(HttpServerIntegrationTest, ParseRequestJsonRejectsNonObjectRoot) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kPost, "/json-object-only",
+      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+        bsrvcore::JsonObject request_json;
+        const bsrvcore::JsonErrorCode ec = task->ParseRequestJson(request_json);
+        task->GetResponse().result(ec ? http::status::bad_request
+                                      : http::status::ok);
+        if (ec == json::error::not_object) {
+          task->SetBody("not-object");
+          return;
+        }
+        task->SetBody(ec ? "bad-json" : "ok");
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  const auto res =
+      DoRequestWithRetry(http::verb::post, port, "/json-object-only", "[]");
+  EXPECT_EQ(res.result(), http::status::bad_request);
+  EXPECT_EQ(res.body(), "not-object");
+}
+
+TEST(HttpServerIntegrationTest, TryParseRequestJsonReturnsFalseOnSyntaxError) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kPost, "/json-try-parse",
+      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+        bsrvcore::JsonValue request_json;
+        task->SetBody(task->TryParseRequestJson(request_json) ? "ok" : "bad");
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  const auto res =
+      DoRequestWithRetry(http::verb::post, port, "/json-try-parse", R"({"x":)");
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "bad");
 }
 
 TEST(HttpServerIntegrationTest,

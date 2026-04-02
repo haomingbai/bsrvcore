@@ -19,11 +19,18 @@ So you can set headers/body in any step.
 The task gives access to:
 
 - Request/response: `GetRequest()`, `GetResponse()`
+- JSON helpers: `ParseRequestJson()`, `TryParseRequestJson()`, `SetJson()`
 - Request body wrappers: `MultipartParser(*task)`, `PutProcessor(*task)`
 - Response helpers: `SetBody()`, `AppendBody()`, `SetField()`, `SetKeepAlive()`
 - Async helpers: `Post()`, `Dispatch()`, `FuturedPost()`, `SetTimer()`
 - I/O helpers: `PostToIoContext()`, `DispatchToIoContext()`, `GetIoExecutor()`, `GetEndpointExecutors()`, `GetGlobalExecutors()`
 - Connection control: `IsAvailable()`, `DoClose()`, `DoCycle()`
+
+JSON helper semantics:
+
+- `ParseRequestJson(out)` parses `GetRequest().body()` and returns a `JsonErrorCode`
+- `TryParseRequestJson(out)` is the bool-only convenience wrapper
+- `SetJson(value)` serializes JSON into the response body and sets `Content-Type: application/json`
 
 Async execution semantics:
 

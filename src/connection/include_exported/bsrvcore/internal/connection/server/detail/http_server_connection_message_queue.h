@@ -27,6 +27,7 @@
 #include <boost/beast/http.hpp>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <deque>
 #include <memory>
 #include <mutex>

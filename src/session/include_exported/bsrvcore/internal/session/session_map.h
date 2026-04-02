@@ -27,9 +27,9 @@
 #include <utility>
 
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/internal/session/heap.h"
-#include "bsrvcore/internal/session/session_context_entry.h"
-#include "bsrvcore/internal/session/session_key_heap_entry.h"
+#include "bsrvcore/internal/session/detail/heap.h"
+#include "bsrvcore/internal/session/detail/session_context_entry.h"
+#include "bsrvcore/internal/session/detail/session_key_heap_entry.h"
 
 namespace bsrvcore {
 class Context;
@@ -136,8 +136,8 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
         server_(server),
         cleaner_interval_(static_cast<std::size_t>(
             1000ULL * 60ULL * 30ULL)),  // 30 minutes default
-        default_timeout_(static_cast<std::size_t>(
-            1000ULL * 60ULL * 60ULL * 2ULL)) {}
+        default_timeout_(
+            static_cast<std::size_t>(1000ULL * 60ULL * 60ULL * 2ULL)) {}
 
  private:
   void SetCleaner();     ///< Initialize background cleanup timer

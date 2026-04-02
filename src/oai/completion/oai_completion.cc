@@ -13,6 +13,7 @@
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <chrono>
+#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>

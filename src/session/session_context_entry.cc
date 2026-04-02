@@ -11,7 +11,7 @@
  * Implements storage of a session Context together with its expiry time.
  */
 
-#include "bsrvcore/internal/session/session_context_entry.h"
+#include "bsrvcore/internal/session/detail/session_context_entry.h"
 
 #include <chrono>
 #include <memory>
