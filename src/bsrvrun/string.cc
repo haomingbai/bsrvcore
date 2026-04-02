@@ -11,7 +11,8 @@
 #include "bsrvcore/bsrvrun/string.h"
 
 #include <cstring>
-#include <utility>
+#include <string>
+#include <string_view>
 
 #include "bsrvcore/allocator/allocator.h"
 

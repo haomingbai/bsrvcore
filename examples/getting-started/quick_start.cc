@@ -12,7 +12,6 @@
  */
 
 // BEGIN README_SNIPPET: quick_start
-#include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
@@ -20,12 +19,17 @@
 #include <iostream>
 #include <memory>
 
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
+
 int main() {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(4);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/hello",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->GetResponse().result(boost::beast::http::status::ok);
             task->SetField(boost::beast::http::field::content_type,
                            "text/plain; charset=utf-8");
@@ -34,12 +38,12 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080}, 2);
 
   if (!server->Start()) {
-    std::cerr << "Failed to start server." << std::endl;
+    std::cerr << "Failed to start server." << '\n';
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8080/hello" << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8080/hello" << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

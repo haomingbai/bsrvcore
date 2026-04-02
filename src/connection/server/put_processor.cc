@@ -10,9 +10,12 @@
 
 #include "bsrvcore/connection/server/put_processor.h"
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <filesystem>
 #include <utility>
 
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/internal/connection/server/request_body_processor_detail.h"
 
 namespace bsrvcore {

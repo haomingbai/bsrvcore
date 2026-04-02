@@ -14,9 +14,7 @@
 #include <string>
 #include <string_view>
 
-namespace bsrvcore {
-
-namespace route_internal {
+namespace bsrvcore::route_internal {
 
 bool IsValidParametricTarget(const std::string_view target) {
   // Basic check.
@@ -36,7 +34,7 @@ bool IsValidParametricTarget(const std::string_view target) {
 
   // Extra check: Check whether the braces pair.
   int brace_count = 0;
-  for (char c : target) {
+  for (char const c : target) {
     if (c == '{') {
       brace_count++;
     } else if (c == '}') {
@@ -53,7 +51,7 @@ bool IsValidParametricTarget(const std::string_view target) {
   // Check the parameter on the path.
   std::string non_param_target;
   bool in_brace = false;
-  for (char c : target) {
+  for (char const c : target) {
     if (c == '{') {
       in_brace = true;
     } else if (c == '}') {
@@ -63,13 +61,7 @@ bool IsValidParametricTarget(const std::string_view target) {
     }
   }
 
-  if (non_param_target.find("..") != std::string::npos) {
-    return false;
-  }
-
-  return true;
+  return non_param_target.find("..") == std::string::npos;
 }
 
-}  // namespace route_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::route_internal

@@ -51,13 +51,13 @@ class SessionContextEntry : CopyableMovable<SessionContextEntry> {
    * @brief Get the session context
    * @return Shared pointer to the Context object
    */
-  std::shared_ptr<Context> GetContext() const;
+  [[nodiscard]] std::shared_ptr<Context> GetContext() const;
 
   /**
    * @brief Get the session expiration time
    * @return Time point when the session expires
    */
-  std::chrono::steady_clock::time_point GetExpiry() const;
+  [[nodiscard]] std::chrono::steady_clock::time_point GetExpiry() const;
 
   /**
    * @brief Update the session expiration time

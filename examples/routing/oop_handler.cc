@@ -12,7 +12,6 @@
  */
 
 // BEGIN README_SNIPPET: oop_handler
-#include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
@@ -21,11 +20,17 @@
 #include <memory>
 #include <string>
 
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
+
 class HelloHandler : public bsrvcore::HttpRequestHandler {
  public:
   void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
     const auto* name_param = task->GetPathParameter("name");
-    std::string name = name_param == nullptr ? "world" : *name_param;
+    std::string const name = name_param == nullptr ? "world" : *name_param;
 
     task->GetResponse().result(boost::beast::http::status::ok);
     task->SetField(boost::beast::http::field::content_type,
@@ -42,12 +47,12 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8082}, 1);
 
   if (!server->Start()) {
-    std::cerr << "Failed to start server." << std::endl;
+    std::cerr << "Failed to start server." << '\n';
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8082/hello/{name}" << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8082/hello/{name}" << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

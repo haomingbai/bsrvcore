@@ -214,10 +214,10 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
       default_route_;  ///< Default route for parameter matching
   OwnedPtr<HttpRequestHandler> handler_;  ///< Request handler for this layer
   std::string route_template_;            ///< Normalized route template
-  std::size_t max_body_size_;             ///< Maximum request body size
-  std::size_t read_expiry_;               ///< Read operation timeout
-  std::size_t write_expiry_;              ///< Write operation timeout
-  bool ignore_default_route_;             ///< Flag to bypass parameter routes
+  std::size_t max_body_size_{0};          ///< Maximum request body size
+  std::size_t read_expiry_{0};            ///< Read operation timeout
+  std::size_t write_expiry_{0};           ///< Write operation timeout
+  bool ignore_default_route_{false};      ///< Flag to bypass parameter routes
 };
 
 }  // namespace route_internal

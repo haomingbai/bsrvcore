@@ -3,11 +3,25 @@
  * @brief Response parsing and stream helpers for OAI completion facade.
  */
 
-#include <boost/json.hpp>
+#include <atomic>
+#include <boost/json/array.hpp>
+#include <boost/json/object.hpp>
+#include <boost/json/parse.hpp>
+#include <boost/json/serialize.hpp>
+#include <boost/json/system_error.hpp>
+#include <boost/json/value.hpp>
+#include <cstddef>
+#include <functional>
+#include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "bsrvcore/connection/client/http_sse_client_task.h"
+#include "bsrvcore/connection/client/sse_event_parser.h"
+#include "bsrvcore/oai/completion/oai_completion.h"
 #include "oai_completion_detail.h"
 
 namespace bsrvcore::oai::completion::detail {
@@ -43,7 +57,7 @@ json::value ParseToolCallArgumentsValue(const json::value& arguments) {
   if (auto parsed = TryParseJsonValue(text)) {
     return std::move(*parsed);
   }
-  return json::value(text);
+  return {text};
 }
 
 std::vector<OaiToolCall> ParseToolCallsFromArray(const json::array& array) {

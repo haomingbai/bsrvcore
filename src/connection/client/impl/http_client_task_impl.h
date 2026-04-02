@@ -62,12 +62,12 @@ class HttpClientTask::Impl
                       HttpClientErrorStage error_stage);
 
  private:
-  static void RunPostedStart(std::shared_ptr<Impl> self);
-  static void RunPostedCancel(std::shared_ptr<Impl> self);
+  static void RunPostedStart(const std::shared_ptr<Impl>& self);
+  static void RunPostedCancel(const std::shared_ptr<Impl>& self);
 
   void DoStart();
   void OnResolve(boost::system::error_code ec,
-                 tcp::resolver::results_type results);
+                 const tcp::resolver::results_type& results);
   void OnConnect(boost::system::error_code ec);
   void OnHandshake(boost::system::error_code ec);
   void DoWriteRequest();
@@ -120,10 +120,10 @@ class HttpClientTask::Impl
   bool failed_{false};
   std::size_t last_emitted_body_size_{0};
 
-  std::optional<boost::system::error_code> create_error_{};
+  std::optional<boost::system::error_code> create_error_;
   HttpClientErrorStage create_error_stage_{HttpClientErrorStage::kNone};
 
-  boost::system::error_code error_code_{};
+  boost::system::error_code error_code_;
   HttpClientErrorStage error_stage_{HttpClientErrorStage::kNone};
 
   mutable std::mutex callback_mutex_;

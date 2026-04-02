@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <memory>
+#include <utility>
 
 using namespace bsrvcore::session_internal;
 
@@ -34,4 +35,4 @@ std::chrono::steady_clock::time_point SessionContextEntry::GetExpiry() const {
 SessionContextEntry::SessionContextEntry(
     std::shared_ptr<Context> context,
     std::chrono::steady_clock::time_point expiry)
-    : ctx_(context), expiry_(expiry) {}
+    : ctx_(std::move(std::move(context))), expiry_(expiry) {}

@@ -30,18 +30,18 @@ namespace bsrvcore::oai::completion {
  * @brief Provider connection information for chat completions.
  */
 struct OaiCompletionInfo {
-  std::string api_key{};
-  std::string base_url{};
-  std::optional<std::string> organization{};
-  std::optional<std::string> project{};
+  std::string api_key;
+  std::string base_url;
+  std::optional<std::string> organization;
+  std::optional<std::string> project;
 };
 
 /**
  * @brief Model selection and model-specific request parameters.
  */
 struct OaiModelInfo {
-  std::string model{};
-  boost::json::object params{};
+  std::string model;
+  boost::json::object params;
 };
 
 /**
@@ -57,28 +57,28 @@ enum class OaiCompletionStatus {
  * @brief Tool call object parsed from assistant responses.
  */
 struct OaiToolCall {
-  std::string id{};
-  std::string name{};
-  boost::json::value arguments{};
+  std::string id;
+  std::string name;
+  boost::json::value arguments;
 };
 
 /**
  * @brief Tool definition included in request payload (`tools`).
  */
 struct OaiToolDefinition {
-  std::string name{};
-  std::string description{};
-  boost::json::object parameters{};
+  std::string name;
+  std::string description;
+  boost::json::object parameters;
 };
 
 /**
  * @brief Chat message stored in state chain.
  */
 struct OaiMessage {
-  std::string role{};
-  std::string message{};
-  std::vector<OaiToolCall> tool_calls{};
-  std::string reasoning{};
+  std::string role;
+  std::string message;
+  std::vector<OaiToolCall> tool_calls;
+  std::string reasoning;
 };
 
 /**
@@ -87,10 +87,10 @@ struct OaiMessage {
 struct OaiRequestLog {
   OaiCompletionStatus status{OaiCompletionStatus::kLocal};
   int http_status_code{0};
-  std::string error_message{};
-  std::string request_id{};
-  std::string finish_reason{};
-  std::string model{};
+  std::string error_message;
+  std::string request_id;
+  std::string finish_reason;
+  std::string model;
   bool is_stream{false};
   std::size_t delta_count{0};
   std::int64_t timestamp{0};
@@ -106,11 +106,12 @@ class OaiCompletionState {
                      OaiMessage message, OaiRequestLog log,
                      std::shared_ptr<OaiCompletionState> previous);
 
-  std::shared_ptr<const OaiCompletionInfo> GetInfo() const;
-  std::shared_ptr<const OaiModelInfo> GetModelInfo() const;
-  const OaiMessage& GetMessage() const;
-  const OaiRequestLog& GetLog() const;
-  std::shared_ptr<const OaiCompletionState> GetPreviousState() const;
+  [[nodiscard]] std::shared_ptr<const OaiCompletionInfo> GetInfo() const;
+  [[nodiscard]] std::shared_ptr<const OaiModelInfo> GetModelInfo() const;
+  [[nodiscard]] const OaiMessage& GetMessage() const;
+  [[nodiscard]] const OaiRequestLog& GetLog() const;
+  [[nodiscard]] std::shared_ptr<const OaiCompletionState> GetPreviousState()
+      const;
 
  private:
   const std::shared_ptr<OaiCompletionInfo> info_;
@@ -133,39 +134,37 @@ class OaiCompletionFactory {
   OaiCompletionFactory(boost::asio::io_context::executor_type executor,
                        std::shared_ptr<OaiCompletionInfo> info);
 
-  StatePtr AppendMessage(const OaiMessage& msg, StatePtr prev) const;
+  [[nodiscard]] StatePtr AppendMessage(const OaiMessage& msg,
+                                       StatePtr prev) const;
 
-  bool FetchCompletion(StatePtr state, std::shared_ptr<OaiModelInfo> model_info,
-                       CompletionCallback cb) const;
+  [[nodiscard]] bool FetchCompletion(StatePtr state,
+                                     std::shared_ptr<OaiModelInfo> model_info,
+                                     CompletionCallback cb) const;
 
-  bool FetchCompletion(StatePtr state,
-                       const std::vector<OaiToolDefinition>& tools,
-                       std::shared_ptr<OaiModelInfo> model_info,
-                       CompletionCallback cb) const;
+  [[nodiscard]] bool FetchCompletion(
+      StatePtr state, const std::vector<OaiToolDefinition>& tools,
+      const std::shared_ptr<OaiModelInfo>& model_info,
+      CompletionCallback cb) const;
 
-  bool FetchStreamCompletion(StatePtr state,
-                             std::shared_ptr<OaiModelInfo> model_info,
-                             StreamDoneCallback on_done,
-                             StreamDeltaCallback on_delta) const;
+  [[nodiscard]] bool FetchStreamCompletion(
+      StatePtr state, std::shared_ptr<OaiModelInfo> model_info,
+      StreamDoneCallback on_done, StreamDeltaCallback on_delta) const;
 
-  bool FetchStreamCompletion(StatePtr state,
-                             std::shared_ptr<OaiModelInfo> model_info,
-                             StreamDoneCallback on_done,
-                             StreamDeltaCallback on_delta,
-                             StreamDeltaCallback on_reasoning_delta) const;
+  [[nodiscard]] bool FetchStreamCompletion(
+      StatePtr state, std::shared_ptr<OaiModelInfo> model_info,
+      StreamDoneCallback on_done, StreamDeltaCallback on_delta,
+      StreamDeltaCallback on_reasoning_delta) const;
 
-  bool FetchStreamCompletion(StatePtr state,
-                             const std::vector<OaiToolDefinition>& tools,
-                             std::shared_ptr<OaiModelInfo> model_info,
-                             StreamDoneCallback on_done,
-                             StreamDeltaCallback on_delta) const;
+  [[nodiscard]] bool FetchStreamCompletion(
+      StatePtr state, const std::vector<OaiToolDefinition>& tools,
+      std::shared_ptr<OaiModelInfo> model_info, StreamDoneCallback on_done,
+      StreamDeltaCallback on_delta) const;
 
-  bool FetchStreamCompletion(StatePtr state,
-                             const std::vector<OaiToolDefinition>& tools,
-                             std::shared_ptr<OaiModelInfo> model_info,
-                             StreamDoneCallback on_done,
-                             StreamDeltaCallback on_delta,
-                             StreamDeltaCallback on_reasoning_delta) const;
+  [[nodiscard]] bool FetchStreamCompletion(
+      StatePtr state, const std::vector<OaiToolDefinition>& tools,
+      const std::shared_ptr<OaiModelInfo>& model_info,
+      StreamDoneCallback on_done, StreamDeltaCallback on_delta,
+      StreamDeltaCallback on_reasoning_delta) const;
 
  private:
   boost::asio::io_context::executor_type executor_;

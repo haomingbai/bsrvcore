@@ -21,12 +21,13 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 
 class UserAttribute : public bsrvcore::CloneableAttribute<UserAttribute> {
  public:
   explicit UserAttribute(std::string name) : name_(std::move(name)) {}
 
-  std::string ToString() const override { return name_; }
+  [[nodiscard]] std::string ToString() const override { return name_; }
 
   std::string name_;
 };
@@ -36,7 +37,7 @@ int main() {
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/session",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             const std::string& session_id = task->GetSessionId();
             auto session = task->GetSession();
 
@@ -63,12 +64,12 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8085}, 1);
 
   if (!server->Start()) {
-    std::cerr << "Failed to start server." << std::endl;
+    std::cerr << "Failed to start server." << '\n';
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8085/session" << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8085/session" << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

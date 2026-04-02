@@ -14,13 +14,18 @@
  */
 
 // BEGIN README_SNIPPET: configuration
-#include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
+#include <cstddef>
 #include <iostream>
 #include <memory>
+
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 
 int main() {
   bsrvcore::HttpServerRuntimeOptions options;
@@ -36,13 +41,13 @@ int main() {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
-      ->SetDefaultMaxBodySize(1024 * 1024)
+      ->SetDefaultMaxBodySize(static_cast<std::size_t>(1024 * 1024))
       ->SetKeepAliveTimeout(15000)
-      ->SetDefaultSessionTimeout(10 * 60 * 1000)
+      ->SetDefaultSessionTimeout(static_cast<std::size_t>(10 * 60 * 1000))
       ->SetSessionCleaner(true)
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/config",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->GetResponse().result(boost::beast::http::status::ok);
             task->SetField(boost::beast::http::field::content_type,
                            "text/plain; charset=utf-8");
@@ -51,12 +56,12 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8081}, 1);
 
   if (!server->Start()) {
-    std::cerr << "failed to start server" << std::endl;
+    std::cerr << "failed to start server" << '\n';
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8081/config" << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8081/config" << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

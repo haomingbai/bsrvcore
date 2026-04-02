@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <boost/url/parse.hpp>
+#include <boost/url/url_view.hpp>
 #include <cstddef>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -20,11 +22,13 @@
 
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/route/http_route_table_detail.h"
+#include "bsrvcore/internal/route/http_route_table_layer.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/route/http_route_result.h"
 
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestMethod;
 using bsrvcore::HttpRouteResult;
-using bsrvcore::HttpRouteTable;
 using bsrvcore::route_internal::HttpRouteTableLayer;
 
 namespace bsrvcore {
@@ -53,16 +57,17 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
   auto aspects = CollectAspects(route_layer, method);
   auto* handler = route_layer->GetHandler();
-  if (!handler) {
+  if (handler == nullptr) {
     return BuildDefaultRouteResult(method);
   }
 
-  auto max_body_size = route_layer->GetMaxBodySize()
+  auto max_body_size = (route_layer->GetMaxBodySize() != 0u)
                            ? route_layer->GetMaxBodySize()
                            : default_max_body_size_;
-  auto read_expiry = route_layer->GetReadExpiry() ? route_layer->GetReadExpiry()
-                                                  : default_read_expiry_;
-  auto write_expiry = route_layer->GetWriteExpiry()
+  auto read_expiry = (route_layer->GetReadExpiry() != 0u)
+                         ? route_layer->GetReadExpiry()
+                         : default_read_expiry_;
+  auto write_expiry = (route_layer->GetWriteExpiry() != 0u)
                           ? route_layer->GetWriteExpiry()
                           : default_write_expiry_;
 
@@ -127,7 +132,7 @@ bool HttpRouteTable::MatchSegments(
     }
 
     HttpRouteTableLayer* default_layer = route_layer->GetDefaultRoute();
-    if (!default_layer) {
+    if (default_layer == nullptr) {
       return false;
     }
 

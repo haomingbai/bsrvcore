@@ -11,11 +11,10 @@
 #include <bsrvcore/connection/client/http_client_task.h>
 
 #include <boost/asio/io_context.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/verb.hpp>
 #include <chrono>
 #include <future>
 #include <iostream>
-#include <stdexcept>
 #include <string>
 
 int main() {

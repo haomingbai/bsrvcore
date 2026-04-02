@@ -11,16 +11,18 @@
  * Implements start/stop and asynchronous acceptor loop.
  */
 
+#include <asm-generic/socket.h>
+
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/error.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/socket_base.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/ssl/ssl_stream.hpp>
+#include <boost/system/error_code.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <utility>
@@ -30,7 +32,6 @@
     defined(__NetBSD__) || defined(__OpenBSD__)
 #include <sys/socket.h>
 
-#include <cerrno>
 #endif
 
 #include "bsrvcore/allocator/allocator.h"
@@ -46,7 +47,7 @@ using tcp = boost::asio::ip::tcp;
 bool TryEnableReusePort(tcp::acceptor& acceptor) {
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || \
     defined(__NetBSD__) || defined(__OpenBSD__)
-#if defined(SO_REUSEPORT)
+#ifdef SO_REUSEPORT
   const int option = 1;
   // REUSEADDR keeps restart behavior friendly, while REUSEPORT lets multiple
   // acceptors on independent io_context shards bind the same endpoint.
@@ -55,10 +56,7 @@ bool TryEnableReusePort(tcp::acceptor& acceptor) {
   reuse_result |= ::setsockopt(acceptor.native_handle(), SOL_SOCKET,
                                SO_REUSEPORT, &option, sizeof(option));
 
-  if (reuse_result != 0) {
-    return false;
-  }
-  return true;
+  return reuse_result == 0;
 #else
   return false;
 #endif
@@ -216,8 +214,8 @@ bool HttpServer::BuildReusePortShardsLocked(
     }
 
     auto exec = ioc.get_executor();
-    endpoint_execs.push_back(exec);
-    global_execs.push_back(exec);
+    endpoint_execs.emplace_back(exec);
+    global_execs.emplace_back(exec);
   }
 
   return true;
@@ -249,8 +247,8 @@ bool HttpServer::BuildFallbackEndpointRuntimeLocked(
   }
 
   auto exec = ioc.get_executor();
-  endpoint_execs.push_back(exec);
-  global_execs.push_back(exec);
+  endpoint_execs.emplace_back(exec);
+  global_execs.emplace_back(exec);
   return true;
 }
 
@@ -270,8 +268,8 @@ bool HttpServer::BuildFirstEndpointRuntimeLocked(
   }
 
   reuse_port_supported_ = reuse_enabled;
-  endpoint_execs.push_back(first_ioc.get_executor());
-  global_execs.push_back(first_ioc.get_executor());
+  endpoint_execs.emplace_back(first_ioc.get_executor());
+  global_execs.emplace_back(first_ioc.get_executor());
 
   if (!reuse_port_supported_) {
     // Mixed runtime modes would make the external executor model surprising.
@@ -354,7 +352,7 @@ void HttpServer::StartEndpointRuntimesLocked() {
 }
 
 bool HttpServer::Start() {
-  std::unique_lock<std::mutex> lock(mtx_);
+  std::unique_lock<std::mutex> const lock(mtx_);
 
   if (is_running_) {
     return false;
@@ -392,7 +390,7 @@ bool HttpServer::Start() {
 }
 
 void HttpServer::Stop() {
-  std::unique_lock<std::mutex> lock(mtx_);
+  std::unique_lock<std::mutex> const lock(mtx_);
 
   if (!is_running_) {
     return;
@@ -450,7 +448,7 @@ void HttpServer::RearmAcceptIfRunning(std::size_t endpoint_index,
     return;
   }
 
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (!is_running_ || endpoint_index >= endpoint_runtimes_.size()) {
     return;
   }

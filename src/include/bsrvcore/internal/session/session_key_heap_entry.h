@@ -22,9 +22,7 @@
 
 #include "bsrvcore/core/trait.h"
 
-namespace bsrvcore {
-
-namespace session_internal {
+namespace bsrvcore::session_internal {
 
 /**
  * @brief Entry in session expiration heap for timeout management
@@ -63,13 +61,14 @@ class SessionKeyHeapEntry : CopyableMovable<SessionKeyHeapEntry> {
    * @brief Get the expiration time of this session
    * @return Time point when the session expires
    */
-  std::chrono::steady_clock::time_point GetExpiry() const noexcept;
+  [[nodiscard]] std::chrono::steady_clock::time_point GetExpiry()
+      const noexcept;
 
   /**
    * @brief Get the session identifier
    * @return Constant reference to the session ID string
    */
-  const std::string& GetId() const noexcept;
+  [[nodiscard]] const std::string& GetId() const noexcept;
 
   SessionKeyHeapEntry() = default;
 
@@ -78,8 +77,6 @@ class SessionKeyHeapEntry : CopyableMovable<SessionKeyHeapEntry> {
   std::chrono::steady_clock::time_point expiry_;  ///< Expiration time point
 };
 
-}  // namespace session_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::session_internal
 
 #endif

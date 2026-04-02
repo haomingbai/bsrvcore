@@ -46,7 +46,7 @@ struct HttpSseClientOptions {
   /** @brief Keep-alive preference for the SSE request. */
   bool keep_alive{true};
   /** @brief Optional User-Agent header value. */
-  std::string user_agent{};
+  std::string user_agent;
 };
 
 /**
@@ -86,7 +86,7 @@ enum class HttpSseClientErrorStage {
  */
 struct HttpSseClientResult {
   /** @brief Operation error code, 0 on success. */
-  boost::system::error_code ec{};
+  boost::system::error_code ec;
   /** @brief Current callback stage. */
   HttpSseClientStage stage{HttpSseClientStage::kStart};
   /** @brief Failure location in transport pipeline. */
@@ -96,9 +96,9 @@ struct HttpSseClientResult {
   /** @brief True when stream reached normal EOF/remote close. */
   bool eof{false};
   /** @brief Response header snapshot populated by Start(). */
-  HttpResponseHeader header{};
+  HttpResponseHeader header;
   /** @brief Data chunk populated by Next() when available. */
-  std::string chunk{};
+  std::string chunk;
 };
 
 /**
@@ -128,13 +128,13 @@ class HttpSseClientTask
    * `invalid_argument` and error stage `kCreate`.
    */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor, std::string url,
+      boost::asio::io_context::executor_type executor, const std::string& url,
       HttpSseClientOptions options = {});
 
   /** @brief Create SSE task from URL with SSL context. */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
       boost::asio::io_context::executor_type executor,
-      boost::asio::ssl::context& ssl_ctx, std::string url,
+      boost::asio::ssl::context& ssl_ctx, const std::string& url,
       HttpSseClientOptions options = {});
 
   /** @brief Access mutable request before Start(). */

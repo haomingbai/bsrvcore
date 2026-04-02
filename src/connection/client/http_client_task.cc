@@ -10,7 +10,10 @@
 
 #include "bsrvcore/connection/client/http_client_task.h"
 
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
+#include <boost/system/errc.hpp>
 #include <memory>
 #include <string>
 #include <utility>
@@ -39,8 +42,7 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateTask(
   void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
   try {
     auto* task = new (raw) HttpClientTask(std::move(impl));
-    return std::shared_ptr<HttpClientTask>(
-        task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); });
+    return {task, [](HttpClientTask* ptr) { DestroyDeallocate(ptr); }};
   } catch (...) {
     Deallocate(raw, sizeof(HttpClientTask), alignof(HttpClientTask));
     throw;
@@ -68,7 +70,7 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
-    boost::asio::io_context::executor_type executor, std::string url,
+    boost::asio::io_context::executor_type executor, const std::string& url,
     http::verb method, HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
@@ -92,8 +94,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     boost::asio::io_context::executor_type executor,
-    boost::asio::ssl::context& ssl_ctx, std::string url, http::verb method,
-    HttpClientOptions options) {
+    boost::asio::ssl::context& ssl_ctx, const std::string& url,
+    http::verb method, HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
     auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/", method,

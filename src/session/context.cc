@@ -14,6 +14,7 @@
 
 #include "bsrvcore/session/context.h"
 
+#include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <string>
@@ -23,7 +24,7 @@ using bsrvcore::Context;
 
 std::shared_ptr<bsrvcore::Attribute> Context::GetAttribute(
     const std::string& key) noexcept {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> const lock(mtx_);
   auto it = map_.find(key);
   if (it == map_.end()) {
     return nullptr;
@@ -33,7 +34,7 @@ std::shared_ptr<bsrvcore::Attribute> Context::GetAttribute(
 
 std::shared_ptr<bsrvcore::Attribute> Context::GetAttribute(
     std::string&& key) noexcept {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
+  std::shared_lock<std::shared_mutex> const lock(mtx_);
   auto it = map_.find(key);
   if (it == map_.end()) {
     return nullptr;
@@ -43,16 +44,16 @@ std::shared_ptr<bsrvcore::Attribute> Context::GetAttribute(
 
 void Context::SetAttribute(std::string key,
                            std::shared_ptr<bsrvcore::Attribute> val) {
-  std::unique_lock<std::shared_mutex> lock(mtx_);
+  std::unique_lock<std::shared_mutex> const lock(mtx_);
   map_[std::move(key)] = std::move(val);
 }
 
 bool Context::HasAttribute(const std::string& key) noexcept {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
-  return map_.count(key) > 0;
+  std::shared_lock<std::shared_mutex> const lock(mtx_);
+  return map_.contains(key);
 }
 
 bool Context::HasAttribute(std::string&& key) noexcept {
-  std::shared_lock<std::shared_mutex> lock(mtx_);
-  return map_.count(key) > 0;
+  std::shared_lock<std::shared_mutex> const lock(mtx_);
+  return map_.contains(key);
 }

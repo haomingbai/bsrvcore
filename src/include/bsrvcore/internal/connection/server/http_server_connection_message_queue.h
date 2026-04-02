@@ -42,7 +42,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
  public:
   explicit MessageQueue(std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp)
       : conn_wp_(std::move(conn_wp)),
-        is_writing_(false),
+
         queue_size_(0),
         connection_dead_(false) {}
 
@@ -103,24 +103,24 @@ class HttpServerConnectionImpl<S>::MessageQueue
   // ---- messages ----
   struct BodyMessage {
     std::shared_ptr<std::string> msg;
-    std::size_t write_expiry;
+    std::size_t write_expiry{};
   };
 
   struct HeaderMessage {
     std::shared_ptr<
         boost::beast::http::response<boost::beast::http::empty_body>>
         resp_sp;
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#elif defined(__GNUC__)
+#elifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
     boost::beast::http::response_serializer<boost::beast::http::empty_body> sr;
-#if defined(__clang__)
+#ifdef __clang__
 #pragma clang diagnostic pop
-#elif defined(__GNUC__)
+#elifdef __GNUC__
 #pragma GCC diagnostic pop
 #endif
 
@@ -151,7 +151,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
   // ---- start write (run on strand) ----
   void StartWriteIfNeeded() {
-    if (queue_.empty() || is_writing_) return;
+    if (queue_.empty() || is_writing_) {
+      return;
+    }
     is_writing_ = true;
 
     auto& front = queue_.front();
@@ -223,7 +225,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
     }
     PopFrontAndNotifyIfEmpty();
     is_writing_ = false;
-    if (!queue_.empty()) StartWriteIfNeeded();
+    if (!queue_.empty()) {
+      StartWriteIfNeeded();
+    }
   }
 
   void HandleHeaderWriteComplete(const boost::system::error_code& ec) {
@@ -236,7 +240,9 @@ class HttpServerConnectionImpl<S>::MessageQueue
     }
     PopFrontAndNotifyIfEmpty();
     is_writing_ = false;
-    if (!queue_.empty()) StartWriteIfNeeded();
+    if (!queue_.empty()) {
+      StartWriteIfNeeded();
+    }
   }
 
   // ---- small helpers ----
@@ -244,36 +250,38 @@ class HttpServerConnectionImpl<S>::MessageQueue
     queue_.pop_front();
     auto prev = queue_size_.fetch_sub(1, std::memory_order_relaxed);
     if (prev == 1) {
-      std::lock_guard<std::mutex> lk(cv_mutex_);
+      std::scoped_lock const lk(cv_mutex_);
       cv_.notify_all();
     }
   }
 
   void HandleWriteError(const boost::system::error_code& /*ec*/) {
-    if (auto conn_sp = conn_wp_.lock()) conn_sp->DoClose();
+    if (auto conn_sp = conn_wp_.lock()) {
+      conn_sp->DoClose();
+    }
     connection_dead_.store(true, std::memory_order_release);
-    std::lock_guard<std::mutex> lk(cv_mutex_);
+    std::scoped_lock const lk(cv_mutex_);
     cv_.notify_all();
     is_writing_ = false;
   }
 
   void HandleConnectionUnavailable() {
     connection_dead_.store(true, std::memory_order_release);
-    std::lock_guard<std::mutex> lk(cv_mutex_);
+    std::scoped_lock const lk(cv_mutex_);
     cv_.notify_all();
     is_writing_ = false;
   }
 
   void MarkConnectionDeadAndNotify() {
     connection_dead_.store(true, std::memory_order_release);
-    std::lock_guard<std::mutex> lk(cv_mutex_);
+    std::scoped_lock const lk(cv_mutex_);
     cv_.notify_all();
   }
 
   // ---- members ----
   std::deque<std::variant<BodyMessage, HeaderMessage>> queue_;
   std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
-  bool is_writing_;
+  bool is_writing_{false};
 
   std::mutex cv_mutex_;
   std::condition_variable cv_;

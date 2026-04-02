@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace completion = bsrvcore::oai::completion;
 
@@ -23,7 +24,7 @@ struct Options {
   bool print_reasoning{false};
 };
 
-void PrintUsage(const char* argv0) {
+static void PrintUsage(const char* argv0) {
   std::cerr
       << "Usage: " << argv0 << " [options]\n\n"
       << "Required:\n"
@@ -41,12 +42,12 @@ void PrintUsage(const char* argv0) {
       << "  -h, --help           Show this help\n";
 }
 
-bool ReadValueArg(int* index, int argc, char** argv, std::string_view arg,
-                  std::string_view name, std::string* out,
-                  std::string* error_out) {
+static bool ReadValueArg(int* index, int argc, char** argv,
+                         std::string_view arg, std::string_view name,
+                         std::string* out, std::string* error_out) {
   if (arg == name) {
     if ((*index) + 1 >= argc) {
-      if (error_out) {
+      if (error_out != nullptr) {
         *error_out = "missing value for " + std::string(name);
       }
       return false;
@@ -56,7 +57,7 @@ bool ReadValueArg(int* index, int argc, char** argv, std::string_view arg,
   }
 
   const auto prefix = std::string(name) + "=";
-  if (arg.size() > prefix.size() && arg.substr(0, prefix.size()) == prefix) {
+  if (arg.size() > prefix.size() && arg.starts_with(prefix)) {
     *out = std::string(arg.substr(prefix.size()));
     return true;
   }
@@ -64,13 +65,14 @@ bool ReadValueArg(int* index, int argc, char** argv, std::string_view arg,
   return false;
 }
 
-bool ParseArgs(int argc, char** argv, Options* out, std::string* error_out) {
-  if (!out) {
+static bool ParseArgs(int argc, char** argv, Options* out,
+                      std::string* error_out) {
+  if (out == nullptr) {
     return false;
   }
 
   for (int i = 1; i < argc; ++i) {
-    std::string_view arg(argv[i]);
+    std::string_view const arg(argv[i]);
 
     if (arg == "-h" || arg == "--help") {
       return false;
@@ -113,20 +115,21 @@ bool ParseArgs(int argc, char** argv, Options* out, std::string* error_out) {
       continue;
     }
 
-    if (error_out) {
+    if (error_out != nullptr) {
       *error_out = "unknown argument: " + std::string(arg);
     }
     return false;
   }
 
   if (out->api_key.empty()) {
-    if (const char* env = std::getenv("OAI_API_KEY"); env != nullptr && *env) {
+    if (const char* env = std::getenv("OAI_API_KEY");
+        env != nullptr && (*env != 0)) {
       out->api_key = env;
     }
   }
 
   if (out->base_url.empty() || out->model.empty() || out->user.empty()) {
-    if (error_out) {
+    if (error_out != nullptr) {
       *error_out = "--base_url, --model and --user are required";
     }
     return false;
@@ -161,7 +164,7 @@ int main(int argc, char** argv) {
   auto model_info = bsrvcore::AllocateShared<completion::OaiModelInfo>();
   model_info->model = options.model;
 
-  completion::OaiCompletionFactory factory(ioc.get_executor(), info);
+  completion::OaiCompletionFactory const factory(ioc.get_executor(), info);
 
   completion::OaiCompletionFactory::StatePtr state = nullptr;
   if (!options.system.empty()) {
@@ -260,7 +263,7 @@ int main(int argc, char** argv) {
         done_promise.set_value(std::move(done_state));
       };
 
-  completion::OaiCompletionFactory::StreamDeltaCallback on_delta =
+  completion::OaiCompletionFactory::StreamDeltaCallback const on_delta =
       [](const std::string& delta) { std::cout << delta << std::flush; };
 
   bool started = false;

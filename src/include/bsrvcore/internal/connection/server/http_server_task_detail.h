@@ -48,14 +48,14 @@ struct HttpTaskSharedState {
                       std::shared_ptr<HttpServerConnection> in_conn,
                       bsrvcore::internal::HandlerAllocator in_handler_alloc)
       : req(std::move(in_req)),
-        resp(),
+
         conn(std::move(in_conn)),
         route_result(std::move(in_route_result)),
         srv(conn.load() ? conn.load()->GetServer() : nullptr),
         keep_alive(true),
         manual_connection_management(false),
-        is_cookie_parsed(false),
-        handler_alloc(std::move(in_handler_alloc)) {}
+
+        handler_alloc(in_handler_alloc) {}
 
   HttpRequest req;
   HttpResponse resp;
@@ -72,7 +72,7 @@ struct HttpTaskSharedState {
   // Manual connection management is monotonic: once true, the lifecycle
   // finalizer must not auto-write the accumulated response.
   std::atomic_bool manual_connection_management;
-  bool is_cookie_parsed;
+  bool is_cookie_parsed{false};
   bsrvcore::internal::HandlerAllocator handler_alloc;
 };
 
@@ -101,7 +101,7 @@ inline void DestroyTaskObject(const std::shared_ptr<HttpTaskSharedState>& state,
                               void* ptr, std::size_t size,
                               std::size_t alignment) {
   (void)state;
-  if (!ptr) {
+  if (ptr == nullptr) {
     return;
   }
   bsrvcore::Deallocate(ptr, size, alignment);
@@ -121,7 +121,7 @@ inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
   // task objects stay consistent with the connection's Asio allocation policy.
   auto handler_alloc = conn ? conn->GetHandlerAllocator()
                             : bsrvcore::internal::HandlerAllocator{};
-  bsrvcore::Allocator<HttpTaskSharedState> state_alloc;
+  bsrvcore::Allocator<HttpTaskSharedState> const state_alloc;
   return std::allocate_shared<HttpTaskSharedState>(
       state_alloc, std::move(req), std::move(route_result), std::move(conn),
       handler_alloc);
@@ -162,7 +162,7 @@ inline std::pair<std::string_view, std::string_view> ParseCookiePairView(
 inline std::string ToLowerString(std::string_view sv) {
   std::string out;
   out.reserve(sv.size());
-  for (unsigned char c : sv) {
+  for (unsigned char const c : sv) {
     out.push_back(static_cast<char>(std::tolower(c)));
   }
   return out;
@@ -190,7 +190,7 @@ inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
 
 inline std::string GenerateSessionId() noexcept {
   static thread_local boost::uuids::random_generator tls_uuid_gen{};
-  boost::uuids::uuid uuid = tls_uuid_gen();
+  boost::uuids::uuid const uuid = tls_uuid_gen();
   return boost::uuids::to_string(uuid);
 }
 

@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <boost/asio/bind_allocator.hpp>
 #include <cassert>
 #include <cstddef>
 #include <memory>
@@ -146,7 +147,7 @@ void HttpPreServerTask::Start() {
 }
 
 void HttpPreServerTask::RunScheduledPrePhase(
-    std::shared_ptr<HttpPreServerTask> self) {
+    const std::shared_ptr<HttpPreServerTask>& self) {
   self->DoPreService(0);
 }
 
@@ -194,7 +195,7 @@ void HttpServerTask::Start() {
 }
 
 void HttpServerTask::RunScheduledServicePhase(
-    std::shared_ptr<HttpServerTask> self) {
+    const std::shared_ptr<HttpServerTask>& self) {
   self->DoService();
 }
 
@@ -254,7 +255,7 @@ void HttpPostServerTask::Start() {
 }
 
 void HttpPostServerTask::RunScheduledPostPhase(
-    std::shared_ptr<HttpPostServerTask> self, std::size_t curr_idx) {
+    const std::shared_ptr<HttpPostServerTask>& self, std::size_t curr_idx) {
   self->DoPostService(curr_idx);
 }
 

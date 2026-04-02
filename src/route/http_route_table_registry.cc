@@ -15,12 +15,14 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/empty_route_handler.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/route/http_route_table_detail.h"
 #include "bsrvcore/internal/route/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
 #include "impl/http_route_target_validator.h"
 
 using bsrvcore::HttpRequestAspectHandler;
@@ -41,7 +43,7 @@ bool HttpRouteTable::AddRouteEntry(HttpRequestMethod method,
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -59,7 +61,7 @@ bool HttpRouteTable::AddExclusiveRouteEntry(
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -114,7 +116,7 @@ bool HttpRouteTable::AddAspect(HttpRequestMethod method,
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -152,7 +154,7 @@ bool HttpRouteTable::SetWriteExpiry(HttpRequestMethod method,
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -170,7 +172,7 @@ bool HttpRouteTable::SetReadExpiry(HttpRequestMethod method,
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -188,7 +190,7 @@ bool HttpRouteTable::SetMaxBodySize(HttpRequestMethod method,
   }
 
   auto* route_layer = GetOrCreateRouteTableLayer(method, target);
-  if (!route_layer) {
+  if (route_layer == nullptr) {
     return false;
   }
 
@@ -213,10 +215,7 @@ void HttpRouteTable::SetDefaultHandler(OwnedPtr<HttpRequestHandler> handler) {
 }
 
 HttpRouteTable::HttpRouteTable() noexcept
-    : default_handler_(AllocateUnique<route_internal::EmptyRouteHandler>()),
-      default_max_body_size_(16384),
-      default_read_expiry_(4000),
-      default_write_expiry_(4000) {
+    : default_handler_(AllocateUnique<route_internal::EmptyRouteHandler>()) {
   for (auto& it : entrance_) {
     it = AllocateUnique<HttpRouteTableLayer>();
   }

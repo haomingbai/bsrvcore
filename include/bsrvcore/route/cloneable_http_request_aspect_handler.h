@@ -31,7 +31,8 @@ class CloneableHttpRequestAspectHandler : public HttpRequestAspectHandler {
    * @brief Create a deep copy of this aspect.
    * @return A cloned aspect instance.
    */
-  virtual OwnedPtr<CloneableHttpRequestAspectHandler> Clone() const = 0;
+  [[nodiscard]] virtual OwnedPtr<CloneableHttpRequestAspectHandler> Clone()
+      const = 0;
 };
 
 /**
@@ -81,7 +82,8 @@ class CloneableFunctionRequestAspectHandler
    * @brief Clone this aspect.
    * @return A deep copy that preserves the wrapped callables.
    */
-  OwnedPtr<CloneableHttpRequestAspectHandler> Clone() const override {
+  [[nodiscard]] OwnedPtr<CloneableHttpRequestAspectHandler> Clone()
+      const override {
     return AllocateUnique<CloneableFunctionRequestAspectHandler<F1, F2>>(f1_,
                                                                          f2_);
   }

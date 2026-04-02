@@ -14,16 +14,22 @@
  */
 
 // BEGIN README_SNIPPET: sse_stream
-#include <bsrvcore/bsrvcore.h>
 
 #include <atomic>
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/status.hpp>
+#include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
+
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_method.h"
 
 namespace {
 
@@ -120,7 +126,7 @@ int main() {
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/events",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->SetManualConnectionManagement(true);
 
             bsrvcore::HttpResponseHeader header;
@@ -141,15 +147,15 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8086}, 1);
 
   if (!server->Start()) {
-    std::cerr << "Failed to start server." << std::endl;
+    std::cerr << "Failed to start server." << '\n';
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8086/events" << std::endl;
-  std::cout << "Try: curl -N http://127.0.0.1:8086/events" << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8086/events" << '\n';
+  std::cout << "Try: curl -N http://127.0.0.1:8086/events" << '\n';
   std::cout << "The stream closes after " << kMaxCounterEvents
-            << " counter events." << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+            << " counter events." << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

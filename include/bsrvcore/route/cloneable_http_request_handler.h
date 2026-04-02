@@ -32,7 +32,7 @@ class CloneableHttpRequestHandler : public HttpRequestHandler {
    * @brief Create a deep copy of this handler.
    * @return A cloned handler instance.
    */
-  virtual OwnedPtr<CloneableHttpRequestHandler> Clone() const = 0;
+  [[nodiscard]] virtual OwnedPtr<CloneableHttpRequestHandler> Clone() const = 0;
 };
 
 /**
@@ -69,7 +69,7 @@ class CloneableFunctionRouteHandler
    * @brief Clone this handler.
    * @return A deep copy that preserves the wrapped callable.
    */
-  OwnedPtr<CloneableHttpRequestHandler> Clone() const override {
+  [[nodiscard]] OwnedPtr<CloneableHttpRequestHandler> Clone() const override {
     return AllocateUnique<CloneableFunctionRouteHandler<Fn>>(fn_);
   }
 

@@ -10,10 +10,12 @@
 
 #include "bsrvcore/connection/client/sse_event_parser.h"
 
-#include <algorithm>
 #include <charconv>
+#include <cstddef>
 #include <string>
-#include <utility>
+#include <string_view>
+#include <system_error>
+#include <vector>
 
 namespace bsrvcore {
 
@@ -39,7 +41,7 @@ std::vector<SseEvent> SseEventParser::Feed(std::string_view chunk) {
 
   while (line_start < pending_.size()) {
     // SSE is line-oriented. We only process complete lines (ending with '\n').
-    std::size_t line_end = pending_.find('\n', line_start);
+    std::size_t const line_end = pending_.find('\n', line_start);
     if (line_end == std::string::npos) {
       break;
     }
@@ -88,8 +90,8 @@ void SseEventParser::ConsumeLine(std::string_view line,
 
   // Parse "field:value" (value may be empty). A single leading space in value
   // is trimmed.
-  std::size_t colon = line.find(':');
-  std::string_view field = line.substr(0, colon);
+  std::size_t const colon = line.find(':');
+  std::string_view const field = line.substr(0, colon);
   std::string_view value{};
   if (colon != std::string_view::npos) {
     value = TrimLeadingSingleSpace(line.substr(colon + 1));

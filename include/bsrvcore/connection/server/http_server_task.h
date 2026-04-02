@@ -191,7 +191,7 @@ class HttpTaskBase {
    * @param level Log level.
    * @param message Log content.
    */
-  void Log(LogLevel level, const std::string message);
+  void Log(LogLevel level, const std::string& message);
 
   /**
    * @brief Flush response body immediately.
@@ -272,8 +272,6 @@ class HttpTaskBase {
     std::function<void()> to_post = [binded_fn]() { binded_fn(); };
 
     Post(to_post);
-
-    return;
   }
 
   /**
@@ -353,7 +351,7 @@ class HttpTaskBase {
    * @param cookie Cookie object.
    * @return true if cookie is accepted.
    */
-  bool AddCookie(ServerSetCookie cookie);
+  bool AddCookie(const ServerSetCookie& cookie);
 
   /**
    * @brief Close underlying connection.
@@ -394,14 +392,15 @@ class HttpTaskBase {
    * @brief Access const shared state.
    * @return Shared state const reference.
    */
-  const task_internal::HttpTaskSharedState& GetState() const noexcept;
+  [[nodiscard]] const task_internal::HttpTaskSharedState& GetState()
+      const noexcept;
 
   /**
    * @brief Access shared-state smart pointer.
    * @return Shared-state pointer.
    */
-  std::shared_ptr<task_internal::HttpTaskSharedState> GetSharedState()
-      const noexcept;
+  [[nodiscard]] std::shared_ptr<task_internal::HttpTaskSharedState>
+  GetSharedState() const noexcept;
 
  private:
   void GenerateCookiePairs();
@@ -437,7 +436,7 @@ class HttpPreServerTask
   /**
    * @brief Destructor.
    */
-  ~HttpPreServerTask();
+  ~HttpPreServerTask() override;
 
  private:
   friend struct task_internal::HttpPreTaskDeleter;
@@ -447,7 +446,8 @@ class HttpPreServerTask
   explicit HttpPreServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
-  static void RunScheduledPrePhase(std::shared_ptr<HttpPreServerTask> self);
+  static void RunScheduledPrePhase(
+      const std::shared_ptr<HttpPreServerTask>& self);
   void DoPreService(std::size_t curr_idx);
 };
 
@@ -478,7 +478,7 @@ class HttpServerTask : public HttpTaskBase,
   /**
    * @brief Destructor.
    */
-  ~HttpServerTask();
+  ~HttpServerTask() override;
 
  private:
   friend struct task_internal::HttpPreTaskDeleter;
@@ -491,7 +491,8 @@ class HttpServerTask : public HttpTaskBase,
   explicit HttpServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
-  static void RunScheduledServicePhase(std::shared_ptr<HttpServerTask> self);
+  static void RunScheduledServicePhase(
+      const std::shared_ptr<HttpServerTask>& self);
   void DoService();
 };
 
@@ -513,7 +514,7 @@ class HttpPostServerTask
   /**
    * @brief Destructor.
    */
-  ~HttpPostServerTask();
+  ~HttpPostServerTask() override;
 
  private:
   friend struct task_internal::HttpPreTaskDeleter;
@@ -523,8 +524,8 @@ class HttpPostServerTask
   explicit HttpPostServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);
 
-  static void RunScheduledPostPhase(std::shared_ptr<HttpPostServerTask> self,
-                                    std::size_t curr_idx);
+  static void RunScheduledPostPhase(
+      const std::shared_ptr<HttpPostServerTask>& self, std::size_t curr_idx);
   void DoPostService(std::size_t curr_idx);
 };
 

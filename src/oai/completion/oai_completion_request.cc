@@ -5,10 +5,18 @@
 
 #include <algorithm>
 #include <array>
-#include <boost/json.hpp>
+#include <boost/json/array.hpp>
+#include <boost/json/object.hpp>
+#include <boost/json/serialize.hpp>
 #include <chrono>
+#include <cstdint>
+#include <memory>
+#include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "bsrvcore/oai/completion/oai_completion.h"
 #include "oai_completion_detail.h"
 
 namespace bsrvcore::oai::completion::detail {
@@ -163,7 +171,7 @@ std::vector<OaiMessage> CollectMessageChain(
     reversed.push_back(curr->GetMessage());
     curr = curr->GetPreviousState();
   }
-  std::reverse(reversed.begin(), reversed.end());
+  std::ranges::reverse(reversed);
   return reversed;
 }
 

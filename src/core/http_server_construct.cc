@@ -11,9 +11,14 @@
  * Implements HttpServer constructors and destructor.
  */
 
+#include <atomic>
+#include <boost/asio/any_io_executor.hpp>
 #include <bthpool/bthpool.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
@@ -53,7 +58,7 @@ HttpServerRuntimeOptions MakeRuntimeOptionsFromThreadNum(
 
 struct HttpServer::ThreadPoolState {
   explicit ThreadPoolState(bthpool::BThreadPoolParam param)
-      : pool(std::move(param), Allocator<std::byte>{}) {}
+      : pool(param, Allocator<std::byte>{}) {}
 
   bthpool::BThreadPool<Allocator<std::byte>> pool;
 };
@@ -86,7 +91,7 @@ HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
           control_ioc_.get_executor(), this)),
       header_read_expiry_(3000),
       keep_alive_timeout_(4000),
-      kRuntimeOptions_(std::move(runtime_options)),
+      kRuntimeOptions_(runtime_options),
       kHasMaxConnection_(kRuntimeOptions_.has_max_connection),
       available_connection_num_(
           kHasMaxConnection_

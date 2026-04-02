@@ -14,20 +14,26 @@
 
 #include "bsrvcore/internal/connection/server/http_server_connection.h"
 
+#include <atomic>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/beast.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/system/error_code.hpp>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
@@ -36,7 +42,7 @@
 using bsrvcore::HttpServerConnection;
 
 void HttpServerConnection::Post(std::function<void()> fn) {
-  if (!srv_) {
+  if (srv_ == nullptr) {
     return;
   }
 
@@ -44,7 +50,7 @@ void HttpServerConnection::Post(std::function<void()> fn) {
 }
 
 void HttpServerConnection::Dispatch(std::function<void()> fn) {
-  if (!srv_) {
+  if (srv_ == nullptr) {
     return;
   }
 
@@ -52,7 +58,7 @@ void HttpServerConnection::Dispatch(std::function<void()> fn) {
 }
 
 void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
-  if (!srv_ || !IsServerRunning()) {
+  if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
 
@@ -60,7 +66,7 @@ void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
 }
 
 void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
-  if (!srv_ || !IsServerRunning()) {
+  if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
 
@@ -74,7 +80,7 @@ boost::asio::any_io_executor HttpServerConnection::GetIoExecutor()
 
 std::vector<boost::asio::any_io_executor>
 HttpServerConnection::GetEndpointExecutors() const {
-  if (!srv_ || !IsServerRunning()) {
+  if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
   return srv_->GetEndpointExecutors(endpoint_index_);
@@ -82,7 +88,7 @@ HttpServerConnection::GetEndpointExecutors() const {
 
 std::vector<boost::asio::any_io_executor>
 HttpServerConnection::GetGlobalExecutors() const {
-  if (!srv_ || !IsServerRunning()) {
+  if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
   return srv_->GetGlobalExecutors();
@@ -90,7 +96,7 @@ HttpServerConnection::GetGlobalExecutors() const {
 
 void HttpServerConnection::SetTimer(std::size_t timeout,
                                     std::function<void()> callback) {
-  if (!srv_ || !IsServerRunning()) {
+  if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
 
@@ -172,7 +178,7 @@ void HttpServerConnection::DoRoute() {
 
   ArmTimeout(route_result_.read_expiry);
 
-  if (route_result_.max_body_size) {
+  if (route_result_.max_body_size != 0u) {
     parser_->body_limit(route_result_.max_body_size);
   }
 
@@ -186,7 +192,7 @@ void HttpServerConnection::DoForwardRequest() {
   }
 
   CancelTimeout();
-  std::shared_ptr<HttpPreServerTask> task = HttpPreServerTask::Create(
+  std::shared_ptr<HttpPreServerTask> const task = HttpPreServerTask::Create(
       parser_->release(), std::move(route_result_), shared_from_this());
   task->Start();
 }
@@ -246,7 +252,7 @@ HttpServerConnection::GetParser() noexcept {
 }
 
 std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
-  return keep_alive_timeout_ / 1000 ? keep_alive_timeout_ / 1000 : 1;
+  return ((keep_alive_timeout_ / 1000) != 0u) ? keep_alive_timeout_ / 1000 : 1;
 }
 
 void HttpServerConnection::ArmTimeout(std::size_t timeout) {

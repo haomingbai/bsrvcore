@@ -158,7 +158,7 @@ class ServerSetCookie : public CopyableMovable<ServerSetCookie> {
    * SameSite=Strict"
    * @endcode
    */
-  std::string ToString() const;
+  [[nodiscard]] std::string ToString() const;
 
   /**
    * @brief Construct an empty cookie builder

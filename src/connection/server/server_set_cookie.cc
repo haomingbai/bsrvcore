@@ -14,6 +14,7 @@
 #include "bsrvcore/connection/server/server_set_cookie.h"
 
 #include <cctype>
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -74,28 +75,27 @@ std::string ServerSetCookie::ToString() const {
     return "";
   }
 
-  std::string result =
-      std::move(name_.value()) + "=" + std::move(value_.value());
+  std::string result = name_.value() + "=" + value_.value();
   result.push_back(';');
 
   if (expiry_.has_value() && !expiry_.value().empty()) {
     result.push_back(' ');
     result.append("Expires=");
-    result.append(std::move(expiry_.value()));
+    result.append(expiry_.value());
     result.push_back(';');
   }
 
   if (path_.has_value() && !path_.value().empty()) {
     result.push_back(' ');
     result.append("Path=");
-    result.append(std::move(path_.value()));
+    result.append(path_.value());
     result.push_back(';');
   }
 
   if (domain_.has_value() && !domain_.value().empty()) {
     result.push_back(' ');
     result.append("Domain=");
-    result.append(std::move(domain_.value()));
+    result.append(domain_.value());
     result.push_back(';');
   }
 
@@ -131,9 +131,8 @@ std::string ServerSetCookie::ToString() const {
     result.push_back(';');
   }
 
-  if (same_site_.has_value() && same_site_.value() == SameSite::kNone) {
-    result.append(" Secure;");
-  } else if (secure_.has_value() && secure_.value()) {
+  if ((same_site_.has_value() && same_site_.value() == SameSite::kNone) ||
+      (secure_.has_value() && secure_.value())) {
     result.append(" Secure;");
   }
 
@@ -141,7 +140,7 @@ std::string ServerSetCookie::ToString() const {
     result.append(" HttpOnly;");
   }
 
-  while (std::isspace(result.back()) || result.back() == ';') {
+  while ((std::isspace(result.back()) != 0) || result.back() == ';') {
     result.pop_back();
   }
 

@@ -17,11 +17,14 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <thread>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
 #include "config_loader.h"
+#include "config_types.h"
 #include "plugin_loader.h"
 #include "server_builder.h"
 
@@ -34,7 +37,7 @@ std::atomic<bool> g_stop_requested = false;
 void HandleSignal(int /*signal*/) { g_stop_requested.store(true); }
 
 void PrintUsage(const char* argv0) {
-  std::cout << "Usage: " << argv0 << " [-c <config.yaml>]" << std::endl;
+  std::cout << "Usage: " << argv0 << " [-c <config.yaml>]" << '\n';
 }
 
 std::optional<std::string> ParseConfigPath(int argc, char** argv) {
@@ -54,13 +57,13 @@ std::optional<std::string> ParseConfigPath(int argc, char** argv) {
     throw std::runtime_error(e.what());
   }
 
-  if (vm.count("help") != 0U) {
+  if (vm.contains("help")) {
     PrintUsage(argv[0]);
-    std::cout << options << std::endl;
+    std::cout << options << '\n';
     std::exit(0);
   }
 
-  if (vm.count("config") != 0U) {
+  if (vm.contains("config")) {
     return vm["config"].as<std::string>();
   }
 
@@ -69,7 +72,7 @@ std::optional<std::string> ParseConfigPath(int argc, char** argv) {
 
 }  // namespace
 
-int RunMain(int argc, char** argv) {
+static int RunMain(int argc, char** argv) {
   try {
     const std::optional<std::string> cli_path = ParseConfigPath(argc, argv);
     const std::string config_path = ResolveConfigPath(cli_path);
@@ -100,11 +103,11 @@ int RunMain(int argc, char** argv) {
     std::signal(SIGTERM, HandleSignal);
 
     if (!server->Start()) {
-      std::cerr << "failed to start server" << std::endl;
+      std::cerr << "failed to start server" << '\n';
       return 3;
     }
 
-    std::cout << "bsrvrun started with config: " << config_path << std::endl;
+    std::cout << "bsrvrun started with config: " << config_path << '\n';
     while (!g_stop_requested.load()) {
       std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
@@ -113,7 +116,7 @@ int RunMain(int argc, char** argv) {
     server.reset();
     return 0;
   } catch (const std::exception& e) {
-    std::cerr << "bsrvrun error: " << e.what() << std::endl;
+    std::cerr << "bsrvrun error: " << e.what() << '\n';
     return 2;
   }
 }

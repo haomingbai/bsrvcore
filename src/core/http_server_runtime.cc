@@ -12,12 +12,13 @@
  * routing and session access.
  */
 
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/detail/chrono.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
-#include <boost/beast/core/tcp_stream.hpp>
+#include <boost/system/error_code.hpp>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -25,7 +26,9 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/internal/route/http_route_table.h"
@@ -65,7 +68,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
   }
 
   auto timer = AllocateShared<boost::asio::steady_timer>(io_exec);
-  timer->expires_after(boost::asio::chrono::milliseconds(timeout));
+  timer->expires_after(std::chrono::milliseconds(timeout));
   timer->async_wait(
       [this, fn = std::move(fn), timer](boost::system::error_code ec) mutable {
         if (ec) {
@@ -84,7 +87,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
 }
 
 void HttpServer::Post(std::function<void()> fn) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (!is_running_) {
     return;
   }
@@ -95,7 +98,7 @@ void HttpServer::Post(std::function<void()> fn) {
 }
 
 void HttpServer::Dispatch(std::function<void()> fn) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (!is_running_) {
     return;
   }
@@ -160,7 +163,7 @@ boost::asio::any_io_executor HttpServer::GetIoExecutor() noexcept {
 }
 
 boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (!is_running_) {
     return {};
   }
@@ -212,7 +215,9 @@ bool HttpServer::SetSessionTimeout(std::string&& sessionid,
 
 std::shared_ptr<Context> HttpServer::GetContext() { return context_; }
 
-std::size_t HttpServer::GetKeepAliveTimeout() { return keep_alive_timeout_; }
+std::size_t HttpServer::GetKeepAliveTimeout() const {
+  return keep_alive_timeout_;
+}
 
 bool HttpServer::IsRunning() {
   return is_running_.load(std::memory_order_acquire);

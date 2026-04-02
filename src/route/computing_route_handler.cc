@@ -13,6 +13,10 @@
 #include <memory>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/route/http_request_handler.h"
+
 namespace bsrvcore::route_internal {
 
 ComputingRouteHandler::ComputingRouteHandler(

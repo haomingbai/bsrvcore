@@ -48,7 +48,7 @@ class Allocator {
   Allocator() noexcept = default;
 
   template <typename U>
-  Allocator(const Allocator<U>&) noexcept {}
+  explicit Allocator(const Allocator<U>& /*unused*/) noexcept {}
 
   [[nodiscard]] T* allocate(std::size_t n) {
     if (n == 0) {
@@ -73,7 +73,8 @@ class Allocator {
   };
 
   template <typename U>
-  friend bool operator==(const Allocator&, const Allocator<U>&) noexcept {
+  friend bool operator==(const Allocator& /*unused*/,
+                         const Allocator<U>& /*unused*/) noexcept {
     return true;
   }
 };

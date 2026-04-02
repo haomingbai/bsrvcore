@@ -8,11 +8,13 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/internal/route/computing_route_handler.h"
@@ -26,7 +28,7 @@ using namespace bsrvcore;
 HttpServer* HttpServer::AddRouteEntry(HttpRequestMethod method,
                                       const std::string_view url,
                                       OwnedPtr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -45,7 +47,7 @@ HttpServer* HttpServer::AddComputingRouteEntry(
 HttpServer* HttpServer::AddExclusiveRouteEntry(
     HttpRequestMethod method, const std::string_view url,
     OwnedPtr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -57,7 +59,7 @@ HttpServer* HttpServer::AddExclusiveRouteEntry(
 HttpServer* HttpServer::AddAspect(HttpRequestMethod method,
                                   const std::string_view url,
                                   OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -68,7 +70,7 @@ HttpServer* HttpServer::AddAspect(HttpRequestMethod method,
 
 HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -79,7 +81,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 
 HttpServer* HttpServer::AddGlobalAspect(
     OwnedPtr<HttpRequestAspectHandler> aspect) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -90,7 +92,7 @@ HttpServer* HttpServer::AddGlobalAspect(
 
 HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
                                      BluePrint&& blue_print) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -101,7 +103,7 @@ HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
 
 HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
                                      const ReuseableBluePrint& blue_print) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -113,7 +115,7 @@ HttpServer* HttpServer::AddBluePrint(std::string_view prefix,
 HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
                                       std::string_view url,
                                       std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -125,7 +127,7 @@ HttpServer* HttpServer::SetReadExpiry(HttpRequestMethod method,
 HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
                                        std::string_view url,
                                        std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -136,7 +138,7 @@ HttpServer* HttpServer::SetWriteExpiry(HttpRequestMethod method,
 
 HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
                                        std::string_view url, std::size_t size) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -146,7 +148,7 @@ HttpServer* HttpServer::SetMaxBodySize(HttpRequestMethod method,
 }
 
 HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -156,7 +158,7 @@ HttpServer* HttpServer::SetDefaultReadExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -166,7 +168,7 @@ HttpServer* HttpServer::SetDefaultWriteExpiry(std::size_t expiry) {
 }
 
 HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }
@@ -177,7 +179,7 @@ HttpServer* HttpServer::SetDefaultMaxBodySize(std::size_t size) {
 
 HttpServer* HttpServer::SetDefaultHandler(
     OwnedPtr<HttpRequestHandler> handler) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
   }

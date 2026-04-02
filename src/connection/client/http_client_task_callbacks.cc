@@ -8,33 +8,41 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <boost/system/error_code.hpp>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <utility>
+
+#include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "impl/http_client_task_impl.h"
 
 namespace bsrvcore {
 
 void HttpClientTask::Impl::SetSession(
     std::weak_ptr<HttpClientSession> session) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   session_ = std::move(session);
 }
 
 void HttpClientTask::Impl::SetOnConnected(Callback cb) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   on_connected_ = std::move(cb);
 }
 
 void HttpClientTask::Impl::SetOnHeader(Callback cb) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   on_header_ = std::move(cb);
 }
 
 void HttpClientTask::Impl::SetOnChunk(Callback cb) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   on_chunk_ = std::move(cb);
 }
 
 void HttpClientTask::Impl::SetOnDone(Callback cb) {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   on_done_ = std::move(cb);
 }
 
@@ -94,13 +102,13 @@ void HttpClientTask::Impl::EmitStageByResult(const HttpClientResult& result) {
 }
 
 bool HttpClientTask::Impl::HasChunkCallback() const {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   return static_cast<bool>(on_chunk_);
 }
 
 HttpClientTask::Impl::Callback HttpClientTask::Impl::GetCallbackCopy(
     HttpClientStage stage) const {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   switch (stage) {
     case HttpClientStage::kConnected:
       return on_connected_;
@@ -116,7 +124,7 @@ HttpClientTask::Impl::Callback HttpClientTask::Impl::GetCallbackCopy(
 
 HttpClientTask::Impl::Callback HttpClientTask::Impl::GetDoneCallbackCopy()
     const {
-  std::lock_guard<std::mutex> lock(callback_mutex_);
+  std::scoped_lock const lock(callback_mutex_);
   return on_done_;
 }
 

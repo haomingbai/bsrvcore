@@ -12,7 +12,6 @@
  */
 
 // BEGIN README_SNIPPET: logger_custom
-#include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
@@ -21,10 +20,16 @@
 #include <memory>
 #include <string>
 
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/logger.h"
+#include "bsrvcore/route/http_request_method.h"
+
 class ConsoleLogger : public bsrvcore::Logger {
  public:
   void Log(bsrvcore::LogLevel level, std::string message) override {
-    std::clog << "[" << LevelToString(level) << "] " << message << std::endl;
+    std::clog << "[" << LevelToString(level) << "] " << message << '\n';
   }
 
  private:
@@ -55,7 +60,7 @@ int main() {
   server->SetLogger(logger)
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/log",
-          [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->Log(bsrvcore::LogLevel::kInfo, "Handling /log");
             task->GetResponse().result(boost::beast::http::status::ok);
             task->SetField(boost::beast::http::field::content_type,
@@ -65,13 +70,13 @@ int main() {
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8084}, 1);
 
   if (!server->Start()) {
-    std::cerr << "Failed to start server." << std::endl;
+    std::cerr << "Failed to start server." << '\n';
     return 1;
   }
 
   logger->Log(bsrvcore::LogLevel::kInfo, "Listening on /log");
-  std::cout << "Listening on http://0.0.0.0:8084/log" << std::endl;
-  std::cout << "Press Enter to stop." << std::endl;
+  std::cout << "Listening on http://0.0.0.0:8084/log" << '\n';
+  std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 
   server->Stop();

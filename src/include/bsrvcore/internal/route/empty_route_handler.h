@@ -21,9 +21,7 @@
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_handler.h"
 
-namespace bsrvcore {
-
-namespace route_internal {
+namespace bsrvcore::route_internal {
 
 /**
  * @brief Fallback handler used when routing fails.
@@ -42,8 +40,6 @@ class EmptyRouteHandler : public HttpRequestHandler,
   ~EmptyRouteHandler() override = default;
 };
 
-}  // namespace route_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::route_internal
 
 #endif

@@ -10,13 +10,16 @@
 
 #include "bsrvcore/connection/server/multipart_parser.h"
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/beast/http/field.hpp>
 #include <cstddef>
+#include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/internal/connection/server/request_body_processor_detail.h"
 
 namespace bsrvcore {
@@ -30,7 +33,7 @@ using request_body_internal::ParsePartHeaders;
 inline bool PrepareMultipartBody(std::string_view body,
                                  const std::string& delimiter,
                                  std::size_t* cursor) {
-  if (!cursor || body.compare(0, delimiter.size(), delimiter) != 0) {
+  if ((cursor == nullptr) || !body.starts_with(delimiter)) {
     return false;
   }
 
@@ -51,7 +54,8 @@ inline bool ParseMultipartPart(std::string_view body,
                                const std::string& boundary_marker,
                                std::size_t* cursor, std::string* content_type,
                                std::string* payload, bool* is_file) {
-  if (!cursor || !content_type || !payload || !is_file ||
+  if ((cursor == nullptr) || (content_type == nullptr) ||
+      (payload == nullptr) || (is_file == nullptr) ||
       body.compare(*cursor, delimiter.size(), delimiter) != 0) {
     return false;
   }

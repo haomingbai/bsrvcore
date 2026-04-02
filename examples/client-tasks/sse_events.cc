@@ -13,6 +13,8 @@
 #include <bsrvcore/connection/client/sse_event_parser.h>
 
 #include <boost/asio/io_context.hpp>
+#include <boost/system/system_error.hpp>
+#include <exception>
 #include <functional>
 #include <future>
 #include <iostream>

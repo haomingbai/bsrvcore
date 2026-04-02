@@ -8,10 +8,14 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/steady_timer.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/system/error_code.hpp>
+#include <chrono>
 #include <cstddef>
 #include <functional>
 #include <memory>
@@ -19,9 +23,11 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/internal/connection/server/http_server_task_detail.h"
 #include "bsrvcore/session/context.h"
@@ -64,15 +70,15 @@ inline void PostTaskTimerCallback(
  * the worker executor.
  */
 inline void OnTaskTimerExpired(
-    std::shared_ptr<task_internal::HttpTaskSharedState> state,
-    std::shared_ptr<boost::asio::steady_timer> timer, std::function<void()> fn,
-    boost::system::error_code ec) {
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
+    const std::shared_ptr<boost::asio::steady_timer>& timer,
+    std::function<void()> fn, boost::system::error_code ec) {
   (void)timer;
   if (ec || !CanRunTaskCallback(state)) {
     return;
   }
 
-  PostTaskTimerCallback(std::move(state), std::move(fn));
+  PostTaskTimerCallback(state, std::move(fn));
 }
 
 }  // namespace
@@ -148,7 +154,7 @@ const std::string& HttpTaskBase::GetSessionId() {
       ServerSetCookie session_cookie;
       session_cookie.SetName("sessionId")
           .SetValue(state_->sessionid.value_or(""));
-      AddCookie(std::move(session_cookie));
+      AddCookie(session_cookie);
     }
   }
 
@@ -200,9 +206,9 @@ void HttpTaskBase::SetManualConnectionManagement(bool value) noexcept {
   }
 }
 
-void HttpTaskBase::Log(bsrvcore::LogLevel level, const std::string message) {
-  if (state_->srv) {
-    state_->srv->Log(level, std::move(message));
+void HttpTaskBase::Log(bsrvcore::LogLevel level, const std::string& message) {
+  if (state_->srv != nullptr) {
+    state_->srv->Log(level, message);
   }
 }
 
@@ -294,7 +300,7 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
   }
 
   auto timer = AllocateShared<boost::asio::steady_timer>(conn->GetIoExecutor());
-  timer->expires_after(boost::asio::chrono::milliseconds(timeout));
+  timer->expires_after(std::chrono::milliseconds(timeout));
   timer->async_wait(boost::asio::bind_allocator(
       state_->handler_alloc,
       [state = state_, timer = std::move(timer),
@@ -327,8 +333,8 @@ const std::string* HttpTaskBase::GetPathParameter(const std::string& key) {
   return it == state_->route_result.parameters.end() ? nullptr : &it->second;
 }
 
-bool HttpTaskBase::AddCookie(bsrvcore::ServerSetCookie cookie) try {
-  state_->set_cookies.emplace_back(std::move(cookie));
+bool HttpTaskBase::AddCookie(const bsrvcore::ServerSetCookie& cookie) try {
+  state_->set_cookies.emplace_back(cookie);
   return true;
 } catch (...) {
   return false;

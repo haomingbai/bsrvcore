@@ -45,7 +45,7 @@ inline std::string_view TrimAscii(std::string_view sv) {
 inline std::string ToLowerAscii(std::string_view sv) {
   std::string out;
   out.reserve(sv.size());
-  for (unsigned char ch : sv) {
+  for (unsigned char const ch : sv) {
     out.push_back(static_cast<char>(std::tolower(ch)));
   }
   return out;
@@ -93,7 +93,7 @@ inline std::optional<std::string> ExtractBoundary(
 }
 
 inline void ParseDisposition(std::string_view value, bool* is_file) {
-  if (!is_file) {
+  if (is_file == nullptr) {
     return;
   }
 
@@ -125,10 +125,10 @@ inline void ParseDisposition(std::string_view value, bool* is_file) {
 
 inline void ParsePartHeaders(std::string_view header_block,
                              std::string* content_type, bool* is_file) {
-  if (content_type) {
+  if (content_type != nullptr) {
     content_type->clear();
   }
-  if (is_file) {
+  if (is_file != nullptr) {
     *is_file = false;
   }
 
@@ -139,7 +139,7 @@ inline void ParsePartHeaders(std::string_view header_block,
     if (colon != std::string_view::npos) {
       const auto name = ToLowerAscii(TrimAscii(line.substr(0, colon)));
       const auto value = TrimAscii(line.substr(colon + 1));
-      if (name == "content-type" && content_type) {
+      if (name == "content-type" && (content_type != nullptr)) {
         *content_type = std::string(value);
       } else if (name == "content-disposition") {
         ParseDisposition(value, is_file);
@@ -170,13 +170,13 @@ inline std::string_view GetHeaderValue(const HttpRequest& request,
  * callback hop keeps both code paths consistent while still leaving the caller
  * responsible for choosing the work and callback executors.
  */
-inline void DispatchDumpCallback(boost::asio::any_io_executor executor,
+inline void DispatchDumpCallback(const boost::asio::any_io_executor& executor,
                                  std::function<void(bool)> callback, bool ok) {
   if (!callback) {
     return;
   }
 
-  if (executor) {
+  if (executor != nullptr) {
     boost::asio::post(executor, [callback = std::move(callback), ok]() mutable {
       callback(ok);
     });
@@ -219,7 +219,7 @@ struct AsyncFileWriteState {
     Finish(ok);
   }
 
-  inline void Finish(bool ok) {
+  void Finish(bool ok) {
     DispatchDumpCallback(std::move(callback_executor), std::move(callback), ok);
   }
 
@@ -237,14 +237,14 @@ struct AsyncFileWriteState {
  * posts the completion callback back to the caller-selected executor so route
  * code can keep using its normal server/task threading model.
  */
-inline void AsyncDumpPayload(boost::asio::any_io_executor work_executor,
+inline void AsyncDumpPayload(const boost::asio::any_io_executor& work_executor,
                              boost::asio::any_io_executor callback_executor,
                              std::filesystem::path path, std::string payload,
                              std::function<void(bool)> callback) {
   auto state = std::make_shared<AsyncFileWriteState>(
       std::move(callback_executor), std::move(path), std::move(payload),
       std::move(callback));
-  boost::asio::post(std::move(work_executor),
+  boost::asio::post(work_executor,
                     [state = std::move(state)]() { state->Run(); });
 }
 

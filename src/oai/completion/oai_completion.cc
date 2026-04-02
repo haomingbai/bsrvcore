@@ -10,8 +10,10 @@
 
 #include "bsrvcore/oai/completion/oai_completion.h"
 
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/verb.hpp>
 #include <chrono>
+#include <functional>
 #include <memory>
 #include <string>
 #include <utility>
@@ -19,6 +21,8 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/http_sse_client_task.h"
+#include "bsrvcore/connection/client/sse_event_parser.h"
 #include "oai_completion_detail.h"
 
 namespace bsrvcore::oai::completion {
@@ -34,7 +38,8 @@ bool OaiCompletionFactory::FetchCompletion(
 
 bool OaiCompletionFactory::FetchCompletion(
     StatePtr state, const std::vector<OaiToolDefinition>& tools,
-    std::shared_ptr<OaiModelInfo> model_info, CompletionCallback cb) const {
+    const std::shared_ptr<OaiModelInfo>& model_info,
+    CompletionCallback cb) const {
   if (!state || !cb || !model_info || !info_ || info_->base_url.empty() ||
       model_info->model.empty()) {
     return false;
@@ -176,7 +181,7 @@ bool OaiCompletionFactory::FetchStreamCompletion(
 
 bool OaiCompletionFactory::FetchStreamCompletion(
     StatePtr state, const std::vector<OaiToolDefinition>& tools,
-    std::shared_ptr<OaiModelInfo> model_info, StreamDoneCallback on_done,
+    const std::shared_ptr<OaiModelInfo>& model_info, StreamDoneCallback on_done,
     StreamDeltaCallback on_delta,
     StreamDeltaCallback on_reasoning_delta) const {
   if (!state || !on_done || (!on_delta && !on_reasoning_delta) || !model_info ||

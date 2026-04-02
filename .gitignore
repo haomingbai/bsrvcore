@@ -13,3 +13,6 @@
 
 # Ignore the IDEA project files.
 .idea/
+
+# Ignore AI file
+.codex

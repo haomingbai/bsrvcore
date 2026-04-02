@@ -24,6 +24,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/internal/session/heap.h"
@@ -131,11 +132,12 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    */
   template <typename Executor>
   SessionMap(Executor exec, HttpServer* server)
-      : timer_(exec),
+      : timer_(std::move(exec)),
         server_(server),
-        cleaner_interval_(1000 * 60 * 30),     // 30 minutes default
-        default_timeout_(1000 * 60 * 60 * 2),  // 2 hours default
-        allow_cleaner_(false) {}
+        cleaner_interval_(static_cast<std::size_t>(
+            1000ULL * 60ULL * 30ULL)),  // 30 minutes default
+        default_timeout_(static_cast<std::size_t>(
+            1000ULL * 60ULL * 60ULL * 2ULL)) {}
 
  private:
   void SetCleaner();     ///< Initialize background cleanup timer
@@ -151,7 +153,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
   HttpServer* server_;               ///< Associated HTTP server
   std::atomic<std::size_t> cleaner_interval_;  ///< Cleanup interval in ms
   std::atomic<std::size_t> default_timeout_;  ///< Default session timeout in ms
-  bool allow_cleaner_;                        ///< Cleaner enabled flag
+  bool allow_cleaner_{false};                 ///< Cleaner enabled flag
 };
 }  // namespace bsrvcore
 

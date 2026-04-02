@@ -8,11 +8,18 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <time.h>
+
 #include <algorithm>
-#include <boost/beast.hpp>
+#include <boost/beast/http/field.hpp>
 #include <cctype>
 #include <chrono>
+#include <cstddef>
+#include <ctime>
 #include <iomanip>
+#include <locale>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -22,6 +29,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 
 namespace bsrvcore {
 
@@ -42,8 +50,8 @@ inline bool IEquals(std::string_view a, std::string_view b) {
     return false;
   }
   for (std::size_t i = 0; i < a.size(); ++i) {
-    unsigned char ca = static_cast<unsigned char>(a[i]);
-    unsigned char cb = static_cast<unsigned char>(b[i]);
+    unsigned char const ca = static_cast<unsigned char>(a[i]);
+    unsigned char const cb = static_cast<unsigned char>(b[i]);
     if (std::tolower(ca) != std::tolower(cb)) {
       return false;
     }
@@ -96,7 +104,7 @@ inline std::optional<std::chrono::system_clock::time_point> ParseImfFixdate(
   // - on glibc we use timegm;
   // - otherwise Expires is ignored (keeps as a session cookie).
 #if defined(_GNU_SOURCE) || defined(__GLIBC__)
-  time_t t = timegm(&tm);
+  time_t const t = timegm(&tm);
   if (t == static_cast<time_t>(-1)) {
     return std::nullopt;
   }
@@ -130,8 +138,7 @@ std::shared_ptr<HttpClientSession> HttpClientSession::Create() {
   void* raw = Allocate(sizeof(HttpClientSession), alignof(HttpClientSession));
   try {
     auto* session = new (raw) HttpClientSession();
-    return std::shared_ptr<HttpClientSession>(
-        session, [](HttpClientSession* ptr) { DestroyDeallocate(ptr); });
+    return {session, [](HttpClientSession* ptr) { DestroyDeallocate(ptr); }};
   } catch (...) {
     Deallocate(raw, sizeof(HttpClientSession), alignof(HttpClientSession));
     throw;
@@ -139,12 +146,12 @@ std::shared_ptr<HttpClientSession> HttpClientSession::Create() {
 }
 
 void HttpClientSession::ClearCookies() {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock const lock(mutex_);
   cookies_.clear();
 }
 
 std::size_t HttpClientSession::CookieCount() const {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock const lock(mutex_);
   CleanupExpiredLocked();
   return cookies_.size();
 }
@@ -159,8 +166,8 @@ void HttpClientSession::MaybeInjectCookies(HttpClientRequest& request,
     return;
   }
 
-  std::string cookie = [&]() {
-    std::lock_guard<std::mutex> lock(mutex_);
+  std::string const cookie = [&]() {
+    std::scoped_lock const lock(mutex_);
     CleanupExpiredLocked();
     return BuildCookieHeaderLocked(host, target, is_https);
   }();
@@ -173,25 +180,22 @@ void HttpClientSession::MaybeInjectCookies(HttpClientRequest& request,
 void HttpClientSession::SyncSetCookie(std::string_view host,
                                       std::string_view target,
                                       std::string_view set_cookie_value) {
-  std::lock_guard<std::mutex> lock(mutex_);
+  std::scoped_lock const lock(mutex_);
   CleanupExpiredLocked();
   UpsertFromSetCookieLocked(host, target, set_cookie_value);
 }
 
 void HttpClientSession::CleanupExpiredLocked() const {
   const auto now = std::chrono::system_clock::now();
-  cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
-                                [&](const Cookie& c) {
-                                  return c.expiry.has_value() &&
-                                         c.expiry.value() <= now;
-                                }),
-                 cookies_.end());
+  std::erase_if(cookies_, [&](const Cookie& c) {
+    return c.expiry.has_value() && c.expiry.value() <= now;
+  });
 }
 
 std::string HttpClientSession::NormalizeHost(std::string_view host) {
   std::string out;
   out.reserve(host.size());
-  for (unsigned char c : host) {
+  for (unsigned char const c : host) {
     out.push_back(static_cast<char>(std::tolower(c)));
   }
   return out;
@@ -208,7 +212,7 @@ std::string HttpClientSession::NormalizeDomain(std::string_view domain) {
 std::string HttpClientSession::DefaultPathFromTarget(std::string_view target) {
   // Target could include query. Only the path part is used.
   auto q = target.find('?');
-  std::string_view path =
+  std::string_view const path =
       (q == std::string_view::npos) ? target : target.substr(0, q);
   if (path.empty() || path.front() != '/') {
     return "/";
@@ -247,7 +251,7 @@ bool HttpClientSession::PathMatches(std::string_view request_path,
   if (cookie_path == "/") {
     return true;
   }
-  if (request_path.rfind(cookie_path, 0) != 0) {
+  if (!request_path.starts_with(cookie_path)) {
     return false;
   }
   if (request_path.size() == cookie_path.size()) {
@@ -298,14 +302,13 @@ std::string HttpClientSession::BuildCookieHeaderLocked(std::string_view host,
     return {};
   }
 
-  std::sort(candidates.begin(), candidates.end(),
-            [](const Candidate& a, const Candidate& b) {
-              return a.path_len > b.path_len;
-            });
+  std::ranges::sort(candidates, [](const Candidate& a, const Candidate& b) {
+    return a.path_len > b.path_len;
+  });
 
   std::string out;
-  for (std::size_t i = 0; i < candidates.size(); ++i) {
-    const Cookie& c = cookies_[candidates[i].idx];
+  for (auto& candidate : candidates) {
+    const Cookie& c = cookies_[candidate.idx];
     if (c.name.empty()) {
       continue;
     }
@@ -323,14 +326,10 @@ void HttpClientSession::UpsertFromSetCookieLocked(
     std::string_view host, std::string_view target,
     std::string_view set_cookie_value) {
   auto erase_cookie = [&](const Cookie& key) {
-    cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
-                                  [&](const Cookie& c) {
-                                    return c.name == key.name &&
-                                           c.domain == key.domain &&
-                                           c.host_only == key.host_only &&
-                                           c.path == key.path;
-                                  }),
-                   cookies_.end());
+    std::erase_if(cookies_, [&](const Cookie& c) {
+      return c.name == key.name && c.domain == key.domain &&
+             c.host_only == key.host_only && c.path == key.path;
+    });
   };
 
   set_cookie_value = TrimView(set_cookie_value);

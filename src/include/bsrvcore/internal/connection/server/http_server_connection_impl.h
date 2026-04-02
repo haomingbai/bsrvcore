@@ -169,9 +169,7 @@ class HttpServerConnectionImpl : public HttpServerConnection {
                   [self, this, keep_alive](boost::system::error_code ec,
                                            [[maybe_unused]] std::size_t) {
                     CancelTimeout();
-                    if (ec) {
-                      DoClose();
-                    } else if (!keep_alive) {
+                    if (ec || !keep_alive) {
                       DoClose();
                     } else {
                       DoCycle();
@@ -283,14 +281,16 @@ void HttpServerConnectionImpl<S>::ClearMessage() {
 template <ValidStream S>
 void HttpServerConnectionImpl<S>::EnsureMessageQueueCreated() {
   // If already created, nothing to do.
-  if (message_queue_) return;
+  if (message_queue_) {
+    return;
+  }
 
   // Try to create it using weak_from_this() (works only if object is owned
   // by shared_ptr). If weak_from_this is empty, message_queue_ will be
   // created later when AddBody/AddHeader runs (they call this again).
   auto weak = this->weak_from_this();
   if (auto locked = weak.lock()) {
-    std::lock_guard<std::mutex> lock(mtx_);
+    std::scoped_lock const lock(mtx_);
     if (!message_queue_) {
       auto conn_sp =
           std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked);

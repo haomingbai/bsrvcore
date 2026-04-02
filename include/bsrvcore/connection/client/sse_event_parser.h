@@ -25,14 +25,14 @@ namespace bsrvcore {
  */
 struct SseEvent {
   /** @brief Event id field (`id:`). */
-  std::string id{};
+  std::string id;
   /** @brief Event type field (`event:`). */
-  std::string event{};
+  std::string event;
   /** @brief Event payload field (`data:`), joined by '\n' for multiline data.
    */
-  std::string data{};
+  std::string data;
   /** @brief Retry field (`retry:`) in milliseconds when provided and valid. */
-  std::optional<int> retry_ms{};
+  std::optional<int> retry_ms;
 };
 
 /**
@@ -58,7 +58,7 @@ class SseEventParser {
  private:
   void ConsumeLine(std::string_view line, std::vector<SseEvent>& out);
 
-  std::string pending_{};
+  std::string pending_;
   SseEvent current_{};
   bool has_field_{false};
 };

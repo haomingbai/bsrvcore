@@ -12,13 +12,15 @@
 
 #include <string>
 
+#include "bsrvcore/bsrvrun/string.h"
+
 namespace bsrvcore::runtime {
 
 bsrvcore::bsrvrun::String RuntimeParameterMap::Get(
     const bsrvcore::bsrvrun::String& key) const {
   const auto it = map_.find(key.ToStdString());
   if (it == map_.end()) {
-    return bsrvcore::bsrvrun::String();
+    return {};
   }
   return bsrvcore::bsrvrun::String(it->second);
 }

@@ -28,13 +28,7 @@ class HttpRequestHandler;
 using namespace bsrvcore::route_internal;
 
 HttpRouteTableLayer::HttpRouteTableLayer()
-    : default_route_(nullptr),
-      handler_(nullptr),
-      route_template_("/"),
-      max_body_size_(0),
-      read_expiry_(0),
-      write_expiry_(0),
-      ignore_default_route_(false) {}
+    : default_route_(nullptr), handler_(nullptr), route_template_("/") {}
 
 void HttpRouteTableLayer::SetMaxBodySize(std::size_t max_body_size) noexcept {
   max_body_size_ = max_body_size;
@@ -80,7 +74,7 @@ bool HttpRouteTableLayer::SetRoute(std::string key,
     return false;
   }
 
-  if (map_.count(key)) {
+  if (map_.contains(key) != 0u) {
     map_.at(key) = std::move(link);
   } else {
     map_.emplace(std::move(key), std::move(link));
@@ -92,11 +86,7 @@ bool HttpRouteTableLayer::SetRoute(std::string key,
 }
 
 void HttpRouteTableLayer::SetIgnoreDefaultRoute(bool flag) noexcept {
-  if (flag) {
-    ignore_default_route_ = true;
-  } else {
-    ignore_default_route_ = false;
-  }
+  ignore_default_route_ = flag;
 }
 
 HttpRouteTableLayer* HttpRouteTableLayer::GetDefaultRoute() const noexcept {

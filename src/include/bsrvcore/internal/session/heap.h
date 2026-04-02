@@ -130,7 +130,7 @@ class Heap : CopyableMovable<Heap<T>> {
    *
    * @note Precondition: heap is not empty.
    */
-  const T& Top() const noexcept {
+  [[nodiscard]] const T& Top() const noexcept {
     assert(!IsEmpty());
     return container_[1];
   }
@@ -148,8 +148,8 @@ class Heap : CopyableMovable<Heap<T>> {
    * @brief Get number of elements in the heap.
    * @return Element count.
    */
-  std::size_t GetSize() const noexcept {
-    assert(container_.size());
+  [[nodiscard]] std::size_t GetSize() const noexcept {
+    assert(!container_.empty());
     return container_.size() - 1;
   }
 
@@ -157,7 +157,7 @@ class Heap : CopyableMovable<Heap<T>> {
    * @brief Get current capacity (in elements) of the heap.
    * @return Capacity.
    */
-  std::size_t GetCapacity() const noexcept {
+  [[nodiscard]] std::size_t GetCapacity() const noexcept {
     assert(container_.capacity());
     return container_.capacity() - 1;
   }
@@ -166,8 +166,8 @@ class Heap : CopyableMovable<Heap<T>> {
    * @brief Whether the heap has no elements.
    * @return true if empty.
    */
-  bool IsEmpty() const noexcept {
-    assert(container_.size());
+  [[nodiscard]] bool IsEmpty() const noexcept {
+    assert(!container_.empty());
     return (container_.size() <= 1);
   }
 

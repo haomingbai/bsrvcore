@@ -9,7 +9,13 @@
  */
 
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/beast/core/stream_traits.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/system/errc.hpp>
+#include <cstddef>
+#include <memory>
 #include <utility>
 
 #include "impl/http_sse_client_task_impl.h"
@@ -28,7 +34,7 @@ void HttpSseClientTask::Impl::Next(Callback cb) {
                     });
 }
 
-void HttpSseClientTask::Impl::RunPostedNext(std::shared_ptr<Impl> self,
+void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
                                             Callback cb) {
   if (!self->started_ || self->done_) {
     HttpSseClientResult result;
@@ -89,7 +95,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
       result.ec = ec;
       next_pending_ = false;
       done_ = true;
-      Callback callback = std::move(next_callback_);
+      Callback const callback = std::move(next_callback_);
       if (callback) {
         callback(result);
       }
@@ -100,7 +106,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
       result.eof = true;
       next_pending_ = false;
       done_ = true;
-      Callback callback = std::move(next_callback_);
+      Callback const callback = std::move(next_callback_);
       if (callback) {
         callback(result);
       }
@@ -114,7 +120,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
     result.ec = ec;
     next_pending_ = false;
     done_ = true;
-    Callback callback = std::move(next_callback_);
+    Callback const callback = std::move(next_callback_);
     if (callback) {
       callback(result);
     }
@@ -136,7 +142,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
   }
 
   next_pending_ = false;
-  Callback callback = std::move(next_callback_);
+  Callback const callback = std::move(next_callback_);
   if (callback) {
     callback(result);
   }

@@ -8,13 +8,16 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/route/http_route_table_detail.h"
+#include "bsrvcore/internal/route/http_route_table_layer.h"
 #include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
 #include "bsrvcore/route/cloneable_http_request_handler.h"
 #include "impl/http_route_target_validator.h"

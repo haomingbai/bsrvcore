@@ -11,11 +11,14 @@
 #include <yaml-cpp/yaml.h>
 
 #include <filesystem>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 #include "config_loader.h"
 #include "config_loader_detail.h"
+#include "config_types.h"
 
 namespace bsrvcore::runtime {
 
@@ -65,7 +68,7 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
       .thread_count = server.thread_count,
       .has_max_connection = server.has_max_connection,
       .max_connection = server.max_connection,
-      .executor = std::move(server.executor),
+      .executor = server.executor,
       .listeners = config_loader_detail::ParseListeners(root["listeners"]),
       .global = config_loader_detail::ParseGlobal(root["global"]),
       .routes = config_loader_detail::ParseRoutes(root["routes"]),

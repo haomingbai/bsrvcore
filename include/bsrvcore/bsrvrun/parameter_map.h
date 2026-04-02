@@ -22,7 +22,7 @@ namespace bsrvcore::bsrvrun {
  */
 class ParameterMap {
  public:
-  virtual String Get(const String& key) const = 0;
+  [[nodiscard]] virtual String Get(const String& key) const = 0;
   virtual void Set(const String& key, const String& value) = 0;
 
   virtual ~ParameterMap() = default;

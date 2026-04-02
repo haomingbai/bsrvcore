@@ -15,9 +15,7 @@
 
 #include <string_view>
 
-namespace bsrvcore {
-
-namespace route_internal {
+namespace bsrvcore::route_internal {
 
 // Validate route target pattern like: "/users/{id}".
 //
@@ -28,8 +26,6 @@ namespace route_internal {
 // - Rejects unpaired braces and any ".." in the non-parameter portion.
 bool IsValidParametricTarget(std::string_view target);
 
-}  // namespace route_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::route_internal
 
 #endif  // BSRVCORE_ROUTE_IMPL_HTTP_ROUTE_TARGET_VALIDATOR_H_

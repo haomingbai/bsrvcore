@@ -226,7 +226,7 @@ class HttpServerConnection
    * timer waiting is driven by io_context, callback execution is posted to
    * the server worker pool.
    */
-  void SetTimer(std::size_t timeout, std::function<void()> fn);
+  void SetTimer(std::size_t timeout, std::function<void()> callback);
 
   /**
    * @brief Set a timer with function and arguments, returning a future

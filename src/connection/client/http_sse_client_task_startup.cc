@@ -12,11 +12,22 @@
 #include <openssl/ssl.h>
 
 #include <algorithm>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
+#include <boost/beast/core/stream_traits.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/system/errc.hpp>
 #include <cctype>
+#include <cstddef>
+#include <memory>
+#include <string>
 #include <utility>
 
 #include "impl/http_sse_client_task_impl.h"
@@ -28,9 +39,9 @@ namespace http = http_sse_detail::http;
 namespace {
 
 std::string ToLower(std::string value) {
-  std::transform(
-      value.begin(), value.end(), value.begin(),
-      [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+  std::ranges::transform(value, value.begin(), [](unsigned char c) {
+    return static_cast<char>(std::tolower(c));
+  });
   return value;
 }
 
@@ -93,13 +104,14 @@ void HttpSseClientTask::Impl::SetCreateError(
   create_error_stage_ = error_stage;
 }
 
-void HttpSseClientTask::Impl::RunPostedStart(std::shared_ptr<Impl> self,
+void HttpSseClientTask::Impl::RunPostedStart(const std::shared_ptr<Impl>& self,
                                              Callback cb) {
   self->start_callback_ = std::move(cb);
   self->DoStart();
 }
 
-void HttpSseClientTask::Impl::RunPostedCancel(std::shared_ptr<Impl> self) {
+void HttpSseClientTask::Impl::RunPostedCancel(
+    const std::shared_ptr<Impl>& self) {
   self->DoCancel();
 }
 
@@ -138,8 +150,8 @@ void HttpSseClientTask::Impl::DoStart() {
           }));
 }
 
-void HttpSseClientTask::Impl::OnResolve(boost::system::error_code ec,
-                                        tcp::resolver::results_type results) {
+void HttpSseClientTask::Impl::OnResolve(
+    boost::system::error_code ec, const tcp::resolver::results_type& results) {
   if (ec) {
     FailStart(HttpSseClientErrorStage::kResolve, ec);
     return;
@@ -179,8 +191,9 @@ void HttpSseClientTask::Impl::OnConnect(boost::system::error_code ec) {
   if (use_ssl_) {
     if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
         1) {
-      boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
-                                       boost::asio::error::get_ssl_category()};
+      boost::system::error_code const sni_ec{
+          static_cast<int>(::ERR_get_error()),
+          boost::asio::error::get_ssl_category()};
       FailStart(HttpSseClientErrorStage::kTlsHandshake, sni_ec);
       return;
     }
@@ -298,7 +311,7 @@ void HttpSseClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   result.stage = HttpSseClientStage::kStart;
   result.error_stage = HttpSseClientErrorStage::kNone;
   result.header = msg.base();
-  Callback callback = std::move(start_callback_);
+  Callback const callback = std::move(start_callback_);
   if (callback) {
     callback(result);
   }
@@ -323,7 +336,7 @@ void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
 
   done_ = true;
 
-  Callback callback = std::move(start_callback_);
+  Callback const callback = std::move(start_callback_);
   if (callback) {
     callback(result);
   }

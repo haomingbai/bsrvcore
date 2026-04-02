@@ -12,11 +12,16 @@
 
 #include <dlfcn.h>
 
+#include <ranges>
 #include <stdexcept>
 #include <string>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "config_types.h"
 #include "parameter_map_impl.h"
 
 namespace bsrvcore::runtime {
@@ -34,8 +39,8 @@ RuntimeParameterMap BuildMap(const FactoryConfig& config) {
 }  // namespace
 
 PluginLoader::~PluginLoader() {
-  for (auto it = handle_order_.rbegin(); it != handle_order_.rend(); ++it) {
-    auto handle_it = handles_.find(*it);
+  for (auto& it : std::ranges::reverse_view(handle_order_)) {
+    auto handle_it = handles_.find(it);
     if (handle_it != handles_.end() && handle_it->second != nullptr) {
       dlclose(handle_it->second);
     }

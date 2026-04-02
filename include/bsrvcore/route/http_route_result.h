@@ -39,10 +39,10 @@ struct HttpRouteResult {
       parameters;  ///< Extracted route parameters by name
   std::vector<HttpRequestAspectHandler*>
       aspects;                  ///< Aspect handlers to execute
-  HttpRequestHandler* handler;  ///< Main request handler
-  std::size_t max_body_size;    ///< Maximum allowed request body size
-  std::size_t read_expiry;      ///< Read operation timeout
-  std::size_t write_expiry;     ///< Write operation timeout
+  HttpRequestHandler* handler{};  ///< Main request handler
+  std::size_t max_body_size{};    ///< Maximum allowed request body size
+  std::size_t read_expiry{};      ///< Read operation timeout
+  std::size_t write_expiry{};     ///< Write operation timeout
 };
 }  // namespace bsrvcore
 

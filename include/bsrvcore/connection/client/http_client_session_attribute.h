@@ -34,19 +34,21 @@ class HttpClientSessionAttribute
       std::shared_ptr<HttpClientSession> session)
       : session_(std::move(session)) {}
 
-  std::shared_ptr<HttpClientSession> Get() const noexcept { return session_; }
+  [[nodiscard]] std::shared_ptr<HttpClientSession> Get() const noexcept {
+    return session_;
+  }
   void Set(std::shared_ptr<HttpClientSession> session) {
     session_ = std::move(session);
   }
 
-  std::string ToString() const override {
+  [[nodiscard]] std::string ToString() const override {
     return session_ ? "HttpClientSessionAttribute(shared)"
                     : "HttpClientSessionAttribute(null)";
   }
 
-  bool Equals(const Attribute& another) const noexcept override {
+  [[nodiscard]] bool Equals(const Attribute& another) const noexcept override {
     auto* other = dynamic_cast<const HttpClientSessionAttribute*>(&another);
-    if (!other) {
+    if (other == nullptr) {
       return false;
     }
     return session_ == other->session_;
@@ -67,7 +69,7 @@ inline constexpr std::string_view kHttpClientSessionAttributeKey =
  */
 inline std::shared_ptr<HttpClientSession> GetHttpClientSession(
     const std::shared_ptr<Context>& ctx,
-    std::string key = std::string(kHttpClientSessionAttributeKey)) {
+    const std::string& key = std::string(kHttpClientSessionAttributeKey)) {
   if (!ctx) {
     return nullptr;
   }

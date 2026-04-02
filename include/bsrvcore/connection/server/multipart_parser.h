@@ -47,21 +47,22 @@ class MultipartParser {
    * @brief Get the number of parsed parts.
    * @return Part count, or zero if the request is not valid multipart data.
    */
-  std::size_t GetPartCount() const noexcept;
+  [[nodiscard]] std::size_t GetPartCount() const noexcept;
 
   /**
    * @brief Get the part content type header.
    * @param part_idx Part index.
    * @return Content type value, or empty view when absent/invalid.
    */
-  std::string_view GetPartType(std::size_t part_idx) const noexcept;
+  [[nodiscard]] std::string_view GetPartType(
+      std::size_t part_idx) const noexcept;
 
   /**
    * @brief Check whether a part looks like a file upload.
    * @param part_idx Part index.
    * @return true if the part has a filename parameter in content-disposition.
    */
-  bool IsFile(std::size_t part_idx) const noexcept;
+  [[nodiscard]] bool IsFile(std::size_t part_idx) const noexcept;
 
   /**
    * @brief Dump one multipart file part to disk asynchronously.
@@ -70,8 +71,9 @@ class MultipartParser {
    * @param callback Completion callback receiving final write success/failure.
    * @return true if the part is dumpable and work was scheduled.
    */
-  bool AsyncDumpToDisk(std::size_t part_idx, std::filesystem::path path,
-                       DumpCallback callback) const;
+  [[nodiscard]] bool AsyncDumpToDisk(std::size_t part_idx,
+                                     std::filesystem::path path,
+                                     DumpCallback callback) const;
 
   /**
    * @brief Dump one multipart file part to disk asynchronously and ignore the
@@ -80,7 +82,8 @@ class MultipartParser {
    * @param path Destination path.
    * @return true if the part is dumpable and work was scheduled.
    */
-  bool AsyncDumpToDisk(std::size_t part_idx, std::filesystem::path path) const {
+  [[nodiscard]] bool AsyncDumpToDisk(std::size_t part_idx,
+                                     std::filesystem::path path) const {
     return AsyncDumpToDisk(part_idx, std::move(path), DumpCallback{});
   }
 

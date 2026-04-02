@@ -10,11 +10,12 @@
 
 #include "http_url_parser.h"
 
-#include <boost/url.hpp>
+#include <boost/url/parse.hpp>
+#include <optional>
+#include <string>
+#include <utility>
 
-namespace bsrvcore {
-
-namespace connection_internal {
+namespace bsrvcore::connection_internal {
 
 std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
   // Parse absolute URI like: http(s)://host[:port]/path?query.
@@ -54,6 +55,4 @@ std::optional<ParsedUrl> ParseHttpUrl(const std::string& url) {
   return out;
 }
 
-}  // namespace connection_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::connection_internal

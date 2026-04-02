@@ -10,8 +10,14 @@
 
 #include "bsrvcore/connection/client/http_client_session.h"
 
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <memory>
 #include <string>
 #include <utility>
+
+#include "bsrvcore/connection/client/http_client_task.h"
 
 namespace bsrvcore {
 

@@ -10,10 +10,16 @@
 
 #include "bsrvcore/core/blue_print.h"
 
+#include <cstddef>
 #include <memory>
+#include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
+#include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
+#include "bsrvcore/route/cloneable_http_request_handler.h"
+#include "bsrvcore/route/http_request_method.h"
 
 namespace bsrvcore {
 
@@ -144,10 +150,8 @@ bool ReuseableBluePrint::MountInto(std::string_view prefix,
   return route_table.MountAt(prefix, *impl_->route_table_);
 }
 
-BluePrint BluePrintFactory::Create() { return BluePrint(); }
+BluePrint BluePrintFactory::Create() { return {}; }
 
-ReuseableBluePrint BluePrintFactory::CreateReuseable() {
-  return ReuseableBluePrint();
-}
+ReuseableBluePrint BluePrintFactory::CreateReuseable() { return {}; }
 
 }  // namespace bsrvcore

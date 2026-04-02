@@ -8,12 +8,19 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <cstddef>
+#include <cstdint>
 #include <map>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
+#include "bsrvcore/route/http_request_method.h"
 #include "config_loader_detail.h"
+#include "config_types.h"
+#include "yaml-cpp/node/node.h"
 
 namespace bsrvcore::runtime::config_loader_detail {
 
@@ -106,8 +113,8 @@ std::vector<ListenerConfig> ParseListeners(const YAML::Node& node) {
 
   std::vector<ListenerConfig> listeners;
   listeners.reserve(node.size());
-  for (std::size_t i = 0; i < node.size(); ++i) {
-    const YAML::Node item = node[i];
+  for (const auto& i : node) {
+    const YAML::Node item = i;
     if (!item.IsMap()) {
       throw std::runtime_error("listeners item must be an object");
     }

@@ -75,7 +75,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @return Routing result with handler, aspects, and parameters
    */
   HttpRouteResult Route(HttpRequestMethod method,
-                        const std::string_view path) noexcept;
+                        const std::string_view target) noexcept;
 
   /**
    * @brief Add a route entry with a handler
@@ -238,7 +238,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * handler, and global aspects.
    * @note This function does not throw and is noexcept.
    */
-  HttpRouteResult BuildDefaultRouteResult(
+  [[nodiscard]] HttpRouteResult BuildDefaultRouteResult(
       HttpRequestMethod method) const noexcept;
 
   /**
@@ -338,9 +338,10 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
       global_aspects_;  ///< Global aspects for all methods
   OwnedPtr<HttpRequestHandler>
       default_handler_;  ///< Fallback handler for unmatched routes
-  std::size_t default_max_body_size_;  ///< Default maximum request body size
-  std::size_t default_read_expiry_;    ///< Default read timeout
-  std::size_t default_write_expiry_;   ///< Default write timeout
+  std::size_t default_max_body_size_{
+      16384};  ///< Default maximum request body size
+  std::size_t default_read_expiry_{4000};   ///< Default read timeout
+  std::size_t default_write_expiry_{4000};  ///< Default write timeout
 };
 
 }  // namespace bsrvcore

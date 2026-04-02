@@ -16,9 +16,7 @@
 #include <optional>
 #include <string>
 
-namespace bsrvcore {
-
-namespace connection_internal {
+namespace bsrvcore::connection_internal {
 
 struct ParsedUrl {
   bool https{false};
@@ -35,8 +33,6 @@ struct ParsedUrl {
 // - Returns std::nullopt on parse failure or missing host.
 std::optional<ParsedUrl> ParseHttpUrl(const std::string& url);
 
-}  // namespace connection_internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::connection_internal
 
 #endif  // BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_URL_PARSER_H_

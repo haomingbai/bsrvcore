@@ -128,12 +128,22 @@ struct MovableOnly {
  */
 template <typename Derived>
 struct CopyableMovable {
+ private:
   CopyableMovable() = default;
 
-  CopyableMovable(const CopyableMovable&) = default;  // allow copy
+ public:
+ private:
+  CopyableMovable(const CopyableMovable&) = default;
+
+ public:
+  // allow copy
   CopyableMovable& operator=(const CopyableMovable&) = default;
 
-  CopyableMovable(CopyableMovable&&) noexcept = default;  // allow move
+ private:
+  CopyableMovable(CopyableMovable&&) noexcept = default;
+
+ public:
+  // allow move
   CopyableMovable& operator=(CopyableMovable&&) noexcept = default;
 
   ~CopyableMovable() = default;
@@ -143,9 +153,12 @@ struct CopyableMovable {
   Derived& derived() noexcept { return static_cast<Derived&>(*this); }
 
   /// @brief CRTP helper to access const derived class instance
-  const Derived& derived() const noexcept {
+  [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
+  friend Derived;
+  friend Derived;
+  friend Derived;
 };
 
 /**
@@ -171,8 +184,10 @@ struct CopyableMovable {
  */
 template <typename Derived>
 struct NonCopyableNonMovable {
+ private:
   NonCopyableNonMovable() = default;
 
+ public:
   NonCopyableNonMovable(const NonCopyableNonMovable&) = delete;  // disable both
   NonCopyableNonMovable& operator=(const NonCopyableNonMovable&) = delete;
 
@@ -186,9 +201,10 @@ struct NonCopyableNonMovable {
   Derived& derived() noexcept { return static_cast<Derived&>(*this); }
 
   /// @brief CRTP helper to access const derived class instance
-  const Derived& derived() const noexcept {
+  [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
+  friend Derived;
 };
 
 }  // namespace bsrvcore

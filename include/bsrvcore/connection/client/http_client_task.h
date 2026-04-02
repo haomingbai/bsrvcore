@@ -17,6 +17,7 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
 #include <chrono>
+#include <cstddef>
 #include <functional>
 #include <memory>
 #include <string>
@@ -54,13 +55,14 @@ struct HttpClientOptions {
   /** @brief Timeout for reading response body bytes. */
   std::chrono::milliseconds read_body_timeout{5000};
   /** @brief Maximum response body size accepted by parser. */
-  std::size_t max_response_body_bytes{4 * 1024 * 1024};
+  std::size_t max_response_body_bytes{
+      static_cast<std::size_t>(4 * 1024 * 1024)};
   /** @brief Enable TLS peer and host verification for HTTPS. */
   bool verify_peer{true};
   /** @brief Keep-alive preference sent in request and used by read flow. */
   bool keep_alive{false};
   /** @brief Optional User-Agent header value. */
-  std::string user_agent{};
+  std::string user_agent;
 };
 
 /**
@@ -104,7 +106,7 @@ enum class HttpClientErrorStage {
  */
 struct HttpClientResult {
   /** @brief Operation error code, 0 on success. */
-  boost::system::error_code ec{};
+  boost::system::error_code ec;
   /** @brief Current callback stage. */
   HttpClientStage stage{HttpClientStage::kDone};
   /** @brief Failure location in transport pipeline. */
@@ -112,11 +114,11 @@ struct HttpClientResult {
   /** @brief True when completion was driven by Cancel(). */
   bool cancelled{false};
   /** @brief Response header snapshot (valid from kHeader/kDone). */
-  HttpResponseHeader header{};
+  HttpResponseHeader header;
   /** @brief Final response (mainly meaningful at kDone success). */
-  HttpClientResponse response{};
+  HttpClientResponse response;
   /** @brief Incremental body bytes for kChunk callbacks. */
-  std::string chunk{};
+  std::string chunk;
 };
 
 /**
@@ -154,7 +156,7 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * `invalid_argument` and error stage `kCreate`.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor, std::string url,
+      boost::asio::io_context::executor_type executor, const std::string& url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /**
@@ -162,7 +164,7 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       boost::asio::io_context::executor_type executor,
-      boost::asio::ssl::context& ssl_ctx, std::string url,
+      boost::asio::ssl::context& ssl_ctx, const std::string& url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /** @brief Register connected-stage callback. */

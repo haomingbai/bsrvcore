@@ -12,7 +12,9 @@
 
 #include <mimalloc.h>
 
+#include <algorithm>
 #include <cassert>
+#include <cstddef>
 #include <new>
 
 namespace bsrvcore {
@@ -30,9 +32,7 @@ void* Allocate(std::size_t size, std::size_t alignment) {
     return nullptr;
   }
 
-  if (alignment < alignof(void*)) {
-    alignment = alignof(void*);
-  }
+  alignment = std::max(alignment, alignof(void*));
 
   if (!IsPowerOfTwo(alignment)) {
     throw std::bad_alloc();
@@ -58,9 +58,7 @@ void Deallocate(void* ptr, std::size_t /*size*/,
     return;
   }
 
-  if (alignment < alignof(void*)) {
-    alignment = alignof(void*);
-  }
+  alignment = std::max(alignment, alignof(void*));
 
   if (!IsPowerOfTwo(alignment)) {
     assert(false && "Deallocate called with non power-of-two alignment");

@@ -19,6 +19,4 @@
 
 void bsrvcore::internal::EmptyLogger::Log(
     [[maybe_unused]] bsrvcore::LogLevel level,
-    [[maybe_unused]] std::string log) {
-  return;
-}
+    [[maybe_unused]] std::string log) {}

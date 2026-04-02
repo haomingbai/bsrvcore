@@ -36,12 +36,12 @@ class String {
 
   ~String();
 
-  const char* Data() const noexcept;
-  const char* CStr() const noexcept;
-  std::size_t Size() const noexcept;
-  bool Empty() const noexcept;
+  [[nodiscard]] const char* Data() const noexcept;
+  [[nodiscard]] const char* CStr() const noexcept;
+  [[nodiscard]] std::size_t Size() const noexcept;
+  [[nodiscard]] bool Empty() const noexcept;
 
-  std::string ToStdString() const;
+  [[nodiscard]] std::string ToStdString() const;
 
  private:
   char* data_;

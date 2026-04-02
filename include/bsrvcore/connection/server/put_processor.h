@@ -45,7 +45,8 @@ class PutProcessor {
    * @param callback Completion callback receiving final write success/failure.
    * @return true if the request body is dumpable and work was scheduled.
    */
-  bool AsyncDumpToDisk(std::filesystem::path path, DumpCallback callback) const;
+  [[nodiscard]] bool AsyncDumpToDisk(std::filesystem::path path,
+                                     DumpCallback callback) const;
 
   /**
    * @brief Dump the PUT request body to disk asynchronously and ignore the
@@ -53,7 +54,7 @@ class PutProcessor {
    * @param path Destination path.
    * @return true if the request body is dumpable and work was scheduled.
    */
-  bool AsyncDumpToDisk(std::filesystem::path path) const {
+  [[nodiscard]] bool AsyncDumpToDisk(std::filesystem::path path) const {
     return AsyncDumpToDisk(std::move(path), DumpCallback{});
   }
 

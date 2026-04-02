@@ -218,8 +218,6 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     std::function<void()> to_post = [binded_fn]() { binded_fn(); };
 
     Post(to_post);
-
-    return;
   }
 
   /**
@@ -614,7 +612,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @brief Get keep-alive timeout setting
    * @return Keep-alive timeout in milliseconds
    */
-  std::size_t GetKeepAliveTimeout();
+  std::size_t GetKeepAliveTimeout() const;
 
   /**
    * @brief Get one I/O executor selected from endpoint shards.
@@ -679,7 +677,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @brief Construct HttpServer with specified thread pool size
    * @param thread_num Number of threads in thread pool
    */
-  HttpServer(std::size_t thread_num);
+  explicit HttpServer(std::size_t thread_num);
 
   /**
    * @brief Construct HttpServer with full runtime options.

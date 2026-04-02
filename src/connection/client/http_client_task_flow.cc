@@ -11,13 +11,26 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
+#include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
+#include <boost/beast/core/stream_traits.hpp>
+#include <boost/beast/http.hpp>
+#include <boost/system/errc.hpp>
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <string>
 #include <utility>
 
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "impl/http_client_task_impl.h"
 
 namespace bsrvcore {
@@ -83,11 +96,11 @@ void HttpClientTask::Impl::SetCreateError(boost::system::error_code ec,
   create_error_stage_ = error_stage;
 }
 
-void HttpClientTask::Impl::RunPostedStart(std::shared_ptr<Impl> self) {
+void HttpClientTask::Impl::RunPostedStart(const std::shared_ptr<Impl>& self) {
   self->DoStart();
 }
 
-void HttpClientTask::Impl::RunPostedCancel(std::shared_ptr<Impl> self) {
+void HttpClientTask::Impl::RunPostedCancel(const std::shared_ptr<Impl>& self) {
   self->DoCancel();
 }
 
@@ -120,7 +133,7 @@ void HttpClientTask::Impl::DoStart() {
   {
     std::weak_ptr<HttpClientSession> weak;
     {
-      std::lock_guard<std::mutex> lock(callback_mutex_);
+      std::scoped_lock const lock(callback_mutex_);
       weak = session_;
     }
     if (auto session = weak.lock()) {
@@ -141,8 +154,8 @@ void HttpClientTask::Impl::DoStart() {
           }));
 }
 
-void HttpClientTask::Impl::OnResolve(boost::system::error_code ec,
-                                     tcp::resolver::results_type results) {
+void HttpClientTask::Impl::OnResolve(
+    boost::system::error_code ec, const tcp::resolver::results_type& results) {
   if (ec) {
     Fail(HttpClientErrorStage::kResolve, ec);
     return;
@@ -184,8 +197,9 @@ void HttpClientTask::Impl::OnConnect(boost::system::error_code ec) {
   if (use_ssl_) {
     if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
         1) {
-      boost::system::error_code sni_ec{static_cast<int>(::ERR_get_error()),
-                                       boost::asio::error::get_ssl_category()};
+      boost::system::error_code const sni_ec{
+          static_cast<int>(::ERR_get_error()),
+          boost::asio::error::get_ssl_category()};
       Fail(HttpClientErrorStage::kTlsHandshake, sni_ec);
       return;
     }
@@ -291,7 +305,7 @@ void HttpClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   {
     std::weak_ptr<HttpClientSession> weak;
     {
-      std::lock_guard<std::mutex> lock(callback_mutex_);
+      std::scoped_lock const lock(callback_mutex_);
       weak = session_;
     }
     if (auto session = weak.lock()) {

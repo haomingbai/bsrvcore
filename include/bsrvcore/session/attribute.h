@@ -67,7 +67,7 @@ class Attribute {
    *
    * @note Pure virtual - must be implemented by derived classes
    */
-  virtual OwnedPtr<Attribute> Clone() const = 0;
+  [[nodiscard]] virtual OwnedPtr<Attribute> Clone() const = 0;
 
   /**
    * @brief Convert attribute to string representation
@@ -75,7 +75,7 @@ class Attribute {
    *
    * @note Default implementation returns type name
    */
-  virtual std::string ToString() const { return Type().name(); }
+  [[nodiscard]] virtual std::string ToString() const { return Type().name(); }
 
   /**
    * @brief Compare attributes for equality
@@ -84,7 +84,7 @@ class Attribute {
    *
    * @note Default implementation compares by address
    */
-  virtual bool Equals(const Attribute& another) const noexcept {
+  [[nodiscard]] virtual bool Equals(const Attribute& another) const noexcept {
     return this == &another;
   };
 
@@ -94,7 +94,9 @@ class Attribute {
    *
    * @note Default implementation returns typeid(*this)
    */
-  virtual std::type_index Type() const noexcept { return typeid(*this); }
+  [[nodiscard]] virtual std::type_index Type() const noexcept {
+    return typeid(*this);
+  }
 
   /**
    * @brief Compute hash value for this attribute
@@ -102,7 +104,7 @@ class Attribute {
    *
    * @note Default implementation hashes the object address
    */
-  virtual std::size_t Hash() const noexcept {
+  [[nodiscard]] virtual std::size_t Hash() const noexcept {
     return std::hash<std::uintptr_t>()(reinterpret_cast<std::uintptr_t>(this));
   };
 
@@ -134,13 +136,18 @@ class Attribute {
  */
 template <typename Derived>
 struct CloneableAttribute : Attribute {
+ private:
+  CloneableAttribute() = default;
+
+ public:
   /**
    * @brief Automatically implemented clone method
    * @return Unique pointer to a copy of the derived attribute
    */
-  OwnedPtr<Attribute> Clone() const override {
+  [[nodiscard]] OwnedPtr<Attribute> Clone() const override {
     return AllocateUnique<Derived>(static_cast<const Derived&>(*this));
   }
+  friend Derived;
 };
 
 }  // namespace bsrvcore

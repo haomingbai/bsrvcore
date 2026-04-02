@@ -20,9 +20,7 @@
 
 #include "bsrvcore/core/logger.h"
 
-namespace bsrvcore {
-
-namespace internal {
+namespace bsrvcore::internal {
 
 /**
  * @brief A Logger implementation that discards all messages.
@@ -39,8 +37,6 @@ class EmptyLogger : public Logger {
   void Log(LogLevel level, std::string log) override;
 };
 
-}  // namespace internal
-
-}  // namespace bsrvcore
+}  // namespace bsrvcore::internal
 
 #endif  // BSRVCORE_INTERNAL_CORE_EMPTY_LOGGER_H_

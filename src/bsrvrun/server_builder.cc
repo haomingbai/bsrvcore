@@ -13,9 +13,12 @@
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <stdexcept>
+#include <utility>
 
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/internal/route/computing_route_handler.h"
+#include "config_types.h"
+#include "plugin_loader.h"
 
 namespace bsrvcore::runtime {
 

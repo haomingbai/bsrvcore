@@ -14,6 +14,7 @@
 #include "bsrvcore/internal/session/session_map.h"
 
 #include <algorithm>
+#include <boost/system/error_code.hpp>
 #include <chrono>
 #include <cstddef>
 #include <memory>
@@ -33,12 +34,13 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
     const std::string& sessionid) {
   using bsrvcore::session_internal::SessionContextEntry;
 
-  std::lock_guard<std::mutex> lock(this->mtx_);
+  std::scoped_lock const lock(this->mtx_);
   std::shared_ptr<Context> result;
 
   auto now = std::chrono::steady_clock::now();
 
-  if (map_.count(sessionid) && map_.at(sessionid).GetExpiry() > now) {
+  if ((map_.contains(sessionid) != 0u) &&
+      map_.at(sessionid).GetExpiry() > now) {
     auto& map_entry = map_.at(sessionid);
     result = map_entry.GetContext();
     // Touching a live session extends expiry monotonically. Never shorten an
@@ -73,12 +75,13 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
     std::string&& sessionid) {
   using bsrvcore::session_internal::SessionContextEntry;
 
-  std::lock_guard<std::mutex> lock(this->mtx_);
+  std::scoped_lock const lock(this->mtx_);
   std::shared_ptr<Context> result;
 
   auto now = std::chrono::steady_clock::now();
 
-  if (map_.count(sessionid) && map_.at(sessionid).GetExpiry() > now) {
+  if ((map_.contains(sessionid) != 0u) &&
+      map_.at(sessionid).GetExpiry() > now) {
     auto& map_entry = map_.at(sessionid);
     result = map_entry.GetContext();
     auto new_expiry =
@@ -106,9 +109,9 @@ std::shared_ptr<bsrvcore::Context> SessionMap::GetSession(
 }
 
 bool SessionMap::RemoveSession(const std::string& sessionid) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
 
-  bool success;
+  bool success = false;
 
   {
     auto it = map_.find(sessionid);
@@ -127,9 +130,9 @@ bool SessionMap::RemoveSession(const std::string& sessionid) {
 }
 
 bool SessionMap::RemoveSession(std::string&& sessionid) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
 
-  bool success;
+  bool success = false;
 
   {
     auto it = map_.find(sessionid);
@@ -148,7 +151,7 @@ bool SessionMap::RemoveSession(std::string&& sessionid) {
 }
 
 void SessionMap::SetBackgroundCleaner(bool allow_cleaner) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
 
   if (allow_cleaner == allow_cleaner_) {
     return;
@@ -182,7 +185,7 @@ void SessionMap::SetCleaner() {
       // server worker pool so expiry work shares the same lifetime guarantees
       // and allocator context as normal server-side tasks.
       server_ptr->Post([this] {
-        std::lock_guard<std::mutex> lock(mtx_);
+        std::scoped_lock const lock(mtx_);
 
         if (pqueue_.GetSize() < map_.size() * 8) {
           ShortClean();
@@ -211,7 +214,7 @@ void SessionMap::SetDefaultSessionTimeout(std::size_t timeout) noexcept {
 
 void SessionMap::SetSessionTimeout(const std::string& sessionid,
                                    std::size_t timeout) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   auto now = std::chrono::steady_clock::now();
 
   auto it = map_.find(sessionid);
@@ -243,7 +246,7 @@ void SessionMap::SetSessionTimeout(const std::string& sessionid,
 
 void SessionMap::SetSessionTimeout(std::string&& sessionid,
                                    std::size_t timeout) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::scoped_lock const lock(mtx_);
   auto now = std::chrono::steady_clock::now();
 
   auto it = map_.find(sessionid);
