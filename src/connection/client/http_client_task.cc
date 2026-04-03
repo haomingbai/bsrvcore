@@ -177,13 +177,13 @@ JsonErrorCode HttpClientResult::ParseJsonBody(JsonObject& out) const {
 }
 
 bool HttpClientResult::TryParseJsonBody(JsonValue& out) const {
-  const JsonErrorCode ec = ParseJsonBody(out);
-  return !ec;
+  const JsonErrorCode parse_ec = ParseJsonBody(out);
+  return !parse_ec;
 }
 
 bool HttpClientResult::TryParseJsonBody(JsonObject& out) const {
-  const JsonErrorCode ec = ParseJsonBody(out);
-  return !ec;
+  const JsonErrorCode parse_ec = ParseJsonBody(out);
+  return !parse_ec;
 }
 
 void HttpClientTask::SetJson(const JsonValue& value) {
