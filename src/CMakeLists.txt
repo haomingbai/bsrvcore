@@ -12,8 +12,9 @@ if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
 
+set(BSRVCORE_WINDOWS_COMPILE_DEFINITIONS)
 if(WIN32)
-  add_compile_definitions(
+  list(APPEND BSRVCORE_WINDOWS_COMPILE_DEFINITIONS
     NOMINMAX
     WIN32_LEAN_AND_MEAN
     _WIN32_WINNT=0x0A00
@@ -90,6 +91,9 @@ target_compile_features(bsrvcore_public_api INTERFACE cxx_std_23)
 target_include_directories(bsrvcore_public_api INTERFACE
   ${BSRVCORE_PUBLIC_INCLUDE_DIR}
 )
+target_compile_definitions(bsrvcore_public_api INTERFACE
+  ${BSRVCORE_WINDOWS_COMPILE_DEFINITIONS}
+)
 
 if(TARGET Boost::headers)
   set(BSRVCORE_BOOST_HEADERS_TARGET Boost::headers)
@@ -133,6 +137,10 @@ endif()
 
 # Ensure the installed target advertises the project language level.
 target_compile_features(bsrvcore PUBLIC cxx_std_23)
+target_compile_definitions(bsrvcore
+  PUBLIC
+    ${BSRVCORE_WINDOWS_COMPILE_DEFINITIONS}
+)
 
 # OpenSSL and Boost.Json stay PUBLIC because installed headers expose
 # boost::asio::ssl::context and boost::json types in public APIs.
