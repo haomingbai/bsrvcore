@@ -20,6 +20,13 @@ class HttpRequestHandlerFactory;
 
 }  // namespace bsrvcore::bsrvrun
 
+/**
+ * @def BSRVCORE_BSRVRUN_PLUGIN_EXPORT
+ * @brief Platform visibility annotation for `bsrvrun` plugin entry points.
+ *
+ * Apply this to exported C symbols that `bsrvrun` resolves dynamically from a
+ * plugin shared library.
+ */
 #if defined(_WIN32) || defined(__CYGWIN__)
 #define BSRVCORE_BSRVRUN_PLUGIN_EXPORT __declspec(dllexport)
 #elif defined(__GNUC__) || defined(__clang__)
@@ -28,10 +35,24 @@ class HttpRequestHandlerFactory;
 #define BSRVCORE_BSRVRUN_PLUGIN_EXPORT
 #endif
 
+/**
+ * @def BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT
+ * @brief Declares the exported `GetHandlerFactory()` entry point signature.
+ *
+ * Use this macro directly on the factory function definition in a handler
+ * plugin so the symbol is exported with C linkage on every supported platform.
+ */
 #define BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT \
   extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT \
   bsrvcore::bsrvrun::HttpRequestHandlerFactory*
 
+/**
+ * @def BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT
+ * @brief Declares the exported `GetAspectFactory()` entry point signature.
+ *
+ * Use this macro directly on the factory function definition in an aspect
+ * plugin so the symbol is exported with C linkage on every supported platform.
+ */
 #define BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT \
   extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT \
   bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
