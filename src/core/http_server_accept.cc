@@ -11,7 +11,9 @@
  * Implements start/stop and asynchronous acceptor loop.
  */
 
+#if defined(__linux__)
 #include <asm-generic/socket.h>
+#endif
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>

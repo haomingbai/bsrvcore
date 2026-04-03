@@ -1,6 +1,17 @@
 cmake_minimum_required(VERSION 3.25)
 project(bsrvcore VERSION 0.11.0 LANGUAGES CXX)
 
+if(POLICY CMP0167)
+  # Keep CMP0167 scoped to Apple toolchains only: Homebrew Boost can miss
+  # per-component config packages (for example boost_systemConfig.cmake).
+  # Other platforms keep the default policy behavior.
+  if(APPLE)
+    cmake_policy(SET CMP0167 OLD)
+  else()
+    cmake_policy(SET CMP0167 NEW)
+  endif()
+endif()
+
 # Keep historical default (shared) while still allowing callers/subprojects
 # to fully control the library type via BUILD_SHARED_LIBS.
 if(NOT DEFINED BUILD_SHARED_LIBS)
@@ -24,7 +35,11 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Require Boost headers for the public API, plus linkable components used
 # internally and by the bsrvrun CLI.
-find_package(Boost 1.75 REQUIRED COMPONENTS headers system url program_options json)
+if(APPLE)
+  # Homebrew Boost may not ship per-component BoostConfig files.
+  set(Boost_NO_BOOST_CMAKE ON)
+endif()
+find_package(Boost 1.75 REQUIRED COMPONENTS system url program_options json regex)
 
 # OpenSSL is part of the public developer-facing dependency surface because
 # installed headers expose boost::asio::ssl::context in public APIs.

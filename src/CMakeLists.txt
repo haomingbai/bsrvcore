@@ -83,6 +83,21 @@ target_include_directories(bsrvcore_public_api INTERFACE
   ${BSRVCORE_PUBLIC_INCLUDE_DIR}
 )
 
+if(TARGET Boost::headers)
+  set(BSRVCORE_BOOST_HEADERS_TARGET Boost::headers)
+elseif(TARGET Boost::boost)
+  set(BSRVCORE_BOOST_HEADERS_TARGET Boost::boost)
+else()
+  message(FATAL_ERROR
+    "Boost headers target not found (expected Boost::headers or Boost::boost).")
+endif()
+
+target_link_libraries(bsrvcore_public_api INTERFACE
+  ${BSRVCORE_BOOST_HEADERS_TARGET}
+  OpenSSL::SSL
+  OpenSSL::Crypto
+)
+
 set(BSRVCORE_OBJECT_TARGETS)
 
 # Add the subdirectories in this project.
@@ -117,8 +132,9 @@ target_link_libraries(bsrvcore
     PRIVATE
         Boost::system
         Boost::url
+    Boost::regex
     PUBLIC
-        Boost::headers
+      ${BSRVCORE_BOOST_HEADERS_TARGET}
         Boost::json
         OpenSSL::SSL
         OpenSSL::Crypto

@@ -2,7 +2,17 @@
 
 include(CMakeFindDependencyMacro)
 
-find_dependency(Boost 1.75 REQUIRED COMPONENTS headers system url json program_options)
+if(POLICY CMP0167)
+  if(APPLE)
+    cmake_policy(SET CMP0167 OLD)
+  else()
+    cmake_policy(SET CMP0167 NEW)
+  endif()
+endif()
+if(APPLE)
+  set(Boost_NO_BOOST_CMAKE ON)
+endif()
+find_dependency(Boost 1.75 REQUIRED COMPONENTS system url json program_options regex)
 find_dependency(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 # Include the exported targets for consumers
