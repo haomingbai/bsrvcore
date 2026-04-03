@@ -21,7 +21,7 @@ if(WIN32)
 endif()
 
 if(MSVC)
-  add_compile_options(/W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
+  add_compile_options(/bigobj /W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
   # MSVC: Debug/Release small tweaks
   add_compile_options("$<$<CONFIG:Debug>:/Zi>")
   add_compile_options("$<$<CONFIG:Release>:/O2>")

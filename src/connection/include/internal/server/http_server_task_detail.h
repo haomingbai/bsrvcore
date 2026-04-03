@@ -184,7 +184,7 @@ inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
                   }
                   const auto len =
                       static_cast<std::size_t>(ranges::distance(it, it_end));
-                  return TrimView(std::string_view{it, len});
+                  return TrimView(std::string_view{&*it, len});
                 });
 
   return {tokens.begin(), tokens.end()};
