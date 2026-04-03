@@ -22,10 +22,17 @@ if(WIN32)
 endif()
 
 if(MSVC)
-  add_compile_options(/bigobj /W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
-  # MSVC: Debug/Release small tweaks
-  add_compile_options("$<$<CONFIG:Debug>:/Zi>")
-  add_compile_options("$<$<CONFIG:Release>:/O2>")
+  add_compile_options(/bigobj)
+  # Windows CI is best-effort today: keep Debug strict, but make release-like
+  # configs warning-tolerant so vendored deps and low-priority MSVC issues do
+  # not block packaging and test builds.
+  add_compile_options(
+    "$<$<CONFIG:Debug>:/W4>"
+    "$<$<CONFIG:Debug>:/WX>"
+    "$<$<CONFIG:Debug>:/Zi>"
+    "$<$<NOT:$<CONFIG:Debug>>:/W2>"
+    "$<$<CONFIG:Release>:/O2>"
+  )
   add_link_options("$<$<CONFIG:Debug>:/DEBUG>")
 else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror) # GCC/Clang
@@ -184,6 +191,9 @@ set_target_properties(bsrvcore PROPERTIES
   VERSION ${PROJECT_VERSION}
   SOVERSION ${PROJECT_VERSION_MAJOR}
   EXPORT_NAME bsrvcore
+  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
 # Position independent code for non-Windows
