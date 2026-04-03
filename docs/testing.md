@@ -10,6 +10,12 @@ It is based on the current repository implementation (public headers + internal 
 - Keep the test suite stable, reproducible, and runnable in both CI and local development.
 - Provide stress/concurrency/long-run tests with controllable parameters and useful diagnostics.
 
+## CI layout
+
+- [`.github/workflows/ci-test.yml`](../.github/workflows/ci-test.yml) runs the cross-platform matrix: Linux, macOS, and Windows each execute `unit`, `integration`, and `stress` test labels.
+- [`.github/workflows/ci-package.yml`](../.github/workflows/ci-package.yml) is Linux-only and produces release packages. It keeps glibc packaging separate from the experimental musl+clang attempt.
+- Release upload only collects final package files from the build tree. CPack internal files such as `control.tar.gz` and `data.tar.gz` are intentionally excluded.
+
 ## Coverage by test type
 
 ### 1) Unit tests

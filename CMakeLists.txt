@@ -119,8 +119,13 @@ endif()
 include(InstallRequiredSystemLibraries)
 
 # Basic package metadata
-set(CPACK_GENERATOR "DEB;RPM;TGZ")
-set(CPACK_PACKAGE_NAME    "${PROJECT_NAME}")
+set(BSRVCORE_CPACK_GENERATORS "DEB;RPM;TGZ" CACHE STRING
+  "CPack generators to use for bsrvcore release packages")
+set(BSRVCORE_PACKAGE_NAME_SUFFIX "" CACHE STRING
+  "Optional suffix appended to the CPack package name")
+
+set(CPACK_GENERATOR "${BSRVCORE_CPACK_GENERATORS}")
+set(CPACK_PACKAGE_NAME    "${PROJECT_NAME}${BSRVCORE_PACKAGE_NAME_SUFFIX}")
 set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
 set(CPACK_PACKAGE_CONTACT "haomingbai@hotmail.com")
 set(CPACK_PACKAGING_INSTALL_PREFIX "/usr")

@@ -1,112 +1,190 @@
-name: CI & Package
+name: CI Package
 
-# Triggered by any push (branch or tag). In the job, we decide whether to upload a release based on whether it's a tag.
 on:
-  push: {}
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-package:
-    name: Build, Package (DEB/RPM/TGZ)
+  package-glibc:
+    name: Linux packages (glibc)
     runs-on: ubuntu-latest
 
-    # Grant 'contents: write' permission to the GITHUB_TOKEN for this job (required to create release).
-    permissions:
-      contents: write
-
     steps:
-      # 1) Checkout source code (fetch tags as well to ensure tag detection)
       - name: Checkout source
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 2) Install a suitable version of CMake (your CMakeLists requires >= 3.25)
       - name: Install CMake >= 3.25
         uses: lukka/get-cmake@latest
         with:
           cmake-version: '3.25.0'
 
-      # 3) Install system dependencies
-      - name: Install apt packages (build + packagers + openssl/liburing dev)
+      - name: Install apt packages
         run: |
           sudo apt-get update
-          packages=(
-            build-essential     # Core toolchain
-            ninja-build         # Ninja generator (if you use -G Ninja later)
-            pkg-config          # For pkg-config checks
-            libboost-all-dev    # Boost (dev headers/libs)
-            dpkg-dev            # dpkg helpers (dpkg-shlibdeps etc.)
-            fakeroot            # For building .deb without real root
-            rpm                 # For generating RPMs with CPack
-            ca-certificates     # network certs (safe)
-            libssl-dev          # OpenSSL (headers + libcrypto) — project depends on openssl/crypto
-            liburing-dev        # Required for Boost.Asio io_uring-backed file I/O
-            libyaml-cpp-dev     # Use the system static archive when available; otherwise vendored static yaml-cpp is used
-          )
-          sudo apt-get install -y --no-install-recommends "${packages[@]}"
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ninja-build \
+            pkg-config \
+            libboost-all-dev \
+            dpkg-dev \
+            fakeroot \
+            rpm \
+            ca-certificates \
+            libssl-dev \
+            liburing-dev \
+            libyaml-cpp-dev
 
-      # 4) Configure a dedicated test build
-      - name: Configure test build
+      - name: Configure DEB/TGZ package tree
         run: |
-          cmake -S . -B build-test -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-
-      # 5) Build and test once before packaging
-      - name: Build test tree
-        run: cmake --build build-test --parallel
-
-      # 5.1) Run tests with CTest (fail the job if tests fail)
-      - name: Run tests with CTest
-        run: |
-          cd build-test
-          # run tests with output on failure and parallelism
-          ctest --output-on-failure --parallel $(nproc)
-
-      # 6) Configure a Debian-native package tree.
-      - name: Configure DEB/TGZ package build
-        run: |
-          cmake -S . -B build-deb -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DBSRVCORE_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -S . -B build-glibc-deb -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBSRVCORE_BUILD_TESTS=OFF \
+            -DBSRVCORE_BUILD_EXAMPLES=OFF \
+            -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+            -DBSRVCORE_BUILD_TOOLS=ON \
+            "-DBSRVCORE_CPACK_GENERATORS=DEB;TGZ" \
+            -DBSRVCORE_PACKAGE_NAME_SUFFIX=-glibc \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
       - name: Build DEB/TGZ package tree
-        run: cmake --build build-deb --parallel
+        run: cmake --build build-glibc-deb --parallel
 
       - name: Package with CPack (DEB, TGZ)
         run: |
-          cd build-deb
+          cd build-glibc-deb
           cpack -G DEB
           cpack -G TGZ
 
-      # 7) Configure an RPM-oriented package tree with an RPM-style libdir.
-      - name: Configure RPM package build
+      - name: Configure RPM package tree
         run: |
-          cmake -S . -B build-rpm -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib64 -DBSRVCORE_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -S . -B build-glibc-rpm -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_INSTALL_LIBDIR=lib64 \
+            -DBSRVCORE_BUILD_TESTS=OFF \
+            -DBSRVCORE_BUILD_EXAMPLES=OFF \
+            -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+            -DBSRVCORE_BUILD_TOOLS=ON \
+            "-DBSRVCORE_CPACK_GENERATORS=RPM" \
+            -DBSRVCORE_PACKAGE_NAME_SUFFIX=-glibc \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 
       - name: Build RPM package tree
-        run: cmake --build build-rpm --parallel
+        run: cmake --build build-glibc-rpm --parallel
 
       - name: Package with CPack (RPM)
         run: |
-          cd build-rpm
+          cd build-glibc-rpm
           cpack -G RPM
 
-      # 7.1) Collect all produced packages into a single folder for upload
       - name: Collect generated packages
         run: |
           mkdir -p packages
-          # recursively find typical package file extensions produced by CPack
-          find . -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.tgz" \) -print0 \
-            | xargs -0 -I{} bash -lc 'cp -v "{}" packages/ || true'
+          find build-glibc-deb build-glibc-rpm -maxdepth 1 -type f \
+            \( -name "*.deb" -o -name "*.rpm" -o -name "*.tar.gz" -o -name "*.tgz" \) \
+            -print0 | xargs -0 -I{} cp -v "{}" packages/
           echo "Collected files:"
           ls -lah packages || true
 
-      # 8) Upload the built packages as workflow artifacts (for debugging)
-      - name: Upload packages as workflow artifact (for debugging)
+      - name: Upload packages as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: packages
+          name: packages-glibc
           path: packages/*
 
-      # 9) Create GitHub Release and upload packages if this is a tag starting with 'v'
-      - name: Create GitHub Release and upload packages (tags like v1.2.3)
+      - name: Create GitHub Release and upload packages
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            packages/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  package-musl:
+    name: Linux packages (musl + clang, experimental)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install CMake >= 3.25
+        uses: lukka/get-cmake@latest
+        with:
+          cmake-version: '3.25.0'
+
+      - name: Install musl toolchain packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            ninja-build \
+            pkg-config \
+            clang \
+            lld \
+            musl-tools \
+            libc++-dev \
+            libc++abi-dev \
+            libboost-all-dev \
+            libssl-dev \
+            liburing-dev \
+            libyaml-cpp-dev
+
+      - name: Configure musl package tree
+        run: |
+          cmake -S . -B build-musl -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBSRVCORE_BUILD_TESTS=OFF \
+            -DBSRVCORE_BUILD_EXAMPLES=OFF \
+            -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+            -DBSRVCORE_BUILD_TOOLS=ON \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            "-DCMAKE_C_FLAGS=--target=x86_64-linux-musl" \
+            "-DCMAKE_CXX_FLAGS=--target=x86_64-linux-musl -stdlib=libc++" \
+            "-DCMAKE_EXE_LINKER_FLAGS=--target=x86_64-linux-musl -fuse-ld=lld" \
+            "-DCMAKE_SHARED_LINKER_FLAGS=--target=x86_64-linux-musl -fuse-ld=lld" \
+            "-DBSRVCORE_CPACK_GENERATORS=TGZ" \
+            -DBSRVCORE_PACKAGE_NAME_SUFFIX=-musl \
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+
+      - name: Build musl package tree
+        run: cmake --build build-musl --parallel
+
+      - name: Package with CPack (TGZ)
+        run: |
+          cd build-musl
+          cpack -G TGZ
+
+      - name: Collect generated packages
+        run: |
+          mkdir -p packages
+          find build-musl -maxdepth 1 -type f \
+            \( -name "*.tar.gz" -o -name "*.tgz" \) \
+            -print0 | xargs -0 -I{} cp -v "{}" packages/
+          echo "Collected files:"
+          ls -lah packages || true
+
+      - name: Upload packages as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages-musl
+          path: packages/*
+
+      - name: Create GitHub Release and upload packages
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
