@@ -24,7 +24,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Require Boost headers for the public API, plus linkable components used
 # internally and by the bsrvrun CLI.
-find_package(Boost 1.75 COMPONENTS headers system url program_options json CONFIG REQUIRED)
+find_package(Boost 1.75 REQUIRED COMPONENTS headers system url program_options json)
 
 # OpenSSL is part of the public developer-facing dependency surface because
 # installed headers expose boost::asio::ssl::context in public APIs.

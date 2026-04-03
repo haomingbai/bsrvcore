@@ -2,7 +2,7 @@
 
 include(CMakeFindDependencyMacro)
 
-find_dependency(Boost 1.75 CONFIG REQUIRED COMPONENTS headers system url)
+find_dependency(Boost 1.75 REQUIRED COMPONENTS headers system url json program_options)
 find_dependency(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 # Include the exported targets for consumers
