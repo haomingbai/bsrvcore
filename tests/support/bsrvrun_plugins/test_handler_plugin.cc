@@ -54,6 +54,6 @@ TestHandlerFactory g_factory;
 
 }  // namespace
 
-extern "C" bsrvcore::bsrvrun::HttpRequestHandlerFactory* GetHandlerFactory() {
+BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT GetHandlerFactory() {
   return &g_factory;
 }

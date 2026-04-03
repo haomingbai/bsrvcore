@@ -17,6 +17,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/plugin_export.h"
 #include "bsrvcore/route/http_request_handler.h"
 
 namespace bsrvcore::bsrvrun {
@@ -40,8 +41,9 @@ class HttpRequestHandlerFactory {
 /**
  * @brief Symbol type of plugin-exported handler factory function.
  *
- * Plugins should export `extern "C" HttpRequestHandlerFactory*
- * GetHandlerFactory();`
+ * Plugins should export
+ * `BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT GetHandlerFactory();`
+ * so the symbol remains visible to `GetProcAddress()` on Windows.
  */
 using GetHandlerFactoryFn = HttpRequestHandlerFactory* (*)();
 

@@ -50,7 +50,7 @@ DemoHandlerFactory g_factory;
 
 }  // namespace
 
-extern "C" bsrvcore::bsrvrun::HttpRequestHandlerFactory* GetHandlerFactory() {
-  // bsrvrun resolves this exact symbol name via dlsym().
+BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT GetHandlerFactory() {
+  // bsrvrun resolves this exact symbol name at runtime.
   return &g_factory;
 }

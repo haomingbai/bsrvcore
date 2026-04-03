@@ -92,8 +92,18 @@ Each plugin should export one fixed symbol:
 - Handler plugin: `GetHandlerFactory`
 - Aspect plugin: `GetAspectFactory`
 
-Both exports should use `extern "C"` and return a factory pointer.
-The returned factory pointer is not owned by `HttpServer`.
+Both exports should use the provided export macros so the symbol is visible
+from shared libraries on every platform, including Windows DLLs:
+
+- `BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT`
+- `BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT`
+
+These macros include `extern "C"` and the required export visibility
+attributes. The returned factory pointer is not owned by `HttpServer`.
+
+Plugins that previously exported only `extern "C"` should be rebuilt with
+these macros before they are loaded on Windows. Otherwise `bsrvrun` can fail
+to find `GetHandlerFactory` or `GetAspectFactory` via `GetProcAddress()`.
 
 ### Handler plugin example
 
@@ -112,7 +122,7 @@ class HelloFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
   }
 };
 
-extern "C" bsrvcore::bsrvrun::HttpRequestHandlerFactory* GetHandlerFactory() {
+BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT GetHandlerFactory() {
   static HelloFactory factory;
   return &factory;
 }

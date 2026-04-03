@@ -75,7 +75,6 @@ TestAspectFactory g_factory;
 
 }  // namespace
 
-extern "C" bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
-GetAspectFactory() {
+BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT GetAspectFactory() {
   return &g_factory;
 }

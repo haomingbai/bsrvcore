@@ -66,8 +66,7 @@ DemoAspectFactory g_factory;
 
 }  // namespace
 
-extern "C" bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
-GetAspectFactory() {
-  // bsrvrun resolves this exact symbol name via dlsym().
+BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT GetAspectFactory() {
+  // bsrvrun resolves this exact symbol name at runtime.
   return &g_factory;
 }

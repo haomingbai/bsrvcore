@@ -17,6 +17,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/plugin_export.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 
 namespace bsrvcore::bsrvrun {
@@ -40,8 +41,9 @@ class HttpRequestAspectHandlerFactory {
 /**
  * @brief Symbol type of plugin-exported aspect factory function.
  *
- * Plugins should export `extern "C" HttpRequestAspectHandlerFactory*
- * GetAspectFactory();`
+ * Plugins should export
+ * `BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT GetAspectFactory();`
+ * so the symbol remains visible to `GetProcAddress()` on Windows.
  */
 using GetAspectFactoryFn = HttpRequestAspectHandlerFactory* (*)();
 
