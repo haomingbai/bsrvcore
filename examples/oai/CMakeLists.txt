@@ -1,2 +1,0 @@
-add_executable(example_oai_completion completion.cc)
-target_link_libraries(example_oai_completion PRIVATE bsrvcore)

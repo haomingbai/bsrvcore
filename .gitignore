@@ -16,3 +16,6 @@
 
 # Ignore AI file
 .codex
+
+# Ignore the standalone boai repository kept beside bsrvcore sources.
+boai/

@@ -128,7 +128,6 @@ add_subdirectory(session)
 add_subdirectory(connection)
 add_subdirectory(core)
 add_subdirectory(bsrvrun)
-add_subdirectory(oai)
 
 # Create library (static or shared follows BUILD_SHARED_LIBS)
 add_library(bsrvcore)
@@ -191,9 +190,9 @@ set_target_properties(bsrvcore PROPERTIES
   VERSION ${PROJECT_VERSION}
   SOVERSION ${PROJECT_VERSION_MAJOR}
   EXPORT_NAME bsrvcore
-  ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  ARCHIVE_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/lib"
+  LIBRARY_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
+  RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/bin"
 )
 
 # Position independent code for non-Windows
@@ -226,7 +225,7 @@ install(TARGETS bsrvcore
 
 # Install public headers into devel component. Internal headers are kept under
 # src/include and are intentionally not installed.
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
   COMPONENT devel
   FILES_MATCHING PATTERN "*.h*"
 )
@@ -266,6 +265,13 @@ install(EXPORT bsrvcoreTargets
 # bsrvcoreConfig.cmake and bsrvcoreConfigVersion.cmake (configured files).
 # Make sure those top-level install(FILES ...) calls use COMPONENT devel
 # so the -dev/-devel package contains the CMake config files.
+
+# Export a build-tree package so sibling libraries can resolve bsrvcore from a
+# configured build directory via -Dbsrvcore_DIR=<build-dir>.
+export(EXPORT bsrvcoreTargets
+  FILE "${PROJECT_BINARY_DIR}/bsrvcoreTargets.cmake"
+  NAMESPACE bsrvcore::
+)
 
 # ------------------------------------------------------------------
 # Optional: generate a pkg-config file at install time (uncomment if needed)

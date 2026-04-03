@@ -23,12 +23,11 @@ Read in this order:
 8. [Sessions, context, cookies](sessions-context-cookies.md) — Goal: store per-request and per-session data.
 9. [Logging](logging.md) — Goal: plug in your logger and log from handlers.
 10. [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md) — Goal: call other services (HTTP) or consume SSE streams.
-11. [OAI completion (chat)](oai-completion.md) — Goal: call DeepSeek/OpenAI compatible `/chat/completions` APIs.
-12. [Examples](examples.md) — Goal: run the sample programs.
-13. [Testing](testing.md) — Goal: build and run tests locally and in CI.
-14. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
-15. [Linux I/O model choice](linux-io-model-choice.md) — Goal: understand why `epoll` stays the default over `io_uring` for broad Linux compatibility.
-16. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
+11. [Examples](examples.md) — Goal: run the sample programs.
+12. [Testing](testing.md) — Goal: build and run tests locally and in CI.
+13. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
+14. [Linux I/O model choice](linux-io-model-choice.md) — Goal: understand why `epoll` stays the default over `io_uring` for broad Linux compatibility.
+15. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
 
 ## Public umbrella header
 

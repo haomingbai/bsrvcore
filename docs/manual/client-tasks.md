@@ -142,11 +142,6 @@ task->Start([&pull_next](const bsrvcore::HttpSseClientResult& r) {
 ioc.run();
 ```
 
-## Higher-level client: OAI completion
-
-If you want a chat-completions facade on top of `HttpClientTask` / `HttpSseClientTask`,
-see: [OAI completion (chat)](oai-completion.md).
-
 ## Cancellation
 
 Both tasks support `Cancel()`.

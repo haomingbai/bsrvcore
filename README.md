@@ -133,7 +133,12 @@ int main() {
 - Learn aspects (middleware style): [docs/manual/aspects.md](docs/manual/aspects.md)
 - Learn sessions/context: [docs/manual/sessions-context-cookies.md](docs/manual/sessions-context-cookies.md)
 - Client tasks (HTTP/HTTPS + SSE): [docs/manual/client-tasks.md](docs/manual/client-tasks.md)
-- OAI completion (chat): [docs/manual/oai-completion.md](docs/manual/oai-completion.md)
+
+## Optional Extensions
+
+- OAI chat completion has moved to the standalone `boai` library.
+- `bsrvcore` now stays focused on the reusable server/client foundation that
+  other libraries can depend on.
 
 ## bsrvrun (runtime executable)
 
@@ -167,7 +172,6 @@ The `examples/` folder contains runnable programs:
 - `examples/sessions-context/`
 - `examples/logging/`
 - `examples/client-tasks/`
-- `examples/oai/`
 - `examples/bsrvrun/`
 
 - See [docs/manual/examples.md](docs/manual/examples.md)

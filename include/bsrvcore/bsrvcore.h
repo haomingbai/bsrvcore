@@ -36,7 +36,6 @@
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/json.h"
-#include "bsrvcore/oai/completion/oai_completion.h"
 #include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
 #include "bsrvcore/route/cloneable_http_request_handler.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"

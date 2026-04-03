@@ -15,7 +15,6 @@ manual learning path.
 | Sessions and context | `examples/sessions-context/` | `example_session_context` |
 | Logging | `examples/logging/` | `example_logger_custom` |
 | Client tasks | `examples/client-tasks/` | `example_client_http_request`, `example_client_sse_events` |
-| OAI completion | `examples/oai/` | `example_oai_completion` |
 | bsrvrun plugins | `examples/bsrvrun/plugins/` | plugin shared libraries |
 
 ## Build examples
@@ -39,10 +38,6 @@ cmake --build build --parallel
 ./build/examples/sessions-context/example_session_context
 ./build/examples/client-tasks/example_client_http_request
 ./build/examples/client-tasks/example_client_sse_events
-
-# OAI completion example requires parameters.
-OAI_API_KEY=... ./build/examples/oai/example_oai_completion --base_url https://api.deepseek.com --model deepseek-chat --user "Hello"
-OAI_API_KEY=... ./build/examples/oai/example_oai_completion --base_url https://api.deepseek.com --model deepseek-chat --user "Hello" --stream
 ```
 
 See also the top-level [README.md](../../README.md) for example source links.

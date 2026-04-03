@@ -118,9 +118,9 @@ find_package(Doxygen QUIET)
 
 if(DOXYGEN_FOUND)
   # Output dir for docs
-  set(DOXYGEN_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs")
+  set(DOXYGEN_OUTPUT_DIR "${PROJECT_BINARY_DIR}/docs")
   # Input dirs for Doxygen
-  set(DOXYGEN_INPUT_DIRS "${CMAKE_SOURCE_DIR}/include")
+  set(DOXYGEN_INPUT_DIRS "${PROJECT_SOURCE_DIR}/include")
 
   # Configure Doxyfile from template
   configure_file(${CMAKE_CURRENT_LIST_DIR}/cmake/Doxyfile.in
@@ -214,10 +214,10 @@ endif()
 # Refresh linker cache on install/uninstall so newly installed libbsrvcore.so.N
 # can be found immediately by runtime loaders.
 set(CPACK_RPM_RUNTIME_POST_INSTALL_SCRIPT_FILE
-  "${CMAKE_SOURCE_DIR}/cmake/cpack/rpm/runtime-post.sh"
+  "${PROJECT_SOURCE_DIR}/cmake/cpack/rpm/runtime-post.sh"
 )
 set(CPACK_RPM_RUNTIME_POST_UNINSTALL_SCRIPT_FILE
-  "${CMAKE_SOURCE_DIR}/cmake/cpack/rpm/runtime-postun.sh"
+  "${PROJECT_SOURCE_DIR}/cmake/cpack/rpm/runtime-postun.sh"
 )
 
 # Optional: short summaries for each RPM package
@@ -228,8 +228,8 @@ set(CPACK_RPM_DEVEL_PACKAGE_SUMMARY "Development files (headers & cmake config) 
 # set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
 
 # Resource files
-if(EXISTS "${CMAKE_SOURCE_DIR}/LICENSE")
-  set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+if(EXISTS "${PROJECT_SOURCE_DIR}/LICENSE")
+  set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/LICENSE")
 endif()
 
 # Useful: avoid packing -dev files into runtime by mistake:

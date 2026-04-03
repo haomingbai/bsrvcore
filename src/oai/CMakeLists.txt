@@ -1,3 +1,0 @@
-add_subdirectory(completion)
-
-set(BSRVCORE_OBJECT_TARGETS ${BSRVCORE_OBJECT_TARGETS} PARENT_SCOPE)
