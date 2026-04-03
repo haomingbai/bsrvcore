@@ -13,6 +13,7 @@
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include "internal/std_move_only_function_compat.h"
 #include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <cstdint>
