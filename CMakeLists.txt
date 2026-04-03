@@ -12,10 +12,16 @@ if(POLICY CMP0167)
   endif()
 endif()
 
-# Keep historical default (shared) while still allowing callers/subprojects
-# to fully control the library type via BUILD_SHARED_LIBS.
+# Keep historical default (shared) on Unix-like platforms while still allowing
+# callers/subprojects to fully control the library type via BUILD_SHARED_LIBS.
+# Windows support is intentionally best-effort for now, so default to static
+# there and avoid DLL export/import library issues in CI.
 if(NOT DEFINED BUILD_SHARED_LIBS)
-  option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+  if(WIN32)
+    option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+  else()
+    option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+  endif()
 endif()
 
 # Use C++23

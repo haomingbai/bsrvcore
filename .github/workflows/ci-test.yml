@@ -153,6 +153,7 @@ jobs:
           cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
             -DVCPKG_TARGET_TRIPLET="$env:VCPKG_TARGET_TRIPLET" `
+            -DBUILD_SHARED_LIBS=OFF `
             -DBSRVCORE_BUILD_TESTS=ON `
             -DBSRVCORE_ENABLE_STRESS_TESTS=$stressFlag `
             -DBSRVCORE_BUILD_EXAMPLES=OFF `
