@@ -11,7 +11,7 @@ It also provides client-side helper tasks:
 
 ## Requirements
 
-- C++23 compiler
+- C++20 compiler
 - CMake 3.25+
 - Boost: `headers`, `system`, `url`, `json`, `program_options`
 - OpenSSL (for HTTPS)

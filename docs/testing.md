@@ -12,9 +12,9 @@ It is based on the current repository implementation (public headers + internal 
 
 ## CI layout
 
-- [`.github/workflows/ci-test.yml`](../.github/workflows/ci-test.yml) currently runs Linux and Windows test matrix jobs for `unit`, `integration`, and `stress` labels.
-- macOS CI steps are intentionally kept as commented blocks in the workflow and are not active right now.
-- [`.github/workflows/ci-package.yml`](../.github/workflows/ci-package.yml) is Linux-only and produces the release packages for the supported glibc-based distribution targets.
+- [`.github/workflows/ci-test.yml`](../.github/workflows/ci-test.yml) runs Linux, macOS, and Windows test matrix jobs for `unit`, `integration`, and `stress` labels.
+- [`.github/workflows/ci-package.yml`](../.github/workflows/ci-package.yml) runs packaging on every push and produces glibc, musl, and macOS package artifacts.
+- GitHub Releases are created only for tag refs that match `v*`.
 - Release upload only collects final package files from the build tree. CPack internal files such as `control.tar.gz` and `data.tar.gz` are intentionally excluded.
 
 ## Compiler support policy

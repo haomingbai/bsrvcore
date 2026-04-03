@@ -72,7 +72,7 @@ endif()
 FetchContent_Declare(
   bthpool
   GIT_REPOSITORY https://github.com/haomingbai/bthpool.git
-  GIT_TAG v0.4.0
+  GIT_TAG v0.4.1
 )
 FetchContent_GetProperties(bthpool)
 if(NOT bthpool_POPULATED)
@@ -94,7 +94,7 @@ set(BTHPOOL_INCLUDE_DIR "${bthpool_SOURCE_DIR}/include")
 set(BSRVCORE_PUBLIC_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 
 add_library(bsrvcore_public_api INTERFACE)
-target_compile_features(bsrvcore_public_api INTERFACE cxx_std_23)
+target_compile_features(bsrvcore_public_api INTERFACE cxx_std_20)
 target_include_directories(bsrvcore_public_api INTERFACE
   ${BSRVCORE_PUBLIC_INCLUDE_DIR}
 )
@@ -143,7 +143,7 @@ if(DEFINED ALLOCATOR_OBJECT_SOURCES)
 endif()
 
 # Ensure the installed target advertises the project language level.
-target_compile_features(bsrvcore PUBLIC cxx_std_23)
+target_compile_features(bsrvcore PUBLIC cxx_std_20)
 target_compile_definitions(bsrvcore
   PUBLIC
     ${BSRVCORE_WINDOWS_COMPILE_DEFINITIONS}

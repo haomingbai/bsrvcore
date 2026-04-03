@@ -24,7 +24,7 @@ API reference:
 
 ## Requirements
 
-- C++23 compiler
+- C++20 compiler
 - CMake 3.25+
 - Boost (components: headers, system, url, json, program_options)
 - OpenSSL

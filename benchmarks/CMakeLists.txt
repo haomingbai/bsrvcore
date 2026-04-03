@@ -10,7 +10,7 @@ add_executable(bsrvcore_http_benchmark
   benchmark_util.cc
 )
 
-target_compile_features(bsrvcore_http_benchmark PRIVATE cxx_std_23)
+target_compile_features(bsrvcore_http_benchmark PRIVATE cxx_std_20)
 
 option(BSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK
        "Build bundled wrk for benchmark load generation. Default: OFF"
