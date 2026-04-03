@@ -11,8 +11,10 @@ if(POLICY CMP0167)
 endif()
 if(APPLE)
   set(Boost_NO_BOOST_CMAKE ON)
+  find_dependency(Boost 1.75 REQUIRED COMPONENTS url json program_options regex)
+else()
+  find_dependency(Boost 1.75 REQUIRED COMPONENTS system url json program_options regex)
 endif()
-find_dependency(Boost 1.75 REQUIRED COMPONENTS system url json program_options regex)
 find_dependency(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 # Include the exported targets for consumers

@@ -129,16 +129,19 @@ target_compile_features(bsrvcore PUBLIC cxx_std_23)
 # OpenSSL and Boost.Json stay PUBLIC because installed headers expose
 # boost::asio::ssl::context and boost::json types in public APIs.
 target_link_libraries(bsrvcore
-    PRIVATE
-        Boost::system
-        Boost::url
+  PRIVATE
+    Boost::url
     Boost::regex
-    PUBLIC
-      ${BSRVCORE_BOOST_HEADERS_TARGET}
-        Boost::json
-        OpenSSL::SSL
-        OpenSSL::Crypto
+  PUBLIC
+    ${BSRVCORE_BOOST_HEADERS_TARGET}
+    Boost::json
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
+
+if(TARGET Boost::system)
+  target_link_libraries(bsrvcore PRIVATE Boost::system)
+endif()
 
 # Keep bthpool as a pure internal build dependency; this avoids exporting
 # an internal-only target when bsrvcore is built as a static library.

@@ -38,8 +38,10 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 if(APPLE)
   # Homebrew Boost may not ship per-component BoostConfig files.
   set(Boost_NO_BOOST_CMAKE ON)
+  find_package(Boost 1.75 REQUIRED COMPONENTS url program_options json regex)
+else()
+  find_package(Boost 1.75 REQUIRED COMPONENTS system url program_options json regex)
 endif()
-find_package(Boost 1.75 REQUIRED COMPONENTS system url program_options json regex)
 
 # OpenSSL is part of the public developer-facing dependency surface because
 # installed headers expose boost::asio::ssl::context in public APIs.
