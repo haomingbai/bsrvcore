@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <boost/json.hpp>
+#include <boost/system/error_code.hpp>
 #include <filesystem>
 #include <fstream>
 #include <future>
@@ -61,7 +62,7 @@ std::optional<DeepSeekConfig> LoadDeepSeekConfig() {
   std::stringstream buffer;
   buffer << file.rdbuf();
 
-  json::error_code ec;
+  boost::system::error_code ec;
   json::value root = json::parse(buffer.str(), ec);
   if (ec || !root.is_object()) {
     return std::nullopt;

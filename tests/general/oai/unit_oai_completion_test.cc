@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <boost/json.hpp>
+#include <boost/system/error_code.hpp>
 #include <future>
 #include <memory>
 #include <string>
@@ -143,7 +144,7 @@ TEST(OaiCompletionTest, CompletionSendsFullMessageChainOrderAndModelParams) {
   EXPECT_EQ(result->GetLog().status, OaiCompletionStatus::kSuccess);
   EXPECT_EQ(result->GetModelInfo().get(), model_info.get());
 
-  json::error_code ec;
+  boost::system::error_code ec;
   auto root = json::parse(*captured_body, ec);
   ASSERT_FALSE(ec);
   ASSERT_TRUE(root.is_object());
@@ -207,7 +208,7 @@ TEST(OaiCompletionTest, CompletionSendsToolDefinitionsAsJsonObjects) {
   EXPECT_EQ(callback_count, 1);
   EXPECT_EQ(result->GetLog().status, OaiCompletionStatus::kSuccess);
 
-  json::error_code ec;
+  boost::system::error_code ec;
   auto root = json::parse(*captured_body, ec);
   ASSERT_FALSE(ec);
   ASSERT_TRUE(root.is_object());
