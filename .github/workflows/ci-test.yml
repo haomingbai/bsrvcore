@@ -32,7 +32,7 @@ jobs:
       - name: Install CMake >= 3.25
         uses: lukka/get-cmake@latest
         with:
-          cmake-version: '3.25.0'
+          cmakeVersion: '3.25.0'
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
@@ -60,7 +60,7 @@ jobs:
           $vcpkgRoot = Join-Path $env:RUNNER_TEMP 'vcpkg'
           git clone https://github.com/microsoft/vcpkg $vcpkgRoot
           & "$vcpkgRoot\bootstrap-vcpkg.bat"
-          & "$vcpkgRoot\vcpkg.exe" install boost-asio boost-beast boost-system boost-url boost-json boost-program-options boost-regex openssl --triplet x64-windows
+          & "$vcpkgRoot\vcpkg.exe" install boost-asio boost-beast boost-system boost-url boost-json boost-program-options boost-regex boost-uuid openssl --triplet x64-windows
           "VCPKG_ROOT=$vcpkgRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_TOOLCHAIN_FILE=$vcpkgRoot\scripts\buildsystems\vcpkg.cmake" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VCPKG_TARGET_TRIPLET=x64-windows" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append

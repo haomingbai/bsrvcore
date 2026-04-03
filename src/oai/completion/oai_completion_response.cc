@@ -8,8 +8,8 @@
 #include <boost/json/object.hpp>
 #include <boost/json/parse.hpp>
 #include <boost/json/serialize.hpp>
-#include <boost/json/system_error.hpp>
 #include <boost/json/value.hpp>
+#include <boost/system/error_code.hpp>
 #include <cstddef>
 #include <functional>
 #include <map>
@@ -40,7 +40,7 @@ std::optional<std::string> JsonStringFromObjectField(const json::object& obj,
 }
 
 std::optional<json::value> TryParseJsonValue(const std::string& text) {
-  json::error_code parse_ec;
+  boost::system::error_code parse_ec;
   json::value value = json::parse(text, parse_ec);
   if (parse_ec) {
     return std::nullopt;
@@ -312,7 +312,7 @@ bool ApplyStreamDeltaPayload(
     std::map<std::size_t, ToolCallAccumulator>* tool_calls,
     std::string* request_id, std::string* finish_reason, std::string* model,
     std::string* error_out) {
-  json::error_code ec;
+  boost::system::error_code ec;
   json::value root = json::parse(payload, ec);
   if (ec || !root.is_object()) {
     if (error_out != nullptr) {
@@ -415,7 +415,7 @@ StreamEventAction ProcessStreamEventData(
 }  // namespace
 
 std::string ExtractErrorMessageFromJsonBody(const std::string& body) {
-  json::error_code ec;
+  boost::system::error_code ec;
   json::value root = json::parse(body, ec);
   if (ec || !root.is_object()) {
     return {};
@@ -445,7 +445,7 @@ std::string ExtractErrorMessageFromJsonBody(const std::string& body) {
 bool ParseCompletionResponseBody(const std::string& body,
                                  OaiMessage* message_out, OaiRequestLog* log,
                                  std::string* error_out) {
-  json::error_code ec;
+  boost::system::error_code ec;
   json::value root = json::parse(body, ec);
   if (ec) {
     if (error_out != nullptr) {

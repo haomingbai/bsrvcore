@@ -10,7 +10,17 @@
 
 #include "plugin_loader.h"
 
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#else
 #include <dlfcn.h>
+#endif
 
 #include <ranges>
 #include <stdexcept>
@@ -36,13 +46,41 @@ RuntimeParameterMap BuildMap(const FactoryConfig& config) {
   return params;
 }
 
+#ifdef _WIN32
+std::string GetLastErrorMessage(DWORD error_code) {
+  LPSTR buffer = nullptr;
+  const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                      FORMAT_MESSAGE_FROM_SYSTEM |
+                      FORMAT_MESSAGE_IGNORE_INSERTS;
+  const DWORD len = FormatMessageA(flags, nullptr, error_code, 0,
+                                   reinterpret_cast<LPSTR>(&buffer), 0,
+                                   nullptr);
+
+  if (len == 0 || buffer == nullptr) {
+    return "error code " + std::to_string(static_cast<unsigned long>(error_code));
+  }
+
+  std::string message(buffer, len);
+  LocalFree(buffer);
+  while (!message.empty() &&
+         (message.back() == '\r' || message.back() == '\n')) {
+    message.pop_back();
+  }
+  return message.empty() ? "unknown" : message;
+}
+#endif
+
 }  // namespace
 
 PluginLoader::~PluginLoader() {
   for (auto& it : std::ranges::reverse_view(handle_order_)) {
     auto handle_it = handles_.find(it);
     if (handle_it != handles_.end() && handle_it->second != nullptr) {
+#ifdef _WIN32
+      FreeLibrary(reinterpret_cast<HMODULE>(handle_it->second));
+#else
       dlclose(handle_it->second);
+#endif
     }
   }
 }
@@ -55,12 +93,23 @@ void* PluginLoader::GetOrOpenLibrary(const std::string& path) const {
     return it->second;
   }
 
+  void* handle = nullptr;
+#ifdef _WIN32
+  handle = reinterpret_cast<void*>(LoadLibraryA(path.c_str()));
+#else
   dlerror();
-  void* handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+  handle = dlopen(path.c_str(), RTLD_LAZY | RTLD_LOCAL);
+#endif
   if (handle == nullptr) {
+#ifdef _WIN32
+    const DWORD error_code = GetLastError();
+    throw std::runtime_error("failed to load library `" + path +
+                             "`: " + GetLastErrorMessage(error_code));
+#else
     const char* error = dlerror();
     throw std::runtime_error("failed to load library `" + path +
                              "`: " + (error == nullptr ? "unknown" : error));
+#endif
   }
 
   handles_.emplace(path, handle);
@@ -72,13 +121,24 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
     const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
 
+  void* symbol = nullptr;
+#ifdef _WIN32
+  symbol = reinterpret_cast<void*>(
+      GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetHandlerFactory"));
+  if (symbol == nullptr) {
+    throw std::runtime_error("`GetHandlerFactory` not found in `" +
+                             config.library + "`: " +
+                             GetLastErrorMessage(GetLastError()));
+  }
+#else
   dlerror();
-  void* symbol = dlsym(handle, "GetHandlerFactory");
+  symbol = dlsym(handle, "GetHandlerFactory");
   const char* symbol_error = dlerror();
   if (symbol_error != nullptr || symbol == nullptr) {
     throw std::runtime_error("`GetHandlerFactory` not found in `" +
                              config.library + "`");
   }
+#endif
 
   auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetHandlerFactoryFn>(symbol);
   bsrvcore::bsrvrun::HttpRequestHandlerFactory* factory = fn();
@@ -103,13 +163,24 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler>
 PluginLoader::CreateAspect(const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
 
+  void* symbol = nullptr;
+#ifdef _WIN32
+  symbol = reinterpret_cast<void*>(
+      GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetAspectFactory"));
+  if (symbol == nullptr) {
+    throw std::runtime_error("`GetAspectFactory` not found in `" +
+                             config.library + "`: " +
+                             GetLastErrorMessage(GetLastError()));
+  }
+#else
   dlerror();
-  void* symbol = dlsym(handle, "GetAspectFactory");
+  symbol = dlsym(handle, "GetAspectFactory");
   const char* symbol_error = dlerror();
   if (symbol_error != nullptr || symbol == nullptr) {
     throw std::runtime_error("`GetAspectFactory` not found in `" +
                              config.library + "`");
   }
+#endif
 
   auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetAspectFactoryFn>(symbol);
   bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory* factory = fn();

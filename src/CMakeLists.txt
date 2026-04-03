@@ -12,6 +12,14 @@ if(POLICY CMP0169)
   cmake_policy(SET CMP0169 OLD)
 endif()
 
+if(WIN32)
+  add_compile_definitions(
+    NOMINMAX
+    WIN32_LEAN_AND_MEAN
+    _WIN32_WINNT=0x0A00
+  )
+endif()
+
 if(MSVC)
   add_compile_options(/W4 /WX)   # MSVC: warning level 4 + treat warnings as errors
   # MSVC: Debug/Release small tweaks

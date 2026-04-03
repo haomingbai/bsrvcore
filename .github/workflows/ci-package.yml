@@ -23,7 +23,7 @@ jobs:
       - name: Install CMake >= 3.25
         uses: lukka/get-cmake@latest
         with:
-          cmake-version: '3.25.0'
+          cmakeVersion: '3.25.0'
 
       - name: Install apt packages
         run: |
@@ -123,7 +123,7 @@ jobs:
       - name: Install CMake >= 3.25
         uses: lukka/get-cmake@latest
         with:
-          cmake-version: '3.25.0'
+          cmakeVersion: '3.25.0'
 
       - name: Install musl toolchain packages
         run: |

@@ -34,6 +34,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/internal/connection/server/http_server_connection.h"
 
@@ -66,7 +67,7 @@ struct HttpTaskSharedState {
   // The connection pointer is cleared when the response is finalized or the
   // stream is closed. Subsequent task callbacks treat nullptr as "request is no
   // longer schedulable".
-  std::atomic<std::shared_ptr<HttpServerConnection>> conn;
+  AtomicSharedPtr<HttpServerConnection> conn;
   HttpRouteResult route_result;
   HttpServer* srv;
   std::atomic_bool keep_alive;

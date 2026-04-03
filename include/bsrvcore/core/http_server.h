@@ -41,6 +41,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
@@ -774,10 +775,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       endpoint_configs_;  ///< Listener declarations configured before Start().
   std::vector<OwnedPtr<EndpointRuntime>>
       endpoint_runtimes_;  ///< Runtime endpoint shards created at Start().
-  std::atomic<
-      std::shared_ptr<std::vector<std::vector<boost::asio::any_io_executor>>>>
+  AtomicSharedPtr<std::vector<std::vector<boost::asio::any_io_executor>>>
       endpoint_io_execs_snapshot_;  ///< Endpoint-local I/O executor snapshot.
-  std::atomic<std::shared_ptr<std::vector<boost::asio::any_io_executor>>>
+  AtomicSharedPtr<std::vector<boost::asio::any_io_executor>>
       global_io_execs_snapshot_;  ///< Flat global endpoint executor snapshot.
   std::atomic<std::size_t> io_exec_round_robin_{
       0};  ///< Round-robin cursor for GetIoExecutor.
