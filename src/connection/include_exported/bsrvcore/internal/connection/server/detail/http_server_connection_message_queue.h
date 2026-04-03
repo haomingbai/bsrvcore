@@ -114,14 +114,14 @@ class HttpServerConnectionImpl<S>::MessageQueue
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
     boost::beast::http::response_serializer<boost::beast::http::empty_body> sr;
 #ifdef __clang__
 #pragma clang diagnostic pop
-#elifdef __GNUC__
+#elif defined(__GNUC__)
 #pragma GCC diagnostic pop
 #endif
 
