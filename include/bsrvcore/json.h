@@ -14,6 +14,7 @@
 #define BSRVCORE_JSON_H_
 
 #include <boost/json.hpp>
+#include <boost/system/error_code.hpp>
 
 namespace bsrvcore {
 
@@ -23,7 +24,7 @@ using JsonValue = json::value;
 using JsonObject = json::object;
 using JsonArray = json::array;
 using JsonString = json::string;
-using JsonErrorCode = json::error_code;
+using JsonErrorCode = boost::system::error_code;
 
 }  // namespace bsrvcore
 
