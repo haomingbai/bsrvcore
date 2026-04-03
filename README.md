@@ -29,6 +29,12 @@ API reference:
 - Boost (components: headers, system, url, json, program_options)
 - OpenSSL
 
+## Toolchain Support
+
+- The project currently targets LLVM toolchains (Clang/LLVM) as the supported baseline.
+- Non-LLVM toolchains are not considered officially supported at this stage.
+- Support scope may expand in future releases when compatibility and CI coverage are ready.
+
 ## Build and Install
 
 ```bash

@@ -12,9 +12,16 @@ It is based on the current repository implementation (public headers + internal 
 
 ## CI layout
 
-- [`.github/workflows/ci-test.yml`](../.github/workflows/ci-test.yml) runs the cross-platform matrix: Linux, macOS, and Windows each execute `unit`, `integration`, and `stress` test labels.
+- [`.github/workflows/ci-test.yml`](../.github/workflows/ci-test.yml) currently runs Linux and Windows test matrix jobs for `unit`, `integration`, and `stress` labels.
+- macOS CI steps are intentionally kept as commented blocks in the workflow and are not active right now.
 - [`.github/workflows/ci-package.yml`](../.github/workflows/ci-package.yml) is Linux-only and produces release packages. It keeps glibc packaging separate from the experimental musl+clang attempt.
 - Release upload only collects final package files from the build tree. CPack internal files such as `control.tar.gz` and `data.tar.gz` are intentionally excluded.
+
+## Compiler support policy
+
+- Current project support baseline is LLVM toolchains (Clang/LLVM).
+- Non-LLVM toolchains are not considered supported at this stage.
+- This policy may be expanded in a future update when toolchain behavior is stable enough for CI coverage.
 
 ## Coverage by test type
 
