@@ -31,13 +31,13 @@ class HttpRequestHandlerFactory
  public:
   /** @brief Legacy handler construction entry point used by existing plugins.
    */
-  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
+  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Get(
       ParameterMap* parameters) = 0;
 
   /** @brief Preferred handler construction entry point. */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Create(
       ParameterMap* parameters) {
-    return Ger(parameters);
+    return Get(parameters);
   }
 
   virtual ~HttpRequestHandlerFactory() = default;

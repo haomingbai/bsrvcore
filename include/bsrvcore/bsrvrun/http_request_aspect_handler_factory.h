@@ -30,13 +30,13 @@ class HttpRequestAspectHandlerFactory
     : public bsrvcore::NonCopyableNonMovable<HttpRequestAspectHandlerFactory> {
  public:
   /** @brief Legacy aspect construction entry point used by existing plugins. */
-  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
+  virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Get(
       ParameterMap* parameters) = 0;
 
   /** @brief Preferred aspect construction entry point. */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Create(
       ParameterMap* parameters) {
-    return Ger(parameters);
+    return Get(parameters);
   }
 
   virtual ~HttpRequestAspectHandlerFactory() = default;

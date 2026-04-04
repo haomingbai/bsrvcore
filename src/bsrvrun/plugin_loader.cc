@@ -151,7 +151,7 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
   // Build a fresh ParameterMap per creation call so factories can treat it as
   // request-local configuration instead of shared mutable plugin state.
   RuntimeParameterMap params = BuildMap(config);
-  auto handler = factory->Ger(&params);
+  auto handler = factory->Get(&params);
   if (!handler) {
     throw std::runtime_error("handler factory returned nullptr in `" +
                              config.library + "`");
@@ -191,7 +191,7 @@ PluginLoader::CreateAspect(const FactoryConfig& config) const {
   }
 
   RuntimeParameterMap params = BuildMap(config);
-  auto aspect = factory->Ger(&params);
+  auto aspect = factory->Get(&params);
   if (!aspect) {
     throw std::runtime_error("aspect factory returned nullptr in `" +
                              config.library + "`");

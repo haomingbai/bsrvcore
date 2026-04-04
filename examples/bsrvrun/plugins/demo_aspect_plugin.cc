@@ -40,7 +40,7 @@ class DemoAspect : public bsrvcore::HttpRequestAspectHandler {
 class DemoAspectFactory
     : public bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory {
  public:
-  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Get(
       bsrvcore::bsrvrun::ParameterMap* params) override {
     std::string pre = "demo-pre|";
     std::string post = "demo-post|";

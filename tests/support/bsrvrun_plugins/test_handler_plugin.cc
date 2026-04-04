@@ -30,7 +30,7 @@ class TestHandler : public bsrvcore::HttpRequestHandler {
 
 class TestHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Get(
       bsrvcore::bsrvrun::ParameterMap* parameters) override {
     std::string body = "handler|";
     bool append_thread_id = false;

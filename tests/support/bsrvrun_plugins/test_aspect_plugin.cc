@@ -44,7 +44,7 @@ class TestAspect : public bsrvcore::HttpRequestAspectHandler {
 class TestAspectFactory
     : public bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory {
  public:
-  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Get(
       bsrvcore::bsrvrun::ParameterMap* parameters) override {
     std::string pre = "pre|";
     std::string post = "post|";

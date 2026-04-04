@@ -108,7 +108,7 @@ class DummyAttribute final
 class DummyHandlerFactory final
     : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
+  [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Get(
       [[maybe_unused]] bsrvcore::bsrvrun::ParameterMap* parameters) override {
     return {};
   }
@@ -117,7 +117,7 @@ class DummyHandlerFactory final
 class DummyAspectFactory final
     : public bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory {
  public:
-  [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
+  [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Get(
       [[maybe_unused]] bsrvcore::bsrvrun::ParameterMap* parameters) override {
     return {};
   }

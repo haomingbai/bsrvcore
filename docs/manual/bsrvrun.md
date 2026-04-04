@@ -112,7 +112,7 @@ to find `GetHandlerFactory` or `GetAspectFactory` via `GetProcAddress()`.
 
 class HelloFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  std::unique_ptr<bsrvcore::HttpRequestHandler> Ger(
+  std::unique_ptr<bsrvcore::HttpRequestHandler> Get(
       bsrvcore::bsrvrun::ParameterMap* params) override {
     (void)params;
     return std::make_unique<bsrvcore::FunctionRouteHandler<std::function<void(std::shared_ptr<bsrvcore::HttpServerTask>)>>>(
