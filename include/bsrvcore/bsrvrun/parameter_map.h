@@ -20,8 +20,12 @@ namespace bsrvcore::bsrvrun {
 
 /**
  * @brief Key-value parameter map interface consumed by runtime factories.
+ *
+ * Although this is an abstract interface, concrete implementations are
+ * expected to behave like ordinary value containers and can therefore remain
+ * copyable/movable.
  */
-class ParameterMap : public bsrvcore::NonCopyableNonMovable<ParameterMap> {
+class ParameterMap : public bsrvcore::CopyableMovable<ParameterMap> {
  public:
   /** @brief Return the value associated with one key. */
   [[nodiscard]] virtual String Get(const String& key) const = 0;

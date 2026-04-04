@@ -149,9 +149,9 @@ static_assert(std::is_base_of_v<
 static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<bsrvcore::Logger>,
                       bsrvcore::Logger>);
-static_assert(std::is_base_of_v<
-              bsrvcore::NonCopyableNonMovable<bsrvcore::bsrvrun::ParameterMap>,
-              bsrvcore::bsrvrun::ParameterMap>);
+static_assert(
+    std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::bsrvrun::ParameterMap>,
+                      bsrvcore::bsrvrun::ParameterMap>);
 static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<
                           bsrvcore::bsrvrun::HttpRequestHandlerFactory>,
@@ -267,6 +267,8 @@ static_assert(std::is_move_constructible_v<bsrvcore::ReuseableBluePrint>);
 static_assert(!std::is_copy_constructible_v<bsrvcore::ReuseableBluePrint>);
 static_assert(!std::is_copy_constructible_v<bsrvcore::AtomicSharedPtr<int>>);
 static_assert(!std::is_move_constructible_v<bsrvcore::AtomicSharedPtr<int>>);
+static_assert(std::is_copy_constructible_v<DummyParameterMap>);
+static_assert(std::is_move_constructible_v<DummyParameterMap>);
 static_assert(!std::is_copy_constructible_v<bsrvcore::FileReader>);
 static_assert(!std::is_move_constructible_v<bsrvcore::FileReader>);
 static_assert(!std::is_copy_constructible_v<bsrvcore::PutGenerator>);
