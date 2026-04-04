@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install CMake >= 3.25
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@v4.3.0
         with:
           cmakeVersion: '3.25.0'
 
@@ -97,7 +97,7 @@ jobs:
           ls -lah packages || true
 
       - name: Upload packages as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-glibc
           path: packages/*
@@ -163,7 +163,7 @@ jobs:
           ls -lah packages || true
 
       - name: Upload packages as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-musl
           path: packages/*
@@ -179,7 +179,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install CMake >= 3.25
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@v4.3.0
         with:
           cmakeVersion: '3.25.0'
 
@@ -233,7 +233,7 @@ jobs:
           ls -lah packages || true
 
       - name: Upload packages as workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: packages-macos
           path: packages/*
@@ -249,7 +249,7 @@ jobs:
 
     steps:
       - name: Download package artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: packages-*
           path: packages
