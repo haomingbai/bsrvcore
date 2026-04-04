@@ -64,7 +64,7 @@ jobs:
           brew update
           brew install ninja pkg-config llvm boost openssl@3
           brew upgrade llvm || true
-          brew info llvm | head -n 20
+          brew list --versions llvm
 
       - name: Show macOS compiler versions
         if: runner.os == 'macOS'
