@@ -11,7 +11,6 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
@@ -37,15 +36,17 @@ namespace bsrvcore {
 
 namespace http = http_client_detail::http;
 
-HttpClientTask::Impl::Impl(boost::asio::any_io_executor executor,
+HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
+                           HttpClientTask::Executor callback_executor,
                            std::string host, std::string port,
                            std::string target,
                            http_client_detail::http::verb method,
                            HttpClientOptions options, bool use_ssl,
                            boost::asio::ssl::context* ssl_ctx)
-    : executor_(std::move(executor)),
-      strand_(executor_),
-      resolver_(executor_),
+    : io_executor_(std::move(io_executor)),
+      callback_executor_(std::move(callback_executor)),
+      strand_(io_executor_),
+      resolver_(io_executor_),
       host_(std::move(host)),
       port_(std::move(port)),
       target_(std::move(target)),
@@ -164,7 +165,7 @@ void HttpClientTask::Impl::OnResolve(
   if (use_ssl_) {
     // The SSL and plain TCP branches intentionally stay structurally parallel
     // so stage-specific timeout/error reporting remains easy to audit.
-    ssl_stream_.emplace(executor_, *ssl_ctx_);
+    ssl_stream_.emplace(io_executor_, *ssl_ctx_);
     boost::beast::get_lowest_layer(*ssl_stream_)
         .expires_after(options_.connect_timeout);
     boost::beast::get_lowest_layer(*ssl_stream_)
@@ -178,7 +179,7 @@ void HttpClientTask::Impl::OnResolve(
     return;
   }
 
-  tcp_stream_.emplace(executor_);
+  tcp_stream_.emplace(io_executor_);
   tcp_stream_->expires_after(options_.connect_timeout);
   tcp_stream_->async_connect(
       results,

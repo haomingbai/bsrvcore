@@ -22,6 +22,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "bsrvcore/core/trait.h"
+
 namespace bsrvcore {
 class HttpRequestAspectHandler;
 class HttpRequestHandler;
@@ -32,7 +34,7 @@ class HttpRequestHandler;
  * Contains the matched handler, aspect chain, named route parameters, and
  * request limits.
  */
-struct HttpRouteResult {
+struct HttpRouteResult : public CopyableMovable<HttpRouteResult> {
   std::string current_location;  ///< Matched concrete request path
   std::string route_template;    ///< Matched route template path
   std::unordered_map<std::string, std::string>

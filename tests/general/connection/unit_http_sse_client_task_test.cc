@@ -1,9 +1,11 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/executor_work_guard.hpp>
 #include <functional>
 #include <future>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -104,4 +106,53 @@ TEST(HttpSseClientTaskTest, ParserParsesSamplePayload) {
   ASSERT_EQ(events.size(), 2u);
   EXPECT_EQ(events[0].data, "one");
   EXPECT_EQ(events[1].data, "two");
+}
+
+TEST(HttpSseClientTaskTest, StartCallbackUsesConfiguredCallbackExecutor) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events-callback",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetField(http::field::content_type,
+                                         "text/event-stream; charset=utf-8");
+                          task->SetBody("data: ok\n\n");
+                        });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  boost::asio::io_context io_ioc;
+  boost::asio::io_context callback_ioc;
+  auto callback_guard = boost::asio::make_work_guard(callback_ioc);
+  auto task = bsrvcore::HttpSseClientTask::CreateHttp(
+      io_ioc.get_executor(), callback_ioc.get_executor(), "127.0.0.1",
+      std::to_string(port), "/events-callback");
+
+  std::promise<std::thread::id> callback_thread_promise;
+  auto callback_thread_future = callback_thread_promise.get_future();
+  std::promise<std::thread::id> callback_executor_thread_promise;
+  auto callback_executor_thread_future =
+      callback_executor_thread_promise.get_future();
+
+  task->Start([&](const bsrvcore::HttpSseClientResult& result) {
+    EXPECT_FALSE(result.ec);
+    callback_thread_promise.set_value(std::this_thread::get_id());
+    callback_guard.reset();
+    io_ioc.stop();
+    callback_ioc.stop();
+  });
+
+  std::thread io_thread([&]() { io_ioc.run(); });
+  std::thread callback_thread([&]() {
+    callback_executor_thread_promise.set_value(std::this_thread::get_id());
+    callback_ioc.run();
+  });
+
+  const auto callback_thread_id = callback_thread_future.get();
+  const auto callback_executor_thread_id =
+      callback_executor_thread_future.get();
+
+  io_thread.join();
+  callback_thread.join();
+
+  EXPECT_EQ(callback_thread_id, callback_executor_thread_id);
 }

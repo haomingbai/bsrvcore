@@ -21,6 +21,8 @@
 #include <cstdint>
 #include <string>
 
+#include "bsrvcore/core/trait.h"
+
 namespace bsrvcore {
 
 /**
@@ -106,7 +108,7 @@ enum class LogLevel : std::uint8_t {
  * server->SetLogger(std::move(logger));
  * @endcode
  */
-class Logger {
+class Logger : public NonCopyableNonMovable<Logger> {
  public:
   /**
    * @brief Log a message with specified severity level

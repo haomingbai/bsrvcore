@@ -18,12 +18,18 @@
 
 namespace bsrvcore {
 
+/** @brief Namespace alias to the underlying Boost.JSON implementation. */
 namespace json = boost::json;
 
+/** @brief Public alias of the generic JSON value type. */
 using JsonValue = json::value;
+/** @brief Public alias of the JSON object type. */
 using JsonObject = json::object;
+/** @brief Public alias of the JSON array type. */
 using JsonArray = json::array;
+/** @brief Public alias of the JSON string type. */
 using JsonString = json::string;
+/** @brief Public alias of the JSON parsing error code type. */
 using JsonErrorCode = boost::system::error_code;
 
 }  // namespace bsrvcore

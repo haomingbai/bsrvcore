@@ -17,17 +17,28 @@
 #include <memory>
 #include <mutex>
 
+#include "bsrvcore/core/trait.h"
+
 namespace bsrvcore {
 
 template <typename T>
-class AtomicSharedPtr {
+/**
+ * @brief Mutex-backed shared pointer wrapper with atomic-style operations.
+ *
+ * @tparam T Pointed-to object type.
+ */
+class AtomicSharedPtr : public NonCopyableNonMovable<AtomicSharedPtr<T>> {
  public:
+  /** @brief Construct an empty wrapper. */
   AtomicSharedPtr() = default;
-  explicit AtomicSharedPtr(std::shared_ptr<T> initial) : ptr_(std::move(initial)) {}
+  /** @brief Construct the wrapper with an initial shared pointer value. */
+  explicit AtomicSharedPtr(std::shared_ptr<T> initial)
+      : ptr_(std::move(initial)) {}
 
   AtomicSharedPtr(const AtomicSharedPtr&) = delete;
   AtomicSharedPtr& operator=(const AtomicSharedPtr&) = delete;
 
+  /** @brief Load the current pointer value. */
   std::shared_ptr<T> load(
       std::memory_order order = std::memory_order_seq_cst) const noexcept {
     // The wrapper keeps load/store call sites compatible with
@@ -37,9 +48,9 @@ class AtomicSharedPtr {
     return ptr_;
   }
 
-  void store(
-      std::shared_ptr<T> desired,
-      std::memory_order order = std::memory_order_seq_cst) noexcept {
+  /** @brief Replace the stored pointer value. */
+  void store(std::shared_ptr<T> desired,
+             std::memory_order order = std::memory_order_seq_cst) noexcept {
     (void)order;
     std::lock_guard<std::mutex> lock(mtx_);
     ptr_ = std::move(desired);

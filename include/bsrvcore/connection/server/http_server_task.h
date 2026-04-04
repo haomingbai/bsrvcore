@@ -63,16 +63,20 @@ struct HttpPostTaskDeleter;
 }  // namespace task_internal
 
 // Type aliases for Boost.Beast HTTP types
+/** @brief Canonical HTTP request type used by bsrvcore server APIs. */
 using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
                                                 boost::beast::http::fields>;
 
+/** @brief Canonical HTTP response type used by bsrvcore server APIs. */
 using HttpResponse =
     boost::beast::http::response<boost::beast::http::string_body,
                                  boost::beast::http::fields>;
 
+/** @brief Response-header-only type used by staged callbacks and snapshots. */
 using HttpResponseHeader =
     boost::beast::http::response_header<boost::beast::http::fields>;
 
+/** @brief Request-header-only type used by staged callbacks and snapshots. */
 using HttpRequestHeader =
     boost::beast::http::request_header<boost::beast::http::fields>;
 
@@ -85,7 +89,7 @@ using HttpRequestHeader =
  * @note This class is intended as a base type for phase tasks and is not
  *       created directly by user code.
  */
-class HttpTaskBase {
+class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
  public:
   /**
    * @brief Get the HTTP request object.

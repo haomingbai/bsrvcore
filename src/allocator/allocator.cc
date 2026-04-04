@@ -64,8 +64,8 @@ void* AllocateFromProcessHeap(std::size_t size, std::size_t alignment) {
     throw std::bad_alloc();
   }
 
-  const auto raw = reinterpret_cast<std::uintptr_t>(base) +
-                   sizeof(ProcessHeapAlignedHeader);
+  const auto raw =
+      reinterpret_cast<std::uintptr_t>(base) + sizeof(ProcessHeapAlignedHeader);
   const auto aligned = (raw + alignment - 1) & ~(alignment - 1);
   auto* header = reinterpret_cast<ProcessHeapAlignedHeader*>(
       aligned - sizeof(ProcessHeapAlignedHeader));

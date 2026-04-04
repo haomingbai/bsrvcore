@@ -61,17 +61,27 @@ class ReuseableBluePrint;
  *
  * Includes worker-executor knobs and optional connection-cap controls.
  */
-struct HttpServerRuntimeOptions {
+struct HttpServerRuntimeOptions
+    : public CopyableMovable<HttpServerRuntimeOptions> {
+  /** @brief Number of core worker threads kept alive. */
   std::size_t core_thread_num{std::thread::hardware_concurrency()};
+  /** @brief Maximum worker threads allowed by the runtime. */
   std::size_t max_thread_num{std::numeric_limits<int>::max()};
+  /** @brief Capacity of the fast task queue; 0 keeps the default. */
   std::size_t fast_queue_capacity{0};
+  /** @brief Interval for reclaiming idle worker threads, in milliseconds. */
   std::size_t thread_clean_interval{60000};
+  /** @brief Interval for scanning queued tasks, in milliseconds. */
   std::size_t task_scan_interval{100};
+  /** @brief Backoff sleep time for idle runtime loops, in milliseconds. */
   std::size_t suspend_time{1};
+  /** @brief Whether `max_connection` should be enforced. */
   bool has_max_connection{false};
+  /** @brief Maximum concurrent connections when enabled. */
   std::size_t max_connection{0};
 };
 
+/** @brief Backward-compatible alias of `HttpServerRuntimeOptions`. */
 using HttpServerExecutorOptions = HttpServerRuntimeOptions;
 
 /**

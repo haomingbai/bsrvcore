@@ -21,10 +21,10 @@
 #include <vector>
 
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "internal/http_route_table_detail.h"
-#include "internal/http_route_table_layer.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
+#include "internal/http_route_table_detail.h"
+#include "internal/http_route_table_layer.h"
 
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestMethod;
@@ -71,15 +71,17 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                           ? route_layer->GetWriteExpiry()
                           : default_write_expiry_;
 
-  return {.current_location = std::move(current_location),
-          .route_template = route_layer->GetRouteTemplate(),
-          .parameters =
-              BuildParameterMap(*route_layer, std::move(parameter_values)),
-          .aspects = std::move(aspects),
-          .handler = handler,
-          .max_body_size = max_body_size,
-          .read_expiry = read_expiry,
-          .write_expiry = write_expiry};
+  HttpRouteResult result;
+  result.current_location = std::move(current_location);
+  result.route_template = route_layer->GetRouteTemplate();
+  result.parameters =
+      BuildParameterMap(*route_layer, std::move(parameter_values));
+  result.aspects = std::move(aspects);
+  result.handler = handler;
+  result.max_body_size = max_body_size;
+  result.read_expiry = read_expiry;
+  result.write_expiry = write_expiry;
+  return result;
 }
 
 HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
@@ -92,14 +94,15 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 
   // Routing failures still run the default handler inside the global aspect
   // envelope so cross-cutting behavior such as logging/auth can stay uniform.
-  return {.current_location = "/",
-          .route_template = "/",
-          .parameters = {},
-          .aspects = std::move(aspects),
-          .handler = default_handler_.get(),
-          .max_body_size = default_max_body_size_,
-          .read_expiry = default_read_expiry_,
-          .write_expiry = default_write_expiry_};
+  HttpRouteResult result;
+  result.current_location = "/";
+  result.route_template = "/";
+  result.aspects = std::move(aspects);
+  result.handler = default_handler_.get();
+  result.max_body_size = default_max_body_size_;
+  result.read_expiry = default_read_expiry_;
+  result.write_expiry = default_write_expiry_;
+  return result;
 }
 
 bool HttpRouteTable::MatchSegments(

@@ -18,12 +18,14 @@
 #include <string_view>
 #include <vector>
 
+#include "bsrvcore/core/trait.h"
+
 namespace bsrvcore {
 
 /**
  * @brief Parsed SSE event object.
  */
-struct SseEvent {
+struct SseEvent : public CopyableMovable<SseEvent> {
   /** @brief Event id field (`id:`). */
   std::string id;
   /** @brief Event type field (`event:`). */
@@ -41,7 +43,7 @@ struct SseEvent {
  * Feed() accepts arbitrary chunk boundaries and returns zero or more fully
  * parsed events. Incomplete lines are buffered across calls.
  */
-class SseEventParser {
+class SseEventParser : public NonCopyableNonMovable<SseEventParser> {
  public:
   /**
    * @brief Feed raw bytes and collect parsed SSE events.

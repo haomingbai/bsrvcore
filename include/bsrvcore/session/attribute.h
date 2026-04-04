@@ -24,6 +24,7 @@
 #include <typeindex>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 
@@ -59,7 +60,7 @@ namespace bsrvcore {
  * auto cloned = attr->Clone();  // Deep copy
  * @endcode
  */
-class Attribute {
+class Attribute : public CopyableMovable<Attribute> {
  public:
   /**
    * @brief Create a deep copy of this attribute
@@ -135,7 +136,9 @@ class Attribute {
  * @endcode
  */
 template <typename Derived>
-struct CloneableAttribute : Attribute {
+struct CloneableAttribute
+    : Attribute,
+      public CopyableMovable<CloneableAttribute<Derived>> {
  private:
   CloneableAttribute() = default;
 
@@ -147,7 +150,9 @@ struct CloneableAttribute : Attribute {
   [[nodiscard]] OwnedPtr<Attribute> Clone() const override {
     return AllocateUnique<Derived>(static_cast<const Derived&>(*this));
   }
+  /// @cond INTERNAL
   friend Derived;
+  /// @endcond
 };
 
 }  // namespace bsrvcore

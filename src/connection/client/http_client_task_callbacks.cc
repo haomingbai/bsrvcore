@@ -8,6 +8,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <boost/asio/post.hpp>
 #include <boost/system/error_code.hpp>
 #include <memory>
 #include <mutex>
@@ -54,9 +55,7 @@ void HttpClientTask::Impl::EmitConnected(boost::system::error_code ec) {
   result.error_stage = HttpClientErrorStage::kNone;
 
   auto cb = GetCallbackCopy(HttpClientStage::kConnected);
-  if (cb) {
-    cb(result);
-  }
+  DispatchCallback(std::move(cb), std::move(result));
 }
 
 void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
@@ -69,9 +68,7 @@ void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
   result.header = header;
 
   auto cb = GetCallbackCopy(HttpClientStage::kHeader);
-  if (cb) {
-    cb(result);
-  }
+  DispatchCallback(std::move(cb), std::move(result));
 }
 
 void HttpClientTask::Impl::EmitChunk(std::string chunk) {
@@ -82,23 +79,17 @@ void HttpClientTask::Impl::EmitChunk(std::string chunk) {
   result.chunk = std::move(chunk);
 
   auto cb = GetCallbackCopy(HttpClientStage::kChunk);
-  if (cb) {
-    cb(result);
-  }
+  DispatchCallback(std::move(cb), std::move(result));
 }
 
 void HttpClientTask::Impl::EmitDone(const HttpClientResult& result) {
   auto cb = GetDoneCallbackCopy();
-  if (cb) {
-    cb(result);
-  }
+  DispatchCallback(std::move(cb), result);
 }
 
 void HttpClientTask::Impl::EmitStageByResult(const HttpClientResult& result) {
   auto cb = GetCallbackCopy(result.stage);
-  if (cb) {
-    cb(result);
-  }
+  DispatchCallback(std::move(cb), result);
 }
 
 bool HttpClientTask::Impl::HasChunkCallback() const {
@@ -126,6 +117,18 @@ HttpClientTask::Impl::Callback HttpClientTask::Impl::GetDoneCallbackCopy()
     const {
   std::scoped_lock const lock(callback_mutex_);
   return on_done_;
+}
+
+void HttpClientTask::Impl::DispatchCallback(Callback cb,
+                                            HttpClientResult result) const {
+  if (!cb) {
+    return;
+  }
+
+  boost::asio::post(callback_executor_,
+                    [cb = std::move(cb), result = std::move(result)]() mutable {
+                      cb(result);
+                    });
 }
 
 HttpClientStage HttpClientTask::Impl::ErrorStageToCallbackStage(

@@ -4,47 +4,59 @@ This chapter maps to:
 
 - `include/bsrvcore/connection/server/multipart_parser.h`
 - `include/bsrvcore/connection/server/put_processor.h`
+- `include/bsrvcore/file/file_writer.h`
 
 ## One-sentence idea
 
-Use `MultipartParser` or `PutProcessor` when you already have a request body in
-`HttpRequest::body()` and want to inspect it or dump it to disk asynchronously.
+Use `MultipartParser` or `PutProcessor` when you already have a buffered HTTP
+request body and want to bridge it into `FileWriter` objects.
 
 ## Important model
 
-These wrappers are **post-read** helpers:
+These wrappers are still **post-read** helpers:
 
-- bsrvcore still reads the HTTP request body through the normal Beast/Asio path
+- bsrvcore reads the HTTP request body through the normal Beast/Asio path
 - your handler receives a buffered body in `task->GetRequest().body()`
 - `MultipartParser` and `PutProcessor` work on that buffered body
 
 This is not a streaming multipart parser.
+
+Today both wrappers sit on top of the file module:
+
+- multipart file parts become `std::shared_ptr<FileWriter>`
+- PUT request bodies become one `std::shared_ptr<FileWriter>`
+- legacy `AsyncDumpToDisk(...)` helpers still work, but they now delegate to
+  `FileWriter::AsyncWriteToDisk(...)`
 
 ## Which wrapper to use
 
 - `MultipartParser`: for `multipart/form-data`
 - `PutProcessor`: for raw `PUT` request bodies
 
-The task-based constructor is the normal choice inside a route handler:
+The shared factory is the normal choice inside a route handler:
 
 ```cpp
-bsrvcore::MultipartParser multipart(*task);
-bsrvcore::PutProcessor put(*task);
+auto multipart = bsrvcore::MultipartParser::Create(*task);
+auto put = bsrvcore::PutProcessor::Create(*task);
 ```
 
 You can also construct from `HttpRequest` directly:
 
 ```cpp
-bsrvcore::MultipartParser multipart(request);
-bsrvcore::PutProcessor put(request);
+auto multipart = bsrvcore::MultipartParser::Create(request);
+auto put = bsrvcore::PutProcessor::Create(request);
 ```
 
-If you want any async dump overload from a plain `HttpRequest`, provide an
-executor:
+If you want different work/callback executors, use the two-executor overload:
 
 ```cpp
-boost::asio::io_context ioc;
-bsrvcore::PutProcessor put(request, ioc.get_executor());
+boost::asio::io_context work_ioc;
+boost::asio::io_context callback_ioc;
+
+auto put = bsrvcore::PutProcessor::Create(
+  request,
+  work_ioc.get_executor(),
+  callback_ioc.get_executor());
 ```
 
 ## MultipartParser basics
@@ -54,6 +66,7 @@ Utility methods:
 - `GetPartCount()`
 - `GetPartType(part_idx)`
 - `IsFile(part_idx)`
+- `GetFileWriter(part_idx)`
 
 Typical pattern:
 
@@ -63,29 +76,31 @@ server->AddRouteEntry(
     [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
       namespace http = boost::beast::http;
 
-      bsrvcore::MultipartParser multipart(*task);
+      auto multipart = bsrvcore::MultipartParser::Create(*task);
 
-      std::size_t file_part = multipart.GetPartCount();
-      for (std::size_t i = 0; i < multipart.GetPartCount(); ++i) {
-        if (multipart.IsFile(i)) {
+      std::size_t file_part = multipart->GetPartCount();
+      for (std::size_t i = 0; i < multipart->GetPartCount(); ++i) {
+        if (multipart->IsFile(i)) {
           file_part = i;
           break;
         }
       }
 
-      if (file_part == multipart.GetPartCount()) {
+      if (file_part == multipart->GetPartCount()) {
         task->GetResponse().result(http::status::bad_request);
         task->SetBody("no file part found");
         return;
       }
 
-      task->GetResponse().result(http::status::accepted);
-      task->SetBody("file dump scheduled");
-
-      if (!multipart.AsyncDumpToDisk(file_part, "/tmp/upload.bin")) {
+      auto writer = multipart->GetFileWriter(file_part);
+      if (!writer || !writer->AsyncWriteToDisk("/tmp/upload.bin")) {
         task->GetResponse().result(http::status::bad_request);
         task->SetBody("multipart body is not dumpable");
+        return;
       }
+
+      task->GetResponse().result(http::status::accepted);
+      task->SetBody("file dump scheduled");
     });
 ```
 
@@ -95,14 +110,15 @@ Notes:
 - `IsFile()` is based on the `filename=` parameter in `Content-Disposition`.
 - `GetPartType()` returns the part `Content-Type`, or an empty string when the
   header is missing.
-- Only file parts are dumpable through `AsyncDumpToDisk(...)`.
+- `GetFileWriter(...)` returns `nullptr` for non-file parts.
+- `AsyncDumpToDisk(...)` is still available for older code.
 
 ## PutProcessor basics
 
-`PutProcessor` treats the full request body as one payload.
+`PutProcessor` treats the full request body as one payload and exposes it as a
+single `FileWriter`.
 
-If you need the final write result, use the callback overload and capture the
-task:
+If you need the final write result, use the writer directly:
 
 ```cpp
 server->AddRouteEntry(
@@ -110,10 +126,13 @@ server->AddRouteEntry(
     [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
       namespace http = boost::beast::http;
 
-      bsrvcore::PutProcessor put(*task);
-      if (!put.AsyncDumpToDisk(
+      auto put = bsrvcore::PutProcessor::Create(*task);
+      auto writer = put->GetFileWriter();
+      if (!writer ||
+          !writer->AsyncWriteToDisk(
               "/tmp/blob.bin",
-              [task](bool ok) {
+              [task](std::shared_ptr<bsrvcore::FileWritingState> state) {
+                const bool ok = state && !state->ec;
                 task->GetResponse().result(
                     ok ? http::status::ok
                        : http::status::internal_server_error);
@@ -125,56 +144,31 @@ server->AddRouteEntry(
     });
 ```
 
-Why capture `task`?
-
-- the dump finishes later
-- the callback may need to update the response
-- keeping `task` alive delays final response write until the callback returns
-
-If you do **not** care about the final write result, use the no-callback
-overload:
+If you only want backward-compatible behavior, the old wrapper still exists:
 
 ```cpp
-server->AddRouteEntry(
-    bsrvcore::HttpRequestMethod::kPut, "/fire-and-forget",
-    [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-      namespace http = boost::beast::http;
-
-      bsrvcore::PutProcessor put(*task);
-      if (!put.AsyncDumpToDisk("/tmp/blob.bin")) {
-        task->GetResponse().result(http::status::bad_request);
-        task->SetBody("request is not a dumpable PUT body");
-        return;
-      }
-
-      task->GetResponse().result(http::status::accepted);
-      task->SetBody("dump scheduled");
-    });
+put->AsyncDumpToDisk("/tmp/blob.bin", [](bool ok) {
+  // compatibility callback
+});
 ```
 
 ## Return values
 
 Both wrappers use the same rule:
 
-- the immediate `bool` return means: "is this request/part valid and was async
-  work scheduled?"
-- the callback `bool` means: "did the file dump actually complete
-  successfully?"
-
-So a call can return `true` immediately and still report `false` later in the
-callback if file open/write/close fails.
+- the immediate `bool` return means: "was async work scheduled?"
+- the later state or callback result means: "did the actual file operation
+  succeed?"
 
 ## File I/O backend
 
-File dumping currently uses synchronous `std::ofstream` writes, but the write
-work is scheduled asynchronously onto the server worker pool (or onto the
-executor you provide when constructing from a plain `HttpRequest`).
+File work still uses blocking filesystem calls internally, but those calls are
+dispatched asynchronously onto the selected work executor.
 
 This does **not** change the server socket backend:
 
 - network I/O still uses the existing server I/O path
-- file dumping no longer uses a dedicated file runtime
-- blocking file writes consume ordinary worker threads, which is acceptable for
-  the intended low-throughput upload/dump scenarios
+- blocking file work consumes the selected work executor threads
+- completion callbacks hop back to the selected callback executor
 
-Next: [SSE server](sse-server.md).
+Next: [SSE server](sse-server.md)

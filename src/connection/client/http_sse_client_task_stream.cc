@@ -41,7 +41,7 @@ void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
     result.stage = HttpSseClientStage::kNext;
     result.error_stage = HttpSseClientErrorStage::kReadBody;
     result.ec = make_error_code(boost::system::errc::operation_not_permitted);
-    cb(result);
+    self->DispatchCallback(std::move(cb), std::move(result));
     return;
   }
 
@@ -50,7 +50,7 @@ void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
     result.stage = HttpSseClientStage::kNext;
     result.error_stage = HttpSseClientErrorStage::kReadBody;
     result.ec = make_error_code(boost::system::errc::operation_in_progress);
-    cb(result);
+    self->DispatchCallback(std::move(cb), std::move(result));
     return;
   }
 
@@ -96,9 +96,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
       next_pending_ = false;
       done_ = true;
       Callback const callback = std::move(next_callback_);
-      if (callback) {
-        callback(result);
-      }
+      DispatchCallback(callback, std::move(result));
       return;
     }
 
@@ -107,9 +105,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
       next_pending_ = false;
       done_ = true;
       Callback const callback = std::move(next_callback_);
-      if (callback) {
-        callback(result);
-      }
+      DispatchCallback(callback, std::move(result));
       return;
     }
 
@@ -121,9 +117,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
     next_pending_ = false;
     done_ = true;
     Callback const callback = std::move(next_callback_);
-    if (callback) {
-      callback(result);
-    }
+    DispatchCallback(callback, std::move(result));
     return;
   }
 
@@ -143,9 +137,7 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
 
   next_pending_ = false;
   Callback const callback = std::move(next_callback_);
-  if (callback) {
-    callback(result);
-  }
+  DispatchCallback(callback, std::move(result));
 }
 
 }  // namespace bsrvcore

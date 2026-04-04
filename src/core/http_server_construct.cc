@@ -22,10 +22,10 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
-#include "internal/empty_logger.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/session/session_map.h"
 #include "bsrvcore/session/context.h"
+#include "internal/empty_logger.h"
 
 using namespace bsrvcore;
 

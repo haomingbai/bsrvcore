@@ -18,6 +18,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
 #include "bsrvcore/bsrvrun/plugin_export.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 
 namespace bsrvcore::bsrvrun {
@@ -25,11 +26,14 @@ namespace bsrvcore::bsrvrun {
 /**
  * @brief Factory interface used by bsrvrun to create request aspects.
  */
-class HttpRequestAspectHandlerFactory {
+class HttpRequestAspectHandlerFactory
+    : public bsrvcore::NonCopyableNonMovable<HttpRequestAspectHandlerFactory> {
  public:
+  /** @brief Legacy aspect construction entry point used by existing plugins. */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Ger(
       ParameterMap* parameters) = 0;
 
+  /** @brief Preferred aspect construction entry point. */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Create(
       ParameterMap* parameters) {
     return Ger(parameters);

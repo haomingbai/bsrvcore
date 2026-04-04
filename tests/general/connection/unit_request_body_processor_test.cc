@@ -89,13 +89,13 @@ TEST(RequestBodyProcessorTest, MultipartParserExposesPartUtilities) {
               "multipart/form-data; boundary=\"boundary123\"");
   request.body() = BuildMultipartBody();
 
-  bsrvcore::MultipartParser parser(request);
+  auto parser = bsrvcore::MultipartParser::Create(request);
 
-  EXPECT_EQ(parser.GetPartCount(), 2u);
-  EXPECT_EQ(parser.GetPartType(0), "text/plain");
-  EXPECT_EQ(parser.GetPartType(1), "application/octet-stream");
-  EXPECT_FALSE(parser.IsFile(0));
-  EXPECT_TRUE(parser.IsFile(1));
+  EXPECT_EQ(parser->GetPartCount(), 2u);
+  EXPECT_EQ(parser->GetPartType(0), "text/plain");
+  EXPECT_EQ(parser->GetPartType(1), "application/octet-stream");
+  EXPECT_FALSE(parser->IsFile(0));
+  EXPECT_TRUE(parser->IsFile(1));
 }
 
 TEST(RequestBodyProcessorTest, MultipartParserAsyncDumpWritesFilePart) {
@@ -106,18 +106,38 @@ TEST(RequestBodyProcessorTest, MultipartParserAsyncDumpWritesFilePart) {
               "multipart/form-data; boundary=boundary123");
   request.body() = BuildMultipartBody();
 
-  bsrvcore::MultipartParser parser(request, runner.Get().get_executor());
+  auto parser =
+      bsrvcore::MultipartParser::Create(request, runner.Get().get_executor());
   const auto path = MakeTempPath("multipart");
   std::promise<bool> promise;
   auto future = promise.get_future();
 
-  ASSERT_TRUE(parser.AsyncDumpToDisk(
+  ASSERT_TRUE(parser->AsyncDumpToDisk(
       1, path, [&promise](bool ok) { promise.set_value(ok); }));
   EXPECT_TRUE(future.get());
   EXPECT_EQ(ReadFile(path), "file-body");
 
   std::error_code ec;
   std::filesystem::remove(path, ec);
+}
+
+TEST(RequestBodyProcessorTest, MultipartParserExposesFileWriterForFilePart) {
+  IoContextRunner runner;
+
+  bsrvcore::HttpRequest request;
+  request.set(http::field::content_type,
+              "multipart/form-data; boundary=boundary123");
+  request.body() = BuildMultipartBody();
+
+  auto parser =
+      bsrvcore::MultipartParser::Create(request, runner.Get().get_executor());
+  auto writer = parser->GetFileWriter(1);
+  ASSERT_TRUE(writer);
+  EXPECT_TRUE(writer->IsValid());
+  EXPECT_EQ(writer->Size(), std::string("file-body").size());
+  EXPECT_EQ(std::string(writer->Data(), writer->Data() + writer->Size()),
+            "file-body");
+  EXPECT_FALSE(parser->GetFileWriter(0));
 }
 
 TEST(RequestBodyProcessorTest, MultipartParserRejectsNonFilePartDump) {
@@ -128,9 +148,10 @@ TEST(RequestBodyProcessorTest, MultipartParserRejectsNonFilePartDump) {
               "multipart/form-data; boundary=boundary123");
   request.body() = BuildMultipartBody();
 
-  bsrvcore::MultipartParser parser(request, runner.Get().get_executor());
+  auto parser =
+      bsrvcore::MultipartParser::Create(request, runner.Get().get_executor());
   EXPECT_FALSE(
-      parser.AsyncDumpToDisk(0, MakeTempPath("multipart-noop"), [](bool) {}));
+      parser->AsyncDumpToDisk(0, MakeTempPath("multipart-noop"), [](bool) {}));
 }
 
 TEST(RequestBodyProcessorTest, MultipartParserRequiresExecutorForAsyncDump) {
@@ -139,8 +160,8 @@ TEST(RequestBodyProcessorTest, MultipartParserRequiresExecutorForAsyncDump) {
               "multipart/form-data; boundary=boundary123");
   request.body() = BuildMultipartBody();
 
-  bsrvcore::MultipartParser parser(request);
-  EXPECT_FALSE(parser.AsyncDumpToDisk(1, MakeTempPath("multipart-no-exec")));
+  auto parser = bsrvcore::MultipartParser::Create(request);
+  EXPECT_FALSE(parser->AsyncDumpToDisk(1, MakeTempPath("multipart-no-exec")));
 }
 
 TEST(RequestBodyProcessorTest, PutProcessorAsyncDumpWritesPutBody) {
@@ -149,12 +170,13 @@ TEST(RequestBodyProcessorTest, PutProcessorAsyncDumpWritesPutBody) {
   bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
   request.body() = "put-payload";
 
-  bsrvcore::PutProcessor processor(request, runner.Get().get_executor());
+  auto processor =
+      bsrvcore::PutProcessor::Create(request, runner.Get().get_executor());
   const auto path = MakeTempPath("put");
   std::promise<bool> promise;
   auto future = promise.get_future();
 
-  ASSERT_TRUE(processor.AsyncDumpToDisk(
+  ASSERT_TRUE(processor->AsyncDumpToDisk(
       path, [&promise](bool ok) { promise.set_value(ok); }));
   EXPECT_TRUE(future.get());
   EXPECT_EQ(ReadFile(path), "put-payload");
@@ -163,23 +185,40 @@ TEST(RequestBodyProcessorTest, PutProcessorAsyncDumpWritesPutBody) {
   std::filesystem::remove(path, ec);
 }
 
+TEST(RequestBodyProcessorTest, PutProcessorExposesBodyWriter) {
+  IoContextRunner runner;
+
+  bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
+  request.body() = "put-payload";
+
+  auto processor =
+      bsrvcore::PutProcessor::Create(request, runner.Get().get_executor());
+  auto writer = processor->GetFileWriter();
+  ASSERT_TRUE(writer);
+  EXPECT_TRUE(writer->IsValid());
+  EXPECT_EQ(writer->Size(), std::string("put-payload").size());
+  EXPECT_EQ(std::string(writer->Data(), writer->Data() + writer->Size()),
+            "put-payload");
+}
+
 TEST(RequestBodyProcessorTest, PutProcessorRejectsNonPutRequests) {
   IoContextRunner runner;
 
   bsrvcore::HttpRequest request{http::verb::post, "/upload", 11};
   request.body() = "post-body";
 
-  bsrvcore::PutProcessor processor(request, runner.Get().get_executor());
+  auto processor =
+      bsrvcore::PutProcessor::Create(request, runner.Get().get_executor());
   EXPECT_FALSE(
-      processor.AsyncDumpToDisk(MakeTempPath("put-noop"), [](bool) {}));
+      processor->AsyncDumpToDisk(MakeTempPath("put-noop"), [](bool) {}));
 }
 
 TEST(RequestBodyProcessorTest, PutProcessorRequiresExecutorForAsyncDump) {
   bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
   request.body() = "ignored-callback";
 
-  bsrvcore::PutProcessor processor(request);
-  EXPECT_FALSE(processor.AsyncDumpToDisk(MakeTempPath("put-no-exec")));
+  auto processor = bsrvcore::PutProcessor::Create(request);
+  EXPECT_FALSE(processor->AsyncDumpToDisk(MakeTempPath("put-no-exec")));
 }
 
 TEST(RequestBodyProcessorTest,
@@ -189,11 +228,60 @@ TEST(RequestBodyProcessorTest,
   bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
   request.body() = "ignored-callback";
 
-  bsrvcore::PutProcessor processor(request, runner.Get().get_executor());
+  auto processor =
+      bsrvcore::PutProcessor::Create(request, runner.Get().get_executor());
   const auto path = MakeTempPath("put-ignore");
 
-  ASSERT_TRUE(processor.AsyncDumpToDisk(path));
+  ASSERT_TRUE(processor->AsyncDumpToDisk(path));
   EXPECT_TRUE(WaitForFileContents(path, "ignored-callback"));
+
+  std::error_code ec;
+  std::filesystem::remove(path, ec);
+}
+
+TEST(RequestBodyProcessorTest, MultipartParserOutlivesCallerDuringAsyncDump) {
+  IoContextRunner runner;
+
+  bsrvcore::HttpRequest request;
+  request.set(http::field::content_type,
+              "multipart/form-data; boundary=boundary123");
+  request.body() = BuildMultipartBody();
+
+  auto parser =
+      bsrvcore::MultipartParser::Create(request, runner.Get().get_executor());
+  const auto path = MakeTempPath("multipart-lifetime");
+  std::promise<bool> promise;
+  auto future = promise.get_future();
+
+  ASSERT_TRUE(parser->AsyncDumpToDisk(
+      1, path, [&promise](bool ok) mutable { promise.set_value(ok); }));
+  parser.reset();
+
+  EXPECT_TRUE(future.get());
+  EXPECT_EQ(ReadFile(path), "file-body");
+
+  std::error_code ec;
+  std::filesystem::remove(path, ec);
+}
+
+TEST(RequestBodyProcessorTest, PutProcessorOutlivesCallerDuringAsyncDump) {
+  IoContextRunner runner;
+
+  bsrvcore::HttpRequest request{http::verb::put, "/upload", 11};
+  request.body() = "put-payload";
+
+  auto processor =
+      bsrvcore::PutProcessor::Create(request, runner.Get().get_executor());
+  const auto path = MakeTempPath("put-lifetime");
+  std::promise<bool> promise;
+  auto future = promise.get_future();
+
+  ASSERT_TRUE(processor->AsyncDumpToDisk(
+      path, [&promise](bool ok) mutable { promise.set_value(ok); }));
+  processor.reset();
+
+  EXPECT_TRUE(future.get());
+  EXPECT_EQ(ReadFile(path), "put-payload");
 
   std::error_code ec;
   std::filesystem::remove(path, ec);

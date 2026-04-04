@@ -18,6 +18,7 @@
 #include <string_view>
 
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/session/attribute.h"
 #include "bsrvcore/session/context.h"
 
@@ -27,16 +28,21 @@ namespace bsrvcore {
  * @brief Attribute that stores a shared HttpClientSession.
  */
 class HttpClientSessionAttribute
-    : public CloneableAttribute<HttpClientSessionAttribute> {
+    : public CloneableAttribute<HttpClientSessionAttribute>,
+      public CopyableMovable<HttpClientSessionAttribute> {
  public:
+  /** @brief Construct an empty session attribute. */
   HttpClientSessionAttribute() = default;
+  /** @brief Construct an attribute from a session pointer. */
   explicit HttpClientSessionAttribute(
       std::shared_ptr<HttpClientSession> session)
       : session_(std::move(session)) {}
 
+  /** @brief Return the stored session pointer. */
   [[nodiscard]] std::shared_ptr<HttpClientSession> Get() const noexcept {
     return session_;
   }
+  /** @brief Replace the stored session pointer. */
   void Set(std::shared_ptr<HttpClientSession> session) {
     session_ = std::move(session);
   }

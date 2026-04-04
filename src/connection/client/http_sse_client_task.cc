@@ -10,7 +10,6 @@
 
 #include "bsrvcore/connection/client/http_sse_client_task.h"
 
-#include <boost/asio/io_context.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
@@ -47,39 +46,60 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateTask(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
-    boost::asio::io_context::executor_type executor, std::string host,
+    Executor io_executor, std::string host, std::string port,
+    std::string target, HttpSseClientOptions options) {
+  return CreateHttp(io_executor, io_executor, std::move(host), std::move(port),
+                    std::move(target), std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
+    Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, HttpSseClientOptions options) {
-  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
-                                   std::move(port), std::move(target),
-                                   std::move(options), false, nullptr);
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host),
+      std::move(port), std::move(target), std::move(options), false, nullptr);
   return CreateTask(std::move(impl));
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
-    boost::asio::io_context::executor_type executor,
+    Executor io_executor, boost::asio::ssl::context& ssl_ctx, std::string host,
+    std::string port, std::string target, HttpSseClientOptions options) {
+  return CreateHttps(io_executor, io_executor, ssl_ctx, std::move(host),
+                     std::move(port), std::move(target), std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
+    Executor io_executor, Executor callback_executor,
     boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
     std::string target, HttpSseClientOptions options) {
-  auto impl = AllocateShared<Impl>(std::move(executor), std::move(host),
-                                   std::move(port), std::move(target),
-                                   std::move(options), true, &ssl_ctx);
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host),
+      std::move(port), std::move(target), std::move(options), true, &ssl_ctx);
   return CreateTask(std::move(impl));
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
-    boost::asio::io_context::executor_type executor, const std::string& url,
+    Executor io_executor, const std::string& url,
+    HttpSseClientOptions options) {
+  return CreateFromUrl(io_executor, io_executor, url, std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
+    Executor io_executor, Executor callback_executor, const std::string& url,
     HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/",
+    auto impl = AllocateShared<Impl>(std::move(io_executor),
+                                     std::move(callback_executor), "", "", "/",
                                      std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpSseClientErrorStage::kCreate);
     return CreateTask(std::move(impl));
   }
 
-  auto impl = AllocateShared<Impl>(std::move(executor), parsed->host,
-                                   parsed->port, parsed->target,
-                                   std::move(options), parsed->https, nullptr);
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), parsed->host,
+      parsed->port, parsed->target, std::move(options), parsed->https, nullptr);
 
   if (parsed->https) {
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
@@ -89,12 +109,20 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
 }
 
 std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
-    boost::asio::io_context::executor_type executor,
+    Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+    const std::string& url, HttpSseClientOptions options) {
+  return CreateFromUrl(io_executor, io_executor, ssl_ctx, url,
+                       std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
+    Executor io_executor, Executor callback_executor,
     boost::asio::ssl::context& ssl_ctx, const std::string& url,
     HttpSseClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
-    auto impl = AllocateShared<Impl>(std::move(executor), "", "", "/",
+    auto impl = AllocateShared<Impl>(std::move(io_executor),
+                                     std::move(callback_executor), "", "", "/",
                                      std::move(options), false, nullptr);
     impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
                          HttpSseClientErrorStage::kCreate);
@@ -102,8 +130,9 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
   }
 
   auto impl = AllocateShared<Impl>(
-      std::move(executor), parsed->host, parsed->port, parsed->target,
-      std::move(options), parsed->https, parsed->https ? &ssl_ctx : nullptr);
+      std::move(io_executor), std::move(callback_executor), parsed->host,
+      parsed->port, parsed->target, std::move(options), parsed->https,
+      parsed->https ? &ssl_ctx : nullptr);
   return CreateTask(std::move(impl));
 }
 

@@ -204,9 +204,8 @@ class HttpServerConnection
     auto task = AllocateShared<std::packaged_task<RT()>>(std::move(bound));
     auto future = task->get_future();
 
-    Post(std::function<void()>{[task = std::move(task)]() mutable {
-      (*task)();
-    }});
+    Post(std::function<void()>{
+        [task = std::move(task)]() mutable { (*task)(); }});
     return future;
   }
 
@@ -220,9 +219,8 @@ class HttpServerConnection
   template <typename Fn, typename... Args>
   void Post(Fn fn, Args&&... args) {
     auto bound = std::bind(std::move(fn), std::forward<Args>(args)...);
-    Post(std::function<void()>{[bound = std::move(bound)]() mutable {
-      bound();
-    }});
+    Post(std::function<void()>{
+        [bound = std::move(bound)]() mutable { bound(); }});
   }
 
   /**
@@ -254,9 +252,8 @@ class HttpServerConnection
     auto task = AllocateShared<std::packaged_task<RT()>>(std::move(bound));
     auto future = task->get_future();
 
-    SetTimer(timeout, std::function<void()>{[task = std::move(task)]() mutable {
-               (*task)();
-             }});
+    SetTimer(timeout, std::function<void()>{
+                          [task = std::move(task)]() mutable { (*task)(); }});
     return future;
   }
 

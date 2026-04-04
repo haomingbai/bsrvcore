@@ -244,8 +244,8 @@ TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPut, "/dump",
       [path](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-        bsrvcore::PutProcessor processor(*task);
-        const bool scheduled = processor.AsyncDumpToDisk(
+        auto processor = bsrvcore::PutProcessor::Create(*task);
+        const bool scheduled = processor->AsyncDumpToDisk(
             path, [task](bool ok) { task->SetBody(ok ? "dumped" : "failed"); });
         if (!scheduled) {
           task->SetBody("rejected");

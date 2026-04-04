@@ -123,6 +123,7 @@ set(BSRVCORE_OBJECT_TARGETS)
 option(BSRVCORE_BUILD_TOOLS "Build bsrvcore runtime tools. Default: ON" ON)
 
 add_subdirectory(allocator)
+add_subdirectory(file)
 add_subdirectory(route)
 add_subdirectory(session)
 add_subdirectory(connection)

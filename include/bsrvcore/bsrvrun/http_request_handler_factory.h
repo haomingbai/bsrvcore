@@ -18,6 +18,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
 #include "bsrvcore/bsrvrun/plugin_export.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_handler.h"
 
 namespace bsrvcore::bsrvrun {
@@ -25,11 +26,15 @@ namespace bsrvcore::bsrvrun {
 /**
  * @brief Factory interface used by bsrvrun to create route handlers.
  */
-class HttpRequestHandlerFactory {
+class HttpRequestHandlerFactory
+    : public bsrvcore::NonCopyableNonMovable<HttpRequestHandlerFactory> {
  public:
+  /** @brief Legacy handler construction entry point used by existing plugins.
+   */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Ger(
       ParameterMap* parameters) = 0;
 
+  /** @brief Preferred handler construction entry point. */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Create(
       ParameterMap* parameters) {
     return Ger(parameters);

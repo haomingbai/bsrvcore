@@ -12,7 +12,6 @@
  */
 
 #include "bsrvcore/internal/session/session_map.h"
-#include "bsrvcore/internal/session/detail/session_context_entry.h"
 
 #include <algorithm>
 #include <boost/system/error_code.hpp>
@@ -24,6 +23,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/internal/session/detail/session_context_entry.h"
 #include "bsrvcore/session/context.h"
 
 using bsrvcore::SessionMap;

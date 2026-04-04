@@ -58,7 +58,7 @@ class Attribute;
  * });
  * @endcode
  */
-class Context : NonCopyableNonMovable<Context> {
+class Context : public NonCopyableNonMovable<Context> {
  public:
   /**
    * @brief Retrieve an attribute by key (copy version)

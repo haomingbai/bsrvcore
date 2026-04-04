@@ -14,19 +14,13 @@
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_REQUEST_BODY_PROCESSOR_DETAIL_H_
 
 #include <boost/asio/any_io_executor.hpp>
-#include <boost/asio/post.hpp>
 #include <boost/beast/http/field.hpp>
 #include <cctype>
 #include <cstddef>
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
-#include <filesystem>
-#include <fstream>
-#include <functional>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 
@@ -161,92 +155,6 @@ inline std::string_view GetHeaderValue(const HttpRequest& request,
     return {};
   }
   return it->value();
-}
-
-/**
- * @brief Finish async file writes on the caller-selected callback executor.
- *
- * @details
- * Dump helpers are used by both multipart and PUT wrappers. Centralizing the
- * callback hop keeps both code paths consistent while still leaving the caller
- * responsible for choosing the work and callback executors.
- */
-inline void DispatchDumpCallback(const boost::asio::any_io_executor& executor,
-                                 std::function<void(bool)> callback, bool ok) {
-  if (!callback) {
-    return;
-  }
-
-  if (executor != nullptr) {
-    boost::asio::post(executor, [callback = std::move(callback), ok]() mutable {
-      callback(ok);
-    });
-    return;
-  }
-
-  callback(ok);
-}
-
-struct AsyncFileWriteState {
-  AsyncFileWriteState(boost::asio::any_io_executor callback_executor_in,
-                      std::filesystem::path path_in, std::string payload_in,
-                      std::function<void(bool)> callback_in)
-      : callback_executor(std::move(callback_executor_in)),
-        path(std::move(path_in)),
-        payload(std::move(payload_in)),
-        callback(std::move(callback_in)) {}
-
-  /**
-   * @brief Execute the blocking file write on the dedicated work executor.
-   *
-   * @details
-   * Body processors already run after the request body is fully buffered. The
-   * only expensive step left is the filesystem write, so this object owns the
-   * payload and reports completion through a second explicit executor hop.
-   */
-  void Run() {
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
-    if (!out.is_open()) {
-      Finish(false);
-      return;
-    }
-
-    if (!payload.empty()) {
-      out.write(payload.data(), static_cast<std::streamsize>(payload.size()));
-    }
-    out.flush();
-    const bool ok = out.good();
-    out.close();
-    Finish(ok);
-  }
-
-  void Finish(bool ok) {
-    DispatchDumpCallback(std::move(callback_executor), std::move(callback), ok);
-  }
-
-  boost::asio::any_io_executor callback_executor;
-  std::filesystem::path path;
-  std::string payload;
-  std::function<void(bool)> callback;
-};
-
-/**
- * @brief Schedule a file dump as two explicit hops.
- *
- * @details
- * The first hop moves blocking disk I/O off the request worker. The second hop
- * posts the completion callback back to the caller-selected executor so route
- * code can keep using its normal server/task threading model.
- */
-inline void AsyncDumpPayload(const boost::asio::any_io_executor& work_executor,
-                             boost::asio::any_io_executor callback_executor,
-                             std::filesystem::path path, std::string payload,
-                             std::function<void(bool)> callback) {
-  auto state = std::make_shared<AsyncFileWriteState>(
-      std::move(callback_executor), std::move(path), std::move(payload),
-      std::move(callback));
-  boost::asio::post(work_executor,
-                    [state = std::move(state)]() { state->Run(); });
 }
 
 }  // namespace bsrvcore::request_body_internal

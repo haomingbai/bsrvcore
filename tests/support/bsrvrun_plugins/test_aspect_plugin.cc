@@ -75,6 +75,4 @@ TestAspectFactory g_factory;
 
 }  // namespace
 
-BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT GetAspectFactory() {
-  return &g_factory;
-}
+BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT GetAspectFactory() { return &g_factory; }

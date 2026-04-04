@@ -24,6 +24,7 @@
 #include <string>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/trait.h"
 #include "bsrvcore/json.h"
 
 namespace bsrvcore {
@@ -43,7 +44,7 @@ using HttpClientResponse = HttpResponse;
 /**
  * @brief Runtime options for a single HTTP/HTTPS client request.
  */
-struct HttpClientOptions {
+struct HttpClientOptions : public CopyableMovable<HttpClientOptions> {
   /** @brief DNS resolve timeout. */
   std::chrono::milliseconds resolve_timeout{2000};
   /** @brief TCP connect timeout. */
@@ -106,7 +107,7 @@ enum class HttpClientErrorStage {
 /**
  * @brief Unified callback payload for all HttpClientTask stages.
  */
-struct HttpClientResult {
+struct HttpClientResult : public CopyableMovable<HttpClientResult> {
   /** @brief Operation error code, 0 on success. */
   boost::system::error_code ec;
   /** @brief Current callback stage. */
@@ -157,8 +158,11 @@ struct HttpClientResult {
  * The task exposes stage callbacks (`OnConnected`, `OnHeader`, `OnChunk`,
  * `OnDone`) and expresses all statuses through `HttpClientResult` fields.
  */
-class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
+class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
+                       public NonCopyableNonMovable<HttpClientTask> {
  public:
+  /** @brief Executor type accepted by HttpClientTask factories. */
+  using Executor = boost::asio::io_context::executor_type;
   /** @brief Callback type used by all stages. */
   using Callback = std::function<void(const HttpClientResult&)>;
 
@@ -166,7 +170,12 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * @brief Create plain HTTP task from host/port/target.
    */
   static std::shared_ptr<HttpClientTask> CreateHttp(
-      boost::asio::io_context::executor_type executor, std::string host,
+      Executor io_executor, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+  /** @brief Create plain HTTP task with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateHttp(
+      Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
@@ -174,7 +183,12 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * @brief Create HTTPS task from host/port/target.
    */
   static std::shared_ptr<HttpClientTask> CreateHttps(
-      boost::asio::io_context::executor_type executor,
+      Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string host, std::string port, std::string target,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+  /** @brief Create HTTPS task with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateHttps(
+      Executor io_executor, Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
       std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
@@ -186,25 +200,34 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask> {
    * `invalid_argument` and error stage `kCreate`.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor, const std::string& url,
+      Executor io_executor, const std::string& url,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+  /** @brief Create task from URL with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateFromUrl(
+      Executor io_executor, Executor callback_executor, const std::string& url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /**
    * @brief Create task from URL with SSL context.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor,
+      Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      const std::string& url, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+  /** @brief Create HTTPS task from URL with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateFromUrl(
+      Executor io_executor, Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, const std::string& url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /** @brief Register connected-stage callback. */
-  HttpClientTask& OnConnected(Callback cb);
+  std::shared_ptr<HttpClientTask> OnConnected(Callback cb);
   /** @brief Register header-stage callback. */
-  HttpClientTask& OnHeader(Callback cb);
+  std::shared_ptr<HttpClientTask> OnHeader(Callback cb);
   /** @brief Register chunk-stage callback. */
-  HttpClientTask& OnChunk(Callback cb);
+  std::shared_ptr<HttpClientTask> OnChunk(Callback cb);
   /** @brief Register done-stage callback (final convergence point). */
-  HttpClientTask& OnDone(Callback cb);
+  std::shared_ptr<HttpClientTask> OnDone(Callback cb);
 
   /**
    * @brief Access mutable request before Start().

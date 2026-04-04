@@ -360,6 +360,8 @@ bool HttpServer::Start() {
     return false;
   }
 
+  ResetThreadPool();
+
   if (kHasMaxConnection_) {
     available_connection_num_.store(
         static_cast<std::int64_t>(kRuntimeOptions_.max_connection),
@@ -409,8 +411,6 @@ void HttpServer::Stop() {
   JoinThreadPool();
   JoinEndpointIoThreadsLocked();
   ResetControlIoLocked();
-
-  ResetThreadPool();
   endpoint_runtimes_.clear();
   reuse_port_supported_ = false;
 }

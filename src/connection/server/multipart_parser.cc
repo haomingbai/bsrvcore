@@ -20,7 +20,9 @@
 #include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/file/file_state.h"
 #include "internal/server/request_body_processor_detail.h"
 
 namespace bsrvcore {
@@ -42,14 +44,6 @@ inline bool PrepareMultipartBody(std::string_view body,
   return true;
 }
 
-/**
- * @brief Parse one multipart part and advance the shared cursor.
- *
- * @details
- * This helper keeps the main parser loop focused on control flow. It validates
- * the boundary framing, parses the part headers, extracts the payload, and
- * leaves the cursor positioned at the CRLF that precedes the next boundary.
- */
 inline bool ParseMultipartPart(std::string_view body,
                                const std::string& delimiter,
                                const std::string& boundary_marker,
@@ -101,12 +95,35 @@ inline bool ReachedMultipartTerminator(std::string_view body,
 
 }  // namespace
 
-MultipartParser::MultipartParser(HttpTaskBase& task)
-    : MultipartParser(task.GetRequest(), task.GetExecutor()) {}
+std::shared_ptr<MultipartParser> MultipartParser::Create(HttpTaskBase& task) {
+  return Create(task.GetRequest(), task.GetExecutor(), task.GetExecutor());
+}
 
-MultipartParser::MultipartParser(const HttpRequest& request,
-                                 boost::asio::any_io_executor executor)
-    : work_executor_(executor), callback_executor_(std::move(executor)) {
+std::shared_ptr<MultipartParser> MultipartParser::Create(
+    const HttpRequest& request, boost::asio::any_io_executor work_executor,
+    boost::asio::any_io_executor callback_executor) {
+  struct SharedEnabler final : MultipartParser {
+    SharedEnabler(const HttpRequest& request_in,
+                  boost::asio::any_io_executor work_executor_in,
+                  boost::asio::any_io_executor callback_executor_in)
+        : MultipartParser(PrivateTag{}, request_in, std::move(work_executor_in),
+                          std::move(callback_executor_in)) {}
+  };
+
+  return AllocateShared<SharedEnabler>(request, std::move(work_executor),
+                                       std::move(callback_executor));
+}
+
+std::shared_ptr<MultipartParser> MultipartParser::Create(
+    const HttpRequest& request, boost::asio::any_io_executor executor) {
+  return Create(request, executor, executor);
+}
+
+MultipartParser::MultipartParser(PrivateTag, const HttpRequest& request,
+                                 boost::asio::any_io_executor work_executor,
+                                 boost::asio::any_io_executor callback_executor)
+    : work_executor_(std::move(work_executor)),
+      callback_executor_(std::move(callback_executor)) {
   Parse(request);
 }
 
@@ -129,18 +146,32 @@ bool MultipartParser::IsFile(std::size_t part_idx) const noexcept {
   return parts_[part_idx].is_file;
 }
 
+std::shared_ptr<FileWriter> MultipartParser::GetFileWriter(
+    std::size_t part_idx) const noexcept {
+  if (part_idx >= parts_.size()) {
+    return nullptr;
+  }
+  return parts_[part_idx].writer;
+}
+
 bool MultipartParser::AsyncDumpToDisk(std::size_t part_idx,
                                       std::filesystem::path path,
                                       DumpCallback callback) const {
-  if (!work_executor_ || (callback && !callback_executor_) ||
-      part_idx >= parts_.size() || !parts_[part_idx].is_file || path.empty()) {
+  auto writer = GetFileWriter(part_idx);
+  if (!writer || path.empty()) {
     return false;
   }
 
-  request_body_internal::AsyncDumpPayload(
-      work_executor_, callback_executor_, std::move(path),
-      parts_[part_idx].payload, std::move(callback));
-  return true;
+  if (!callback) {
+    return writer->AsyncWriteToDisk(std::move(path));
+  }
+
+  return writer->AsyncWriteToDisk(
+      std::move(path), FileWritingState::Create(),
+      [callback = std::move(callback)](
+          const std::shared_ptr<FileWritingState>& state) mutable {
+        callback(state && !state->ec);
+      });
 }
 
 void MultipartParser::Parse(const HttpRequest& request) {
@@ -170,6 +201,11 @@ void MultipartParser::Parse(const HttpRequest& request) {
                             &part.content_type, &part.payload, &part.is_file)) {
       parts_.clear();
       return;
+    }
+    if (part.is_file) {
+      part.writer =
+          FileWriter::Create(part.payload, work_executor_, callback_executor_);
+      part.payload.clear();
     }
     parts_.push_back(std::move(part));
   }

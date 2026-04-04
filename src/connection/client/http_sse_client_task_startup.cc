@@ -12,7 +12,6 @@
 #include <openssl/ssl.h>
 
 #include <algorithm>
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
@@ -47,13 +46,15 @@ std::string ToLower(std::string value) {
 
 }  // namespace
 
-HttpSseClientTask::Impl::Impl(boost::asio::any_io_executor executor,
+HttpSseClientTask::Impl::Impl(HttpSseClientTask::Executor io_executor,
+                              HttpSseClientTask::Executor callback_executor,
                               std::string host, std::string port,
                               std::string target, HttpSseClientOptions options,
                               bool use_ssl, boost::asio::ssl::context* ssl_ctx)
-    : executor_(std::move(executor)),
-      strand_(executor_),
-      resolver_(executor_),
+    : io_executor_(std::move(io_executor)),
+      callback_executor_(std::move(callback_executor)),
+      strand_(io_executor_),
+      resolver_(io_executor_),
       host_(std::move(host)),
       port_(std::move(port)),
       target_(std::move(target)),
@@ -102,6 +103,18 @@ void HttpSseClientTask::Impl::SetCreateError(
     boost::system::error_code ec, HttpSseClientErrorStage error_stage) {
   create_error_ = ec;
   create_error_stage_ = error_stage;
+}
+
+void HttpSseClientTask::Impl::DispatchCallback(
+    Callback cb, HttpSseClientResult result) const {
+  if (!cb) {
+    return;
+  }
+
+  boost::asio::post(callback_executor_,
+                    [cb = std::move(cb), result = std::move(result)]() mutable {
+                      cb(result);
+                    });
 }
 
 void HttpSseClientTask::Impl::RunPostedStart(const std::shared_ptr<Impl>& self,
@@ -158,7 +171,7 @@ void HttpSseClientTask::Impl::OnResolve(
   }
 
   if (use_ssl_) {
-    ssl_stream_.emplace(executor_, *ssl_ctx_);
+    ssl_stream_.emplace(io_executor_, *ssl_ctx_);
     boost::beast::get_lowest_layer(*ssl_stream_)
         .expires_after(options_.connect_timeout);
     boost::beast::get_lowest_layer(*ssl_stream_)
@@ -172,7 +185,7 @@ void HttpSseClientTask::Impl::OnResolve(
     return;
   }
 
-  tcp_stream_.emplace(executor_);
+  tcp_stream_.emplace(io_executor_);
   tcp_stream_->expires_after(options_.connect_timeout);
   tcp_stream_->async_connect(
       results,
@@ -312,9 +325,7 @@ void HttpSseClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   result.error_stage = HttpSseClientErrorStage::kNone;
   result.header = msg.base();
   Callback const callback = std::move(start_callback_);
-  if (callback) {
-    callback(result);
-  }
+  DispatchCallback(callback, std::move(result));
 }
 
 void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
@@ -337,9 +348,7 @@ void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
   done_ = true;
 
   Callback const callback = std::move(start_callback_);
-  if (callback) {
-    callback(result);
-  }
+  DispatchCallback(callback, std::move(result));
 }
 
 void HttpSseClientTask::Impl::DoCancel() {

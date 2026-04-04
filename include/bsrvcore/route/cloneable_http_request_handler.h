@@ -26,7 +26,9 @@ namespace bsrvcore {
 /**
  * @brief Handler interface that can be deep-cloned for reusable blueprints.
  */
-class CloneableHttpRequestHandler : public HttpRequestHandler {
+class CloneableHttpRequestHandler
+    : public HttpRequestHandler,
+      public NonCopyableNonMovable<CloneableHttpRequestHandler> {
  public:
   /**
    * @brief Create a deep copy of this handler.

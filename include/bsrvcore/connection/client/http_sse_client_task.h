@@ -23,13 +23,14 @@
 #include <string>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 
 /**
  * @brief Runtime options for a single SSE connection.
  */
-struct HttpSseClientOptions {
+struct HttpSseClientOptions : public CopyableMovable<HttpSseClientOptions> {
   /** @brief DNS resolve timeout. */
   std::chrono::milliseconds resolve_timeout{2000};
   /** @brief TCP connect timeout. */
@@ -85,7 +86,7 @@ enum class HttpSseClientErrorStage {
 /**
  * @brief Unified callback payload for Start()/Next().
  */
-struct HttpSseClientResult {
+struct HttpSseClientResult : public CopyableMovable<HttpSseClientResult> {
   /** @brief Operation error code, 0 on success. */
   boost::system::error_code ec;
   /** @brief Current callback stage. */
@@ -106,19 +107,31 @@ struct HttpSseClientResult {
  * @brief Asynchronous SSE client task using pull-based Start/Next model.
  */
 class HttpSseClientTask
-    : public std::enable_shared_from_this<HttpSseClientTask> {
+    : public std::enable_shared_from_this<HttpSseClientTask>,
+      public NonCopyableNonMovable<HttpSseClientTask> {
  public:
+  /** @brief Executor type accepted by HttpSseClientTask factories. */
+  using Executor = boost::asio::io_context::executor_type;
   /** @brief Callback type for Start()/Next(). */
   using Callback = std::function<void(const HttpSseClientResult&)>;
 
   /** @brief Create plain HTTP SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttp(
-      boost::asio::io_context::executor_type executor, std::string host,
+      Executor io_executor, std::string host, std::string port,
+      std::string target, HttpSseClientOptions options = {});
+  /** @brief Create plain HTTP SSE task with a dedicated callback executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateHttp(
+      Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, HttpSseClientOptions options = {});
 
   /** @brief Create HTTPS SSE task from host/port/target. */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
-      boost::asio::io_context::executor_type executor,
+      Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string host, std::string port, std::string target,
+      HttpSseClientOptions options = {});
+  /** @brief Create HTTPS SSE task with a dedicated callback executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateHttps(
+      Executor io_executor, Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
       std::string target, HttpSseClientOptions options = {});
 
@@ -129,12 +142,21 @@ class HttpSseClientTask
    * `invalid_argument` and error stage `kCreate`.
    */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor, const std::string& url,
+      Executor io_executor, const std::string& url,
+      HttpSseClientOptions options = {});
+  /** @brief Create SSE task from URL with a dedicated callback executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
+      Executor io_executor, Executor callback_executor, const std::string& url,
       HttpSseClientOptions options = {});
 
   /** @brief Create SSE task from URL with SSL context. */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor,
+      Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      const std::string& url, HttpSseClientOptions options = {});
+  /** @brief Create SSE task from URL with SSL and a dedicated callback
+   * executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
+      Executor io_executor, Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, const std::string& url,
       HttpSseClientOptions options = {});
 

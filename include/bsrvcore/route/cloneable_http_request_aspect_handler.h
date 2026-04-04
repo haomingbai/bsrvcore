@@ -25,7 +25,9 @@ namespace bsrvcore {
 /**
  * @brief Aspect interface that can be deep-cloned for reusable blueprints.
  */
-class CloneableHttpRequestAspectHandler : public HttpRequestAspectHandler {
+class CloneableHttpRequestAspectHandler
+    : public HttpRequestAspectHandler,
+      public NonCopyableNonMovable<CloneableHttpRequestAspectHandler> {
  public:
   /**
    * @brief Create a deep copy of this aspect.

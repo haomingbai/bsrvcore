@@ -59,7 +59,8 @@ class HttpPostServerTask;
  * };
  * @endcode
  */
-class HttpRequestAspectHandler {
+class HttpRequestAspectHandler
+    : public NonCopyableNonMovable<HttpRequestAspectHandler> {
  public:
   /**
    * @brief Execute before the main request handler

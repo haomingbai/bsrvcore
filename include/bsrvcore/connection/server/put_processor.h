@@ -16,50 +16,57 @@
 #include <boost/asio/any_io_executor.hpp>
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/trait.h"
+#include "bsrvcore/file/file_writer.h"
 
 namespace bsrvcore {
 
 /**
- * @brief Wraps an already-buffered PUT request body for async disk dumping.
- *
- * The task-based constructor dispatches dump work and completion callbacks on
- * the owning server's worker executor. When constructed from a request alone,
- * async dump helpers require a valid executor argument in the constructor.
+ * @brief Lightweight wrapper for PUT request payloads exposed as FileWriter.
  */
-class PutProcessor {
+class PutProcessor : public std::enable_shared_from_this<PutProcessor>,
+                     public NonCopyableNonMovable<PutProcessor> {
  public:
+  /** @brief Completion callback used by the compatibility dump API. */
   using DumpCallback = std::function<void(bool)>;
 
-  explicit PutProcessor(HttpTaskBase& task);
-  explicit PutProcessor(
+  /** @brief Create a processor from a server task. */
+  [[nodiscard]] static std::shared_ptr<PutProcessor> Create(HttpTaskBase& task);
+  /** @brief Create a processor from a request and explicit executors. */
+  [[nodiscard]] static std::shared_ptr<PutProcessor> Create(
+      const HttpRequest& request, boost::asio::any_io_executor work_executor,
+      boost::asio::any_io_executor callback_executor);
+  /** @brief Create a processor using the same executor for work and callbacks.
+   */
+  [[nodiscard]] static std::shared_ptr<PutProcessor> Create(
       const HttpRequest& request,
       boost::asio::any_io_executor executor = boost::asio::any_io_executor());
 
-  /**
-   * @brief Dump the PUT request body to disk asynchronously.
-   * @param path Destination path.
-   * @param callback Completion callback receiving final write success/failure.
-   * @return true if the request body is dumpable and work was scheduled.
-   */
+  /** @brief Return the writer that owns the request payload. */
+  [[nodiscard]] std::shared_ptr<FileWriter> GetFileWriter() const noexcept;
+
+  /** @brief Compatibility helper that writes the payload to disk. */
   [[nodiscard]] bool AsyncDumpToDisk(std::filesystem::path path,
                                      DumpCallback callback) const;
-
-  /**
-   * @brief Dump the PUT request body to disk asynchronously and ignore the
-   *        final completion result.
-   * @param path Destination path.
-   * @return true if the request body is dumpable and work was scheduled.
-   */
+  /** @brief Compatibility helper that writes the payload to disk without
+   * callback. */
   [[nodiscard]] bool AsyncDumpToDisk(std::filesystem::path path) const {
     return AsyncDumpToDisk(std::move(path), DumpCallback{});
   }
 
  private:
-  std::string body_;
+  struct PrivateTag {};
+
+  PutProcessor(PrivateTag, const HttpRequest& request,
+               boost::asio::any_io_executor work_executor,
+               boost::asio::any_io_executor callback_executor);
+
+  std::shared_ptr<FileWriter> writer_;
   boost::asio::any_io_executor work_executor_;
   boost::asio::any_io_executor callback_executor_;
   bool is_put_{false};

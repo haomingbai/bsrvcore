@@ -52,12 +52,13 @@ std::string GetLastErrorMessage(DWORD error_code) {
   const DWORD flags = FORMAT_MESSAGE_ALLOCATE_BUFFER |
                       FORMAT_MESSAGE_FROM_SYSTEM |
                       FORMAT_MESSAGE_IGNORE_INSERTS;
-  const DWORD len = FormatMessageA(flags, nullptr, error_code, 0,
-                                   reinterpret_cast<LPSTR>(&buffer), 0,
-                                   nullptr);
+  const DWORD len =
+      FormatMessageA(flags, nullptr, error_code, 0,
+                     reinterpret_cast<LPSTR>(&buffer), 0, nullptr);
 
   if (len == 0 || buffer == nullptr) {
-    return "error code " + std::to_string(static_cast<unsigned long>(error_code));
+    return "error code " +
+           std::to_string(static_cast<unsigned long>(error_code));
   }
 
   std::string message(buffer, len);
@@ -127,8 +128,8 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
       GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetHandlerFactory"));
   if (symbol == nullptr) {
     throw std::runtime_error("`GetHandlerFactory` not found in `" +
-                             config.library + "`: " +
-                             GetLastErrorMessage(GetLastError()));
+                             config.library +
+                             "`: " + GetLastErrorMessage(GetLastError()));
   }
 #else
   dlerror();
@@ -169,8 +170,8 @@ PluginLoader::CreateAspect(const FactoryConfig& config) const {
       GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetAspectFactory"));
   if (symbol == nullptr) {
     throw std::runtime_error("`GetAspectFactory` not found in `" +
-                             config.library + "`: " +
-                             GetLastErrorMessage(GetLastError()));
+                             config.library +
+                             "`: " + GetLastErrorMessage(GetLastError()));
   }
 #else
   dlerror();

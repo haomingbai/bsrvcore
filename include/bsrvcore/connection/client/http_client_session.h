@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 
@@ -44,32 +45,56 @@ namespace bsrvcore {
  * Note: this session does NOT provide persistence.
  */
 class HttpClientSession
-    : public std::enable_shared_from_this<HttpClientSession> {
+    : public std::enable_shared_from_this<HttpClientSession>,
+      public NonCopyableNonMovable<HttpClientSession> {
  public:
   /** @brief Create a shared session instance. */
   static std::shared_ptr<HttpClientSession> Create();
 
   /** @brief Create plain HTTP task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttp(
-      boost::asio::io_context::executor_type executor, std::string host,
+      HttpClientTask::Executor io_executor, std::string host, std::string port,
+      std::string target, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+  /** @brief Create plain HTTP task with a dedicated callback executor. */
+  std::shared_ptr<HttpClientTask> CreateHttp(
+      HttpClientTask::Executor io_executor,
+      HttpClientTask::Executor callback_executor, std::string host,
       std::string port, std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
   /** @brief Create HTTPS task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttps(
-      boost::asio::io_context::executor_type executor,
+      HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string host, std::string port, std::string target,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+  /** @brief Create HTTPS task with a dedicated callback executor. */
+  std::shared_ptr<HttpClientTask> CreateHttps(
+      HttpClientTask::Executor io_executor,
+      HttpClientTask::Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
       std::string target, boost::beast::http::verb method,
       HttpClientOptions options = {});
 
   /** @brief Create task from URL without SSL context. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor, std::string url,
+      HttpClientTask::Executor io_executor, std::string url,
+      boost::beast::http::verb method, HttpClientOptions options = {});
+  /** @brief Create task from URL with a dedicated callback executor. */
+  std::shared_ptr<HttpClientTask> CreateFromUrl(
+      HttpClientTask::Executor io_executor,
+      HttpClientTask::Executor callback_executor, std::string url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 
   /** @brief Create task from URL with SSL context. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      boost::asio::io_context::executor_type executor,
+      HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string url, boost::beast::http::verb method,
+      HttpClientOptions options = {});
+  /** @brief Create task from URL with SSL and a dedicated callback executor. */
+  std::shared_ptr<HttpClientTask> CreateFromUrl(
+      HttpClientTask::Executor io_executor,
+      HttpClientTask::Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, std::string url,
       boost::beast::http::verb method, HttpClientOptions options = {});
 

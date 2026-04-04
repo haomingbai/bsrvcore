@@ -33,7 +33,7 @@ class HttpRequestHandlerFactory;
 #define BSRVCORE_BSRVRUN_PLUGIN_EXPORT __attribute__((visibility("default")))
 #else
 #define BSRVCORE_BSRVRUN_PLUGIN_EXPORT
-#endif
+#endif  // BSRVCORE_BSRVRUN_PLUGIN_EXPORT_H_
 
 /**
  * @def BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT
@@ -43,8 +43,8 @@ class HttpRequestHandlerFactory;
  * plugin so the symbol is exported with C linkage on every supported platform.
  */
 #define BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT \
-  extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT \
-  bsrvcore::bsrvrun::HttpRequestHandlerFactory*
+  extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT     \
+      bsrvcore::bsrvrun::HttpRequestHandlerFactory*
 
 /**
  * @def BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT
@@ -54,7 +54,7 @@ class HttpRequestHandlerFactory;
  * plugin so the symbol is exported with C linkage on every supported platform.
  */
 #define BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT \
-  extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT \
-  bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
+  extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT    \
+      bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
 
 #endif

@@ -56,7 +56,7 @@ class HttpServerTask;
  *                           AllocateUnique<UserHandler>());
  * @endcode
  */
-class HttpRequestHandler {
+class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
  public:
   /**
    * @brief Process an HTTP request and generate response

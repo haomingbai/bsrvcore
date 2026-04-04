@@ -43,20 +43,24 @@ namespace bsrvcore {
  */
 template <typename Derived>
 struct CopyableOnly {
+  /// @cond INTERNAL
   CopyableOnly() = default;
+  ~CopyableOnly() = default;
   CopyableOnly(const CopyableOnly&) = default;             // allow copy
   CopyableOnly& operator=(const CopyableOnly&) = default;  // allow copy-assign
 
   CopyableOnly(CopyableOnly&&) = delete;  // disallow move
   CopyableOnly& operator=(CopyableOnly&&) = delete;
+  /// @endcond
 
-  ~CopyableOnly() = default;
-
- protected:
   /// @brief CRTP helper to access derived class instance
-  Derived& derived() noexcept { return static_cast<Derived&>(*this); }
+  [[nodiscard]]
+  Derived& derived() noexcept {
+    return static_cast<Derived&>(*this);
+  }
 
   /// @brief CRTP helper to access const derived class instance
+  [[nodiscard]]
   const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
@@ -85,7 +89,9 @@ struct CopyableOnly {
  */
 template <typename Derived>
 struct MovableOnly {
+  /// @cond INTERNAL
   MovableOnly() = default;
+  ~MovableOnly() = default;
 
   MovableOnly(const MovableOnly&) = delete;  // disallow copy
   MovableOnly& operator=(const MovableOnly&) = delete;
@@ -93,14 +99,16 @@ struct MovableOnly {
   MovableOnly(MovableOnly&&) noexcept = default;  // allow move
   MovableOnly& operator=(MovableOnly&&) noexcept =
       default;  // allow move-assign
+  /// @endcond
 
-  ~MovableOnly() = default;
-
- protected:
   /// @brief CRTP helper to access derived class instance
-  Derived& derived() noexcept { return static_cast<Derived&>(*this); }
+  [[nodiscard]]
+  Derived& derived() noexcept {
+    return static_cast<Derived&>(*this);
+  }
 
   /// @brief CRTP helper to access const derived class instance
+  [[nodiscard]]
   const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
@@ -128,37 +136,24 @@ struct MovableOnly {
  */
 template <typename Derived>
 struct CopyableMovable {
- private:
+  /// @cond INTERNAL
   CopyableMovable() = default;
-
- public:
- private:
-  CopyableMovable(const CopyableMovable&) = default;
-
- public:
-  // allow copy
-  CopyableMovable& operator=(const CopyableMovable&) = default;
-
- private:
-  CopyableMovable(CopyableMovable&&) noexcept = default;
-
- public:
-  // allow move
-  CopyableMovable& operator=(CopyableMovable&&) noexcept = default;
-
   ~CopyableMovable() = default;
-
- protected:
+  CopyableMovable(const CopyableMovable&) = default;
+  CopyableMovable& operator=(const CopyableMovable&) = default;
+  CopyableMovable(CopyableMovable&&) noexcept = default;
+  CopyableMovable& operator=(CopyableMovable&&) noexcept = default;
+  /// @endcond
   /// @brief CRTP helper to access derived class instance
-  Derived& derived() noexcept { return static_cast<Derived&>(*this); }
+  [[nodiscard]]
+  Derived& derived() noexcept {
+    return static_cast<Derived&>(*this);
+  }
 
   /// @brief CRTP helper to access const derived class instance
   [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
-  friend Derived;
-  friend Derived;
-  friend Derived;
 };
 
 /**
@@ -184,27 +179,25 @@ struct CopyableMovable {
  */
 template <typename Derived>
 struct NonCopyableNonMovable {
- private:
+  /// @cond INTERNAL
   NonCopyableNonMovable() = default;
-
- public:
+  ~NonCopyableNonMovable() = default;
   NonCopyableNonMovable(const NonCopyableNonMovable&) = delete;  // disable both
   NonCopyableNonMovable& operator=(const NonCopyableNonMovable&) = delete;
 
   NonCopyableNonMovable(NonCopyableNonMovable&&) = delete;
   NonCopyableNonMovable& operator=(NonCopyableNonMovable&&) = delete;
-
-  ~NonCopyableNonMovable() = default;
-
- protected:
+  /// @endcond
   /// @brief CRTP helper to access derived class instance
-  Derived& derived() noexcept { return static_cast<Derived&>(*this); }
+  [[nodiscard]]
+  Derived& derived() noexcept {
+    return static_cast<Derived&>(*this);
+  }
 
   /// @brief CRTP helper to access const derived class instance
   [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
-  friend Derived;
 };
 
 }  // namespace bsrvcore

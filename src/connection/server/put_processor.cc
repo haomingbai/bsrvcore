@@ -15,32 +15,68 @@
 #include <filesystem>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
-#include "internal/server/request_body_processor_detail.h"
+#include "bsrvcore/file/file_state.h"
 
 namespace bsrvcore {
 
-PutProcessor::PutProcessor(HttpTaskBase& task)
-    : PutProcessor(task.GetRequest(), task.GetExecutor()) {}
+std::shared_ptr<PutProcessor> PutProcessor::Create(HttpTaskBase& task) {
+  return Create(task.GetRequest(), task.GetExecutor(), task.GetExecutor());
+}
 
-PutProcessor::PutProcessor(const HttpRequest& request,
-                           boost::asio::any_io_executor executor)
-    : body_(request.body()),
-      work_executor_(executor),
-      callback_executor_(std::move(executor)),
-      is_put_(request.method() == boost::beast::http::verb::put) {}
+std::shared_ptr<PutProcessor> PutProcessor::Create(
+    const HttpRequest& request, boost::asio::any_io_executor work_executor,
+    boost::asio::any_io_executor callback_executor) {
+  struct SharedEnabler final : PutProcessor {
+    SharedEnabler(const HttpRequest& request_in,
+                  boost::asio::any_io_executor work_executor_in,
+                  boost::asio::any_io_executor callback_executor_in)
+        : PutProcessor(PrivateTag{}, request_in, std::move(work_executor_in),
+                       std::move(callback_executor_in)) {}
+  };
+
+  return AllocateShared<SharedEnabler>(request, std::move(work_executor),
+                                       std::move(callback_executor));
+}
+
+std::shared_ptr<PutProcessor> PutProcessor::Create(
+    const HttpRequest& request, boost::asio::any_io_executor executor) {
+  return Create(request, executor, executor);
+}
+
+PutProcessor::PutProcessor(PrivateTag, const HttpRequest& request,
+                           boost::asio::any_io_executor work_executor,
+                           boost::asio::any_io_executor callback_executor)
+    : work_executor_(std::move(work_executor)),
+      callback_executor_(std::move(callback_executor)),
+      is_put_(request.method() == boost::beast::http::verb::put) {
+  if (is_put_) {
+    writer_ =
+        FileWriter::Create(request.body(), work_executor_, callback_executor_);
+  }
+}
+
+std::shared_ptr<FileWriter> PutProcessor::GetFileWriter() const noexcept {
+  return writer_;
+}
 
 bool PutProcessor::AsyncDumpToDisk(std::filesystem::path path,
                                    DumpCallback callback) const {
-  if (!work_executor_ || (callback && !callback_executor_) || !is_put_ ||
-      path.empty()) {
+  if (!writer_ || path.empty()) {
     return false;
   }
 
-  request_body_internal::AsyncDumpPayload(work_executor_, callback_executor_,
-                                          std::move(path), body_,
-                                          std::move(callback));
-  return true;
+  if (!callback) {
+    return writer_->AsyncWriteToDisk(std::move(path));
+  }
+
+  return writer_->AsyncWriteToDisk(
+      std::move(path), FileWritingState::Create(),
+      [callback = std::move(callback)](
+          const std::shared_ptr<FileWritingState>& state) mutable {
+        callback(state && !state->ec);
+      });
 }
 
 }  // namespace bsrvcore

@@ -20,7 +20,7 @@ The task gives access to:
 
 - Request/response: `GetRequest()`, `GetResponse()`
 - JSON helpers: `ParseRequestJson()`, `TryParseRequestJson()`, `SetJson()`
-- Request body wrappers: `MultipartParser(*task)`, `PutProcessor(*task)`
+- Request body wrappers: `MultipartParser::Create(*task)`, `PutProcessor::Create(*task)`
 - Response helpers: `SetBody()`, `AppendBody()`, `SetField()`, `SetKeepAlive()`
 - Async helpers: `Post()`, `Dispatch()`, `FuturedPost()`, `SetTimer()`
 - I/O helpers: `PostToIoContext()`, `DispatchToIoContext()`, `GetIoExecutor()`, `GetEndpointExecutors()`, `GetGlobalExecutors()`

@@ -13,7 +13,6 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_SSE_CLIENT_TASK_IMPL_H_
 #define BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_SSE_CLIENT_TASK_IMPL_H_
 
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/strand.hpp>
@@ -40,7 +39,8 @@ class HttpSseClientTask::Impl
   using Callback = HttpSseClientTask::Callback;
   using tcp = boost::asio::ip::tcp;
 
-  Impl(boost::asio::any_io_executor executor, std::string host,
+  Impl(HttpSseClientTask::Executor io_executor,
+       HttpSseClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target, HttpSseClientOptions options,
        bool use_ssl, boost::asio::ssl::context* ssl_ctx);
 
@@ -53,6 +53,7 @@ class HttpSseClientTask::Impl
   HttpSseClientErrorStage ErrorStage() const noexcept;
   void SetCreateError(boost::system::error_code ec,
                       HttpSseClientErrorStage error_stage);
+  void DispatchCallback(Callback cb, HttpSseClientResult result) const;
 
  private:
   static void RunPostedStart(const std::shared_ptr<Impl>& self, Callback cb);
@@ -73,8 +74,9 @@ class HttpSseClientTask::Impl
                  boost::system::error_code ec);
   void DoCancel();
 
-  boost::asio::any_io_executor executor_;
-  boost::asio::strand<boost::asio::any_io_executor> strand_;
+  HttpSseClientTask::Executor io_executor_;
+  HttpSseClientTask::Executor callback_executor_;
+  boost::asio::strand<HttpSseClientTask::Executor> strand_;
   tcp::resolver resolver_;
 
   std::optional<boost::beast::tcp_stream> tcp_stream_;

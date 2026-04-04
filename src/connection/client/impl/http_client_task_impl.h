@@ -13,7 +13,6 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_CLIENT_TASK_IMPL_H_
 #define BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_CLIENT_TASK_IMPL_H_
 
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/strand.hpp>
@@ -41,7 +40,8 @@ class HttpClientTask::Impl
   using Callback = HttpClientTask::Callback;
   using tcp = boost::asio::ip::tcp;
 
-  Impl(boost::asio::any_io_executor executor, std::string host,
+  Impl(HttpClientTask::Executor io_executor,
+       HttpClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target,
        http_client_detail::http::verb method, HttpClientOptions options,
        bool use_ssl, boost::asio::ssl::context* ssl_ctx);
@@ -90,11 +90,13 @@ class HttpClientTask::Impl
   bool HasChunkCallback() const;
   Callback GetCallbackCopy(HttpClientStage stage) const;
   Callback GetDoneCallbackCopy() const;
+  void DispatchCallback(Callback cb, HttpClientResult result) const;
   static HttpClientStage ErrorStageToCallbackStage(
       HttpClientErrorStage error_stage);
 
-  boost::asio::any_io_executor executor_;
-  boost::asio::strand<boost::asio::any_io_executor> strand_;
+  HttpClientTask::Executor io_executor_;
+  HttpClientTask::Executor callback_executor_;
+  boost::asio::strand<HttpClientTask::Executor> strand_;
   tcp::resolver resolver_;
 
   std::optional<boost::beast::tcp_stream> tcp_stream_;
