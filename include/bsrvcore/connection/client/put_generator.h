@@ -41,16 +41,21 @@ class PutGenerator : public std::enable_shared_from_this<PutGenerator>,
       std::string target, HttpClientOptions options = {});
   /** @brief Create an HTTPS PUT generator. */
   [[nodiscard]] static std::shared_ptr<PutGenerator> CreateHttps(
-      HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string host, std::string port, std::string target,
-      HttpClientOptions options = {});
+      HttpClientTask::Executor executor, std::string host, std::string port,
+      std::string target, HttpClientOptions options = {});
+  /** @brief Create an HTTPS PUT generator with caller-provided TLS context. */
+  [[nodiscard]] static std::shared_ptr<PutGenerator> CreateHttps(
+      HttpClientTask::Executor executor,
+      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+      std::string port, std::string target, HttpClientOptions options = {});
   /** @brief Create a PUT generator from a URL without an SSL context. */
   [[nodiscard]] static std::shared_ptr<PutGenerator> CreateFromUrl(
       HttpClientTask::Executor executor, const std::string& url,
       HttpClientOptions options = {});
   /** @brief Create a PUT generator from a URL with an SSL context. */
   [[nodiscard]] static std::shared_ptr<PutGenerator> CreateFromUrl(
-      HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
+      HttpClientTask::Executor executor,
+      std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
       const std::string& url, HttpClientOptions options = {});
 
   /** @brief Set the file that will become the PUT request body. */
@@ -66,7 +71,8 @@ class PutGenerator : public std::enable_shared_from_this<PutGenerator>,
 
   PutGenerator(PrivateTag, HttpClientTask::Executor executor, std::string host,
                std::string port, std::string target, HttpClientOptions options,
-               bool use_ssl, boost::asio::ssl::context* ssl_ctx);
+               bool use_ssl,
+               std::shared_ptr<boost::asio::ssl::context> ssl_ctx);
 
   HttpClientTask::Executor executor_;
   std::string host_;
@@ -76,7 +82,7 @@ class PutGenerator : public std::enable_shared_from_this<PutGenerator>,
   std::shared_ptr<FileReader> reader_;
   std::string content_type_;
   bool use_ssl_{false};
-  boost::asio::ssl::context* ssl_ctx_{nullptr};
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
   std::error_code create_error_;
 };
 

@@ -42,7 +42,7 @@ class HttpSseClientTask::Impl
   Impl(HttpSseClientTask::Executor io_executor,
        HttpSseClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target, HttpSseClientOptions options,
-       bool use_ssl, boost::asio::ssl::context* ssl_ctx);
+       bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx = {});
 
   HttpRequest& Request() noexcept;
   void Start(Callback cb);
@@ -79,8 +79,9 @@ class HttpSseClientTask::Impl
   boost::asio::strand<HttpSseClientTask::Executor> strand_;
   tcp::resolver resolver_;
 
-  std::optional<boost::beast::tcp_stream> tcp_stream_;
-  std::optional<boost::beast::ssl_stream<boost::beast::tcp_stream>> ssl_stream_;
+  std::unique_ptr<boost::beast::tcp_stream> tcp_stream_;
+  std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>>
+      ssl_stream_;
 
   boost::beast::flat_buffer buffer_;
   std::optional<http_sse_detail::http::response_parser<
@@ -94,7 +95,7 @@ class HttpSseClientTask::Impl
   HttpSseClientOptions options_;
 
   bool use_ssl_{false};
-  boost::asio::ssl::context* ssl_ctx_{nullptr};
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
 
   bool started_{false};
   bool done_{false};

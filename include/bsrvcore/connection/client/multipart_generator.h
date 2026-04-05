@@ -66,16 +66,22 @@ class MultipartGenerator
       std::string target, HttpClientOptions options = {});
   /** @brief Create an HTTPS multipart generator. */
   [[nodiscard]] static std::shared_ptr<MultipartGenerator> CreateHttps(
-      HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
-      std::string host, std::string port, std::string target,
-      HttpClientOptions options = {});
+      HttpClientTask::Executor executor, std::string host, std::string port,
+      std::string target, HttpClientOptions options = {});
+  /** @brief Create an HTTPS multipart generator with caller-provided TLS
+   * context. */
+  [[nodiscard]] static std::shared_ptr<MultipartGenerator> CreateHttps(
+      HttpClientTask::Executor executor,
+      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+      std::string port, std::string target, HttpClientOptions options = {});
   /** @brief Create a multipart generator from a URL without an SSL context. */
   [[nodiscard]] static std::shared_ptr<MultipartGenerator> CreateFromUrl(
       HttpClientTask::Executor executor, const std::string& url,
       HttpClientOptions options = {});
   /** @brief Create a multipart generator from a URL with an SSL context. */
   [[nodiscard]] static std::shared_ptr<MultipartGenerator> CreateFromUrl(
-      HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
+      HttpClientTask::Executor executor,
+      std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
       const std::string& url, HttpClientOptions options = {});
 
   /** @brief Add one file-backed multipart section. */
@@ -97,7 +103,7 @@ class MultipartGenerator
   MultipartGenerator(PrivateTag, HttpClientTask::Executor executor,
                      std::string host, std::string port, std::string target,
                      HttpClientOptions options, bool use_ssl,
-                     boost::asio::ssl::context* ssl_ctx);
+                     std::shared_ptr<boost::asio::ssl::context> ssl_ctx);
 
   HttpClientTask::Executor executor_;
   std::string host_;
@@ -106,7 +112,7 @@ class MultipartGenerator
   HttpClientOptions options_;
   std::vector<PartSpec> parts_;
   bool use_ssl_{false};
-  boost::asio::ssl::context* ssl_ctx_{nullptr};
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
   std::error_code create_error_;
   std::size_t file_part_count_{0};
 };

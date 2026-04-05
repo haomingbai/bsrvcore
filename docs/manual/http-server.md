@@ -62,15 +62,25 @@ server->SetDefaultReadExpiry(5000)
 
 ## TLS (HTTPS)
 
-To enable HTTPS on the server, provide an SSL context:
+To enable HTTPS on one endpoint, provide a shared TLS context to that endpoint:
 
 ```cpp
-boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_server);
-// configure certificates / private key on ctx
-server->SetSslContext(std::move(ctx));
+auto tls_ctx = std::make_shared<boost::asio::ssl::context>(
+  boost::asio::ssl::context::tls_server);
+
+// configure certificates / private key on *tls_ctx
+server->AddListen(
+  {boost::asio::ip::make_address("0.0.0.0"), 8443},
+  2,
+  tls_ctx);
 ```
 
-You can disable HTTPS later with `UnsetSslContext()`.
+Notes:
+
+- `AddListen(endpoint, io_threads)` remains plain HTTP.
+- `AddListen(endpoint, io_threads, tls_ctx)` makes only that endpoint HTTPS.
+- Reusing the same `std::shared_ptr<context>` across endpoints shares one TLS configuration.
+- Passing different `std::shared_ptr<context>` objects isolates TLS state per endpoint.
 
 ## Posting work and timers
 

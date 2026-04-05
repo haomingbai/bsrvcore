@@ -45,11 +45,11 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
-    HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target,
-    boost::beast::http::verb method, HttpClientOptions options) {
+    HttpClientTask::Executor io_executor, std::string host, std::string port,
+    std::string target, boost::beast::http::verb method,
+    HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
-      std::move(io_executor), ssl_ctx, std::move(host), std::move(port),
+      std::move(io_executor), std::move(host), std::move(port),
       std::move(target), method, std::move(options));
   task->AttachSession(weak_from_this());
   return task;
@@ -57,12 +57,36 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
     HttpClientTask::Executor io_executor,
-    HttpClientTask::Executor callback_executor,
-    boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
-    std::string target, boost::beast::http::verb method,
+    HttpClientTask::Executor callback_executor, std::string host,
+    std::string port, std::string target, boost::beast::http::verb method,
     HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
-      std::move(io_executor), std::move(callback_executor), ssl_ctx,
+      std::move(io_executor), std::move(callback_executor), std::move(host),
+      std::move(port), std::move(target), method, std::move(options));
+  task->AttachSession(weak_from_this());
+  return task;
+}
+
+std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
+    HttpClientTask::Executor io_executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    std::string port, std::string target, boost::beast::http::verb method,
+    HttpClientOptions options) {
+  auto task = HttpClientTask::CreateHttps(
+      std::move(io_executor), std::move(ssl_ctx), std::move(host),
+      std::move(port), std::move(target), method, std::move(options));
+  task->AttachSession(weak_from_this());
+  return task;
+}
+
+std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
+    HttpClientTask::Executor io_executor,
+    HttpClientTask::Executor callback_executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    std::string port, std::string target, boost::beast::http::verb method,
+    HttpClientOptions options) {
+  auto task = HttpClientTask::CreateHttps(
+      std::move(io_executor), std::move(callback_executor), std::move(ssl_ctx),
       std::move(host), std::move(port), std::move(target), method,
       std::move(options));
   task->AttachSession(weak_from_this());
@@ -90,11 +114,11 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
-    HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
-    std::string url, boost::beast::http::verb method,
-    HttpClientOptions options) {
+    HttpClientTask::Executor io_executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
+    boost::beast::http::verb method, HttpClientOptions options) {
   auto task =
-      HttpClientTask::CreateFromUrl(std::move(io_executor), ssl_ctx,
+      HttpClientTask::CreateFromUrl(std::move(io_executor), std::move(ssl_ctx),
                                     std::move(url), method, std::move(options));
   task->AttachSession(weak_from_this());
   return task;
@@ -103,10 +127,10 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
     HttpClientTask::Executor io_executor,
     HttpClientTask::Executor callback_executor,
-    boost::asio::ssl::context& ssl_ctx, std::string url,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
     boost::beast::http::verb method, HttpClientOptions options) {
   auto task = HttpClientTask::CreateFromUrl(
-      std::move(io_executor), std::move(callback_executor), ssl_ctx,
+      std::move(io_executor), std::move(callback_executor), std::move(ssl_ctx),
       std::move(url), method, std::move(options));
   task->AttachSession(weak_from_this());
   return task;
@@ -126,12 +150,27 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttp(
 }
 
 std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
-    HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target,
+    HttpClientTask::Executor io_executor, std::string host, std::string port,
+    std::string target, WebSocketClientTask::HandlerPtr handler,
+    HttpClientOptions options) {
+  auto task = WebSocketClientTask::CreateHttps(
+      std::move(io_executor), std::move(host), std::move(port),
+      std::move(target), std::move(handler), std::move(options));
+  if (task) {
+    task->AttachSession(weak_from_this());
+  }
+  return task;
+}
+
+std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
+    HttpClientTask::Executor io_executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    std::string port, std::string target,
     WebSocketClientTask::HandlerPtr handler, HttpClientOptions options) {
   auto task = WebSocketClientTask::CreateHttps(
-      std::move(io_executor), ssl_ctx, std::move(host), std::move(port),
-      std::move(target), std::move(handler), std::move(options));
+      std::move(io_executor), std::move(ssl_ctx), std::move(host),
+      std::move(port), std::move(target), std::move(handler),
+      std::move(options));
   if (task) {
     task->AttachSession(weak_from_this());
   }
@@ -151,12 +190,12 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
 }
 
 std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
-    HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
-    std::string url, WebSocketClientTask::HandlerPtr handler,
-    HttpClientOptions options) {
+    HttpClientTask::Executor io_executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
+    WebSocketClientTask::HandlerPtr handler, HttpClientOptions options) {
   auto task = WebSocketClientTask::CreateFromUrl(
-      std::move(io_executor), ssl_ctx, std::move(url), std::move(handler),
-      std::move(options));
+      std::move(io_executor), std::move(ssl_ctx), std::move(url),
+      std::move(handler), std::move(options));
   if (task) {
     task->AttachSession(weak_from_this());
   }

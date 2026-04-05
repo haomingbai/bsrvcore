@@ -57,7 +57,6 @@ TEST(WebSocketClientTaskTest, CreateHttpSetsUpgradeHeadersOnRequest) {
 
 TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
   boost::asio::io_context ioc;
-  boost::asio::ssl::context ssl_ctx(boost::asio::ssl::context::tls_client);
 
   auto ws_task = bsrvcore::WebSocketClientTask::CreateFromUrl(
       ioc.get_executor(), "ws://127.0.0.1:8080/ws",
@@ -65,7 +64,7 @@ TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
   ASSERT_NE(ws_task, nullptr);
 
   auto wss_task = bsrvcore::WebSocketClientTask::CreateFromUrl(
-      ioc.get_executor(), ssl_ctx, "wss://127.0.0.1:8443/ws",
+      ioc.get_executor(), "wss://127.0.0.1:8443/ws",
       std::make_unique<ClientHandler>(std::make_shared<ClientHandlerState>()));
   ASSERT_NE(wss_task, nullptr);
 
@@ -73,22 +72,16 @@ TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
   EXPECT_EQ(wss_task->Request().method(), http::verb::get);
 }
 
-TEST(WebSocketClientTaskTest, WssStartFailsWithoutSslContext) {
+TEST(WebSocketClientTaskTest, ExplicitWssFactoryAcceptsSharedSslContext) {
   boost::asio::io_context ioc;
-  auto state = std::make_shared<ClientHandlerState>();
+  auto ssl_ctx = std::make_shared<boost::asio::ssl::context>(
+      boost::asio::ssl::context::tls_client);
   auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
-      ioc.get_executor(), "wss://127.0.0.1:8443/ws",
-      std::make_unique<ClientHandler>(state));
+      ioc.get_executor(), std::move(ssl_ctx), "wss://127.0.0.1:8443/ws",
+      std::make_unique<ClientHandler>(std::make_shared<ClientHandlerState>()));
 
   ASSERT_NE(task, nullptr);
-
-  task->Start();
-  ioc.run();
-
-  EXPECT_EQ(state->open_count, 0);
-  EXPECT_EQ(state->error_count, 1);
-  EXPECT_EQ(state->close_count, 1);
-  EXPECT_NE(state->last_error.find("SSL context"), std::string::npos);
+  EXPECT_EQ(task->Request().method(), http::verb::get);
 }
 
 TEST(WebSocketClientTaskTest, OnHttpDoneSetterSupportsChaining) {

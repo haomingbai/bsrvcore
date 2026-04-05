@@ -12,11 +12,13 @@
 
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/system/error_code.hpp>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "impl/default_client_ssl_context.h"
 
 namespace bsrvcore {
 
@@ -81,13 +83,32 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttp(
 }
 
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
-    Executor io_executor, boost::asio::ssl::context& ssl_ctx, std::string host,
-    std::string port, std::string target, HandlerPtr handler,
+    Executor io_executor, std::string host, std::string port,
+    std::string target, HandlerPtr handler, HttpClientOptions options) {
+  const auto& ssl_state =
+      connection_internal::GetDefaultClientSslContextState();
+  auto ws_task = AllocateShared<WebSocketClientTask>(
+      std::move(io_executor), std::move(host), std::move(port),
+      std::move(target), std::move(handler), std::move(options), true,
+      ssl_state.ssl_ctx);
+  if (ssl_state.ec) {
+    ws_task->SetCreateError(ssl_state.ec,
+                            ssl_state.error_message.empty()
+                                ? "failed to initialize system SSL context"
+                                : ssl_state.error_message);
+  }
+  ConfigureUpgradeHeaders(ws_task->Request());
+  return ws_task;
+}
+
+std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
+    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
+    std::string host, std::string port, std::string target, HandlerPtr handler,
     HttpClientOptions options) {
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), true,
-      &ssl_ctx);
+      std::move(ssl_ctx));
   ConfigureUpgradeHeaders(ws_task->Request());
   return ws_task;
 }
@@ -103,17 +124,36 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
     return nullptr;
   }
 
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  if (use_ssl) {
+    const auto& ssl_state =
+        connection_internal::GetDefaultClientSslContextState();
+    ssl_ctx = ssl_state.ssl_ctx;
+    if (ssl_state.ec) {
+      auto ws_task = AllocateShared<WebSocketClientTask>(
+          std::move(io_executor), std::move(host), std::move(port),
+          std::move(target), std::move(handler), std::move(options), true,
+          nullptr);
+      ws_task->SetCreateError(ssl_state.ec,
+                              ssl_state.error_message.empty()
+                                  ? "failed to initialize system SSL context"
+                                  : ssl_state.error_message);
+      ConfigureUpgradeHeaders(ws_task->Request());
+      return ws_task;
+    }
+  }
+
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), use_ssl,
-      nullptr);
+      std::move(ssl_ctx));
   ConfigureUpgradeHeaders(ws_task->Request());
   return ws_task;
 }
 
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
-    Executor io_executor, boost::asio::ssl::context& ssl_ctx, std::string url,
-    HandlerPtr handler, HttpClientOptions options) {
+    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
+    std::string url, HandlerPtr handler, HttpClientOptions options) {
   bool use_ssl = false;
   std::string host;
   std::string port;
@@ -125,7 +165,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), use_ssl,
-      use_ssl ? &ssl_ctx : nullptr);
+      use_ssl ? std::move(ssl_ctx)
+              : std::shared_ptr<boost::asio::ssl::context>{});
   ConfigureUpgradeHeaders(ws_task->Request());
   return ws_task;
 }
@@ -145,12 +186,10 @@ void WebSocketClientTask::AttachSession(
 
 WebSocketClientTask::~WebSocketClientTask() = default;
 
-WebSocketClientTask::WebSocketClientTask(Executor io_executor, std::string host,
-                                         std::string port, std::string target,
-                                         HandlerPtr handler,
-                                         HttpClientOptions options,
-                                         bool use_ssl,
-                                         boost::asio::ssl::context* ssl_ctx)
+WebSocketClientTask::WebSocketClientTask(
+    Executor io_executor, std::string host, std::string port,
+    std::string target, HandlerPtr handler, HttpClientOptions options,
+    bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
     : WebSocketTaskBase(std::move(handler)),
       io_executor_(std::move(io_executor)),
       host_(std::move(host)),
@@ -158,11 +197,17 @@ WebSocketClientTask::WebSocketClientTask(Executor io_executor, std::string host,
       target_(std::move(target)),
       options_(std::move(options)),
       use_ssl_(use_ssl),
-      ssl_ctx_(ssl_ctx) {
+      ssl_ctx_(std::move(ssl_ctx)) {
   request_.method(http::verb::get);
   request_.target(target_);
   request_.version(11);
   request_.set(http::field::host, host_);
+}
+
+void WebSocketClientTask::SetCreateError(boost::system::error_code ec,
+                                         std::string message) {
+  create_error_ = ec;
+  create_error_message_ = std::move(message);
 }
 
 void WebSocketClientTask::EmitHttpDone(boost::system::error_code ec,

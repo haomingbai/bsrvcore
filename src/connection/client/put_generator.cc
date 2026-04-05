@@ -23,6 +23,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/async_waiter.h"
 #include "bsrvcore/file/file_writer.h"
+#include "impl/default_client_ssl_context.h"
 #include "impl/http_url_parser.h"
 
 namespace bsrvcore {
@@ -52,6 +53,14 @@ inline void PostOrRun(const HttpClientTask::Executor& executor, Fn&& fn) {
   boost::asio::post(executor, std::forward<Fn>(fn));
 }
 
+std::error_code MakeDefaultSslContextError(
+    const connection_internal::DefaultClientSslContextState& state) {
+  if (!state.ec) {
+    return {};
+  }
+  return std::make_error_code(std::errc::io_error);
+}
+
 struct PutBuildState {
   explicit PutBuildState(HttpClientTask::Executor executor_in)
       : executor(std::move(executor_in)) {}
@@ -63,7 +72,7 @@ struct PutBuildState {
   HttpClientOptions options;
   std::string content_type;
   bool use_ssl{false};
-  boost::asio::ssl::context* ssl_ctx{nullptr};
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
   PutGenerator::ReadyCallback callback;
   std::atomic_bool done{false};
 
@@ -89,7 +98,7 @@ struct PutBuildState {
     }
 
     auto task =
-        use_ssl ? HttpClientTask::CreateHttps(executor, *ssl_ctx, host, port,
+        use_ssl ? HttpClientTask::CreateHttps(executor, ssl_ctx, host, port,
                                               target, http::verb::put, options)
                 : HttpClientTask::CreateHttp(executor, host, port, target,
                                              http::verb::put, options);
@@ -115,10 +124,11 @@ std::shared_ptr<PutGenerator> PutGenerator::CreateHttp(
     SharedEnabler(HttpClientTask::Executor executor_in, std::string host_in,
                   std::string port_in, std::string target_in,
                   HttpClientOptions options_in, bool use_ssl_in,
-                  boost::asio::ssl::context* ssl_ctx_in)
+                  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_in)
         : PutGenerator(PrivateTag{}, std::move(executor_in), std::move(host_in),
                        std::move(port_in), std::move(target_in),
-                       std::move(options_in), use_ssl_in, ssl_ctx_in) {}
+                       std::move(options_in), use_ssl_in,
+                       std::move(ssl_ctx_in)) {}
   };
 
   return AllocateShared<SharedEnabler>(std::move(executor), std::move(host),
@@ -127,22 +137,42 @@ std::shared_ptr<PutGenerator> PutGenerator::CreateHttp(
 }
 
 std::shared_ptr<PutGenerator> PutGenerator::CreateHttps(
-    HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
-    std::string host, std::string port, std::string target,
-    HttpClientOptions options) {
+    HttpClientTask::Executor executor, std::string host, std::string port,
+    std::string target, HttpClientOptions options) {
+  const auto& ssl_state =
+      connection_internal::GetDefaultClientSslContextState();
+  auto generator =
+      CreateHttps(std::move(executor), ssl_state.ssl_ctx, std::move(host),
+                  std::move(port), std::move(target), std::move(options));
+  if (ssl_state.ec) {
+    generator->create_error_ = MakeDefaultSslContextError(ssl_state);
+  }
+  return generator;
+}
+
+std::shared_ptr<PutGenerator> PutGenerator::CreateHttps(
+    HttpClientTask::Executor executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    std::string port, std::string target, HttpClientOptions options) {
   struct SharedEnabler final : PutGenerator {
     SharedEnabler(HttpClientTask::Executor executor_in, std::string host_in,
                   std::string port_in, std::string target_in,
                   HttpClientOptions options_in, bool use_ssl_in,
-                  boost::asio::ssl::context* ssl_ctx_in)
+                  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_in)
         : PutGenerator(PrivateTag{}, std::move(executor_in), std::move(host_in),
                        std::move(port_in), std::move(target_in),
-                       std::move(options_in), use_ssl_in, ssl_ctx_in) {}
+                       std::move(options_in), use_ssl_in,
+                       std::move(ssl_ctx_in)) {}
   };
 
-  return AllocateShared<SharedEnabler>(std::move(executor), std::move(host),
-                                       std::move(port), std::move(target),
-                                       std::move(options), true, &ssl_ctx);
+  auto generator = AllocateShared<SharedEnabler>(
+      std::move(executor), std::move(host), std::move(port), std::move(target),
+      std::move(options), true, std::move(ssl_ctx));
+  if (generator->ssl_ctx_ == nullptr) {
+    generator->create_error_ =
+        std::make_error_code(std::errc::invalid_argument);
+  }
+  return generator;
 }
 
 std::shared_ptr<PutGenerator> PutGenerator::CreateFromUrl(
@@ -161,14 +191,20 @@ std::shared_ptr<PutGenerator> PutGenerator::CreateFromUrl(
   client->target_ = parsed->target;
   client->use_ssl_ = parsed->https;
   if (parsed->https) {
-    client->create_error_ = std::make_error_code(std::errc::invalid_argument);
+    const auto& ssl_state =
+        connection_internal::GetDefaultClientSslContextState();
+    client->ssl_ctx_ = ssl_state.ssl_ctx;
+    if (ssl_state.ec) {
+      client->create_error_ = MakeDefaultSslContextError(ssl_state);
+    }
   }
   return client;
 }
 
 std::shared_ptr<PutGenerator> PutGenerator::CreateFromUrl(
-    HttpClientTask::Executor executor, boost::asio::ssl::context& ssl_ctx,
-    const std::string& url, HttpClientOptions options) {
+    HttpClientTask::Executor executor,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, const std::string& url,
+    HttpClientOptions options) {
   auto client =
       CreateHttp(std::move(executor), "", "", "/", std::move(options));
   auto parsed = ParseHttpUrl(url);
@@ -181,21 +217,27 @@ std::shared_ptr<PutGenerator> PutGenerator::CreateFromUrl(
   client->port_ = parsed->port;
   client->target_ = parsed->target;
   client->use_ssl_ = parsed->https;
-  client->ssl_ctx_ = parsed->https ? &ssl_ctx : nullptr;
+  client->ssl_ctx_ = parsed->https
+                         ? std::move(ssl_ctx)
+                         : std::shared_ptr<boost::asio::ssl::context>{};
+  if (parsed->https && client->ssl_ctx_ == nullptr) {
+    client->create_error_ = std::make_error_code(std::errc::invalid_argument);
+  }
   return client;
 }
 
 PutGenerator::PutGenerator(PrivateTag, HttpClientTask::Executor executor,
                            std::string host, std::string port,
                            std::string target, HttpClientOptions options,
-                           bool use_ssl, boost::asio::ssl::context* ssl_ctx)
+                           bool use_ssl,
+                           std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
     : executor_(std::move(executor)),
       host_(std::move(host)),
       port_(std::move(port)),
       target_(std::move(target)),
       options_(std::move(options)),
       use_ssl_(use_ssl),
-      ssl_ctx_(ssl_ctx) {}
+      ssl_ctx_(std::move(ssl_ctx)) {}
 
 PutGenerator& PutGenerator::SetFile(std::shared_ptr<FileReader> reader) {
   reader_ = std::move(reader);

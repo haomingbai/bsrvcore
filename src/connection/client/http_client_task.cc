@@ -13,12 +13,14 @@
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/system/errc.hpp>
+#include <boost/system/error_code.hpp>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "impl/default_client_ssl_context.h"
 #include "impl/http_client_task_impl.h"
 #include "impl/http_url_parser.h"
 
@@ -69,6 +71,22 @@ HttpClientTask::HttpClientTask(std::shared_ptr<Impl> impl)
 
 HttpClientTask::~HttpClientTask() = default;
 
+std::shared_ptr<HttpClientTask::Impl> HttpClientTask::CreateDefaultHttpsImpl(
+    Executor io_executor, Executor callback_executor, std::string host,
+    std::string port, std::string target, http::verb method,
+    HttpClientOptions options) {
+  const auto& ssl_state =
+      connection_internal::GetDefaultClientSslContextState();
+  auto impl =
+      AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
+                           std::move(host), std::move(port), std::move(target),
+                           method, std::move(options), true, ssl_state.ssl_ctx);
+  if (ssl_state.ec) {
+    impl->SetCreateError(ssl_state.ec, HttpClientErrorStage::kCreate);
+  }
+  return impl;
+}
+
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateTask(
     std::shared_ptr<Impl> impl) {
   void* raw = Allocate(sizeof(HttpClientTask), alignof(HttpClientTask));
@@ -100,22 +118,40 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
-    Executor io_executor, boost::asio::ssl::context& ssl_ctx, std::string host,
+    Executor io_executor, std::string host, std::string port,
+    std::string target, http::verb method, HttpClientOptions options) {
+  return CreateHttps(io_executor, io_executor, std::move(host), std::move(port),
+                     std::move(target), method, std::move(options));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
+    Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
-  return CreateHttps(io_executor, io_executor, ssl_ctx, std::move(host),
-                     std::move(port), std::move(target), method,
-                     std::move(options));
+  auto impl = CreateDefaultHttpsImpl(
+      std::move(io_executor), std::move(callback_executor), std::move(host),
+      std::move(port), std::move(target), method, std::move(options));
+  return CreateTask(std::move(impl));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
+    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
+    std::string host, std::string port, std::string target, http::verb method,
+    HttpClientOptions options) {
+  return CreateHttps(io_executor, io_executor, std::move(ssl_ctx),
+                     std::move(host), std::move(port), std::move(target),
+                     method, std::move(options));
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
     Executor io_executor, Executor callback_executor,
-    boost::asio::ssl::context& ssl_ctx, std::string host, std::string port,
-    std::string target, http::verb method, HttpClientOptions options) {
-  auto impl =
-      AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
-                           std::move(host), std::move(port), std::move(target),
-                           method, std::move(options), true, &ssl_ctx);
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    std::string port, std::string target, http::verb method,
+    HttpClientOptions options) {
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host),
+      std::move(port), std::move(target), method, std::move(options), true,
+      std::move(ssl_ctx));
   return CreateTask(std::move(impl));
 }
 
@@ -139,28 +175,29 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     return CreateTask(std::move(impl));
   }
 
-  auto impl =
-      AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
-                           parsed->host, parsed->port, parsed->target, method,
-                           std::move(options), parsed->https, nullptr);
-
   if (parsed->https) {
-    impl->SetCreateError(make_error_code(boost::system::errc::invalid_argument),
-                         HttpClientErrorStage::kCreate);
+    auto impl = CreateDefaultHttpsImpl(
+        std::move(io_executor), std::move(callback_executor), parsed->host,
+        parsed->port, parsed->target, method, std::move(options));
+    return CreateTask(std::move(impl));
   }
+
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), parsed->host,
+      parsed->port, parsed->target, method, std::move(options), false, nullptr);
   return CreateTask(std::move(impl));
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
-    Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
     const std::string& url, http::verb method, HttpClientOptions options) {
-  return CreateFromUrl(io_executor, io_executor, ssl_ctx, url, method,
-                       std::move(options));
+  return CreateFromUrl(io_executor, io_executor, std::move(ssl_ctx), url,
+                       method, std::move(options));
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     Executor io_executor, Executor callback_executor,
-    boost::asio::ssl::context& ssl_ctx, const std::string& url,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, const std::string& url,
     http::verb method, HttpClientOptions options) {
   auto parsed = ParseHttpUrl(url);
   if (!parsed) {
@@ -172,10 +209,13 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
     return CreateTask(std::move(impl));
   }
 
+  auto effective_ssl_ctx = parsed->https
+                               ? std::move(ssl_ctx)
+                               : std::shared_ptr<boost::asio::ssl::context>{};
   auto impl = AllocateShared<Impl>(
       std::move(io_executor), std::move(callback_executor), parsed->host,
       parsed->port, parsed->target, method, std::move(options), parsed->https,
-      parsed->https ? &ssl_ctx : nullptr);
+      std::move(effective_ssl_ctx));
   return CreateTask(std::move(impl));
 }
 

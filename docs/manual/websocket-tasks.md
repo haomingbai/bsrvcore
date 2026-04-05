@@ -7,25 +7,20 @@ This chapter maps to:
 - `include/bsrvcore/connection/client/websocket_client_task.h`
 - `include/bsrvcore/connection/server/http_server_task.h` (upgrade entry)
 
-## Status in this stage
+## Status
 
-WebSocket support is in the first stage.
+WebSocket client/server transport is implemented for both plain and TLS modes.
 
 Implemented now:
 
 - Shared task/handler abstraction (`WebSocketTaskBase`, `WebSocketHandler`)
 - Server-side request detection (`HttpTaskBase::IsWebSocketRequest()`)
 - Server-side upgrade entry (`HttpServerTask::UpgradeToWebSocket(...)`)
-- Client-side task factories (`CreateHttp`, `CreateHttps`, `CreateFromUrl`)
-- HTTP callback passthrough (`OnConnected`, `OnHeader`, `OnDone`)
-
-Not implemented yet in this stage:
-
-- Real frame transport read/write loop
-- Real `WriteMessage` / `WriteControl` transport delivery
-- Automatic ping/pong or close-handshake orchestration
-
-`WriteMessage` and `WriteControl` currently return `false` and trigger `OnError(...)` with `operation_not_supported`.
+- Client-side `ws://` and `wss://` factories
+- Real message read loop
+- Real `WriteMessage(...)` delivery
+- Real control-frame delivery for ping / pong / close
+- Handshake HTTP callback passthrough through `OnHttpDone(...)`
 
 ## Core types
 
@@ -101,8 +96,10 @@ task->Start();
 ioc.run();
 ```
 
-`CreateFromUrl` accepts `ws://` directly.
-For `wss://`, use the SSL overload.
+`CreateFromUrl` accepts both `ws://` and `wss://` directly.
+For `wss://`, the default overload creates a shared client TLS context and
+loads system trust roots. If you need custom TLS settings, use the overload
+that takes `std::shared_ptr<boost::asio::ssl::context>`.
 
 If you want cookie-managed creation, use `HttpClientSession` websocket
 factories (`CreateWebSocketHttp/CreateWebSocketHttps/CreateWebSocketFromUrl`).

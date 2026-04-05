@@ -55,23 +55,23 @@ void WebSocketClientTask::Cancel() {
 
   if (opened_) {
     auto self = shared_from_this();
-    if (ws_stream_.has_value()) {
+    if (ws_stream_ != nullptr) {
       StartWebSocketCloseForStream(
           *ws_stream_,
           [self](boost::system::error_code ec) { self->NotifyCloseOnce(ec); });
       return;
     }
-    if (wss_stream_.has_value()) {
+    if (wss_stream_ != nullptr) {
       StartWebSocketCloseForStream(
           *wss_stream_,
           [self](boost::system::error_code ec) { self->NotifyCloseOnce(ec); });
       return;
     }
   } else {
-    if (ws_stream_.has_value()) {
+    if (ws_stream_ != nullptr) {
       AbortTransport(*ws_stream_);
     }
-    if (wss_stream_.has_value()) {
+    if (wss_stream_ != nullptr) {
       AbortTransport(*wss_stream_);
     }
   }
@@ -86,7 +86,7 @@ bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
 
   auto payload_sp = AllocateShared<std::string>(std::move(payload));
   auto self = shared_from_this();
-  if (ws_stream_.has_value()) {
+  if (ws_stream_ != nullptr) {
     ws_stream_->binary(binary);
     ws_stream_->async_write(
         boost::asio::buffer(*payload_sp),
@@ -97,7 +97,7 @@ bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
         });
     return true;
   }
-  if (wss_stream_.has_value()) {
+  if (wss_stream_ != nullptr) {
     wss_stream_->binary(binary);
     wss_stream_->async_write(
         boost::asio::buffer(*payload_sp),
@@ -132,7 +132,7 @@ bool WebSocketClientTask::WriteControl(WebSocketControlKind kind,
 
 bool WebSocketClientTask::WritePingControl(std::string payload) {
   auto self = shared_from_this();
-  if (ws_stream_.has_value()) {
+  if (ws_stream_ != nullptr) {
     ws_stream_->async_ping(websocket::ping_data(std::move(payload)),
                            [self](boost::system::error_code ec) {
                              if (ec) {
@@ -142,7 +142,7 @@ bool WebSocketClientTask::WritePingControl(std::string payload) {
                            });
     return true;
   }
-  if (wss_stream_.has_value()) {
+  if (wss_stream_ != nullptr) {
     wss_stream_->async_ping(websocket::ping_data(std::move(payload)),
                             [self](boost::system::error_code ec) {
                               if (ec) {
@@ -158,7 +158,7 @@ bool WebSocketClientTask::WritePingControl(std::string payload) {
 
 bool WebSocketClientTask::WritePongControl(std::string payload) {
   auto self = shared_from_this();
-  if (ws_stream_.has_value()) {
+  if (ws_stream_ != nullptr) {
     ws_stream_->async_pong(websocket::ping_data(std::move(payload)),
                            [self](boost::system::error_code ec) {
                              if (ec) {
@@ -168,7 +168,7 @@ bool WebSocketClientTask::WritePongControl(std::string payload) {
                            });
     return true;
   }
-  if (wss_stream_.has_value()) {
+  if (wss_stream_ != nullptr) {
     wss_stream_->async_pong(websocket::ping_data(std::move(payload)),
                             [self](boost::system::error_code ec) {
                               if (ec) {
@@ -212,8 +212,8 @@ void WebSocketClientTask::BeginReadLoop() {
   }
 
   auto self = shared_from_this();
-  if (ws_stream_.has_value()) {
-    PlainWebSocketStream* stream = &*ws_stream_;
+  if (ws_stream_ != nullptr) {
+    PlainWebSocketStream* stream = ws_stream_.get();
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
@@ -242,8 +242,8 @@ void WebSocketClientTask::BeginReadLoop() {
         });
     return;
   }
-  if (wss_stream_.has_value()) {
-    SecureWebSocketStream* stream = &*wss_stream_;
+  if (wss_stream_ != nullptr) {
+    SecureWebSocketStream* stream = wss_stream_.get();
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {

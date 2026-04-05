@@ -101,6 +101,13 @@ void WebSocketClientTask::Start() {
   }
   start_requested_ = true;
 
+  if (create_error_) {
+    FailAndClose(*create_error_, create_error_message_.empty()
+                                     ? "websocket client create failed"
+                                     : create_error_message_);
+    return;
+  }
+
   if (!PrepareStart()) {
     return;
   }
@@ -141,11 +148,12 @@ bool WebSocketClientTask::CreateTransport() {
   wss_stream_.reset();
 
   if (use_ssl_) {
-    wss_stream_.emplace(io_executor_, *ssl_ctx_);
+    wss_stream_ =
+        std::make_unique<SecureWebSocketStream>(io_executor_, *ssl_ctx_);
     return true;
   }
 
-  ws_stream_.emplace(io_executor_);
+  ws_stream_ = std::make_unique<PlainWebSocketStream>(io_executor_);
   return true;
 }
 
@@ -175,7 +183,7 @@ void WebSocketClientTask::OnResolveCompleted(
 void WebSocketClientTask::StartTcpConnect(
     const tcp::resolver::results_type& results) {
   auto self = shared_from_this();
-  if (ws_stream_.has_value()) {
+  if (ws_stream_ != nullptr) {
     StartTcpConnectForStream(
         *ws_stream_, results, options_.connect_timeout,
         [self](boost::system::error_code ec, const tcp::endpoint&) {
@@ -183,7 +191,7 @@ void WebSocketClientTask::StartTcpConnect(
         });
     return;
   }
-  if (wss_stream_.has_value()) {
+  if (wss_stream_ != nullptr) {
     StartTcpConnectForStream(
         *wss_stream_, results, options_.connect_timeout,
         [self](boost::system::error_code ec, const tcp::endpoint&) {
@@ -215,7 +223,7 @@ void WebSocketClientTask::OnTcpConnectCompleted(boost::system::error_code ec) {
 }
 
 void WebSocketClientTask::StartTlsHandshake() {
-  if (!wss_stream_.has_value()) {
+  if (wss_stream_ == nullptr) {
     FailAndClose(make_error_code(boost::system::errc::not_connected),
                  "tls handshake failed");
     return;
@@ -266,7 +274,7 @@ void WebSocketClientTask::StartWebSocketHandshake() {
   auto response_sp = AllocateShared<websocket::response_type>();
   auto self = shared_from_this();
 
-  if (ws_stream_.has_value()) {
+  if (ws_stream_ != nullptr) {
     ConfigureClientHandshake(*ws_stream_, request_, options_);
     StartWebSocketHandshakeForStream(
         *ws_stream_, response_sp, host_, target_,
@@ -275,7 +283,7 @@ void WebSocketClientTask::StartWebSocketHandshake() {
         });
     return;
   }
-  if (wss_stream_.has_value()) {
+  if (wss_stream_ != nullptr) {
     ConfigureClientHandshake(*wss_stream_, request_, options_);
     StartWebSocketHandshakeForStream(
         *wss_stream_, response_sp, host_, target_,

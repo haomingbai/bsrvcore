@@ -23,6 +23,12 @@ using namespace bsrvcore;
 
 HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep,
                                   std::size_t io_threads) {
+  return AddListen(std::move(ep), io_threads, nullptr);
+}
+
+HttpServer* HttpServer::AddListen(
+    boost::asio::ip::tcp::endpoint ep, std::size_t io_threads,
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx) {
   std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;
@@ -32,8 +38,10 @@ HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep,
     io_threads = 1;
   }
 
-  endpoint_configs_.push_back(EndpointListenConfig{.endpoint = std::move(ep),
-                                                   .io_threads = io_threads});
+  endpoint_configs_.push_back(
+      EndpointListenConfig{.endpoint = std::move(ep),
+                           .io_threads = io_threads,
+                           .ssl_ctx = std::move(ssl_ctx)});
   return this;
 }
 
@@ -54,26 +62,6 @@ HttpServer* HttpServer::SetKeepAliveTimeout(std::size_t timeout) {
   }
 
   keep_alive_timeout_ = timeout;
-  return this;
-}
-
-HttpServer* HttpServer::SetSslContext(boost::asio::ssl::context ctx) {
-  std::scoped_lock const lock(mtx_);
-  if (is_running_) {
-    return this;
-  }
-
-  ssl_ctx_ = std::move(ctx);
-  return this;
-}
-
-HttpServer* HttpServer::UnsetSslContext() {
-  std::scoped_lock const lock(mtx_);
-  if (is_running_) {
-    return this;
-  }
-
-  ssl_ctx_.reset();
   return this;
 }
 

@@ -78,8 +78,9 @@ JSON helpers:
 
 ### HTTPS note
 
-- `CreateFromUrl(executor, "https://...", ...)` needs an SSL context.
-- Use the overload that takes `boost::asio::ssl::context&`.
+- `CreateFromUrl(executor, "https://...", ...)` now works without passing a TLS context.
+- The library creates one shared client TLS context internally and loads system trust roots.
+- If you need custom trust or client certificates, use the overload that takes `std::shared_ptr<boost::asio::ssl::context>`.
 
 ## PutGenerator and MultipartGenerator
 

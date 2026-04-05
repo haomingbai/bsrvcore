@@ -21,6 +21,7 @@ add_library(bsrvcore_connection_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/client/multipart_generator.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/put_generator.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/sse_event_parser.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/client/impl/default_client_ssl_context.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/impl/http_url_parser.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server/multipart_parser.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server/put_processor.cc

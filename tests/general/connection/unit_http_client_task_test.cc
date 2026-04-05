@@ -92,26 +92,13 @@ TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {
   EXPECT_EQ(merged, "chunked-body-data");
 }
 
-TEST(HttpClientTaskTest, HttpsUrlWithoutSslContextFailsAtCreateStage) {
+TEST(HttpClientTaskTest, HttpsUrlWithoutSslContextStillCreatesTask) {
   boost::asio::io_context ioc;
   auto task = bsrvcore::HttpClientTask::CreateFromUrl(
       ioc.get_executor(), "https://127.0.0.1:8443/ping", http::verb::get);
 
-  std::promise<bsrvcore::HttpClientResult> promise;
-  auto future = promise.get_future();
-
-  task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
-    promise.set_value(result);
-  });
-
-  task->Start();
-  ioc.run();
-
-  auto result = future.get();
-  EXPECT_TRUE(result.ec);
-  EXPECT_EQ(result.error_stage, bsrvcore::HttpClientErrorStage::kCreate);
-  EXPECT_TRUE(task->Failed());
-  EXPECT_EQ(task->ErrorStage(), bsrvcore::HttpClientErrorStage::kCreate);
+  ASSERT_NE(task, nullptr);
+  EXPECT_EQ(task->Request().method(), http::verb::get);
 }
 
 TEST(HttpClientTaskTest, JsonHelpersRoundTripRequestAndResponse) {

@@ -43,7 +43,11 @@ class WebSocketClientTask
       std::string target, HandlerPtr handler, HttpClientOptions options = {});
 
   static std::shared_ptr<WebSocketClientTask> CreateHttps(
-      Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      Executor io_executor, std::string host, std::string port,
+      std::string target, HandlerPtr handler, HttpClientOptions options = {});
+
+  static std::shared_ptr<WebSocketClientTask> CreateHttps(
+      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
       std::string host, std::string port, std::string target,
       HandlerPtr handler, HttpClientOptions options = {});
 
@@ -52,8 +56,8 @@ class WebSocketClientTask
       HttpClientOptions options = {});
 
   static std::shared_ptr<WebSocketClientTask> CreateFromUrl(
-      Executor io_executor, boost::asio::ssl::context& ssl_ctx, std::string url,
-      HandlerPtr handler, HttpClientOptions options = {});
+      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
+      std::string url, HandlerPtr handler, HttpClientOptions options = {});
 
   std::shared_ptr<WebSocketClientTask> OnHttpDone(HttpDoneCallback cb);
 
@@ -69,11 +73,11 @@ class WebSocketClientTask
 
   ~WebSocketClientTask() override;
 
-  explicit WebSocketClientTask(Executor io_executor, std::string host,
-                               std::string port, std::string target,
-                               HandlerPtr handler, HttpClientOptions options,
-                               bool use_ssl = false,
-                               boost::asio::ssl::context* ssl_ctx = nullptr);
+  explicit WebSocketClientTask(
+      Executor io_executor, std::string host, std::string port,
+      std::string target, HandlerPtr handler, HttpClientOptions options,
+      bool use_ssl = false,
+      std::shared_ptr<boost::asio::ssl::context> ssl_ctx = {});
 
  private:
   using PlainWebSocketStream =
@@ -97,6 +101,7 @@ class WebSocketClientTask
       std::shared_ptr<boost::beast::websocket::response_type> response);
   void SyncHandshakeSetCookies(
       const boost::beast::websocket::response_type& response);
+  void SetCreateError(boost::system::error_code ec, std::string message);
 
   bool WritePingControl(std::string payload);
   bool WritePongControl(std::string payload);
@@ -114,11 +119,11 @@ class WebSocketClientTask
   std::string target_;
   HttpClientOptions options_;
   bool use_ssl_{false};
-  boost::asio::ssl::context* ssl_ctx_{nullptr};
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
   HttpClientRequest request_;
   std::unique_ptr<boost::asio::ip::tcp::resolver> resolver_;
-  std::optional<PlainWebSocketStream> ws_stream_;
-  std::optional<SecureWebSocketStream> wss_stream_;
+  std::unique_ptr<PlainWebSocketStream> ws_stream_;
+  std::unique_ptr<SecureWebSocketStream> wss_stream_;
   boost::beast::flat_buffer ws_read_buffer_;
   std::weak_ptr<HttpClientSession> session_;
   HttpDoneCallback on_http_done_;
@@ -126,6 +131,8 @@ class WebSocketClientTask
   bool opened_{false};
   bool cancelled_{false};
   bool close_notified_{false};
+  std::optional<boost::system::error_code> create_error_;
+  std::string create_error_message_;
 };
 
 }  // namespace bsrvcore

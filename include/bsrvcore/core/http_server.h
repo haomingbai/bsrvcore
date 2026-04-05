@@ -448,6 +448,24 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                         std::size_t io_threads);
 
   /**
+   * @brief Add an HTTPS listening endpoint with its own TLS context.
+   * @param ep TCP endpoint to listen on.
+   * @param io_threads Number of acceptor/io_context shards for this endpoint.
+   * @param ssl_ctx Shared TLS context used only by this endpoint.
+   * @return Pointer to server for method chaining.
+   */
+  HttpServer* AddListen(boost::asio::ip::tcp::endpoint ep,
+                        std::size_t io_threads,
+                        std::shared_ptr<boost::asio::ssl::context> ssl_ctx);
+
+  /**
+   * @brief Set header read timeout for all requests
+   * @param expiry Header read timeout in milliseconds
+   * @return Pointer to server for method chaining
+   */
+  HttpServer* SetHeaderReadExpiry(std::size_t expiry);
+
+  /**
    * @brief Set read timeout for a specific route
    * @param method HTTP method
    * @param url Route pattern
@@ -456,13 +474,6 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    */
   HttpServer* SetReadExpiry(HttpRequestMethod method, std::string_view url,
                             std::size_t expiry);
-
-  /**
-   * @brief Set header read timeout for all requests
-   * @param expiry Header read timeout in milliseconds
-   * @return Pointer to server for method chaining
-   */
-  HttpServer* SetHeaderReadExpiry(std::size_t expiry);
 
   /**
    * @brief Set write timeout for a specific route
@@ -534,19 +545,6 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
         AllocateUnique<FunctionRouteHandler<F>>(f);
     return SetDefaultHandler(std::move(handler));
   }
-
-  /**
-   * @brief Set the SSL context for secure connections
-   * @param ctx SSL context for the server
-   * @return Pointer to server for method chaining
-   */
-  HttpServer* SetSslContext(boost::asio::ssl::context ctx);
-
-  /**
-   * @brief Unset the SSL context (disable HTTPS)
-   * @return Pointer to server for method chaining
-   */
-  HttpServer* UnsetSslContext();
 
   /**
    * @brief Set the logger for the server
@@ -710,13 +708,16 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   struct EndpointListenConfig {
     boost::asio::ip::tcp::endpoint endpoint;
     std::size_t io_threads{1};
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
   };
 
   struct EndpointRuntime {
-    explicit EndpointRuntime(boost::asio::ip::tcp::endpoint ep)
-        : endpoint(std::move(ep)) {}
+    EndpointRuntime(boost::asio::ip::tcp::endpoint ep,
+                    std::shared_ptr<boost::asio::ssl::context> ssl_ctx_in)
+        : endpoint(std::move(ep)), ssl_ctx(std::move(ssl_ctx_in)) {}
 
     boost::asio::ip::tcp::endpoint endpoint;
+    std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
     std::size_t run_threads{1};
     std::vector<OwnedPtr<boost::asio::io_context>> io_contexts;
     std::vector<boost::asio::executor_work_guard<
@@ -771,9 +772,6 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                           boost::system::error_code ec,
                           boost::asio::ip::tcp::socket socket);
   void DoAccept(std::size_t endpoint_index, std::size_t shard_index);
-
-  std::optional<boost::asio::ssl::context>
-      ssl_ctx_;  ///< The SSL context of the server
   boost::asio::io_context
       control_ioc_;  ///< Control io_context used by non-connection timers.
   std::optional<

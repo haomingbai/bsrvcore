@@ -182,7 +182,7 @@ TEST(WebSocketIntegrationTest, WssClientTaskOpensWhenTlsHandshakeSucceeds) {
   });
 
   boost::asio::io_context ioc;
-  boost::asio::ssl::context client_ssl_ctx(
+  auto client_ssl_ctx = std::make_shared<boost::asio::ssl::context>(
       boost::asio::ssl::context::tls_client);
   bsrvcore::HttpClientOptions options;
   options.verify_peer = false;
@@ -227,7 +227,7 @@ TEST(WebSocketIntegrationTest, WssClientTaskFailsPeerVerificationByDefault) {
   });
 
   boost::asio::io_context ioc;
-  boost::asio::ssl::context client_ssl_ctx(
+  auto client_ssl_ctx = std::make_shared<boost::asio::ssl::context>(
       boost::asio::ssl::context::tls_client);
   auto state = std::make_shared<IntegrationHandlerState>();
   auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(

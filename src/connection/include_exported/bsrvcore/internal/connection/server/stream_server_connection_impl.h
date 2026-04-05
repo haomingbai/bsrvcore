@@ -143,14 +143,14 @@ class HttpServerConnectionImpl : public StreamServerConnection {
 
     boost::asio::dispatch(
         GetExecutor(), [self = this->shared_from_this(), this] {
-          auto& socket = ws_stream_.has_value()
+          auto& socket = ws_stream_ != nullptr
                              ? helper::GetLowestSocket(*ws_stream_)
                              : helper::GetLowestSocket(stream_);
           if (!socket.is_open()) {
             return;
           }
 
-          if (ws_stream_.has_value()) {
+          if (ws_stream_ != nullptr) {
             boost::system::error_code ec;
             socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
             socket.close(ec);
@@ -282,7 +282,7 @@ class HttpServerConnectionImpl : public StreamServerConnection {
   S stream_;
   std::mutex mtx_;
   std::shared_ptr<MessageQueue> message_queue_;  // now shared
-  std::optional<WebSocketStream> ws_stream_;
+  std::unique_ptr<WebSocketStream> ws_stream_;
   boost::beast::flat_buffer ws_read_buffer_;
   std::atomic<bool> closed_;
 };
@@ -340,12 +340,12 @@ void HttpServerConnectionImpl<S>::DoWebSocketAccept(
           return;
         }
 
-        if (ws_stream_.has_value()) {
+        if (ws_stream_ != nullptr) {
           callback(make_error_code(boost::system::errc::already_connected));
           return;
         }
 
-        ws_stream_.emplace(std::move(stream_));
+        ws_stream_ = std::make_unique<WebSocketStream>(std::move(stream_));
         ws_stream_->set_option(
             boost::beast::websocket::stream_base::timeout::suggested(
                 boost::beast::role_type::server));
@@ -388,7 +388,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketRead(
   boost::asio::dispatch(GetExecutor(), [self = this->shared_from_this(), this,
                                         callback =
                                             std::move(callback)]() mutable {
-    if (!ws_stream_.has_value() || !IsServerRunning() || !IsStreamAvailable()) {
+    if (ws_stream_ == nullptr || !IsServerRunning() || !IsStreamAvailable()) {
       callback(make_error_code(boost::system::errc::not_connected),
                WebSocketMessage{});
       return;
@@ -426,7 +426,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketWrite(
                                         payload = std::move(payload), binary,
                                         callback =
                                             std::move(callback)]() mutable {
-    if (!ws_stream_.has_value() || !IsServerRunning() || !IsStreamAvailable()) {
+    if (ws_stream_ == nullptr || !IsServerRunning() || !IsStreamAvailable()) {
       callback(make_error_code(boost::system::errc::not_connected));
       return;
     }
@@ -459,7 +459,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketControl(
                                         kind, payload = std::move(payload),
                                         callback =
                                             std::move(callback)]() mutable {
-    if (!ws_stream_.has_value() || !IsServerRunning() || !IsStreamAvailable()) {
+    if (ws_stream_ == nullptr || !IsServerRunning() || !IsStreamAvailable()) {
       callback(make_error_code(boost::system::errc::not_connected));
       return;
     }
@@ -532,7 +532,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketClose(
   boost::asio::dispatch(
       GetExecutor(), [self = this->shared_from_this(), this,
                       callback = std::move(callback)]() mutable {
-        if (!ws_stream_.has_value()) {
+        if (ws_stream_ == nullptr) {
           DoClose();
           callback(boost::system::error_code{});
           return;

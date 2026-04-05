@@ -295,7 +295,7 @@ bool HttpServer::BuildEndpointRuntimesLocked(
   bool mode_decided = false;
 
   for (const auto& cfg : endpoint_configs_) {
-    auto runtime = AllocateUnique<EndpointRuntime>(cfg.endpoint);
+    auto runtime = AllocateUnique<EndpointRuntime>(cfg.endpoint, cfg.ssl_ctx);
     runtime->run_threads = cfg.io_threads;
     endpoint_execs.emplace_back();
 
@@ -419,9 +419,17 @@ void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
                                          boost::asio::ip::tcp::socket socket) {
   boost::beast::tcp_stream stream(std::move(socket));
 
-  if (ssl_ctx_.has_value()) {
+  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  if (endpoint_index < endpoint_runtimes_.size()) {
+    auto* runtime = endpoint_runtimes_[endpoint_index].get();
+    if (runtime != nullptr) {
+      ssl_ctx = runtime->ssl_ctx;
+    }
+  }
+
+  if (ssl_ctx != nullptr) {
     boost::beast::ssl_stream<boost::beast::tcp_stream> ssl_stream(
-        std::move(stream), ssl_ctx_.value());
+        std::move(stream), *ssl_ctx);
     auto ssl_exec = ssl_stream.get_executor();
     connection_internal::HttpServerConnectionImpl<boost::beast::ssl_stream<
         boost::beast::tcp_stream>>::Create(std::move(ssl_stream), ssl_exec,

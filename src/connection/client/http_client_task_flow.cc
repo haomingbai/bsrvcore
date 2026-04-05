@@ -42,7 +42,7 @@ HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
                            std::string target,
                            http_client_detail::http::verb method,
                            HttpClientOptions options, bool use_ssl,
-                           boost::asio::ssl::context* ssl_ctx)
+                           std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
     : io_executor_(std::move(io_executor)),
       callback_executor_(std::move(callback_executor)),
       strand_(io_executor_),
@@ -52,7 +52,7 @@ HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
       target_(std::move(target)),
       options_(std::move(options)),
       use_ssl_(use_ssl),
-      ssl_ctx_(ssl_ctx) {
+      ssl_ctx_(std::move(ssl_ctx)) {
   request_.method(method);
   request_.target(target_);
   request_.version(11);
@@ -165,7 +165,9 @@ void HttpClientTask::Impl::OnResolve(
   if (use_ssl_) {
     // The SSL and plain TCP branches intentionally stay structurally parallel
     // so stage-specific timeout/error reporting remains easy to audit.
-    ssl_stream_.emplace(io_executor_, *ssl_ctx_);
+    ssl_stream_ =
+        std::make_unique<boost::beast::ssl_stream<boost::beast::tcp_stream>>(
+            io_executor_, *ssl_ctx_);
     boost::beast::get_lowest_layer(*ssl_stream_)
         .expires_after(options_.connect_timeout);
     boost::beast::get_lowest_layer(*ssl_stream_)
@@ -179,7 +181,7 @@ void HttpClientTask::Impl::OnResolve(
     return;
   }
 
-  tcp_stream_.emplace(io_executor_);
+  tcp_stream_ = std::make_unique<boost::beast::tcp_stream>(io_executor_);
   tcp_stream_->expires_after(options_.connect_timeout);
   tcp_stream_->async_connect(
       results,
