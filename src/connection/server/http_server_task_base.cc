@@ -254,12 +254,21 @@ void HttpTaskBase::SetKeepAlive(bool value) noexcept {
   state_->keep_alive.store(value);
 }
 
+HttpTaskConnectionLifecycleMode HttpTaskBase::GetConnectionLifecycleMode()
+    const noexcept {
+  return state_->connection_mode.load(std::memory_order_acquire);
+}
+
 void HttpTaskBase::SetManualConnectionManagement(bool value) noexcept {
-  if (!state_->manual_connection_management.load()) {
-    // This flag is intentionally one-way. Once user code opts into manual
-    // response control, later helpers must not silently re-enable auto write.
-    state_->manual_connection_management.store(value);
+  if (!value) {
+    return;
   }
+
+  auto expected = HttpTaskConnectionLifecycleMode::kAutomatic;
+  // Manual mode can only be selected from automatic mode.
+  state_->connection_mode.compare_exchange_strong(
+      expected, HttpTaskConnectionLifecycleMode::kManual,
+      std::memory_order_acq_rel, std::memory_order_acquire);
 }
 
 void HttpTaskBase::Log(bsrvcore::LogLevel level, const std::string& message) {
@@ -370,6 +379,14 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
 }
 
 bool HttpTaskBase::IsAvailable() noexcept { return CanRunTaskCallback(state_); }
+
+bool HttpTaskBase::IsWebSocketRequest() const noexcept {
+  if (!state_) {
+    return false;
+  }
+
+  return boost::beast::websocket::is_upgrade(state_->req);
+}
 
 const std::string& HttpTaskBase::GetCurrentLocation() {
   return state_->route_result.current_location;

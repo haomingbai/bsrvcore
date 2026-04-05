@@ -226,6 +226,11 @@ Both HTTP and SSE client tasks support `Cancel()`.
 Cancel is best-effort and closes the socket. After you cancel, callbacks may
 still fire once with `cancelled=true`.
 
+## WebSocket tasks
+
+For WebSocket task APIs, upgrade semantics, and stage-1 limitations, see
+[WebSocket tasks](websocket-tasks.md).
+
 ## Example sources
 
 - `examples/client-tasks/http_request.cc`

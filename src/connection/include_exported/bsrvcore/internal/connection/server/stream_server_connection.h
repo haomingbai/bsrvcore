@@ -1,5 +1,5 @@
 /**
- * @file http_server_connection.h
+ * @file stream_server_connection.h
  * @brief Abstract base class for HTTP server connection handling
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-25
@@ -16,8 +16,8 @@
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
-#define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_H_
+#ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_H_
+#define BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_H_
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
@@ -28,6 +28,7 @@
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/system/error_code.hpp>
 #include <cstddef>
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
@@ -40,6 +41,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
@@ -72,11 +74,11 @@ class Context;
  *
  * @code
  * // Example derived class for TCP connections
- * class HttpTcpConnection : public HttpServerConnection {
+ * class HttpTcpConnection : public StreamServerConnection {
  * public:
  *   HttpTcpConnection(boost::asio::ip::tcp::socket socket,
  *                     std::shared_ptr<HttpServer> srv)
- *     : HttpServerConnection(socket.get_executor(), srv, 30000, 15000,
+ *     : StreamServerConnection(socket.get_executor(), srv, 30000, 15000,
  *                            false, nullptr, 0),
  *       stream_(std::move(socket)) {}
  *
@@ -100,10 +102,16 @@ class Context;
  * };
  * @endcode
  */
-class HttpServerConnection
-    : public NonCopyableNonMovable<HttpServerConnection>,
-      public std::enable_shared_from_this<HttpServerConnection> {
+class StreamServerConnection
+    : public NonCopyableNonMovable<StreamServerConnection>,
+      public std::enable_shared_from_this<StreamServerConnection> {
  public:
+  using WebSocketAcceptCallback =
+      std::function<void(boost::system::error_code)>;
+  using WebSocketReadCallback =
+      std::function<void(boost::system::error_code, WebSocketMessage)>;
+  using WebSocketWriteCallback = std::function<void(boost::system::error_code)>;
+
   /**
    * @brief Get per-connection handler allocator (copy).
    *
@@ -352,6 +360,47 @@ class HttpServerConnection
   virtual void DoCycle();
 
   /**
+   * @brief Upgrade this connection to server-side WebSocket mode.
+   * @param req Original HTTP upgrade request.
+   * @param response_header Response header fields to apply via decorator.
+   * @param callback Completion callback.
+   */
+  virtual void DoWebSocketAccept(HttpRequest req,
+                                 HttpResponseHeader response_header,
+                                 WebSocketAcceptCallback callback) = 0;
+
+  /**
+   * @brief Read one WebSocket message frame payload.
+   * @param callback Completion callback.
+   */
+  virtual void DoWebSocketRead(WebSocketReadCallback callback) = 0;
+
+  /**
+   * @brief Write one WebSocket message frame payload.
+   * @param payload Payload bytes.
+   * @param binary True for binary frame, false for text frame.
+   * @param callback Completion callback.
+   */
+  virtual void DoWebSocketWrite(std::string payload, bool binary,
+                                WebSocketWriteCallback callback) = 0;
+
+  /**
+   * @brief Write one WebSocket control frame.
+   * @param kind Control frame kind.
+   * @param payload Control payload.
+   * @param callback Completion callback.
+   */
+  virtual void DoWebSocketControl(WebSocketControlKind kind,
+                                  std::string payload,
+                                  WebSocketWriteCallback callback) = 0;
+
+  /**
+   * @brief Send WebSocket close frame.
+   * @param callback Completion callback.
+   */
+  virtual void DoWebSocketClose(WebSocketWriteCallback callback) = 0;
+
+  /**
    * @brief Get the server pointer.
    * @return The pointer of the server.
    */
@@ -367,16 +416,17 @@ class HttpServerConnection
    * @param available_connection_num Shared approximate available slot counter
    * @param endpoint_index Endpoint index in AddListen registration order
    */
-  HttpServerConnection(boost::asio::any_io_executor io_executor,
-                       HttpServer* srv, std::size_t header_read_expiry,
-                       std::size_t keep_alive_timeout, bool has_max_connection,
-                       std::atomic<std::int64_t>* available_connection_num,
-                       std::size_t endpoint_index);
+  StreamServerConnection(boost::asio::any_io_executor io_executor,
+                         HttpServer* srv, std::size_t header_read_expiry,
+                         std::size_t keep_alive_timeout,
+                         bool has_max_connection,
+                         std::atomic<std::int64_t>* available_connection_num,
+                         std::size_t endpoint_index);
 
   /**
    * @brief Virtual destructor for proper cleanup
    */
-  virtual ~HttpServerConnection();
+  virtual ~StreamServerConnection();
 
  protected:
   /**
@@ -461,4 +511,4 @@ class HttpServerConnection
 
 }  // namespace bsrvcore
 
-#endif
+#endif  // BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_H_

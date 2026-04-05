@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/websocket_client_task.h"
 #include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
@@ -97,6 +98,29 @@ class HttpClientSession
       HttpClientTask::Executor callback_executor,
       boost::asio::ssl::context& ssl_ctx, std::string url,
       boost::beast::http::verb method, HttpClientOptions options = {});
+
+  /** @brief Create plain WebSocket task from host/port/target. */
+  std::shared_ptr<WebSocketClientTask> CreateWebSocketHttp(
+      HttpClientTask::Executor io_executor, std::string host, std::string port,
+      std::string target, WebSocketClientTask::HandlerPtr handler,
+      HttpClientOptions options = {});
+
+  /** @brief Create HTTPS WebSocket task from host/port/target. */
+  std::shared_ptr<WebSocketClientTask> CreateWebSocketHttps(
+      HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string host, std::string port, std::string target,
+      WebSocketClientTask::HandlerPtr handler, HttpClientOptions options = {});
+
+  /** @brief Create WebSocket task from URL without SSL context. */
+  std::shared_ptr<WebSocketClientTask> CreateWebSocketFromUrl(
+      HttpClientTask::Executor io_executor, std::string url,
+      WebSocketClientTask::HandlerPtr handler, HttpClientOptions options = {});
+
+  /** @brief Create WebSocket task from URL with SSL context. */
+  std::shared_ptr<WebSocketClientTask> CreateWebSocketFromUrl(
+      HttpClientTask::Executor io_executor, boost::asio::ssl::context& ssl_ctx,
+      std::string url, WebSocketClientTask::HandlerPtr handler,
+      HttpClientOptions options = {});
 
   /** @brief Remove all stored cookies. */
   void ClearCookies();

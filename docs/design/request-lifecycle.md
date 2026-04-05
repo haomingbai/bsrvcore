@@ -62,3 +62,10 @@ Manual mode:
   not automatically synthesize an error response.
 - Closing the connection clears the shared `conn` pointer so late callbacks can
   detect that the request is no longer runnable.
+
+## WebSocket Note
+
+WebSocket upgrade introduces an additional lifecycle mode and post-phase
+handoff rules. See:
+
+- [WebSocket lifecycle](websocket-lifecycle.md)

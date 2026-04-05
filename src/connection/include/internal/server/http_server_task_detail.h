@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_TASK_DETAIL_H_
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_TASK_DETAIL_H_
 
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/dispatch.hpp>
@@ -26,6 +27,7 @@
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -35,19 +37,27 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
 #include "bsrvcore/core/atomic_shared_ptr.h"
-#include "bsrvcore/internal/connection/server/http_server_connection.h"
+#include "bsrvcore/internal/connection/server/stream_server_connection.h"
 
 namespace bsrvcore {
 
 namespace task_internal {
+
+enum class WebSocketUpgradeState {
+  kNone,
+  kRequested,
+  kHeaderPrepared,
+  kTaskStarted,
+};
 
 // Shared request state survives the pre -> service -> post phase chain. The
 // custom deleters in http_server_task_lifecycle.cc advance the lifecycle by
 // constructing the next task object on top of this same state.
 struct HttpTaskSharedState {
   HttpTaskSharedState(HttpRequest in_req, HttpRouteResult in_route_result,
-                      std::shared_ptr<HttpServerConnection> in_conn,
+                      std::shared_ptr<StreamServerConnection> in_conn,
                       bsrvcore::internal::HandlerAllocator in_handler_alloc)
       : req(std::move(in_req)),
 
@@ -55,7 +65,7 @@ struct HttpTaskSharedState {
         route_result(std::move(in_route_result)),
         srv(conn.load() ? conn.load()->GetServer() : nullptr),
         keep_alive(true),
-        manual_connection_management(false),
+        connection_mode(HttpTaskConnectionLifecycleMode::kAutomatic),
 
         handler_alloc(in_handler_alloc) {}
 
@@ -67,13 +77,15 @@ struct HttpTaskSharedState {
   // The connection pointer is cleared when the response is finalized or the
   // stream is closed. Subsequent task callbacks treat nullptr as "request is no
   // longer schedulable".
-  AtomicSharedPtr<HttpServerConnection> conn;
+  AtomicSharedPtr<StreamServerConnection> conn;
   HttpRouteResult route_result;
   HttpServer* srv;
   std::atomic_bool keep_alive;
-  // Manual connection management is monotonic: once true, the lifecycle
-  // finalizer must not auto-write the accumulated response.
-  std::atomic_bool manual_connection_management;
+  std::atomic<HttpTaskConnectionLifecycleMode> connection_mode;
+  std::atomic<WebSocketUpgradeState> websocket_upgrade_state{
+      WebSocketUpgradeState::kNone};
+  mutable std::shared_mutex websocket_upgrade_handler_mtx;
+  WebSocketTaskBase::HandlerPtr websocket_upgrade_handler;
   bool is_cookie_parsed{false};
   bsrvcore::internal::HandlerAllocator handler_alloc;
 };
@@ -118,7 +130,7 @@ inline T* AllocateTaskObject(
 
 inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
     HttpRequest req, HttpRouteResult route_result,
-    std::shared_ptr<HttpServerConnection> conn) {
+    std::shared_ptr<StreamServerConnection> conn) {
   // Reuse the connection's small-object allocator so all lifecycle handlers and
   // task objects stay consistent with the connection's Asio allocation policy.
   auto handler_alloc = conn ? conn->GetHandlerAllocator()
@@ -196,7 +208,7 @@ inline std::string GenerateSessionId() noexcept {
   return boost::uuids::to_string(uuid);
 }
 
-inline std::shared_ptr<HttpServerConnection> GetConnection(
+inline std::shared_ptr<StreamServerConnection> GetConnection(
     const std::shared_ptr<HttpTaskSharedState>& state) {
   return state ? state->conn.load() : nullptr;
 }
@@ -241,9 +253,64 @@ inline void AppendSetCookies(HttpTaskSharedState& state) {
   }
 }
 
-inline void FinalizeResponse(
+inline HttpResponseHeader MakeResponseHeaderSnapshot(const HttpResponse& resp) {
+  HttpResponseHeader header;
+  header.result(resp.result());
+  header.version(resp.version());
+  header.reason(resp.reason());
+
+  for (const auto& field : resp) {
+    header.set(field.name_string(), field.value());
+  }
+
+  return header;
+}
+
+enum class ResponseWriteStageResult {
+  kWriteSubmitted,
+  kWebSocketAcceptPending,
+  kSkippedManualManagement,
+  kConnectionUnavailable,
+};
+
+inline ResponseWriteStageResult SubmitFinalResponseWriteIfNeeded(
     const std::shared_ptr<HttpTaskSharedState>& state) {
-  if (!state || state->manual_connection_management.load()) {
+  if (!state) {
+    return ResponseWriteStageResult::kConnectionUnavailable;
+  }
+
+  const auto mode = state->connection_mode.load(std::memory_order_acquire);
+  if (mode == HttpTaskConnectionLifecycleMode::kManual) {
+    return ResponseWriteStageResult::kSkippedManualManagement;
+  }
+
+  auto conn = GetConnection(state);
+  if (!conn || !conn->IsStreamAvailable()) {
+    TryCloseConnection(state);
+    return ResponseWriteStageResult::kConnectionUnavailable;
+  }
+
+  if (mode == HttpTaskConnectionLifecycleMode::kWebSocket) {
+    AppendSetCookies(*state);
+    state->resp.body().clear();
+    state->websocket_upgrade_state.store(
+        bsrvcore::task_internal::WebSocketUpgradeState::kHeaderPrepared,
+        std::memory_order_release);
+    return ResponseWriteStageResult::kWebSocketAcceptPending;
+  }
+
+  AppendSetCookies(*state);
+  // Response writing and connection keep-alive/close decisions are delegated
+  // to StreamServerConnection::DoWriteResponse().
+  conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load(),
+                        state->route_result.write_expiry);
+  state->conn.store(nullptr);
+  return ResponseWriteStageResult::kWriteSubmitted;
+}
+
+inline void FinalizeManualConnectionAction(
+    const std::shared_ptr<HttpTaskSharedState>& state) {
+  if (!state) {
     return;
   }
 
@@ -253,11 +320,12 @@ inline void FinalizeResponse(
     return;
   }
 
-  AppendSetCookies(*state);
-  // Finalization transfers ownership of the accumulated response to the
-  // connection writer and then marks the task environment unavailable.
-  conn->DoWriteResponse(std::move(state->resp), state->keep_alive.load(),
-                        state->route_result.write_expiry);
+  if (state->keep_alive.load()) {
+    conn->DoCycle();
+  } else {
+    conn->DoClose();
+  }
+
   state->conn.store(nullptr);
 }
 

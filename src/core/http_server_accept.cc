@@ -38,7 +38,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/internal/connection/server/http_server_connection_impl.h"
+#include "bsrvcore/internal/connection/server/stream_server_connection_impl.h"
 
 using namespace bsrvcore;
 

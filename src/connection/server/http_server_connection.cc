@@ -1,6 +1,6 @@
 /**
  * @file http_server_connection.cc
- * @brief HttpServerConnection base implementation.
+ * @brief StreamServerConnection base implementation.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2025-09-30
  *
@@ -11,8 +11,6 @@
  * Implements common connection orchestration for request parsing and response
  * writing.
  */
-
-#include "bsrvcore/internal/connection/server/http_server_connection.h"
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
@@ -37,11 +35,12 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/internal/connection/server/stream_server_connection.h"
 #include "bsrvcore/session/context.h"
 
-using bsrvcore::HttpServerConnection;
+using bsrvcore::StreamServerConnection;
 
-void HttpServerConnection::Post(std::function<void()> fn) {
+void StreamServerConnection::Post(std::function<void()> fn) {
   if (srv_ == nullptr) {
     return;
   }
@@ -49,7 +48,7 @@ void HttpServerConnection::Post(std::function<void()> fn) {
   srv_->Post([fn = std::move(fn)]() { fn(); });
 }
 
-void HttpServerConnection::Dispatch(std::function<void()> fn) {
+void StreamServerConnection::Dispatch(std::function<void()> fn) {
   if (srv_ == nullptr) {
     return;
   }
@@ -57,7 +56,7 @@ void HttpServerConnection::Dispatch(std::function<void()> fn) {
   srv_->Dispatch([fn = std::move(fn)]() { fn(); });
 }
 
-void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
+void StreamServerConnection::PostToIoContext(std::function<void()> fn) {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
@@ -65,7 +64,7 @@ void HttpServerConnection::PostToIoContext(std::function<void()> fn) {
   boost::asio::post(io_executor_, [fn = std::move(fn)]() { fn(); });
 }
 
-void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
+void StreamServerConnection::DispatchToIoContext(std::function<void()> fn) {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
@@ -73,13 +72,13 @@ void HttpServerConnection::DispatchToIoContext(std::function<void()> fn) {
   boost::asio::dispatch(io_executor_, [fn = std::move(fn)]() { fn(); });
 }
 
-boost::asio::any_io_executor HttpServerConnection::GetIoExecutor()
+boost::asio::any_io_executor StreamServerConnection::GetIoExecutor()
     const noexcept {
   return io_executor_;
 }
 
 std::vector<boost::asio::any_io_executor>
-HttpServerConnection::GetEndpointExecutors() const {
+StreamServerConnection::GetEndpointExecutors() const {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
@@ -87,15 +86,15 @@ HttpServerConnection::GetEndpointExecutors() const {
 }
 
 std::vector<boost::asio::any_io_executor>
-HttpServerConnection::GetGlobalExecutors() const {
+StreamServerConnection::GetGlobalExecutors() const {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
   return srv_->GetGlobalExecutors();
 }
 
-void HttpServerConnection::SetTimer(std::size_t timeout,
-                                    std::function<void()> callback) {
+void StreamServerConnection::SetTimer(std::size_t timeout,
+                                      std::function<void()> callback) {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return;
   }
@@ -112,35 +111,37 @@ void HttpServerConnection::SetTimer(std::size_t timeout,
   });
 }
 
-std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetContext() noexcept {
+std::shared_ptr<bsrvcore::Context>
+StreamServerConnection::GetContext() noexcept {
   return srv_->GetContext();
 }
 
-std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetSession(
+std::shared_ptr<bsrvcore::Context> StreamServerConnection::GetSession(
     const std::string& sessionid) {
   return srv_->GetSession(sessionid);
 }
 
-std::shared_ptr<bsrvcore::Context> HttpServerConnection::GetSession(
+std::shared_ptr<bsrvcore::Context> StreamServerConnection::GetSession(
     std::string&& sessionid) {
   return srv_->GetSession(std::move(sessionid));
 }
 
-bool HttpServerConnection::SetSessionTimeout(const std::string& sessionid,
-                                             std::size_t timeout) {
+bool StreamServerConnection::SetSessionTimeout(const std::string& sessionid,
+                                               std::size_t timeout) {
   return srv_->SetSessionTimeout(sessionid, timeout);
 }
 
-bool HttpServerConnection::SetSessionTimeout(std::string&& sessionid,
-                                             std::size_t timeout) {
+bool StreamServerConnection::SetSessionTimeout(std::string&& sessionid,
+                                               std::size_t timeout) {
   return srv_->SetSessionTimeout(std::move(sessionid), timeout);
 }
 
-void HttpServerConnection::Log(bsrvcore::LogLevel level, std::string message) {
+void StreamServerConnection::Log(bsrvcore::LogLevel level,
+                                 std::string message) {
   srv_->Log(level, std::move(message));
 }
 
-void HttpServerConnection::Run() {
+void StreamServerConnection::Run() {
   if (!IsServerRunning() || !IsStreamAvailable()) {
     DoClose();
     return;
@@ -152,7 +153,7 @@ void HttpServerConnection::Run() {
   });
 }
 
-void HttpServerConnection::DoRoute() {
+void StreamServerConnection::DoRoute() {
   CancelTimeout();
 
   if (!parser_->is_header_done()) {
@@ -185,7 +186,7 @@ void HttpServerConnection::DoRoute() {
   DoReadBody();
 }
 
-void HttpServerConnection::DoForwardRequest() {
+void StreamServerConnection::DoForwardRequest() {
   if (!IsServerRunning() || !IsStreamAvailable()) {
     DoClose();
     return;
@@ -197,7 +198,7 @@ void HttpServerConnection::DoForwardRequest() {
   task->Start();
 }
 
-void HttpServerConnection::DoCycle() {
+void StreamServerConnection::DoCycle() {
   ClearMessage();
   if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
@@ -212,7 +213,7 @@ void HttpServerConnection::DoCycle() {
   }
 }
 
-HttpServerConnection::HttpServerConnection(
+StreamServerConnection::StreamServerConnection(
     boost::asio::any_io_executor io_executor, HttpServer* srv,
     std::size_t header_read_expiry, std::size_t keep_alive_timeout,
     bool has_max_connection,
@@ -235,27 +236,27 @@ HttpServerConnection::HttpServerConnection(
   }
 }
 
-HttpServerConnection::~HttpServerConnection() {
+StreamServerConnection::~StreamServerConnection() {
   if (kHasMaxConnection_ && available_connection_num_ != nullptr) {
     available_connection_num_->fetch_add(1, std::memory_order_relaxed);
   }
 }
 
-bool HttpServerConnection::IsServerRunning() const noexcept {
+bool StreamServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();
 }
 
 bsrvcore::OwnedPtr<
     boost::beast::http::request_parser<boost::beast::http::string_body>>&
-HttpServerConnection::GetParser() noexcept {
+StreamServerConnection::GetParser() noexcept {
   return parser_;
 }
 
-std::size_t HttpServerConnection::GetKeepAliveTimeout() const noexcept {
+std::size_t StreamServerConnection::GetKeepAliveTimeout() const noexcept {
   return ((keep_alive_timeout_ / 1000) != 0u) ? keep_alive_timeout_ / 1000 : 1;
 }
 
-void HttpServerConnection::ArmTimeout(std::size_t timeout) {
+void StreamServerConnection::ArmTimeout(std::size_t timeout) {
   if (timeout == 0) {
     return;
   }
@@ -269,15 +270,15 @@ void HttpServerConnection::ArmTimeout(std::size_t timeout) {
       });
 }
 
-void HttpServerConnection::CancelTimeout() { timer_.cancel(); }
+void StreamServerConnection::CancelTimeout() { timer_.cancel(); }
 
-boost::asio::any_io_executor HttpServerConnection::GetExecutor()
+boost::asio::any_io_executor StreamServerConnection::GetExecutor()
     const noexcept {
   return io_executor_;
 }
 
-boost::beast::flat_buffer& HttpServerConnection::GetBuffer() { return buf_; }
+boost::beast::flat_buffer& StreamServerConnection::GetBuffer() { return buf_; }
 
-bsrvcore::HttpServer* HttpServerConnection::GetServer() const noexcept {
+bsrvcore::HttpServer* StreamServerConnection::GetServer() const noexcept {
   return srv_;
 }

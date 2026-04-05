@@ -1,5 +1,5 @@
 /**
- * @file http_server_connection_message_queue.h
+ * @file stream_server_connection_message_queue.h
  * @brief Message queue implementation for HttpServerConnectionImpl.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-13
@@ -9,15 +9,16 @@
  *
  * @details
  * This header defines the nested MessageQueue class of
- * HttpServerConnectionImpl. It is included by http_server_connection_impl.h
+ * HttpServerConnectionImpl. It is included by
+ * stream_server_connection_impl.h
  * after the outer template class definition, so the nested class keeps access
  * to private members of the outer class (e.g. stream_).
  */
 
 #pragma once
 
-#ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_MESSAGE_QUEUE_H_
-#define BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_MESSAGE_QUEUE_H_
+#ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_MESSAGE_QUEUE_H_
+#define BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_MESSAGE_QUEUE_H_
 
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
@@ -290,4 +291,4 @@ class HttpServerConnectionImpl<S>::MessageQueue
   std::atomic<bool> connection_dead_;
 };
 
-#endif  // BSRVCORE_INTERNAL_CONNECTION_SERVER_HTTP_SERVER_CONNECTION_MESSAGE_QUEUE_H_
+#endif  // BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_MESSAGE_QUEUE_H_

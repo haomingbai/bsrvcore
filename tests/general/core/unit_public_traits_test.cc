@@ -149,9 +149,9 @@ static_assert(std::is_base_of_v<
 static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<bsrvcore::Logger>,
                       bsrvcore::Logger>);
-static_assert(
-    std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::bsrvrun::ParameterMap>,
-                      bsrvcore::bsrvrun::ParameterMap>);
+static_assert(std::is_base_of_v<
+              bsrvcore::CopyableMovable<bsrvcore::bsrvrun::ParameterMap>,
+              bsrvcore::bsrvrun::ParameterMap>);
 static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<
                           bsrvcore::bsrvrun::HttpRequestHandlerFactory>,

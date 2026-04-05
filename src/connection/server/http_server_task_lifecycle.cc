@@ -12,9 +12,12 @@
 #include <cassert>
 #include <cstddef>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/server/websocket_server_task.h"
 #include "internal/server/http_server_task_detail.h"
 
 namespace bsrvcore {
@@ -22,9 +25,120 @@ namespace bsrvcore {
 namespace {
 
 using connection_internal::helper::CreateTaskState;
-using connection_internal::helper::FinalizeResponse;
+using connection_internal::helper::FinalizeManualConnectionAction;
+using connection_internal::helper::GetConnection;
 using connection_internal::helper::IsTaskEnvironmentAvailable;
+using connection_internal::helper::ResponseWriteStageResult;
+using connection_internal::helper::SubmitFinalResponseWriteIfNeeded;
 using connection_internal::helper::TryCloseConnection;
+using task_internal::WebSocketUpgradeState;
+
+WebSocketTaskBase::HandlerPtr TakePendingWebSocketHandler(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  if (!state) {
+    return nullptr;
+  }
+
+  std::unique_lock<std::shared_mutex> lock(
+      state->websocket_upgrade_handler_mtx);
+  return std::move(state->websocket_upgrade_handler);
+}
+
+bool TryStartWebSocketUpgradeTask(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
+    HttpRequest request, HttpResponseHeader response_header) {
+  if (!state ||
+      state->websocket_upgrade_state.load(std::memory_order_acquire) !=
+          WebSocketUpgradeState::kHeaderPrepared) {
+    return false;
+  }
+
+  auto handler = TakePendingWebSocketHandler(state);
+  auto conn = GetConnection(state);
+  if (!handler || !conn) {
+    TryCloseConnection(state);
+    return false;
+  }
+
+  auto websocket_task = WebSocketServerTask::CreateFromConnection(
+      conn, std::move(request), std::move(response_header), std::move(handler));
+  if (!websocket_task) {
+    TryCloseConnection(state);
+    return false;
+  }
+
+  websocket_task->Start();
+  state->websocket_upgrade_state.store(WebSocketUpgradeState::kTaskStarted,
+                                       std::memory_order_release);
+  state->conn.store(nullptr);
+  return true;
+}
+
+void FinalizeAutomaticMode(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  const auto write_stage = SubmitFinalResponseWriteIfNeeded(state);
+  if (write_stage == ResponseWriteStageResult::kConnectionUnavailable ||
+      write_stage == ResponseWriteStageResult::kWriteSubmitted) {
+    // kWriteSubmitted means DoWriteResponse completion handles
+    // keep-alive routing (DoCycle vs DoClose).
+    return;
+  }
+
+  TryCloseConnection(state);
+}
+
+void FinalizeManualMode(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  const auto write_stage = SubmitFinalResponseWriteIfNeeded(state);
+  if (write_stage == ResponseWriteStageResult::kConnectionUnavailable) {
+    return;
+  }
+
+  if (write_stage != ResponseWriteStageResult::kSkippedManualManagement) {
+    TryCloseConnection(state);
+    return;
+  }
+
+  FinalizeManualConnectionAction(state);
+}
+
+void FinalizeWebSocketMode(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  const auto write_stage = SubmitFinalResponseWriteIfNeeded(state);
+  if (write_stage == ResponseWriteStageResult::kConnectionUnavailable) {
+    return;
+  }
+
+  if (write_stage != ResponseWriteStageResult::kWebSocketAcceptPending) {
+    TryCloseConnection(state);
+    return;
+  }
+
+  auto request = state->req;
+  auto response_header =
+      connection_internal::helper::MakeResponseHeaderSnapshot(state->resp);
+  (void)TryStartWebSocketUpgradeTask(state, std::move(request),
+                                     std::move(response_header));
+}
+
+void FinalizePostPhaseConnection(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  if (!state) {
+    return;
+  }
+
+  switch (state->connection_mode.load(std::memory_order_acquire)) {
+    case HttpTaskConnectionLifecycleMode::kAutomatic:
+      FinalizeAutomaticMode(state);
+      return;
+    case HttpTaskConnectionLifecycleMode::kManual:
+      FinalizeManualMode(state);
+      return;
+    case HttpTaskConnectionLifecycleMode::kWebSocket:
+      FinalizeWebSocketMode(state);
+      return;
+  }
+}
 
 template <typename Task>
 inline void DestroyLifecycleTask(
@@ -80,11 +194,6 @@ void HttpServerTaskDeleter::operator()(HttpServerTask* ptr) const {
     return;
   }
 
-  if (state->route_result.aspects.empty()) {
-    FinalizeResponse(state);
-    return;
-  }
-
   auto* raw =
       connection_internal::helper::AllocateTaskObject<HttpPostServerTask>(
           state);
@@ -105,14 +214,14 @@ void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
     return;
   }
 
-  FinalizeResponse(state);
+  FinalizePostPhaseConnection(state);
 }
 
 }  // namespace task_internal
 
 std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
-    std::shared_ptr<HttpServerConnection> conn) {
+    std::shared_ptr<StreamServerConnection> conn) {
   // All three lifecycle task objects share one HttpTaskSharedState instance so
   // request/response data, cookies, and connection state survive phase hops.
   auto state =
@@ -171,7 +280,7 @@ void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
 }
 
 HttpServerTask::HttpServerTask(HttpRequest req, HttpRouteResult route_result,
-                               std::shared_ptr<HttpServerConnection> conn)
+                               std::shared_ptr<StreamServerConnection> conn)
     : HttpTaskBase(CreateTaskState(std::move(req), std::move(route_result),
                                    std::move(conn))) {}
 
@@ -217,7 +326,7 @@ void HttpServerTask::DoService() {
 
 std::shared_ptr<HttpServerTask> HttpServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
-    std::shared_ptr<HttpServerConnection> conn) {
+    std::shared_ptr<StreamServerConnection> conn) {
   auto state =
       CreateTaskState(std::move(req), std::move(route_result), std::move(conn));
   auto* raw =

@@ -56,4 +56,26 @@ Current stress focus includes:
 - Client session cookie consistency under concurrency and SSE burst pulls.
 - Runtime start/stop cycles, multi-listener pressure, and post queue completion.
 
+## WebSocket dedicated tests
+
+WebSocket has dedicated test units across all three layers:
+
+- Unit: `tests/general/connection/unit_*websocket*`
+- Integration: `tests/general/connection/integration_websocket_tasks_test.cc`
+- Stress: `tests/stress/connection/stress_websocket_tasks_test.cc`
+
+Run WebSocket-only tests:
+
+```bash
+ctest --test-dir build -R websocket --output-on-failure
+```
+
+Run WebSocket tests by label:
+
+```bash
+ctest --test-dir build -R websocket -L unit --output-on-failure
+ctest --test-dir build -R websocket -L integration --output-on-failure
+ctest --test-dir build -R websocket -L stress --output-on-failure
+```
+
 For more detailed testing architecture notes, see [../testing.md](../testing.md).

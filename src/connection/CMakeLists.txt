@@ -15,6 +15,7 @@ add_library(bsrvcore_connection_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task_startup.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task_stream.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/client/websocket_client_task.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/multipart_generator.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/put_generator.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/sse_event_parser.cc
@@ -25,6 +26,8 @@ add_library(bsrvcore_connection_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/server/http_server_task_base.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server/http_server_task_lifecycle.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/server/server_set_cookie.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/server/websocket_server_task.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/websocket/websocket_task_base.cc
 )
 target_link_libraries(bsrvcore_connection_obj PRIVATE
   bsrvcore_connection_internal_api

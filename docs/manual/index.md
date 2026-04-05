@@ -25,11 +25,12 @@ Read in this order:
 10. [Logging](logging.md) — Goal: plug in your logger and log from handlers.
 11. [Async waiters](async-waiters.md) — Goal: converge several independent callbacks into one final callback.
 12. [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md) — Goal: call other services (HTTP), consume SSE, or build upload requests from files.
-13. [Examples](examples.md) — Goal: run the sample programs.
-14. [Testing](testing.md) — Goal: build and run tests locally and in CI.
-15. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
-16. [Linux I/O model choice](linux-io-model-choice.md) — Goal: understand why `epoll` stays the default over `io_uring` for broad Linux compatibility.
-17. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
+13. [WebSocket tasks](websocket-tasks.md) — Goal: understand current WebSocket task lifecycle and first-stage limits.
+14. [Examples](examples.md) — Goal: run the sample programs.
+15. [Testing](testing.md) — Goal: build and run tests locally and in CI.
+16. [Benchmarking](benchmarking.md) — Goal: measure `HttpServer` throughput, latency, and stability under multiple pressure levels.
+17. [Linux I/O model choice](linux-io-model-choice.md) — Goal: understand why `epoll` stays the default over `io_uring` for broad Linux compatibility.
+18. [bsrvrun runtime container](bsrvrun.md) — Goal: run server from YAML + plugin factories.
 
 ## Public umbrella header
 

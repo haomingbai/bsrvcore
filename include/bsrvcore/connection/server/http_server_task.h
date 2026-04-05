@@ -29,6 +29,7 @@
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/beast/websocket.hpp>
 #include <cstddef>
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
@@ -49,11 +50,13 @@
 
 namespace bsrvcore {
 
-class HttpServerConnection;
+class StreamServerConnection;
 class Context;
 class HttpServer;
 class HttpPreServerTask;
 class HttpPostServerTask;
+class WebSocketHandler;
+class WebSocketServerTask;
 
 namespace task_internal {
 struct HttpTaskSharedState;
@@ -79,6 +82,12 @@ using HttpResponseHeader =
 /** @brief Request-header-only type used by staged callbacks and snapshots. */
 using HttpRequestHeader =
     boost::beast::http::request_header<boost::beast::http::fields>;
+
+enum class HttpTaskConnectionLifecycleMode {
+  kAutomatic,
+  kManual,
+  kWebSocket,
+};
 
 /**
  * @brief Shared API surface for lifecycle task phases
@@ -197,10 +206,18 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
    * @param value true to enable manual mode.
    *
    * @note Once enabled, later phase completion does not auto-write response.
-   *       Manual mode is a one-way switch for a task instance: calling this
-   *       API with false after it has been enabled has no effect.
+   *       Manual mode is a one-way switch from automatic mode only: calling
+   *       this API with false has no effect, and calling with true after
+   *       WebSocket mode has been selected also has no effect.
    */
   void SetManualConnectionManagement(bool value) noexcept;
+
+  /**
+   * @brief Get current connection lifecycle mode.
+   * @return Current mode for this task state.
+   */
+  [[nodiscard]] HttpTaskConnectionLifecycleMode GetConnectionLifecycleMode()
+      const noexcept;
 
   /**
    * @brief Get shared request context.
@@ -358,6 +375,12 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
   bool IsAvailable() noexcept;
 
   /**
+   * @brief Check whether current request is a WebSocket upgrade request.
+   * @return true when request headers/method satisfy WebSocket upgrade shape.
+   */
+  bool IsWebSocketRequest() const noexcept;
+
+  /**
    * @brief Get matched route location string.
    * @return Route location.
    */
@@ -472,7 +495,7 @@ class HttpPreServerTask
    */
   static std::shared_ptr<HttpPreServerTask> Create(
       HttpRequest req, HttpRouteResult route_result,
-      std::shared_ptr<HttpServerConnection> conn);
+      std::shared_ptr<StreamServerConnection> conn);
 
   /**
    * @brief Start pre-aspect execution.
@@ -514,12 +537,30 @@ class HttpServerTask : public HttpTaskBase,
    */
   static std::shared_ptr<HttpServerTask> Create(
       HttpRequest req, HttpRouteResult route_result,
-      std::shared_ptr<HttpServerConnection> conn);
+      std::shared_ptr<StreamServerConnection> conn);
 
   /**
    * @brief Start route handler execution.
    */
   void Start();
+
+  /**
+   * @brief Request HTTP->WebSocket upgrade ownership for current task.
+   * @param handler WebSocket callback handler (ownership transferred).
+   * @return true when the upgrade handoff has been accepted.
+   *
+   * @details
+   * This API only records upgrade intent and handler ownership. The concrete
+   * `WebSocketServerTask` is materialized by the lifecycle deleter once the
+   * HTTP post phase fully releases the task.
+   */
+  bool UpgradeToWebSocket(std::unique_ptr<WebSocketHandler> handler);
+
+  /**
+   * @brief Check whether this task has already marked WebSocket upgrade.
+   * @return true when upgrade intent has been recorded.
+   */
+  [[nodiscard]] bool IsWebSocketUpgradeMarked() const noexcept;
 
   /**
    * @brief Destructor.
@@ -532,7 +573,7 @@ class HttpServerTask : public HttpTaskBase,
   friend struct task_internal::HttpPostTaskDeleter;
 
   HttpServerTask(HttpRequest req, HttpRouteResult route_result,
-                 std::shared_ptr<HttpServerConnection> conn);
+                 std::shared_ptr<StreamServerConnection> conn);
 
   explicit HttpServerTask(
       std::shared_ptr<task_internal::HttpTaskSharedState> state);

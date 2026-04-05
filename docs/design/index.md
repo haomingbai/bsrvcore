@@ -12,6 +12,7 @@ changes safely.
 2. [Request lifecycle](request-lifecycle.md)
 3. [Threading and executors](threading-and-executors.md)
 4. [Routing and sessions](routing-and-sessions.md)
+5. [WebSocket lifecycle](websocket-lifecycle.md)
 
 ## Scope
 

@@ -62,4 +62,19 @@ When manual mode is **off** (default), the normal flow is:
 2. bsrvcore writes the response
 3. Post aspects run
 
+## WebSocket upgrade entry
+
+`HttpTaskBase` provides `IsWebSocketRequest()` to detect HTTP upgrade shape.
+
+`HttpServerTask` provides `UpgradeToWebSocket(...)` as the WebSocket handoff
+entry in this stage. It records upgrade intent during service execution, then
+the post-task lifecycle deleter creates and starts the concrete
+`WebSocketServerTask` after the HTTP task is released. The exact task APIs and
+current stage limitations are documented in
+[WebSocket tasks](websocket-tasks.md).
+
+When a request is upgraded, the final response path uses a header-only
+submission state so the HTTP body is dropped without switching the task into
+manual connection management.
+
 Next: [Request body processing](request-body-processing.md).
