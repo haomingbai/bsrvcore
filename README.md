@@ -86,12 +86,15 @@ sudo ldconfig
 
 Source: [examples/getting-started/quick_start.cc](examples/getting-started/quick_start.cc)
 
+The public API now exposes common Asio / Beast / JSON concepts through
+`include/bsrvcore/core/types.h`, and `bsrvcore/bsrvcore.h` re-exports those
+aliases. Prefer names such as `bsrvcore::IoExecutor`, `bsrvcore::SslContext`,
+`bsrvcore::HttpField`, and `bsrvcore::HttpStatus` in application code.
+
 ```cpp
 #include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
-#include <boost/beast/http/field.hpp>
-#include <boost/beast/http/status.hpp>
 
 #include <iostream>
 #include <memory>
@@ -103,12 +106,15 @@ int main() {
             ->AddRouteEntry(
                     bsrvcore::HttpRequestMethod::kGet, "/hello",
                     [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->GetResponse().result(boost::beast::http::status::ok);
-                        task->SetField(boost::beast::http::field::content_type,
+                        task->GetResponse().result(bsrvcore::HttpStatus::ok);
+                        task->SetField(bsrvcore::HttpField::content_type,
                                                      "text/plain; charset=utf-8");
                         task->SetBody("Hello, bsrvcore.");
                     })
-                ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080}, 2);
+                ->AddListen(
+                    bsrvcore::TcpEndpoint(boost::asio::ip::make_address("0.0.0.0"),
+                                          8080),
+                    2);
 
               if (!server->Start()) {
         std::cerr << "Failed to start server." << std::endl;

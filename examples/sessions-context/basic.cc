@@ -55,8 +55,8 @@ int main() {
               }
             }
 
-            task->GetResponse().result(boost::beast::http::status::ok);
-            task->SetField(boost::beast::http::field::content_type,
+            task->GetResponse().result(bsrvcore::HttpStatus::ok);
+            task->SetField(bsrvcore::HttpField::content_type,
                            "text/plain; charset=utf-8");
             task->SetBody("sessionId=" + session_id + "\nuser=" + user_name +
                           "\n");

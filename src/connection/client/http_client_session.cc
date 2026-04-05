@@ -23,8 +23,7 @@ namespace bsrvcore {
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
     HttpClientTask::Executor io_executor, std::string host, std::string port,
-    std::string target, boost::beast::http::verb method,
-    HttpClientOptions options) {
+    std::string target, HttpVerb method, HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttp(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), method, std::move(options));
@@ -35,7 +34,7 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
     HttpClientTask::Executor io_executor,
     HttpClientTask::Executor callback_executor, std::string host,
-    std::string port, std::string target, boost::beast::http::verb method,
+    std::string port, std::string target, HttpVerb method,
     HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttp(
       std::move(io_executor), std::move(callback_executor), std::move(host),
@@ -46,8 +45,7 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttp(
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
     HttpClientTask::Executor io_executor, std::string host, std::string port,
-    std::string target, boost::beast::http::verb method,
-    HttpClientOptions options) {
+    std::string target, HttpVerb method, HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), method, std::move(options));
@@ -58,7 +56,7 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
     HttpClientTask::Executor io_executor,
     HttpClientTask::Executor callback_executor, std::string host,
-    std::string port, std::string target, boost::beast::http::verb method,
+    std::string port, std::string target, HttpVerb method,
     HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
       std::move(io_executor), std::move(callback_executor), std::move(host),
@@ -68,9 +66,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
-    HttpClientTask::Executor io_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-    std::string port, std::string target, boost::beast::http::verb method,
+    HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+    std::string host, std::string port, std::string target, HttpVerb method,
     HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
       std::move(io_executor), std::move(ssl_ctx), std::move(host),
@@ -81,9 +78,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
     HttpClientTask::Executor io_executor,
-    HttpClientTask::Executor callback_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-    std::string port, std::string target, boost::beast::http::verb method,
+    HttpClientTask::Executor callback_executor, SslContextPtr ssl_ctx,
+    std::string host, std::string port, std::string target, HttpVerb method,
     HttpClientOptions options) {
   auto task = HttpClientTask::CreateHttps(
       std::move(io_executor), std::move(callback_executor), std::move(ssl_ctx),
@@ -94,8 +90,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateHttps(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
-    HttpClientTask::Executor io_executor, std::string url,
-    boost::beast::http::verb method, HttpClientOptions options) {
+    HttpClientTask::Executor io_executor, std::string url, HttpVerb method,
+    HttpClientOptions options) {
   auto task = HttpClientTask::CreateFromUrl(
       std::move(io_executor), std::move(url), method, std::move(options));
   task->AttachSession(weak_from_this());
@@ -105,7 +101,7 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
     HttpClientTask::Executor io_executor,
     HttpClientTask::Executor callback_executor, std::string url,
-    boost::beast::http::verb method, HttpClientOptions options) {
+    HttpVerb method, HttpClientOptions options) {
   auto task = HttpClientTask::CreateFromUrl(
       std::move(io_executor), std::move(callback_executor), std::move(url),
       method, std::move(options));
@@ -114,9 +110,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
 }
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
-    HttpClientTask::Executor io_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-    boost::beast::http::verb method, HttpClientOptions options) {
+    HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+    std::string url, HttpVerb method, HttpClientOptions options) {
   auto task =
       HttpClientTask::CreateFromUrl(std::move(io_executor), std::move(ssl_ctx),
                                     std::move(url), method, std::move(options));
@@ -126,9 +121,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
 
 std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
     HttpClientTask::Executor io_executor,
-    HttpClientTask::Executor callback_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-    boost::beast::http::verb method, HttpClientOptions options) {
+    HttpClientTask::Executor callback_executor, SslContextPtr ssl_ctx,
+    std::string url, HttpVerb method, HttpClientOptions options) {
   auto task = HttpClientTask::CreateFromUrl(
       std::move(io_executor), std::move(callback_executor), std::move(ssl_ctx),
       std::move(url), method, std::move(options));
@@ -163,9 +157,8 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
 }
 
 std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
-    HttpClientTask::Executor io_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-    std::string port, std::string target,
+    HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+    std::string host, std::string port, std::string target,
     WebSocketClientTask::HandlerPtr handler, HttpClientOptions options) {
   auto task = WebSocketClientTask::CreateHttps(
       std::move(io_executor), std::move(ssl_ctx), std::move(host),
@@ -190,9 +183,9 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
 }
 
 std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
-    HttpClientTask::Executor io_executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-    WebSocketClientTask::HandlerPtr handler, HttpClientOptions options) {
+    HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+    std::string url, WebSocketClientTask::HandlerPtr handler,
+    HttpClientOptions options) {
   auto task = WebSocketClientTask::CreateFromUrl(
       std::move(io_executor), std::move(ssl_ctx), std::move(url),
       std::move(handler), std::move(options));

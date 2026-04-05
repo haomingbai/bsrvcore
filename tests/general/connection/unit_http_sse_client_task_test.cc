@@ -35,7 +35,7 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 
@@ -120,8 +120,8 @@ TEST(HttpSseClientTaskTest, StartCallbackUsesConfiguredCallbackExecutor) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context io_ioc;
-  boost::asio::io_context callback_ioc;
+  bsrvcore::IoContext io_ioc;
+  bsrvcore::IoContext callback_ioc;
   auto callback_guard = boost::asio::make_work_guard(callback_ioc);
   auto task = bsrvcore::HttpSseClientTask::CreateHttp(
       io_ioc.get_executor(), callback_ioc.get_executor(), "127.0.0.1",

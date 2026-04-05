@@ -14,7 +14,7 @@ This chapter maps to:
 
 Its executor model is explicit:
 
-- I/O factories accept `boost::asio::io_context::executor_type`
+- I/O factories accept `IoContextExecutor`
 - a second overload lets you provide a dedicated callback executor
 - the simpler overload defaults callback delivery back onto the same executor
 - `thread_pool::executor_type` is intentionally not accepted here
@@ -37,12 +37,12 @@ Typical usage:
 Minimal example:
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto task = bsrvcore::HttpClientTask::CreateFromUrl(
   ioc.get_executor(),
   "http://127.0.0.1:8080/ping",
-  boost::beast::http::verb::get);
+  bsrvcore::HttpVerb::get);
 
 task->OnDone([](const bsrvcore::HttpClientResult& r) {
   if (r.ec || r.cancelled) {
@@ -58,8 +58,8 @@ ioc.run();
 If you want callbacks on another `io_context`, use the two-executor overload:
 
 ```cpp
-boost::asio::io_context io_ioc;
-boost::asio::io_context callback_ioc;
+bsrvcore::IoContext io_ioc;
+bsrvcore::IoContext callback_ioc;
 
 auto task = bsrvcore::HttpClientTask::CreateHttp(
   io_ioc.get_executor(),
@@ -67,20 +67,20 @@ auto task = bsrvcore::HttpClientTask::CreateHttp(
   "127.0.0.1",
   "8080",
   "/ping",
-  boost::beast::http::verb::get);
+  bsrvcore::HttpVerb::get);
 ```
 
 JSON helpers:
 
 - `task->SetJson(value)` serializes the request body and sets `Content-Type: application/json`
-- `result.ParseJsonBody(out)` parses `result.response.body()` and returns a `JsonErrorCode`
+- `result.ParseJsonBody(out)` parses `result.response.body()` and returns a `bsrvcore::JsonErrorCode`
 - `result.TryParseJsonBody(out)` is the bool-only convenience wrapper
 
 ### HTTPS note
 
 - `CreateFromUrl(executor, "https://...", ...)` now works without passing a TLS context.
 - The library creates one shared client TLS context internally and loads system trust roots.
-- If you need custom trust or client certificates, use the overload that takes `std::shared_ptr<boost::asio::ssl::context>`.
+- If you need custom trust or client certificates, use the overload that takes `SslContextPtr`.
 
 ## PutGenerator and MultipartGenerator
 
@@ -100,7 +100,7 @@ So the split is:
 ### PutGenerator example
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto reader = bsrvcore::FileReader::Create(
   "/tmp/blob.bin",
@@ -130,7 +130,7 @@ ioc.run();
 ### MultipartGenerator example
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto file_reader = bsrvcore::FileReader::Create(
   "/tmp/photo.jpg",
@@ -189,7 +189,7 @@ bsrvcore uses a pull loop:
 Example with `SseEventParser`:
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 bsrvcore::SseEventParser parser;
 
 auto task = bsrvcore::HttpSseClientTask::CreateFromUrl(

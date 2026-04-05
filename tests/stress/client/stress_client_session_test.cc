@@ -27,7 +27,7 @@ using bsrvcore::test::stress::LoadStressConfig;
 bsrvcore::HttpClientResponse DoSessionRequest(
     const std::shared_ptr<bsrvcore::HttpClientSession>& session,
     http::verb method, unsigned short port, const std::string& target) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = session->CreateHttp(ioc.get_executor(), "127.0.0.1",
                                   std::to_string(port), target, method);
 
@@ -109,7 +109,7 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 

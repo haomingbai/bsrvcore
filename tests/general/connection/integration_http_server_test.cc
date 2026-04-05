@@ -27,7 +27,7 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/put_processor.h"
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/json.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -37,7 +37,6 @@ using bsrvcore::test::ServerGuard;
 using bsrvcore::test::StartServerWithRoutes;
 namespace http = boost::beast::http;
 namespace json = bsrvcore::json;
-using tcp = boost::asio::ip::tcp;
 
 std::filesystem::path MakeTempPath(const std::string& prefix) {
   static std::size_t counter = 0;
@@ -56,7 +55,7 @@ std::string ThreadIdToString(std::thread::id id) {
   return oss.str();
 }
 
-bool WaitUntilSocketClosed(tcp::socket& socket,
+bool WaitUntilSocketClosed(boost::asio::ip::tcp::socket& socket,
                            std::chrono::milliseconds timeout) {
   boost::system::error_code set_non_blocking_ec;
   socket.non_blocking(true, set_non_blocking_ec);
@@ -136,11 +135,11 @@ TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
-  tcp::socket first(ioc);
+  bsrvcore::IoContext ioc;
+  boost::asio::ip::tcp::socket first(ioc);
   first.connect({boost::asio::ip::make_address("127.0.0.1"), port});
 
-  tcp::socket second(ioc);
+  boost::asio::ip::tcp::socket second(ioc);
   second.connect({boost::asio::ip::make_address("127.0.0.1"), port});
 
   EXPECT_TRUE(WaitUntilSocketClosed(second, std::chrono::milliseconds(1500)));

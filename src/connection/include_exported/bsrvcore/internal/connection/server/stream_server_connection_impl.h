@@ -64,34 +64,28 @@ template <typename T>
 struct IsBeastSslStream : std::false_type {};
 
 template <typename NextLayer>
-struct IsBeastSslStream<boost::beast::ssl_stream<NextLayer>> : std::true_type {
-};
+struct IsBeastSslStream<BasicSslStream<NextLayer>> : std::true_type {};
 
-inline boost::asio::ip::tcp::socket& GetLowestSocket(
-    boost::beast::tcp_stream& s) {
-  return s.socket();
-}
+inline Tcp::socket& GetLowestSocket(TcpStream& s) { return s.socket(); }
 
-inline boost::asio::ip::tcp::socket& GetLowestSocket(
-    boost::beast::ssl_stream<boost::beast::tcp_stream>& s) {
+inline Tcp::socket& GetLowestSocket(SslStream& s) {
   return s.next_layer().socket();
 }
 
 template <typename NextLayer>
-inline boost::asio::ip::tcp::socket& GetLowestSocket(
-    boost::beast::websocket::stream<NextLayer>& s) {
+inline Tcp::socket& GetLowestSocket(BasicWebSocketStream<NextLayer>& s) {
   return GetLowestSocket(s.next_layer());
 }
 
-inline bool IsWebSocketReservedHeader(boost::beast::http::field field) {
+inline bool IsWebSocketReservedHeader(HttpField field) {
   switch (field) {
-    case boost::beast::http::field::connection:
-    case boost::beast::http::field::upgrade:
-    case boost::beast::http::field::sec_websocket_accept:
-    case boost::beast::http::field::sec_websocket_extensions:
-    case boost::beast::http::field::sec_websocket_key:
-    case boost::beast::http::field::sec_websocket_protocol:
-    case boost::beast::http::field::sec_websocket_version:
+    case HttpField::connection:
+    case HttpField::upgrade:
+    case HttpField::sec_websocket_accept:
+    case HttpField::sec_websocket_extensions:
+    case HttpField::sec_websocket_key:
+    case HttpField::sec_websocket_protocol:
+    case HttpField::sec_websocket_version:
       return true;
     default:
       return false;
@@ -108,12 +102,12 @@ concept ValidStream = requires(S s) {
 template <ValidStream S>
 class HttpServerConnectionImpl : public StreamServerConnection {
  public:
-  using WebSocketStream = boost::beast::websocket::stream<S>;
+  using UpgradeWebSocketStream = BasicWebSocketStream<S>;
   class MessageQueue;
 
   // Constructor receives shared server runtime controls from accept path.
-  HttpServerConnectionImpl(S stream, boost::asio::any_io_executor io_executor,
-                           HttpServer* srv, std::size_t header_read_expiry,
+  HttpServerConnectionImpl(S stream, IoExecutor io_executor, HttpServer* srv,
+                           std::size_t header_read_expiry,
                            std::size_t keep_alive_timeout,
                            bool has_max_connection,
                            std::atomic<std::int64_t>* available_connection_num,
@@ -152,7 +146,7 @@ class HttpServerConnectionImpl : public StreamServerConnection {
 
           if (ws_stream_ != nullptr) {
             boost::system::error_code ec;
-            socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
+            socket.shutdown(Tcp::socket::shutdown_both, ec);
             socket.close(ec);
           } else if constexpr (helper::IsBeastSslStream<S>::value) {
             stream_.async_shutdown(boost::asio::bind_executor(
@@ -164,7 +158,7 @@ class HttpServerConnectionImpl : public StreamServerConnection {
           } else {
             boost::system::error_code ec;
             helper::GetLowestSocket(stream_).shutdown(
-                boost::asio::ip::tcp::socket::shutdown_both, ec);
+                Tcp::socket::shutdown_both, ec);
             helper::GetLowestSocket(stream_).close(ec);
           }
         });
@@ -190,7 +184,7 @@ class HttpServerConnectionImpl : public StreamServerConnection {
           ArmTimeout(write_expiry);
 
           response.keep_alive(keep_alive);
-          response.set(boost::beast::http::field::keep_alive,
+          response.set(HttpField::keep_alive,
                        std::to_string(GetKeepAliveTimeout()));
           response.prepare_payload();
           resp_ = std::move(response);
@@ -211,9 +205,8 @@ class HttpServerConnectionImpl : public StreamServerConnection {
         });
   }
 
-  void DoFlushResponseHeader(
-      boost::beast::http::response_header<boost::beast::http::fields> header,
-      std::size_t write_expiry) override;
+  void DoFlushResponseHeader(HttpResponseHeader header,
+                             std::size_t write_expiry) override;
 
   void DoFlushResponseBody(std::string body, std::size_t write_expiry) override;
 
@@ -278,12 +271,12 @@ class HttpServerConnectionImpl : public StreamServerConnection {
                                WebSocketWriteCallback callback);
 
   // members
-  boost::beast::http::response<boost::beast::http::string_body> resp_;
+  HttpResponse resp_;
   S stream_;
   std::mutex mtx_;
   std::shared_ptr<MessageQueue> message_queue_;  // now shared
-  std::unique_ptr<WebSocketStream> ws_stream_;
-  boost::beast::flat_buffer ws_read_buffer_;
+  std::unique_ptr<UpgradeWebSocketStream> ws_stream_;
+  FlatBuffer ws_read_buffer_;
   std::atomic<bool> closed_;
 };
 
@@ -307,8 +300,7 @@ HttpServerConnectionImpl<S>::Create(Args&&... args) {
 
 template <ValidStream S>
 void HttpServerConnectionImpl<S>::DoFlushResponseHeader(
-    boost::beast::http::response_header<boost::beast::http::fields> header,
-    std::size_t write_expiry) {
+    HttpResponseHeader header, std::size_t write_expiry) {
   EnsureMessageQueueCreated();
   // Capture shared_ptr to message_queue_ inside AddHeader to keep it alive.
   message_queue_->AddHeader(std::move(header), write_expiry);
@@ -345,15 +337,16 @@ void HttpServerConnectionImpl<S>::DoWebSocketAccept(
           return;
         }
 
-        ws_stream_ = std::make_unique<WebSocketStream>(std::move(stream_));
+        ws_stream_ =
+            std::make_unique<UpgradeWebSocketStream>(std::move(stream_));
         ws_stream_->set_option(
             boost::beast::websocket::stream_base::timeout::suggested(
                 boost::beast::role_type::server));
         ws_stream_->set_option(boost::beast::websocket::stream_base::decorator(
-            [response_header = std::move(response_header)](
-                boost::beast::websocket::response_type& response) {
+            [response_header =
+                 std::move(response_header)](WebSocketResponse& response) {
               for (const auto& field : response_header) {
-                if (field.name() == boost::beast::http::field::unknown ||
+                if (field.name() == HttpField::unknown ||
                     helper::IsWebSocketReservedHeader(field.name())) {
                   continue;
                 }
@@ -483,7 +476,7 @@ template <ValidStream S>
 void HttpServerConnectionImpl<S>::DoWebSocketPingControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_ping(
-      boost::beast::websocket::ping_data(std::move(payload)),
+      WebSocketPingData(std::move(payload)),
       boost::asio::bind_executor(GetExecutor(),
                                  [self = this->shared_from_this(), this,
                                   callback = std::move(callback)](
@@ -497,7 +490,7 @@ template <ValidStream S>
 void HttpServerConnectionImpl<S>::DoWebSocketPongControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_pong(
-      boost::beast::websocket::ping_data(std::move(payload)),
+      WebSocketPingData(std::move(payload)),
       boost::asio::bind_executor(GetExecutor(),
                                  [self = this->shared_from_this(), this,
                                   callback = std::move(callback)](
@@ -511,7 +504,7 @@ template <ValidStream S>
 void HttpServerConnectionImpl<S>::DoWebSocketCloseControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_close(
-      boost::beast::websocket::close_reason(std::move(payload)),
+      WebSocketCloseReason(std::move(payload)),
       boost::asio::bind_executor(GetExecutor(),
                                  [self = this->shared_from_this(), this,
                                   callback = std::move(callback)](

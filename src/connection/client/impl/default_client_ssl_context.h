@@ -18,10 +18,12 @@
 #include <memory>
 #include <string>
 
+#include "bsrvcore/core/types.h"
+
 namespace bsrvcore::connection_internal {
 
 struct DefaultClientSslContextState {
-  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  SslContextPtr ssl_ctx;
   boost::system::error_code ec;
   std::string error_message;
 };

@@ -10,7 +10,7 @@
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/json.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -32,7 +32,7 @@ TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::HttpClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/ping",
       http::verb::get);
@@ -65,7 +65,7 @@ TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::HttpClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/chunk",
       http::verb::get);
@@ -93,7 +93,7 @@ TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {
 }
 
 TEST(HttpClientTaskTest, HttpsUrlWithoutSslContextStillCreatesTask) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::HttpClientTask::CreateFromUrl(
       ioc.get_executor(), "https://127.0.0.1:8443/ping", http::verb::get);
 
@@ -115,7 +115,7 @@ TEST(HttpClientTaskTest, JsonHelpersRoundTripRequestAndResponse) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::HttpClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/echo-json",
       http::verb::post);
@@ -162,7 +162,7 @@ TEST(HttpClientTaskTest, JsonResponseHelpersReportTypeAndSyntaxErrors) {
   const auto port = StartServerWithRoutes(guard);
 
   const auto fetch_result = [port](const std::string& target) {
-    boost::asio::io_context ioc;
+    bsrvcore::IoContext ioc;
     auto task = bsrvcore::HttpClientTask::CreateHttp(
         ioc.get_executor(), "127.0.0.1", std::to_string(port), target,
         http::verb::get);
@@ -197,7 +197,7 @@ TEST(HttpClientTaskTest, JsonResponseHelpersReportTypeAndSyntaxErrors) {
 }
 
 TEST(HttpClientTaskTest, CallbackSettersReturnSharedPointerForChaining) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::HttpClientTask::CreateFromUrl(
       ioc.get_executor(), "http://127.0.0.1:8080/ping", http::verb::get);
 
@@ -219,8 +219,8 @@ TEST(HttpClientTaskTest, DoneCallbackUsesConfiguredCallbackExecutor) {
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  boost::asio::io_context io_ioc;
-  boost::asio::io_context callback_ioc;
+  bsrvcore::IoContext io_ioc;
+  bsrvcore::IoContext callback_ioc;
   auto callback_guard = boost::asio::make_work_guard(callback_ioc);
   auto task = bsrvcore::HttpClientTask::CreateHttp(
       io_ioc.get_executor(), callback_ioc.get_executor(), "127.0.0.1",

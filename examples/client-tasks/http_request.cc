@@ -22,7 +22,7 @@ int main() {
 
   // The client task reuses the caller-provided io_context. Running the context
   // drives resolve/connect/write/read completion until OnDone fires.
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
 
   bsrvcore::HttpClientOptions options;
   options.resolve_timeout = std::chrono::seconds(5);

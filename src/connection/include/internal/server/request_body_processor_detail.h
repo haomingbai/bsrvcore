@@ -149,7 +149,7 @@ inline void ParsePartHeaders(std::string_view header_block,
 }
 
 inline std::string_view GetHeaderValue(const HttpRequest& request,
-                                       boost::beast::http::field field) {
+                                       HttpField field) {
   const auto it = request.find(field);
   if (it == request.end()) {
     return {};

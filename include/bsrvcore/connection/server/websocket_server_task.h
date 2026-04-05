@@ -30,7 +30,7 @@ class WebSocketServerTask
       public std::enable_shared_from_this<WebSocketServerTask>,
       public NonCopyableNonMovable<WebSocketServerTask> {
  public:
-  using Executor = boost::asio::any_io_executor;
+  using Executor = IoExecutor;
 
   static std::shared_ptr<WebSocketServerTask> Create(Executor io_executor,
                                                      HandlerPtr handler);

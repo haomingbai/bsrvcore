@@ -44,7 +44,7 @@ using namespace bsrvcore;
 
 namespace {
 
-using tcp = boost::asio::ip::tcp;
+using tcp = Tcp;
 
 bool TryEnableReusePort(tcp::acceptor& acceptor) {
 #if defined(__linux__) || defined(__APPLE__) || defined(__FreeBSD__) || \
@@ -129,24 +129,22 @@ void HttpServer::ClearExecutorSnapshotsLocked() {
   // Get*Executor callers immediately fail closed instead of seeing stale
   // executors from a runtime that is already stopping.
   endpoint_io_execs_snapshot_.store(
-      AllocateShared<std::vector<std::vector<boost::asio::any_io_executor>>>(),
+      AllocateShared<std::vector<std::vector<IoExecutor>>>(),
       std::memory_order_release);
-  global_io_execs_snapshot_.store(
-      AllocateShared<std::vector<boost::asio::any_io_executor>>(),
-      std::memory_order_release);
+  global_io_execs_snapshot_.store(AllocateShared<std::vector<IoExecutor>>(),
+                                  std::memory_order_release);
   io_exec_round_robin_.store(0, std::memory_order_relaxed);
 }
 
 void HttpServer::PublishExecutorSnapshotsLocked(
-    std::vector<std::vector<boost::asio::any_io_executor>> endpoint_execs,
-    std::vector<boost::asio::any_io_executor> global_execs) {
+    std::vector<std::vector<IoExecutor>> endpoint_execs,
+    std::vector<IoExecutor> global_execs) {
   endpoint_io_execs_snapshot_.store(
-      AllocateShared<std::vector<std::vector<boost::asio::any_io_executor>>>(
+      AllocateShared<std::vector<std::vector<IoExecutor>>>(
           std::move(endpoint_execs)),
       std::memory_order_release);
   global_io_execs_snapshot_.store(
-      AllocateShared<std::vector<boost::asio::any_io_executor>>(
-          std::move(global_execs)),
+      AllocateShared<std::vector<IoExecutor>>(std::move(global_execs)),
       std::memory_order_release);
   io_exec_round_robin_.store(0, std::memory_order_relaxed);
 }
@@ -200,12 +198,11 @@ void HttpServer::RollbackStartLocked() {
 
 bool HttpServer::BuildReusePortShardsLocked(
     const EndpointListenConfig& cfg, EndpointRuntime& runtime,
-    std::size_t start_shard_index,
-    std::vector<boost::asio::any_io_executor>& endpoint_execs,
-    std::vector<boost::asio::any_io_executor>& global_execs) {
+    std::size_t start_shard_index, std::vector<IoExecutor>& endpoint_execs,
+    std::vector<IoExecutor>& global_execs) {
   for (std::size_t shard_index = start_shard_index;
        shard_index < cfg.io_threads; ++shard_index) {
-    runtime.io_contexts.emplace_back(AllocateUnique<boost::asio::io_context>());
+    runtime.io_contexts.emplace_back(AllocateUnique<IoContext>());
     auto& ioc = *runtime.io_contexts.back();
     runtime.io_work_guards.emplace_back(boost::asio::make_work_guard(ioc));
     runtime.acceptors.emplace_back(ioc);
@@ -225,8 +222,8 @@ bool HttpServer::BuildReusePortShardsLocked(
 
 bool HttpServer::BuildReusePortEndpointRuntimeLocked(
     const EndpointListenConfig& cfg, EndpointRuntime& runtime,
-    std::vector<boost::asio::any_io_executor>& endpoint_execs,
-    std::vector<boost::asio::any_io_executor>& global_execs) {
+    std::vector<IoExecutor>& endpoint_execs,
+    std::vector<IoExecutor>& global_execs) {
   runtime.io_contexts.reserve(cfg.io_threads);
   runtime.io_work_guards.reserve(cfg.io_threads);
   runtime.acceptors.reserve(cfg.io_threads);
@@ -236,9 +233,9 @@ bool HttpServer::BuildReusePortEndpointRuntimeLocked(
 
 bool HttpServer::BuildFallbackEndpointRuntimeLocked(
     const EndpointListenConfig& cfg, EndpointRuntime& runtime,
-    std::vector<boost::asio::any_io_executor>& endpoint_execs,
-    std::vector<boost::asio::any_io_executor>& global_execs) {
-  runtime.io_contexts.emplace_back(AllocateUnique<boost::asio::io_context>());
+    std::vector<IoExecutor>& endpoint_execs,
+    std::vector<IoExecutor>& global_execs) {
+  runtime.io_contexts.emplace_back(AllocateUnique<IoContext>());
   auto& ioc = *runtime.io_contexts.back();
   runtime.io_work_guards.emplace_back(boost::asio::make_work_guard(ioc));
   runtime.acceptors.emplace_back(ioc);
@@ -256,9 +253,9 @@ bool HttpServer::BuildFallbackEndpointRuntimeLocked(
 
 bool HttpServer::BuildFirstEndpointRuntimeLocked(
     const EndpointListenConfig& cfg, OwnedPtr<EndpointRuntime>& runtime,
-    std::vector<boost::asio::any_io_executor>& endpoint_execs,
-    std::vector<boost::asio::any_io_executor>& global_execs) {
-  runtime->io_contexts.emplace_back(AllocateUnique<boost::asio::io_context>());
+    std::vector<IoExecutor>& endpoint_execs,
+    std::vector<IoExecutor>& global_execs) {
+  runtime->io_contexts.emplace_back(AllocateUnique<IoContext>());
   auto& first_ioc = *runtime->io_contexts.back();
   runtime->io_work_guards.emplace_back(boost::asio::make_work_guard(first_ioc));
   runtime->acceptors.emplace_back(first_ioc);
@@ -288,8 +285,8 @@ bool HttpServer::BuildFirstEndpointRuntimeLocked(
 }
 
 bool HttpServer::BuildEndpointRuntimesLocked(
-    std::vector<std::vector<boost::asio::any_io_executor>>& endpoint_execs,
-    std::vector<boost::asio::any_io_executor>& global_execs) {
+    std::vector<std::vector<IoExecutor>>& endpoint_execs,
+    std::vector<IoExecutor>& global_execs) {
   endpoint_runtimes_.clear();
   reuse_port_supported_ = false;
   bool mode_decided = false;
@@ -377,9 +374,9 @@ bool HttpServer::Start() {
   control_io_work_guard_.emplace(boost::asio::make_work_guard(control_ioc_));
   control_io_thread_.emplace([this] { control_ioc_.run(); });
 
-  std::vector<std::vector<boost::asio::any_io_executor>> endpoint_execs;
+  std::vector<std::vector<IoExecutor>> endpoint_execs;
   endpoint_execs.reserve(endpoint_configs_.size());
-  std::vector<boost::asio::any_io_executor> global_execs;
+  std::vector<IoExecutor> global_execs;
 
   if (!BuildEndpointRuntimesLocked(endpoint_execs, global_execs)) {
     RollbackStartLocked();
@@ -416,10 +413,10 @@ void HttpServer::Stop() {
 }
 
 void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
-                                         boost::asio::ip::tcp::socket socket) {
-  boost::beast::tcp_stream stream(std::move(socket));
+                                         Tcp::socket socket) {
+  TcpStream stream(std::move(socket));
 
-  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  SslContextPtr ssl_ctx;
   if (endpoint_index < endpoint_runtimes_.size()) {
     auto* runtime = endpoint_runtimes_[endpoint_index].get();
     if (runtime != nullptr) {
@@ -428,27 +425,21 @@ void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
   }
 
   if (ssl_ctx != nullptr) {
-    boost::beast::ssl_stream<boost::beast::tcp_stream> ssl_stream(
-        std::move(stream), *ssl_ctx);
+    SslStream ssl_stream(std::move(stream), *ssl_ctx);
     auto ssl_exec = ssl_stream.get_executor();
-    connection_internal::HttpServerConnectionImpl<boost::beast::ssl_stream<
-        boost::beast::tcp_stream>>::Create(std::move(ssl_stream), ssl_exec,
-                                           this, header_read_expiry_,
-                                           keep_alive_timeout_,
-                                           kHasMaxConnection_,
-                                           &available_connection_num_,
-                                           endpoint_index)
+    connection_internal::HttpServerConnectionImpl<SslStream>::Create(
+        std::move(ssl_stream), ssl_exec, this, header_read_expiry_,
+        keep_alive_timeout_, kHasMaxConnection_, &available_connection_num_,
+        endpoint_index)
         ->Run();
     return;
   }
 
   auto stream_exec = stream.get_executor();
-  connection_internal::HttpServerConnectionImpl<
-      boost::beast::tcp_stream>::Create(std::move(stream), stream_exec, this,
-                                        header_read_expiry_,
-                                        keep_alive_timeout_, kHasMaxConnection_,
-                                        &available_connection_num_,
-                                        endpoint_index)
+  connection_internal::HttpServerConnectionImpl<TcpStream>::Create(
+      std::move(stream), stream_exec, this, header_read_expiry_,
+      keep_alive_timeout_, kHasMaxConnection_, &available_connection_num_,
+      endpoint_index)
       ->Run();
 }
 
@@ -474,7 +465,7 @@ void HttpServer::RearmAcceptIfRunning(std::size_t endpoint_index,
 void HttpServer::HandleAcceptResult(std::size_t endpoint_index,
                                     std::size_t shard_index,
                                     boost::system::error_code ec,
-                                    boost::asio::ip::tcp::socket socket) {
+                                    Tcp::socket socket) {
   const bool should_reject =
       !ec && kHasMaxConnection_ &&
       available_connection_num_.load(std::memory_order_relaxed) <= 0;
@@ -505,12 +496,11 @@ void HttpServer::DoAccept(std::size_t endpoint_index, std::size_t shard_index) {
   }
 
   auto& acceptor = runtime->acceptors[shard_index];
-  acceptor.async_accept(
-      [this, endpoint_index, shard_index](boost::system::error_code ec,
-                                          boost::asio::ip::tcp::socket socket) {
-        // Completion stays tiny: hand off the socket (or reject it), then
-        // immediately re-arm the shard so accept throughput does not depend on
-        // downstream request processing.
-        HandleAcceptResult(endpoint_index, shard_index, ec, std::move(socket));
-      });
+  acceptor.async_accept([this, endpoint_index, shard_index](
+                            boost::system::error_code ec, Tcp::socket socket) {
+    // Completion stays tiny: hand off the socket (or reject it), then
+    // immediately re-arm the shard so accept throughput does not depend on
+    // downstream request processing.
+    HandleAcceptResult(endpoint_index, shard_index, ec, std::move(socket));
+  });
 }

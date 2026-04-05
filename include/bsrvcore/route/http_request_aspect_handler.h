@@ -43,9 +43,9 @@ class HttpPostServerTask;
  * class AuthAspect : public HttpRequestAspectHandler {
  * public:
  *   void PreService(std::shared_ptr<HttpPreServerTask> task) override {
- *     if (task->GetRequest().find(boost::beast::http::field::authorization) ==
+ *     if (task->GetRequest().find(HttpField::authorization) ==
  *         task->GetRequest().end()) {
- *       task->GetResponse().result(boost::beast::http::status::unauthorized);
+ *       task->GetResponse().result(HttpStatus::unauthorized);
  *       task->SetBody("Unauthorized");
  *       return; // Stop further processing
  *     }

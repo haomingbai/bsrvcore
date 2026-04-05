@@ -65,8 +65,8 @@ server->SetDefaultReadExpiry(5000)
 To enable HTTPS on one endpoint, provide a shared TLS context to that endpoint:
 
 ```cpp
-auto tls_ctx = std::make_shared<boost::asio::ssl::context>(
-  boost::asio::ssl::context::tls_server);
+auto tls_ctx = std::make_shared<bsrvcore::SslContext>(
+  bsrvcore::SslContext::tls_server);
 
 // configure certificates / private key on *tls_ctx
 server->AddListen(
@@ -99,7 +99,7 @@ Execution model:
 - `Post` always dispatches callback to worker pool.
 - `Dispatch` targets the worker pool too, but may run inline when already on that executor.
 - `PostToIoContext` / `DispatchToIoContext` target endpoint I/O executors.
-- `GetExecutor()` returns a type-erased `boost::asio::any_io_executor` backed by the worker pool.
+- `GetExecutor()` returns a type-erased `bsrvcore::IoExecutor` backed by the worker pool.
 - `GetIoExecutor()` returns one selected endpoint I/O executor.
 - `GetEndpointExecutors(idx)` returns the executor list for one endpoint.
 - `GetGlobalExecutors()` returns the flattened executor list for all endpoints.

@@ -31,14 +31,21 @@ cmake --build build --parallel
 sudo cmake --install build
 ```
 
+## Core type aliases
+
+`bsrvcore/core/types.h` centralizes the Boost.Asio / Beast / JSON concepts that
+show up most often in bsrvcore APIs, such as `bsrvcore::IoContext`,
+`bsrvcore::IoExecutor`, `bsrvcore::SslContext`, `bsrvcore::HttpField`,
+`bsrvcore::HttpStatus`, and the JSON aliases. `bsrvcore/bsrvcore.h` re-exports
+these aliases, so most applications do not need to include `types.h`
+separately.
+
 ## Minimal server
 
 ```cpp
 #include <bsrvcore/bsrvcore.h>
 
 #include <boost/asio/ip/address.hpp>
-#include <boost/beast/http/field.hpp>
-#include <boost/beast/http/status.hpp>
 
 #include <iostream>
 #include <memory>
@@ -50,12 +57,15 @@ int main() {
             bsrvcore::HttpRequestMethod::kGet,
             "/hello",
             [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-              task->GetResponse().result(boost::beast::http::status::ok);
-              task->SetField(boost::beast::http::field::content_type,
+              task->GetResponse().result(bsrvcore::HttpStatus::ok);
+              task->SetField(bsrvcore::HttpField::content_type,
                              "text/plain; charset=utf-8");
               task->SetBody("Hello, bsrvcore.\n");
             })
-        ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8080}, 2);
+        ->AddListen(
+            bsrvcore::TcpEndpoint(boost::asio::ip::make_address("0.0.0.0"),
+                                  8080),
+            2);
 
   if (!server->Start()) {
     std::cerr << "Failed to start server." << std::endl;

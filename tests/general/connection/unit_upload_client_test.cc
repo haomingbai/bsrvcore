@@ -33,8 +33,7 @@ void WriteFile(const std::filesystem::path& path, const std::string& body) {
 }
 
 bsrvcore::HttpClientResult RunPreparedTask(
-    std::shared_ptr<bsrvcore::HttpClientTask> task,
-    boost::asio::io_context& ioc) {
+    std::shared_ptr<bsrvcore::HttpClientTask> task, bsrvcore::IoContext& ioc) {
   std::promise<bsrvcore::HttpClientResult> promise;
   auto future = promise.get_future();
   task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
@@ -61,7 +60,7 @@ TEST(UploadClientTest, PutGeneratorReadsFileAndCreatesRunnableTask) {
   const auto path = MakeTempPath("put-client");
   WriteFile(path, "put-client-body");
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto reader = bsrvcore::FileReader::Create(path, ioc.get_executor(),
                                              ioc.get_executor());
   auto client = bsrvcore::PutGenerator::CreateHttp(
@@ -109,7 +108,7 @@ TEST(UploadClientTest,
   const auto path = MakeTempPath("multipart-client");
   WriteFile(path, "multipart-file-body");
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto reader = bsrvcore::FileReader::Create(path, ioc.get_executor(),
                                              ioc.get_executor());
   auto client = bsrvcore::MultipartGenerator::CreateHttp(
@@ -150,7 +149,7 @@ TEST(UploadClientTest,
 }
 
 TEST(UploadClientTest, PutGeneratorReportsErrorForMissingReader) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto client = bsrvcore::PutGenerator::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "80", "/missing");
 
@@ -180,7 +179,7 @@ TEST(UploadClientTest, PutGeneratorOutlivesCallerDuringTaskPreparation) {
   const auto path = MakeTempPath("put-generator-lifetime");
   WriteFile(path, "put-generator-body");
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto reader = bsrvcore::FileReader::Create(path, ioc.get_executor(),
                                              ioc.get_executor());
   auto client = bsrvcore::PutGenerator::CreateHttp(

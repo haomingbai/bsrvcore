@@ -25,7 +25,7 @@ namespace bsrvcore {
 
 namespace {
 
-inline void DispatchReadCallback(const boost::asio::any_io_executor& executor,
+inline void DispatchReadCallback(const IoExecutor& executor,
                                  std::shared_ptr<FileReadingState> state,
                                  FileReader::Callback callback) {
   if (!callback) {
@@ -99,13 +99,12 @@ struct AsyncFileReadOp {
 
 }  // namespace
 
-std::shared_ptr<FileReader> FileReader::Create(
-    std::filesystem::path path, boost::asio::any_io_executor work_executor,
-    boost::asio::any_io_executor callback_executor) {
+std::shared_ptr<FileReader> FileReader::Create(std::filesystem::path path,
+                                               IoExecutor work_executor,
+                                               IoExecutor callback_executor) {
   struct SharedEnabler final : FileReader {
-    SharedEnabler(std::filesystem::path path_in,
-                  boost::asio::any_io_executor work_executor_in,
-                  boost::asio::any_io_executor callback_executor_in)
+    SharedEnabler(std::filesystem::path path_in, IoExecutor work_executor_in,
+                  IoExecutor callback_executor_in)
         : FileReader(PrivateTag{}, std::move(path_in),
                      std::move(work_executor_in),
                      std::move(callback_executor_in)) {}
@@ -115,14 +114,13 @@ std::shared_ptr<FileReader> FileReader::Create(
       std::move(path), std::move(work_executor), std::move(callback_executor));
 }
 
-std::shared_ptr<FileReader> FileReader::Create(
-    std::filesystem::path path, boost::asio::any_io_executor executor) {
+std::shared_ptr<FileReader> FileReader::Create(std::filesystem::path path,
+                                               IoExecutor executor) {
   return Create(std::move(path), executor, executor);
 }
 
 FileReader::FileReader(PrivateTag, std::filesystem::path path,
-                       boost::asio::any_io_executor work_executor,
-                       boost::asio::any_io_executor callback_executor)
+                       IoExecutor work_executor, IoExecutor callback_executor)
     : path_(std::move(path)),
       work_executor_(std::move(work_executor)),
       callback_executor_(std::move(callback_executor)) {}
@@ -157,11 +155,11 @@ bool FileReader::AsyncReadFromDisk(Callback callback) const {
   return AsyncReadFromDisk(FileReadingState::Create(), std::move(callback));
 }
 
-boost::asio::any_io_executor FileReader::GetWorkExecutor() const noexcept {
+IoExecutor FileReader::GetWorkExecutor() const noexcept {
   return work_executor_;
 }
 
-boost::asio::any_io_executor FileReader::GetCallbackExecutor() const noexcept {
+IoExecutor FileReader::GetCallbackExecutor() const noexcept {
   return callback_executor_;
 }
 

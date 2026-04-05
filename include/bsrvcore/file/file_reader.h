@@ -13,12 +13,12 @@
 #ifndef BSRVCORE_FILE_FILE_READER_H_
 #define BSRVCORE_FILE_FILE_READER_H_
 
-#include <boost/asio/any_io_executor.hpp>
 #include <filesystem>
 #include <functional>
 #include <memory>
 
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/file/file_state.h"
 
 namespace bsrvcore {
@@ -34,11 +34,11 @@ class FileReader : public std::enable_shared_from_this<FileReader>,
 
   /** @brief Create a reader with separate work and callback executors. */
   [[nodiscard]] static std::shared_ptr<FileReader> Create(
-      std::filesystem::path path, boost::asio::any_io_executor work_executor,
-      boost::asio::any_io_executor callback_executor);
+      std::filesystem::path path, IoExecutor work_executor,
+      IoExecutor callback_executor);
   /** @brief Create a reader using the same executor for work and callbacks. */
   [[nodiscard]] static std::shared_ptr<FileReader> Create(
-      std::filesystem::path path, boost::asio::any_io_executor executor = {});
+      std::filesystem::path path, IoExecutor executor = {});
 
   /** @brief Destroy the reader. */
   ~FileReader();
@@ -56,21 +56,19 @@ class FileReader : public std::enable_shared_from_this<FileReader>,
   [[nodiscard]] bool AsyncReadFromDisk(Callback callback = {}) const;
 
   /** @brief Return the executor used for disk work dispatch. */
-  [[nodiscard]] boost::asio::any_io_executor GetWorkExecutor() const noexcept;
+  [[nodiscard]] IoExecutor GetWorkExecutor() const noexcept;
   /** @brief Return the executor used for completion callbacks. */
-  [[nodiscard]] boost::asio::any_io_executor GetCallbackExecutor()
-      const noexcept;
+  [[nodiscard]] IoExecutor GetCallbackExecutor() const noexcept;
 
  private:
   struct PrivateTag {};
 
-  FileReader(PrivateTag, std::filesystem::path path,
-             boost::asio::any_io_executor work_executor,
-             boost::asio::any_io_executor callback_executor);
+  FileReader(PrivateTag, std::filesystem::path path, IoExecutor work_executor,
+             IoExecutor callback_executor);
 
   std::filesystem::path path_;
-  boost::asio::any_io_executor work_executor_;
-  boost::asio::any_io_executor callback_executor_;
+  IoExecutor work_executor_;
+  IoExecutor callback_executor_;
 };
 
 }  // namespace bsrvcore

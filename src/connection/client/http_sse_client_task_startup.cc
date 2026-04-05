@@ -46,11 +46,11 @@ std::string ToLower(std::string value) {
 
 }  // namespace
 
-HttpSseClientTask::Impl::Impl(
-    HttpSseClientTask::Executor io_executor,
-    HttpSseClientTask::Executor callback_executor, std::string host,
-    std::string port, std::string target, HttpSseClientOptions options,
-    bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
+HttpSseClientTask::Impl::Impl(HttpSseClientTask::Executor io_executor,
+                              HttpSseClientTask::Executor callback_executor,
+                              std::string host, std::string port,
+                              std::string target, HttpSseClientOptions options,
+                              bool use_ssl, SslContextPtr ssl_ctx)
     : io_executor_(std::move(io_executor)),
       callback_executor_(std::move(callback_executor)),
       strand_(io_executor_),
@@ -171,9 +171,7 @@ void HttpSseClientTask::Impl::OnResolve(
   }
 
   if (use_ssl_) {
-    ssl_stream_ =
-        std::make_unique<boost::beast::ssl_stream<boost::beast::tcp_stream>>(
-            io_executor_, *ssl_ctx_);
+    ssl_stream_ = std::make_unique<SslStream>(io_executor_, *ssl_ctx_);
     boost::beast::get_lowest_layer(*ssl_stream_)
         .expires_after(options_.connect_timeout);
     boost::beast::get_lowest_layer(*ssl_stream_)
@@ -187,7 +185,7 @@ void HttpSseClientTask::Impl::OnResolve(
     return;
   }
 
-  tcp_stream_ = std::make_unique<boost::beast::tcp_stream>(io_executor_);
+  tcp_stream_ = std::make_unique<TcpStream>(io_executor_);
   tcp_stream_->expires_after(options_.connect_timeout);
   tcp_stream_->async_connect(
       results,

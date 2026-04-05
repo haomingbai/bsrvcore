@@ -18,41 +18,40 @@
 
 using namespace bsrvcore;
 
-HttpRequestMethod HttpServer::BeastHttpVerbToHttpRequestMethod(
-    boost::beast::http::verb verb) {
+HttpRequestMethod HttpServer::BeastHttpVerbToHttpRequestMethod(HttpVerb verb) {
   switch (verb) {
-    case boost::beast::http::verb::get:
+    case HttpVerb::get:
       return HttpRequestMethod::kGet;
-    case boost::beast::http::verb::post:
+    case HttpVerb::post:
       return HttpRequestMethod::kPost;
-    case boost::beast::http::verb::put:
+    case HttpVerb::put:
       return HttpRequestMethod::kPut;
-    case boost::beast::http::verb::delete_:
+    case HttpVerb::delete_:
       return HttpRequestMethod::kDelete;
-    case boost::beast::http::verb::patch:
+    case HttpVerb::patch:
       return HttpRequestMethod::kPatch;
-    case boost::beast::http::verb::head:
+    case HttpVerb::head:
       return HttpRequestMethod::kHead;
     default:
       return HttpRequestMethod::kGet;
   }
 }
 
-boost::beast::http::verb HttpServer::HttpRequestMethodToBeastHttpVerb(
+HttpVerb HttpServer::HttpRequestMethodToBeastHttpVerb(
     HttpRequestMethod method) {
   switch (method) {
     case HttpRequestMethod::kGet:
-      return boost::beast::http::verb::get;
+      return HttpVerb::get;
     case HttpRequestMethod::kPost:
-      return boost::beast::http::verb::post;
+      return HttpVerb::post;
     case HttpRequestMethod::kPut:
-      return boost::beast::http::verb::put;
+      return HttpVerb::put;
     case HttpRequestMethod::kDelete:
-      return boost::beast::http::verb::delete_;
+      return HttpVerb::delete_;
     case HttpRequestMethod::kPatch:
-      return boost::beast::http::verb::patch;
+      return HttpVerb::patch;
     case HttpRequestMethod::kHead:
-      return boost::beast::http::verb::head;
+      return HttpVerb::head;
   }
-  return boost::beast::http::verb::get;
+  return HttpVerb::get;
 }

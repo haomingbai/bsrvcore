@@ -37,8 +37,8 @@ int main() {
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/ping",
           [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
-            task->GetResponse().result(boost::beast::http::status::ok);
-            task->SetField(boost::beast::http::field::content_type,
+            task->GetResponse().result(bsrvcore::HttpStatus::ok);
+            task->SetField(bsrvcore::HttpField::content_type,
                            "text/plain; charset=utf-8");
             task->SetBody("pong");
           })

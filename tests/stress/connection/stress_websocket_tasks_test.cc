@@ -16,7 +16,6 @@
 
 namespace {
 namespace websocket = boost::beast::websocket;
-using tcp = boost::asio::ip::tcp;
 using bsrvcore::test::stress::LoadStressConfig;
 using bsrvcore::test::stress::WaitCounter;
 
@@ -45,20 +44,22 @@ TEST(StressWebSocketTasksTest, Concurrent101HandshakeRemainsStable) {
   const auto cfg = LoadStressConfig(4, 40, 120000);
   const std::size_t total_accepts = cfg.threads * cfg.iterations;
 
-  boost::asio::io_context server_ioc;
-  tcp::acceptor acceptor(server_ioc, tcp::endpoint(tcp::v4(), 0));
+  bsrvcore::IoContext server_ioc;
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   const auto port = acceptor.local_endpoint().port();
 
   std::jthread server_thread([&](std::stop_token st) {
     for (std::size_t i = 0; i < total_accepts && !st.stop_requested(); ++i) {
-      tcp::socket socket(server_ioc);
+      boost::asio::ip::tcp::socket socket(server_ioc);
       boost::system::error_code ec;
       acceptor.accept(socket, ec);
       if (ec) {
         continue;
       }
 
-      websocket::stream<tcp::socket> ws(std::move(socket));
+      websocket::stream<boost::asio::ip::tcp::socket> ws(std::move(socket));
       ws.accept(ec);
       if (ec) {
         continue;
@@ -83,7 +84,7 @@ TEST(StressWebSocketTasksTest, Concurrent101HandshakeRemainsStable) {
       sync.arrive_and_wait();
 
       for (std::size_t i = 0; i < cfg.iterations && !st.stop_requested(); ++i) {
-        boost::asio::io_context ioc;
+        bsrvcore::IoContext ioc;
         auto task = bsrvcore::WebSocketClientTask::CreateHttp(
             ioc.get_executor(), "127.0.0.1", std::to_string(port), "/ws101",
             std::make_unique<StressHandler>(open_counter, error_counter));

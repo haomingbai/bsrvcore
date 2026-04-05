@@ -29,7 +29,7 @@ Both types are shared-only and are created through `Create(...)`.
 ## FileWriter basics
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto writer = bsrvcore::FileWriter::Create(
   "hello",
@@ -56,7 +56,7 @@ Useful methods:
 ## FileReader basics
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto reader = bsrvcore::FileReader::Create(
   "/tmp/demo.txt",

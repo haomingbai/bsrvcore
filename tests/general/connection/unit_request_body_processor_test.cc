@@ -29,12 +29,11 @@ class IoContextRunner {
     }
   }
 
-  boost::asio::io_context& Get() noexcept { return ioc_; }
+  bsrvcore::IoContext& Get() noexcept { return ioc_; }
 
  private:
-  boost::asio::io_context ioc_;
-  boost::asio::executor_work_guard<boost::asio::io_context::executor_type>
-      guard_;
+  bsrvcore::IoContext ioc_;
+  bsrvcore::IoWorkGuard guard_;
   std::thread thread_;
 };
 

@@ -33,8 +33,7 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
 
   for (const auto& listener : config.listeners) {
     const auto addr = boost::asio::ip::make_address(listener.address);
-    server->AddListen(boost::asio::ip::tcp::endpoint(addr, listener.port),
-                      listener.io_threads);
+    server->AddListen(TcpEndpoint(addr, listener.port), listener.io_threads);
   }
 
   if (config.global.default_handler.has_value()) {

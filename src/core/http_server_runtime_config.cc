@@ -21,14 +21,12 @@
 
 using namespace bsrvcore;
 
-HttpServer* HttpServer::AddListen(boost::asio::ip::tcp::endpoint ep,
-                                  std::size_t io_threads) {
+HttpServer* HttpServer::AddListen(TcpEndpoint ep, std::size_t io_threads) {
   return AddListen(std::move(ep), io_threads, nullptr);
 }
 
-HttpServer* HttpServer::AddListen(
-    boost::asio::ip::tcp::endpoint ep, std::size_t io_threads,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx) {
+HttpServer* HttpServer::AddListen(TcpEndpoint ep, std::size_t io_threads,
+                                  SslContextPtr ssl_ctx) {
   std::scoped_lock const lock(mtx_);
   if (is_running_) {
     return this;

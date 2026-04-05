@@ -28,7 +28,7 @@ The task gives access to:
 
 JSON helper semantics:
 
-- `ParseRequestJson(out)` parses `GetRequest().body()` and returns a `JsonErrorCode`
+- `ParseRequestJson(out)` parses `GetRequest().body()` and returns a `bsrvcore::JsonErrorCode`
 - `TryParseRequestJson(out)` is the bool-only convenience wrapper
 - `SetJson(value)` serializes JSON into the response body and sets `Content-Type: application/json`
 
@@ -37,7 +37,7 @@ Async execution semantics:
 - `Post()` callbacks run on the server worker pool.
 - `Dispatch()` targets the same worker pool, but may run inline when already on that executor.
 - `SetTimer()` uses the connection-local I/O executor for timeout tracking, then runs callback on the worker pool.
-- `GetExecutor()` can be used when integrating with APIs that require `boost::asio::any_io_executor`.
+- `GetExecutor()` can be used when integrating with APIs that require `bsrvcore::IoExecutor`.
 - `PostToIoContext()` / `DispatchToIoContext()` target the connection-local I/O executor.
 - The request lifecycle itself advances in-place without extra internal dispatch hops.
 - Pre runs first, then the main handler task is created, and post starts only after the last `HttpServerTask` reference is released.

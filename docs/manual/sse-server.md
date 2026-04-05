@@ -36,11 +36,11 @@ The response should use `text/event-stream`:
 ```cpp
 bsrvcore::HttpResponseHeader header;
 header.version(task->GetRequest().version());
-header.result(boost::beast::http::status::ok);
-header.set(boost::beast::http::field::content_type,
+header.result(bsrvcore::HttpStatus::ok);
+header.set(bsrvcore::HttpField::content_type,
            "text/event-stream; charset=utf-8");
-header.set(boost::beast::http::field::cache_control, "no-cache");
-header.set(boost::beast::http::field::connection, "keep-alive");
+header.set(bsrvcore::HttpField::cache_control, "no-cache");
+header.set(bsrvcore::HttpField::connection, "keep-alive");
 
 task->WriteHeader(std::move(header));
 ```

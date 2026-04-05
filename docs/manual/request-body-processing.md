@@ -50,8 +50,8 @@ auto put = bsrvcore::PutProcessor::Create(request);
 If you want different work/callback executors, use the two-executor overload:
 
 ```cpp
-boost::asio::io_context work_ioc;
-boost::asio::io_context callback_ioc;
+bsrvcore::IoContext work_ioc;
+bsrvcore::IoContext callback_ioc;
 
 auto put = bsrvcore::PutProcessor::Create(
   request,

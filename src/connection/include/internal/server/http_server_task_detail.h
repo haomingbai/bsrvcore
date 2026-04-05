@@ -247,8 +247,7 @@ inline void AppendSetCookies(HttpTaskSharedState& state) {
   for (const auto& it : state.set_cookies) {
     auto set_cookie_string = it.ToString();
     if (!set_cookie_string.empty()) {
-      state.resp.insert(boost::beast::http::field::set_cookie,
-                        set_cookie_string);
+      state.resp.insert(HttpField::set_cookie, set_cookie_string);
     }
   }
 }

@@ -92,7 +92,7 @@ This is useful for a simple 404 page, or for API version fallbacks:
 
 ```cpp
 server->SetDefaultHandler([](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-  task->GetResponse().result(boost::beast::http::status::not_found);
+  task->GetResponse().result(bsrvcore::HttpStatus::not_found);
   task->SetBody("Not found\n");
 });
 ```

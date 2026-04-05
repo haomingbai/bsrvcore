@@ -48,8 +48,7 @@ bool PathExists(std::string_view path) {
   return fs::exists(fs::path(path), ec) && !ec;
 }
 
-bool TryLoadVerifyFile(boost::asio::ssl::context& ssl_ctx,
-                       std::string_view path,
+bool TryLoadVerifyFile(SslContext& ssl_ctx, std::string_view path,
                        boost::system::error_code& first_error) {
   if (!PathExists(path)) {
     return false;
@@ -69,7 +68,7 @@ bool TryLoadVerifyFile(boost::asio::ssl::context& ssl_ctx,
   return false;
 }
 
-bool TryLoadVerifyDir(boost::asio::ssl::context& ssl_ctx, std::string_view path,
+bool TryLoadVerifyDir(SslContext& ssl_ctx, std::string_view path,
                       boost::system::error_code& first_error) {
   if (!PathExists(path)) {
     return false;
@@ -124,8 +123,7 @@ std::vector<std::string> CollectVerifyDirs() {
 
 DefaultClientSslContextState BuildDefaultClientSslContextState() {
   DefaultClientSslContextState state;
-  auto ssl_ctx = std::make_shared<boost::asio::ssl::context>(
-      boost::asio::ssl::context::tls_client);
+  auto ssl_ctx = std::make_shared<SslContext>(SslContext::tls_client);
 
   bool loaded_any = false;
   boost::system::error_code first_error;

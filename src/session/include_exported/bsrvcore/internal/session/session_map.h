@@ -18,7 +18,6 @@
 #define BSRVCORE_INTERNAL_SESSION_SESSION_MAP_H_
 
 #include <atomic>
-#include <boost/asio/steady_timer.hpp>
 #include <cstddef>
 #include <memory>
 #include <mutex>
@@ -27,6 +26,7 @@
 #include <utility>
 
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/session/detail/heap.h"
 #include "bsrvcore/internal/session/detail/session_context_entry.h"
 #include "bsrvcore/internal/session/detail/session_key_heap_entry.h"
@@ -124,7 +124,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
    *
    * @code
    * // Example construction
-   * boost::asio::io_context io;
+   * IoContext io;
    * auto http_server = AllocateShared<HttpServer>();
    * auto session_map = AllocateShared<SessionMap>(io.get_executor(),
    * http_server);
@@ -148,9 +148,9 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
   std::unordered_map<std::string, session_internal::SessionContextEntry>
       map_;  ///< Session storage
   Heap<session_internal::SessionKeyHeapEntry>
-      pqueue_;                       ///< Priority queue for expiration
-  boost::asio::steady_timer timer_;  ///< Cleanup timer
-  HttpServer* server_;               ///< Associated HTTP server
+      pqueue_;          ///< Priority queue for expiration
+  SteadyTimer timer_;   ///< Cleanup timer
+  HttpServer* server_;  ///< Associated HTTP server
   std::atomic<std::size_t> cleaner_interval_;  ///< Cleanup interval in ms
   std::atomic<std::size_t> default_timeout_;  ///< Default session timeout in ms
   bool allow_cleaner_{false};                 ///< Cleaner enabled flag

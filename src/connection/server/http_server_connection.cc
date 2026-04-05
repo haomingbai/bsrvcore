@@ -38,6 +38,10 @@
 #include "bsrvcore/internal/connection/server/stream_server_connection.h"
 #include "bsrvcore/session/context.h"
 
+using bsrvcore::FlatBuffer;
+using bsrvcore::HttpRequestParser;
+using bsrvcore::IoExecutor;
+using bsrvcore::SteadyTimer;
 using bsrvcore::StreamServerConnection;
 
 void StreamServerConnection::Post(std::function<void()> fn) {
@@ -72,21 +76,18 @@ void StreamServerConnection::DispatchToIoContext(std::function<void()> fn) {
   boost::asio::dispatch(io_executor_, [fn = std::move(fn)]() { fn(); });
 }
 
-boost::asio::any_io_executor StreamServerConnection::GetIoExecutor()
-    const noexcept {
+IoExecutor StreamServerConnection::GetIoExecutor() const noexcept {
   return io_executor_;
 }
 
-std::vector<boost::asio::any_io_executor>
-StreamServerConnection::GetEndpointExecutors() const {
+std::vector<IoExecutor> StreamServerConnection::GetEndpointExecutors() const {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
   return srv_->GetEndpointExecutors(endpoint_index_);
 }
 
-std::vector<boost::asio::any_io_executor>
-StreamServerConnection::GetGlobalExecutors() const {
+std::vector<IoExecutor> StreamServerConnection::GetGlobalExecutors() const {
   if ((srv_ == nullptr) || !IsServerRunning()) {
     return {};
   }
@@ -99,7 +100,7 @@ void StreamServerConnection::SetTimer(std::size_t timeout,
     return;
   }
 
-  auto timer = AllocateShared<boost::asio::steady_timer>(io_executor_);
+  auto timer = AllocateShared<SteadyTimer>(io_executor_);
   timer->expires_after(std::chrono::milliseconds(timeout));
   timer->async_wait([this, callback = std::move(callback),
                      timer](boost::system::error_code ec) mutable {
@@ -202,8 +203,7 @@ void StreamServerConnection::DoCycle() {
   ClearMessage();
   if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
-    parser_ = AllocateUnique<
-        boost::beast::http::request_parser<boost::beast::http::string_body>>();
+    parser_ = AllocateUnique<HttpRequestParser>();
     ArmTimeout(header_read_expiry_ + keep_alive_timeout_);
 
     Run();
@@ -214,17 +214,15 @@ void StreamServerConnection::DoCycle() {
 }
 
 StreamServerConnection::StreamServerConnection(
-    boost::asio::any_io_executor io_executor, HttpServer* srv,
-    std::size_t header_read_expiry, std::size_t keep_alive_timeout,
-    bool has_max_connection,
+    IoExecutor io_executor, HttpServer* srv, std::size_t header_read_expiry,
+    std::size_t keep_alive_timeout, bool has_max_connection,
     std::atomic<std::int64_t>* available_connection_num,
     std::size_t endpoint_index)
     : io_executor_(std::move(io_executor)),
       timer_(io_executor_),
       buf_(4096),
       srv_(srv),
-      parser_(AllocateUnique<boost::beast::http::request_parser<
-                  boost::beast::http::string_body>>()),
+      parser_(AllocateUnique<HttpRequestParser>()),
       header_read_expiry_(header_read_expiry),
       keep_alive_timeout_(keep_alive_timeout),
       kHasMaxConnection_(has_max_connection),
@@ -246,8 +244,7 @@ bool StreamServerConnection::IsServerRunning() const noexcept {
   return srv_->IsRunning();
 }
 
-bsrvcore::OwnedPtr<
-    boost::beast::http::request_parser<boost::beast::http::string_body>>&
+bsrvcore::OwnedPtr<HttpRequestParser>&
 StreamServerConnection::GetParser() noexcept {
   return parser_;
 }
@@ -272,12 +269,11 @@ void StreamServerConnection::ArmTimeout(std::size_t timeout) {
 
 void StreamServerConnection::CancelTimeout() { timer_.cancel(); }
 
-boost::asio::any_io_executor StreamServerConnection::GetExecutor()
-    const noexcept {
+IoExecutor StreamServerConnection::GetExecutor() const noexcept {
   return io_executor_;
 }
 
-boost::beast::flat_buffer& StreamServerConnection::GetBuffer() { return buf_; }
+FlatBuffer& StreamServerConnection::GetBuffer() { return buf_; }
 
 bsrvcore::HttpServer* StreamServerConnection::GetServer() const noexcept {
   return srv_;

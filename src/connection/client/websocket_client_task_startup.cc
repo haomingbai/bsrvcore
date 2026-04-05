@@ -37,7 +37,7 @@ namespace {
 
 namespace http = boost::beast::http;
 namespace websocket = boost::beast::websocket;
-using tcp = boost::asio::ip::tcp;
+using tcp = Tcp;
 
 bool IsWebSocketReservedHeader(http::field field) {
   switch (field) {
@@ -153,7 +153,7 @@ bool WebSocketClientTask::CreateTransport() {
     return true;
   }
 
-  ws_stream_ = std::make_unique<PlainWebSocketStream>(io_executor_);
+  ws_stream_ = std::make_unique<WebSocketStream>(io_executor_);
   return true;
 }
 

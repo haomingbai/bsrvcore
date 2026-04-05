@@ -46,7 +46,7 @@ TEST(WebSocketServerTaskTest, CreateFromNullConnectionReturnsNull) {
 }
 
 TEST(WebSocketServerTaskTest, StartWithoutConnectionDoesNotOpen) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<ServerHandlerState>();
   auto task = bsrvcore::WebSocketServerTask::Create(
       ioc.get_executor(), std::make_unique<ServerHandler>(state));
@@ -59,7 +59,7 @@ TEST(WebSocketServerTaskTest, StartWithoutConnectionDoesNotOpen) {
 }
 
 TEST(WebSocketServerTaskTest, WriteMethodsReturnFalseBeforeUpgrade) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<ServerHandlerState>();
   auto task = bsrvcore::WebSocketServerTask::Create(
       ioc.get_executor(), std::make_unique<ServerHandler>(state));
@@ -71,7 +71,7 @@ TEST(WebSocketServerTaskTest, WriteMethodsReturnFalseBeforeUpgrade) {
 }
 
 TEST(WebSocketServerTaskTest, CancelIsIdempotentAndFiresOnCloseOnce) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<ServerHandlerState>();
   auto task = bsrvcore::WebSocketServerTask::Create(
       ioc.get_executor(), std::make_unique<ServerHandler>(state));

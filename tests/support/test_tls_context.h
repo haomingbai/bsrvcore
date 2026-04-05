@@ -5,9 +5,11 @@
 #include <boost/system/error_code.hpp>
 #include <stdexcept>
 
+#include "bsrvcore/core/types.h"
+
 namespace bsrvcore::test {
 
-inline void ConfigureTestServerSslContext(boost::asio::ssl::context& ctx) {
+inline void ConfigureTestServerSslContext(bsrvcore::SslContext& ctx) {
   static constexpr char kCertificatePem[] =
       "-----BEGIN CERTIFICATE-----\n"
       "MIIDCTCCAfGgAwIBAgIURB1b4zDUugHCbAK1FLOVMZg9qpgwDQYJKoZIhvcNAQEL\n"
@@ -59,9 +61,9 @@ inline void ConfigureTestServerSslContext(boost::asio::ssl::context& ctx) {
       "zlUjRwO56lPlEZAcfRrnIrM=\n"
       "-----END PRIVATE KEY-----\n";
 
-  ctx.set_options(boost::asio::ssl::context::default_workarounds |
-                  boost::asio::ssl::context::no_sslv2 |
-                  boost::asio::ssl::context::single_dh_use);
+  ctx.set_options(bsrvcore::SslContext::default_workarounds |
+                  bsrvcore::SslContext::no_sslv2 |
+                  bsrvcore::SslContext::single_dh_use);
 
   boost::system::error_code ec;
   ctx.use_certificate_chain(
@@ -72,7 +74,7 @@ inline void ConfigureTestServerSslContext(boost::asio::ssl::context& ctx) {
 
   ctx.use_private_key(
       boost::asio::buffer(kPrivateKeyPem, sizeof(kPrivateKeyPem) - 1),
-      boost::asio::ssl::context::file_format::pem, ec);
+      bsrvcore::SslContext::file_format::pem, ec);
   if (ec) {
     throw std::runtime_error("failed to load test private key");
   }

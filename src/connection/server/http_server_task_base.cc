@@ -100,8 +100,8 @@ inline void PostTaskTimerCallback(
  */
 inline void OnTaskTimerExpired(
     const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
-    const std::shared_ptr<boost::asio::steady_timer>& timer,
-    std::function<void()> fn, boost::system::error_code ec) {
+    const std::shared_ptr<SteadyTimer>& timer, std::function<void()> fn,
+    boost::system::error_code ec) {
   (void)timer;
   if (ec || !CanRunTaskCallback(state)) {
     return;
@@ -159,7 +159,7 @@ void HttpTaskBase::GenerateCookiePairs() {
 
   // Cookies are parsed lazily so requests that never inspect cookie state do
   // not pay the split/trim cost.
-  auto cookie_raw = state_->req[boost::beast::http::field::cookie];
+  auto cookie_raw = state_->req[HttpField::cookie];
   using connection_internal::helper::ParseCookiePairView;
   using connection_internal::helper::SplitCookieHeaderUsingSplit;
   for (const auto token : SplitCookieHeaderUsingSplit(cookie_raw)) {
@@ -225,7 +225,7 @@ bool HttpTaskBase::SetSessionTimeout(std::size_t timeout) {
 
 void HttpTaskBase::SetJson(const JsonValue& value) {
   state_->resp.body() = json::serialize(value);
-  state_->resp.set(boost::beast::http::field::content_type, "application/json");
+  state_->resp.set(HttpField::content_type, "application/json");
 }
 
 void HttpTaskBase::SetJson(JsonValue&& value) {
@@ -245,8 +245,7 @@ void HttpTaskBase::SetField(const std::string_view key,
   state_->resp.set(key, value);
 }
 
-void HttpTaskBase::SetField(boost::beast::http::field key,
-                            const std::string_view value) {
+void HttpTaskBase::SetField(HttpField key, const std::string_view value) {
   state_->resp.set(key, value);
 }
 
@@ -364,7 +363,7 @@ void HttpTaskBase::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer = AllocateShared<boost::asio::steady_timer>(conn->GetIoExecutor());
+  auto timer = AllocateShared<SteadyTimer>(conn->GetIoExecutor());
   timer->expires_after(std::chrono::milliseconds(timeout));
   timer->async_wait(boost::asio::bind_allocator(
       state_->handler_alloc,
@@ -433,7 +432,7 @@ void HttpTaskBase::DoCycle() {
   state_->conn.store(nullptr);
 }
 
-boost::asio::any_io_executor HttpTaskBase::GetIoExecutor() noexcept {
+IoExecutor HttpTaskBase::GetIoExecutor() noexcept {
   auto conn = GetConnection(state_);
   if (!conn) {
     return {};
@@ -442,25 +441,21 @@ boost::asio::any_io_executor HttpTaskBase::GetIoExecutor() noexcept {
   return conn->GetIoExecutor();
 }
 
-boost::asio::any_io_executor HttpTaskBase::GetExecutor() noexcept {
+IoExecutor HttpTaskBase::GetExecutor() noexcept {
   if (!state_ || state_->srv == nullptr) {
     return {};
   }
   return state_->srv->GetExecutor();
 }
 
-std::vector<boost::asio::any_io_executor>
-HttpTaskBase::GetEndpointExecutors() noexcept {
+std::vector<IoExecutor> HttpTaskBase::GetEndpointExecutors() noexcept {
   auto conn = GetConnection(state_);
-  return conn ? conn->GetEndpointExecutors()
-              : std::vector<boost::asio::any_io_executor>{};
+  return conn ? conn->GetEndpointExecutors() : std::vector<IoExecutor>{};
 }
 
-std::vector<boost::asio::any_io_executor>
-HttpTaskBase::GetGlobalExecutors() noexcept {
+std::vector<IoExecutor> HttpTaskBase::GetGlobalExecutors() noexcept {
   auto conn = GetConnection(state_);
-  return conn ? conn->GetGlobalExecutors()
-              : std::vector<boost::asio::any_io_executor>{};
+  return conn ? conn->GetGlobalExecutors() : std::vector<IoExecutor>{};
 }
 
 }  // namespace bsrvcore

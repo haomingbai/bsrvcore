@@ -111,7 +111,7 @@ class HttpSseClientTask
       public NonCopyableNonMovable<HttpSseClientTask> {
  public:
   /** @brief Executor type accepted by HttpSseClientTask factories. */
-  using Executor = boost::asio::io_context::executor_type;
+  using Executor = IoContextExecutor;
   /** @brief Callback type for Start()/Next(). */
   using Callback = std::function<void(const HttpSseClientResult&)>;
 
@@ -135,14 +135,13 @@ class HttpSseClientTask
   /** @brief Create HTTPS SSE task from host/port/target with caller-provided
    * SSL context. */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
-      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-      std::string host, std::string port, std::string target,
-      HttpSseClientOptions options = {});
+      Executor io_executor, SslContextPtr ssl_ctx, std::string host,
+      std::string port, std::string target, HttpSseClientOptions options = {});
   /** @brief Create HTTPS SSE task with a dedicated callback executor. */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
-      Executor io_executor, Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-      std::string port, std::string target, HttpSseClientOptions options = {});
+      Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
+      std::string host, std::string port, std::string target,
+      HttpSseClientOptions options = {});
 
   /**
    * @brief Create SSE task from URL without SSL context.
@@ -160,13 +159,12 @@ class HttpSseClientTask
 
   /** @brief Create SSE task from URL with SSL context. */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-      const std::string& url, HttpSseClientOptions options = {});
+      Executor io_executor, SslContextPtr ssl_ctx, const std::string& url,
+      HttpSseClientOptions options = {});
   /** @brief Create SSE task from URL with SSL and a dedicated callback
    * executor. */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
-      Executor io_executor, Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
+      Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       const std::string& url, HttpSseClientOptions options = {});
 
   /** @brief Access mutable request before Start(). */

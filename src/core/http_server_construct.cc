@@ -69,7 +69,7 @@ OwnedPtr<HttpServer::ThreadPoolState> HttpServer::CreateThreadPool(
       ToThreadPoolParam(runtime_options));
 }
 
-boost::asio::any_io_executor HttpServer::GetThreadPoolExecutor() noexcept {
+IoExecutor HttpServer::GetThreadPoolExecutor() noexcept {
   return thread_pool_->pool.get_executor();
 }
 
@@ -99,11 +99,10 @@ HttpServer::HttpServer(HttpServerRuntimeOptions runtime_options)
               : static_cast<std::int64_t>(0)),
       is_running_(false) {
   endpoint_io_execs_snapshot_.store(
-      AllocateShared<std::vector<std::vector<boost::asio::any_io_executor>>>(),
+      AllocateShared<std::vector<std::vector<IoExecutor>>>(),
       std::memory_order_release);
-  global_io_execs_snapshot_.store(
-      AllocateShared<std::vector<boost::asio::any_io_executor>>(),
-      std::memory_order_release);
+  global_io_execs_snapshot_.store(AllocateShared<std::vector<IoExecutor>>(),
+                                  std::memory_order_release);
 }
 
 HttpServer::HttpServer() : HttpServer(HttpServerRuntimeOptions{}) {}

@@ -39,13 +39,12 @@ class PutProcessor : public std::enable_shared_from_this<PutProcessor>,
   [[nodiscard]] static std::shared_ptr<PutProcessor> Create(HttpTaskBase& task);
   /** @brief Create a processor from a request and explicit executors. */
   [[nodiscard]] static std::shared_ptr<PutProcessor> Create(
-      const HttpRequest& request, boost::asio::any_io_executor work_executor,
-      boost::asio::any_io_executor callback_executor);
+      const HttpRequest& request, IoExecutor work_executor,
+      IoExecutor callback_executor);
   /** @brief Create a processor using the same executor for work and callbacks.
    */
   [[nodiscard]] static std::shared_ptr<PutProcessor> Create(
-      const HttpRequest& request,
-      boost::asio::any_io_executor executor = boost::asio::any_io_executor());
+      const HttpRequest& request, IoExecutor executor = IoExecutor());
 
   /** @brief Return the writer that owns the request payload. */
   [[nodiscard]] std::shared_ptr<FileWriter> GetFileWriter() const noexcept;
@@ -62,13 +61,12 @@ class PutProcessor : public std::enable_shared_from_this<PutProcessor>,
  private:
   struct PrivateTag {};
 
-  PutProcessor(PrivateTag, const HttpRequest& request,
-               boost::asio::any_io_executor work_executor,
-               boost::asio::any_io_executor callback_executor);
+  PutProcessor(PrivateTag, const HttpRequest& request, IoExecutor work_executor,
+               IoExecutor callback_executor);
 
   std::shared_ptr<FileWriter> writer_;
-  boost::asio::any_io_executor work_executor_;
-  boost::asio::any_io_executor callback_executor_;
+  IoExecutor work_executor_;
+  IoExecutor callback_executor_;
   bool is_put_{false};
 };
 

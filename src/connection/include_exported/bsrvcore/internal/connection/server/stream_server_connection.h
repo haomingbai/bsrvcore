@@ -76,7 +76,7 @@ class Context;
  * // Example derived class for TCP connections
  * class HttpTcpConnection : public StreamServerConnection {
  * public:
- *   HttpTcpConnection(boost::asio::ip::tcp::socket socket,
+ *   HttpTcpConnection(Tcp::socket socket,
  *                     std::shared_ptr<HttpServer> srv)
  *     : StreamServerConnection(socket.get_executor(), srv, 30000, 15000,
  *                            false, nullptr, 0),
@@ -98,7 +98,7 @@ class Context;
  *   // ... implement other pure virtual methods
  *
  * private:
- *   boost::beast::tcp_stream stream_;
+ *   TcpStream stream_;
  * };
  * @endcode
  */
@@ -164,19 +164,19 @@ class StreamServerConnection
    * @brief Get the io executor bound to this connection.
    * @return Type-erased io executor.
    */
-  boost::asio::any_io_executor GetIoExecutor() const noexcept;
+  IoExecutor GetIoExecutor() const noexcept;
 
   /**
    * @brief Get all io executors for the current endpoint.
    * @return Endpoint-local io executors.
    */
-  std::vector<boost::asio::any_io_executor> GetEndpointExecutors() const;
+  std::vector<IoExecutor> GetEndpointExecutors() const;
 
   /**
    * @brief Get all io executors across all endpoints.
    * @return Global io executors.
    */
-  std::vector<boost::asio::any_io_executor> GetGlobalExecutors() const;
+  std::vector<IoExecutor> GetGlobalExecutors() const;
 
   /**
    * @brief Dispatch a handler onto the connection io executor.
@@ -338,9 +338,8 @@ class StreamServerConnection
    * @brief Flush response headers to client (pure virtual)
    * @param header HTTP response headers
    */
-  virtual void DoFlushResponseHeader(
-      boost::beast::http::response_header<boost::beast::http::fields> header,
-      std::size_t write_expiry) = 0;
+  virtual void DoFlushResponseHeader(HttpResponseHeader header,
+                                     std::size_t write_expiry) = 0;
 
   /**
    * @brief Flush response body to client (pure virtual)
@@ -416,8 +415,8 @@ class StreamServerConnection
    * @param available_connection_num Shared approximate available slot counter
    * @param endpoint_index Endpoint index in AddListen registration order
    */
-  StreamServerConnection(boost::asio::any_io_executor io_executor,
-                         HttpServer* srv, std::size_t header_read_expiry,
+  StreamServerConnection(IoExecutor io_executor, HttpServer* srv,
+                         std::size_t header_read_expiry,
                          std::size_t keep_alive_timeout,
                          bool has_max_connection,
                          std::atomic<std::int64_t>* available_connection_num,
@@ -433,20 +432,19 @@ class StreamServerConnection
    * @brief Get the buffer used for reading requests
    * @return Reference to the Beast flat buffer
    */
-  boost::beast::flat_buffer& GetBuffer();
+  FlatBuffer& GetBuffer();
 
   /**
    * @brief Get the executor for this connection
    * @return ASIO io executor
    */
-  boost::asio::any_io_executor GetExecutor() const noexcept;
+  IoExecutor GetExecutor() const noexcept;
 
   /**
    * @brief Get the HTTP request parser
    * @return Reference to unique pointer holding the request parser
    */
-  OwnedPtr<boost::beast::http::request_parser<boost::beast::http::string_body>>&
-  GetParser() noexcept;
+  OwnedPtr<HttpRequestParser>& GetParser() noexcept;
 
   /**
    * @brief Route the current request to appropriate handler
@@ -491,16 +489,15 @@ class StreamServerConnection
   void CancelTimeout();
 
  private:
-  boost::asio::any_io_executor io_executor_;  ///< Connection-local io executor.
-  boost::asio::steady_timer timer_;           ///< Timer for timeouts
-  boost::beast::flat_buffer buf_;             ///< Buffer for reading requests
+  IoExecutor io_executor_;        ///< Connection-local io executor.
+  SteadyTimer timer_;             ///< Timer for timeouts
+  FlatBuffer buf_;                ///< Buffer for reading requests
   HttpRouteResult route_result_;  ///< Result of routing the current request
   HttpServer* srv_;               ///< Reference to HTTP server
-  OwnedPtr<boost::beast::http::request_parser<boost::beast::http::string_body>>
-      parser_;                      ///< HTTP request parser
-  std::size_t header_read_expiry_;  ///< Header read timeout in ms
-  std::size_t keep_alive_timeout_;  ///< Keep-alive timeout in ms
-  const bool kHasMaxConnection_;    ///< Whether connection-cap control is on.
+  OwnedPtr<HttpRequestParser> parser_;  ///< HTTP request parser
+  std::size_t header_read_expiry_;      ///< Header read timeout in ms
+  std::size_t keep_alive_timeout_;      ///< Keep-alive timeout in ms
+  const bool kHasMaxConnection_;  ///< Whether connection-cap control is on.
   std::atomic<std::int64_t>* available_connection_num_{
       nullptr};                 ///< Shared approximate available slot counter.
   std::size_t endpoint_index_;  ///< Endpoint index owning this connection.

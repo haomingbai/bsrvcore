@@ -81,7 +81,7 @@ Important:
 Create a task and configure request before `Start()`:
 
 ```cpp
-boost::asio::io_context ioc;
+bsrvcore::IoContext ioc;
 
 auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
   ioc.get_executor(),
@@ -99,7 +99,7 @@ ioc.run();
 `CreateFromUrl` accepts both `ws://` and `wss://` directly.
 For `wss://`, the default overload creates a shared client TLS context and
 loads system trust roots. If you need custom TLS settings, use the overload
-that takes `std::shared_ptr<boost::asio::ssl::context>`.
+that takes `SslContextPtr`.
 
 If you want cookie-managed creation, use `HttpClientSession` websocket
 factories (`CreateWebSocketHttp/CreateWebSocketHttps/CreateWebSocketFromUrl`).

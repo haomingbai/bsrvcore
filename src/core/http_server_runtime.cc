@@ -39,7 +39,7 @@
 
 using namespace bsrvcore;
 
-boost::asio::any_io_executor HttpServer::SelectIoExecutorRoundRobin() noexcept {
+IoExecutor HttpServer::SelectIoExecutorRoundRobin() noexcept {
   // Start()/Stop() publish executor snapshots atomically, so hot-path reads can
   // stay lock-free and simply fall back to the control io_context while the
   // runtime is still coming up or already tearing down.
@@ -67,7 +67,7 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
     return;
   }
 
-  auto timer = AllocateShared<boost::asio::steady_timer>(io_exec);
+  auto timer = AllocateShared<SteadyTimer>(io_exec);
   timer->expires_after(std::chrono::milliseconds(timeout));
   timer->async_wait(
       [this, fn = std::move(fn), timer](boost::system::error_code ec) mutable {
@@ -152,7 +152,7 @@ std::shared_ptr<Context> HttpServer::GetSession(std::string&& sessionid) {
   return sessions_->GetSession(std::move(sessionid));
 }
 
-boost::asio::any_io_executor HttpServer::GetIoExecutor() noexcept {
+IoExecutor HttpServer::GetIoExecutor() noexcept {
   if (!is_running_.load(std::memory_order_acquire)) {
     return {};
   }
@@ -162,7 +162,7 @@ boost::asio::any_io_executor HttpServer::GetIoExecutor() noexcept {
   return SelectIoExecutorRoundRobin();
 }
 
-boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
+IoExecutor HttpServer::GetExecutor() noexcept {
   std::scoped_lock const lock(mtx_);
   if (!is_running_) {
     return {};
@@ -171,7 +171,7 @@ boost::asio::any_io_executor HttpServer::GetExecutor() noexcept {
   return GetThreadPoolExecutor();
 }
 
-std::vector<boost::asio::any_io_executor> HttpServer::GetEndpointExecutors(
+std::vector<IoExecutor> HttpServer::GetEndpointExecutors(
     std::size_t endpoint_index) noexcept {
   if (!is_running_.load(std::memory_order_acquire)) {
     return {};
@@ -186,8 +186,7 @@ std::vector<boost::asio::any_io_executor> HttpServer::GetEndpointExecutors(
   return (*endpoint_snapshot)[endpoint_index];
 }
 
-std::vector<boost::asio::any_io_executor>
-HttpServer::GetGlobalExecutors() noexcept {
+std::vector<IoExecutor> HttpServer::GetGlobalExecutors() noexcept {
   if (!is_running_.load(std::memory_order_acquire)) {
     return {};
   }

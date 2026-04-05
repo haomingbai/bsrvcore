@@ -26,12 +26,11 @@ std::shared_ptr<PutProcessor> PutProcessor::Create(HttpTaskBase& task) {
 }
 
 std::shared_ptr<PutProcessor> PutProcessor::Create(
-    const HttpRequest& request, boost::asio::any_io_executor work_executor,
-    boost::asio::any_io_executor callback_executor) {
+    const HttpRequest& request, IoExecutor work_executor,
+    IoExecutor callback_executor) {
   struct SharedEnabler final : PutProcessor {
-    SharedEnabler(const HttpRequest& request_in,
-                  boost::asio::any_io_executor work_executor_in,
-                  boost::asio::any_io_executor callback_executor_in)
+    SharedEnabler(const HttpRequest& request_in, IoExecutor work_executor_in,
+                  IoExecutor callback_executor_in)
         : PutProcessor(PrivateTag{}, request_in, std::move(work_executor_in),
                        std::move(callback_executor_in)) {}
   };
@@ -40,17 +39,17 @@ std::shared_ptr<PutProcessor> PutProcessor::Create(
                                        std::move(callback_executor));
 }
 
-std::shared_ptr<PutProcessor> PutProcessor::Create(
-    const HttpRequest& request, boost::asio::any_io_executor executor) {
+std::shared_ptr<PutProcessor> PutProcessor::Create(const HttpRequest& request,
+                                                   IoExecutor executor) {
   return Create(request, executor, executor);
 }
 
 PutProcessor::PutProcessor(PrivateTag, const HttpRequest& request,
-                           boost::asio::any_io_executor work_executor,
-                           boost::asio::any_io_executor callback_executor)
+                           IoExecutor work_executor,
+                           IoExecutor callback_executor)
     : work_executor_(std::move(work_executor)),
       callback_executor_(std::move(callback_executor)),
-      is_put_(request.method() == boost::beast::http::verb::put) {
+      is_put_(request.method() == HttpVerb::put) {
   if (is_put_) {
     writer_ =
         FileWriter::Create(request.body(), work_executor_, callback_executor_);

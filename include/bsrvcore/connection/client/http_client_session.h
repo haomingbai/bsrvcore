@@ -55,40 +55,36 @@ class HttpClientSession
   /** @brief Create plain HTTP task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttp(
       HttpClientTask::Executor io_executor, std::string host, std::string port,
-      std::string target, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      std::string target, HttpVerb method, HttpClientOptions options = {});
   /** @brief Create plain HTTP task with a dedicated callback executor. */
   std::shared_ptr<HttpClientTask> CreateHttp(
       HttpClientTask::Executor io_executor,
       HttpClientTask::Executor callback_executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
 
   /** @brief Create HTTPS task from host/port/target. */
   std::shared_ptr<HttpClientTask> CreateHttps(
       HttpClientTask::Executor io_executor, std::string host, std::string port,
-      std::string target, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      std::string target, HttpVerb method, HttpClientOptions options = {});
   /** @brief Create HTTPS task with a dedicated callback executor. */
   std::shared_ptr<HttpClientTask> CreateHttps(
       HttpClientTask::Executor io_executor,
       HttpClientTask::Executor callback_executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
   /** @brief Create HTTPS task from host/port/target with caller-provided SSL
    * context. */
   std::shared_ptr<HttpClientTask> CreateHttps(
-      HttpClientTask::Executor io_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+      std::string host, std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
   /** @brief Create HTTPS task with a dedicated callback executor and SSL
    * context. */
   std::shared_ptr<HttpClientTask> CreateHttps(
       HttpClientTask::Executor io_executor,
-      HttpClientTask::Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      HttpClientTask::Executor callback_executor, SslContextPtr ssl_ctx,
+      std::string host, std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
 
   /** @brief Create task from URL without SSL context.
@@ -97,25 +93,23 @@ class HttpClientSession
    * default trust roots.
    */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      HttpClientTask::Executor io_executor, std::string url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      HttpClientTask::Executor io_executor, std::string url, HttpVerb method,
+      HttpClientOptions options = {});
   /** @brief Create task from URL with a dedicated callback executor. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
       HttpClientTask::Executor io_executor,
       HttpClientTask::Executor callback_executor, std::string url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      HttpVerb method, HttpClientOptions options = {});
 
   /** @brief Create task from URL with SSL context. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
-      HttpClientTask::Executor io_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+      std::string url, HttpVerb method, HttpClientOptions options = {});
   /** @brief Create task from URL with SSL and a dedicated callback executor. */
   std::shared_ptr<HttpClientTask> CreateFromUrl(
       HttpClientTask::Executor io_executor,
-      HttpClientTask::Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      HttpClientTask::Executor callback_executor, SslContextPtr ssl_ctx,
+      std::string url, HttpVerb method, HttpClientOptions options = {});
 
   /** @brief Create plain WebSocket task from host/port/target. */
   std::shared_ptr<WebSocketClientTask> CreateWebSocketHttp(
@@ -132,9 +126,8 @@ class HttpClientSession
   /** @brief Create HTTPS WebSocket task from host/port/target with
    * caller-provided SSL context. */
   std::shared_ptr<WebSocketClientTask> CreateWebSocketHttps(
-      HttpClientTask::Executor io_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-      std::string port, std::string target,
+      HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+      std::string host, std::string port, std::string target,
       WebSocketClientTask::HandlerPtr handler, HttpClientOptions options = {});
 
   /** @brief Create WebSocket task from URL without SSL context.
@@ -148,9 +141,9 @@ class HttpClientSession
 
   /** @brief Create WebSocket task from URL with SSL context. */
   std::shared_ptr<WebSocketClientTask> CreateWebSocketFromUrl(
-      HttpClientTask::Executor io_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string url,
-      WebSocketClientTask::HandlerPtr handler, HttpClientOptions options = {});
+      HttpClientTask::Executor io_executor, SslContextPtr ssl_ctx,
+      std::string url, WebSocketClientTask::HandlerPtr handler,
+      HttpClientOptions options = {});
 
   /** @brief Remove all stored cookies. */
   void ClearCookies();

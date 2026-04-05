@@ -46,6 +46,15 @@ flowchart LR
 - The first endpoint decides the mode for the whole server so the published
   executor model stays consistent.
 
+## Public naming
+
+- Public headers should prefer the aliases from `bsrvcore/core/types.h` when
+  referring to executor concepts.
+- Use `IoExecutor` for type-erased I/O executor hand-off points and
+  `IoContext` when a concrete `io_context` object is required.
+- The goal is to keep public API vocabulary stable even if the underlying Boost
+  type spellings are verbose or change across modules.
+
 ## Practical Rule For Changes
 
 If a change touches socket state, parser state, or response write sequencing, it

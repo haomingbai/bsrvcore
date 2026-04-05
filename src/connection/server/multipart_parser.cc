@@ -100,12 +100,11 @@ std::shared_ptr<MultipartParser> MultipartParser::Create(HttpTaskBase& task) {
 }
 
 std::shared_ptr<MultipartParser> MultipartParser::Create(
-    const HttpRequest& request, boost::asio::any_io_executor work_executor,
-    boost::asio::any_io_executor callback_executor) {
+    const HttpRequest& request, IoExecutor work_executor,
+    IoExecutor callback_executor) {
   struct SharedEnabler final : MultipartParser {
-    SharedEnabler(const HttpRequest& request_in,
-                  boost::asio::any_io_executor work_executor_in,
-                  boost::asio::any_io_executor callback_executor_in)
+    SharedEnabler(const HttpRequest& request_in, IoExecutor work_executor_in,
+                  IoExecutor callback_executor_in)
         : MultipartParser(PrivateTag{}, request_in, std::move(work_executor_in),
                           std::move(callback_executor_in)) {}
   };
@@ -115,13 +114,13 @@ std::shared_ptr<MultipartParser> MultipartParser::Create(
 }
 
 std::shared_ptr<MultipartParser> MultipartParser::Create(
-    const HttpRequest& request, boost::asio::any_io_executor executor) {
+    const HttpRequest& request, IoExecutor executor) {
   return Create(request, executor, executor);
 }
 
 MultipartParser::MultipartParser(PrivateTag, const HttpRequest& request,
-                                 boost::asio::any_io_executor work_executor,
-                                 boost::asio::any_io_executor callback_executor)
+                                 IoExecutor work_executor,
+                                 IoExecutor callback_executor)
     : work_executor_(std::move(work_executor)),
       callback_executor_(std::move(callback_executor)) {
   Parse(request);
@@ -177,8 +176,8 @@ bool MultipartParser::AsyncDumpToDisk(std::size_t part_idx,
 void MultipartParser::Parse(const HttpRequest& request) {
   parts_.clear();
 
-  const auto boundary = ExtractBoundary(
-      GetHeaderValue(request, boost::beast::http::field::content_type));
+  const auto boundary =
+      ExtractBoundary(GetHeaderValue(request, HttpField::content_type));
   if (!boundary.has_value()) {
     return;
   }

@@ -23,7 +23,7 @@
 #include <vector>
 
 int main() {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
 
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "8080", "/events");

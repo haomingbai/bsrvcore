@@ -25,6 +25,7 @@
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/file/file_reader.h"
 #include "bsrvcore/file/file_state.h"
 #include "bsrvcore/file/file_writer.h"
@@ -274,9 +275,9 @@ static_assert(!std::is_move_constructible_v<bsrvcore::FileReader>);
 static_assert(!std::is_copy_constructible_v<bsrvcore::PutGenerator>);
 static_assert(!std::is_move_constructible_v<bsrvcore::PutGenerator>);
 static_assert(std::is_same_v<bsrvcore::HttpClientTask::Executor,
-                             boost::asio::io_context::executor_type>);
+                             bsrvcore::IoContextExecutor>);
 static_assert(std::is_same_v<bsrvcore::HttpSseClientTask::Executor,
-                             boost::asio::io_context::executor_type>);
+                             bsrvcore::IoContextExecutor>);
 static_assert(!std::is_convertible_v<boost::asio::thread_pool::executor_type,
                                      bsrvcore::HttpClientTask::Executor>);
 static_assert(!std::is_convertible_v<boost::asio::thread_pool::executor_type,

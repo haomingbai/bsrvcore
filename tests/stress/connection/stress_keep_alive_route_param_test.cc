@@ -28,7 +28,6 @@
 namespace {
 
 namespace http = boost::beast::http;
-using tcp = boost::asio::ip::tcp;
 
 class KeepAliveClient {
  public:
@@ -72,7 +71,7 @@ class KeepAliveClient {
     stream_.expires_after(std::chrono::seconds(2));
     stream_.connect(endpoints);
     boost::system::error_code ec;
-    stream_.socket().set_option(tcp::no_delay(true), ec);
+    stream_.socket().set_option(boost::asio::ip::tcp::no_delay(true), ec);
     connected_ = true;
   }
 
@@ -82,7 +81,7 @@ class KeepAliveClient {
       return;
     }
     boost::system::error_code ec;
-    stream_.socket().shutdown(tcp::socket::shutdown_both, ec);
+    stream_.socket().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ec);
     stream_.socket().close(ec);
     buffer_.consume(buffer_.size());
     connected_ = false;
@@ -91,10 +90,10 @@ class KeepAliveClient {
   std::string host_;
   std::string port_;
   std::string host_header_;
-  boost::asio::io_context ioc_;
-  tcp::resolver resolver_;
-  boost::beast::tcp_stream stream_;
-  boost::beast::flat_buffer buffer_;
+  bsrvcore::IoContext ioc_;
+  boost::asio::ip::tcp::resolver resolver_;
+  bsrvcore::TcpStream stream_;
+  bsrvcore::FlatBuffer buffer_;
   bool connected_ = false;
 };
 

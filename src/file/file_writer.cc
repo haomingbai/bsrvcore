@@ -26,7 +26,7 @@ namespace bsrvcore {
 
 namespace {
 
-inline void DispatchWriteCallback(const boost::asio::any_io_executor& executor,
+inline void DispatchWriteCallback(const IoExecutor& executor,
                                   std::shared_ptr<FileWritingState> state,
                                   FileWriter::Callback callback) {
   if (!callback) {
@@ -96,13 +96,12 @@ struct AsyncFileWriteOp {
 
 }  // namespace
 
-std::shared_ptr<FileWriter> FileWriter::Create(
-    std::string_view payload, boost::asio::any_io_executor work_executor,
-    boost::asio::any_io_executor callback_executor) {
+std::shared_ptr<FileWriter> FileWriter::Create(std::string_view payload,
+                                               IoExecutor work_executor,
+                                               IoExecutor callback_executor) {
   struct SharedEnabler final : FileWriter {
-    SharedEnabler(std::string_view payload_in,
-                  boost::asio::any_io_executor work_executor_in,
-                  boost::asio::any_io_executor callback_executor_in)
+    SharedEnabler(std::string_view payload_in, IoExecutor work_executor_in,
+                  IoExecutor callback_executor_in)
         : FileWriter(PrivateTag{}, payload_in, std::move(work_executor_in),
                      std::move(callback_executor_in)) {}
   };
@@ -111,14 +110,13 @@ std::shared_ptr<FileWriter> FileWriter::Create(
                                        std::move(callback_executor));
 }
 
-std::shared_ptr<FileWriter> FileWriter::Create(
-    std::string_view payload, boost::asio::any_io_executor executor) {
+std::shared_ptr<FileWriter> FileWriter::Create(std::string_view payload,
+                                               IoExecutor executor) {
   return Create(payload, executor, executor);
 }
 
 FileWriter::FileWriter(PrivateTag, std::string_view payload,
-                       boost::asio::any_io_executor work_executor,
-                       boost::asio::any_io_executor callback_executor)
+                       IoExecutor work_executor, IoExecutor callback_executor)
     : work_executor_(std::move(work_executor)),
       callback_executor_(std::move(callback_executor)) {
   Assign(payload);
@@ -173,11 +171,11 @@ bool FileWriter::AsyncWriteToDisk(std::filesystem::path path,
                           std::move(callback));
 }
 
-boost::asio::any_io_executor FileWriter::GetWorkExecutor() const noexcept {
+IoExecutor FileWriter::GetWorkExecutor() const noexcept {
   return work_executor_;
 }
 
-boost::asio::any_io_executor FileWriter::GetCallbackExecutor() const noexcept {
+IoExecutor FileWriter::GetCallbackExecutor() const noexcept {
   return callback_executor_;
 }
 

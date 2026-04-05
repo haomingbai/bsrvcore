@@ -102,8 +102,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
 }
 
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
-    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-    std::string host, std::string port, std::string target, HandlerPtr handler,
+    Executor io_executor, SslContextPtr ssl_ctx, std::string host,
+    std::string port, std::string target, HandlerPtr handler,
     HttpClientOptions options) {
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -124,7 +124,7 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
     return nullptr;
   }
 
-  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  SslContextPtr ssl_ctx;
   if (use_ssl) {
     const auto& ssl_state =
         connection_internal::GetDefaultClientSslContextState();
@@ -152,8 +152,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
 }
 
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
-    Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-    std::string url, HandlerPtr handler, HttpClientOptions options) {
+    Executor io_executor, SslContextPtr ssl_ctx, std::string url,
+    HandlerPtr handler, HttpClientOptions options) {
   bool use_ssl = false;
   std::string host;
   std::string port;
@@ -165,8 +165,7 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), use_ssl,
-      use_ssl ? std::move(ssl_ctx)
-              : std::shared_ptr<boost::asio::ssl::context>{});
+      use_ssl ? std::move(ssl_ctx) : SslContextPtr{});
   ConfigureUpgradeHeaders(ws_task->Request());
   return ws_task;
 }
@@ -186,10 +185,11 @@ void WebSocketClientTask::AttachSession(
 
 WebSocketClientTask::~WebSocketClientTask() = default;
 
-WebSocketClientTask::WebSocketClientTask(
-    Executor io_executor, std::string host, std::string port,
-    std::string target, HandlerPtr handler, HttpClientOptions options,
-    bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
+WebSocketClientTask::WebSocketClientTask(Executor io_executor, std::string host,
+                                         std::string port, std::string target,
+                                         HandlerPtr handler,
+                                         HttpClientOptions options,
+                                         bool use_ssl, SslContextPtr ssl_ctx)
     : WebSocketTaskBase(std::move(handler)),
       io_executor_(std::move(io_executor)),
       host_(std::move(host)),

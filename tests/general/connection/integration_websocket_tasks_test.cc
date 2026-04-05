@@ -22,7 +22,6 @@
 namespace {
 namespace http = boost::beast::http;
 namespace websocket = boost::beast::websocket;
-using tcp = boost::asio::ip::tcp;
 
 struct IntegrationHandlerState {
   int open_count{0};
@@ -48,18 +47,17 @@ class IntegrationHandler : public bsrvcore::WebSocketHandler {
   std::shared_ptr<IntegrationHandlerState> state_;
 };
 
-void RunSecureWebSocketServer(tcp::acceptor& acceptor,
-                              boost::asio::ssl::context& ssl_ctx,
-                              bool set_cookie) {
-  tcp::socket socket(acceptor.get_executor());
+void RunSecureWebSocketServer(boost::asio::ip::tcp::acceptor& acceptor,
+                              bsrvcore::SslContext& ssl_ctx, bool set_cookie) {
+  boost::asio::ip::tcp::socket socket(acceptor.get_executor());
   boost::system::error_code ec;
   acceptor.accept(socket, ec);
   if (ec) {
     return;
   }
 
-  websocket::stream<boost::asio::ssl::stream<tcp::socket>> ws(std::move(socket),
-                                                              ssl_ctx);
+  websocket::stream<boost::asio::ssl::stream<boost::asio::ip::tcp::socket>> ws(
+      std::move(socket), ssl_ctx);
   ws.next_layer().handshake(boost::asio::ssl::stream_base::server, ec);
   if (ec) {
     return;
@@ -81,18 +79,20 @@ void RunSecureWebSocketServer(tcp::acceptor& acceptor,
 }
 
 TEST(WebSocketIntegrationTest, ClientTaskOpensWhenHandshakeSucceeds) {
-  boost::asio::io_context server_ioc;
-  tcp::acceptor acceptor(server_ioc, tcp::endpoint(tcp::v4(), 0));
+  bsrvcore::IoContext server_ioc;
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   const auto port = acceptor.local_endpoint().port();
   std::thread server_thread([&acceptor]() {
-    tcp::socket socket(acceptor.get_executor());
+    boost::asio::ip::tcp::socket socket(acceptor.get_executor());
     boost::system::error_code ec;
     acceptor.accept(socket, ec);
     if (ec) {
       return;
     }
 
-    websocket::stream<tcp::socket> ws(std::move(socket));
+    websocket::stream<boost::asio::ip::tcp::socket> ws(std::move(socket));
     ws.set_option(websocket::stream_base::decorator(
         [](websocket::response_type& response) {
           response.set(http::field::set_cookie, "sid=ws-session; Path=/ws");
@@ -105,7 +105,7 @@ TEST(WebSocketIntegrationTest, ClientTaskOpensWhenHandshakeSucceeds) {
     ws.close(websocket::close_code::normal, ec);
   });
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto session = bsrvcore::HttpClientSession::Create();
   ASSERT_NE(session, nullptr);
 
@@ -133,11 +133,13 @@ TEST(WebSocketIntegrationTest, ClientTaskOpensWhenHandshakeSucceeds) {
 }
 
 TEST(WebSocketIntegrationTest, ClientTaskReportsErrorForNonWebSocketResponse) {
-  boost::asio::io_context server_ioc;
-  tcp::acceptor acceptor(server_ioc, tcp::endpoint(tcp::v4(), 0));
+  bsrvcore::IoContext server_ioc;
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   const auto port = acceptor.local_endpoint().port();
   std::thread server_thread([&acceptor]() {
-    tcp::socket socket(acceptor.get_executor());
+    boost::asio::ip::tcp::socket socket(acceptor.get_executor());
     boost::system::error_code ec;
     acceptor.accept(socket, ec);
     if (ec) {
@@ -153,7 +155,7 @@ TEST(WebSocketIntegrationTest, ClientTaskReportsErrorForNonWebSocketResponse) {
     boost::asio::write(socket, boost::asio::buffer(kResponse), ec);
   });
 
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<IntegrationHandlerState>();
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/",
@@ -170,20 +172,21 @@ TEST(WebSocketIntegrationTest, ClientTaskReportsErrorForNonWebSocketResponse) {
 }
 
 TEST(WebSocketIntegrationTest, WssClientTaskOpensWhenTlsHandshakeSucceeds) {
-  boost::asio::io_context server_ioc;
-  boost::asio::ssl::context server_ssl_ctx(
-      boost::asio::ssl::context::tls_server);
+  bsrvcore::IoContext server_ioc;
+  bsrvcore::SslContext server_ssl_ctx(bsrvcore::SslContext::tls_server);
   bsrvcore::test::ConfigureTestServerSslContext(server_ssl_ctx);
 
-  tcp::acceptor acceptor(server_ioc, tcp::endpoint(tcp::v4(), 0));
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   const auto port = acceptor.local_endpoint().port();
   std::thread server_thread([&acceptor, &server_ssl_ctx]() {
     RunSecureWebSocketServer(acceptor, server_ssl_ctx, true);
   });
 
-  boost::asio::io_context ioc;
-  auto client_ssl_ctx = std::make_shared<boost::asio::ssl::context>(
-      boost::asio::ssl::context::tls_client);
+  bsrvcore::IoContext ioc;
+  auto client_ssl_ctx =
+      std::make_shared<bsrvcore::SslContext>(bsrvcore::SslContext::tls_client);
   bsrvcore::HttpClientOptions options;
   options.verify_peer = false;
 
@@ -215,20 +218,21 @@ TEST(WebSocketIntegrationTest, WssClientTaskOpensWhenTlsHandshakeSucceeds) {
 }
 
 TEST(WebSocketIntegrationTest, WssClientTaskFailsPeerVerificationByDefault) {
-  boost::asio::io_context server_ioc;
-  boost::asio::ssl::context server_ssl_ctx(
-      boost::asio::ssl::context::tls_server);
+  bsrvcore::IoContext server_ioc;
+  bsrvcore::SslContext server_ssl_ctx(bsrvcore::SslContext::tls_server);
   bsrvcore::test::ConfigureTestServerSslContext(server_ssl_ctx);
 
-  tcp::acceptor acceptor(server_ioc, tcp::endpoint(tcp::v4(), 0));
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
   const auto port = acceptor.local_endpoint().port();
   std::thread server_thread([&acceptor, &server_ssl_ctx]() {
     RunSecureWebSocketServer(acceptor, server_ssl_ctx, false);
   });
 
-  boost::asio::io_context ioc;
-  auto client_ssl_ctx = std::make_shared<boost::asio::ssl::context>(
-      boost::asio::ssl::context::tls_client);
+  bsrvcore::IoContext ioc;
+  auto client_ssl_ctx =
+      std::make_shared<bsrvcore::SslContext>(bsrvcore::SslContext::tls_client);
   auto state = std::make_shared<IntegrationHandlerState>();
   auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
       ioc.get_executor(), client_ssl_ctx,

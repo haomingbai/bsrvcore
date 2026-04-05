@@ -16,12 +16,12 @@
 
 namespace bsrvcore::test {
 
-using tcp = boost::asio::ip::tcp;
+using tcp = Tcp;
 namespace http = boost::beast::http;
 
 // Bind to port 0 to get an available ephemeral port.
 inline unsigned short FindFreePort() {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   // Bind to port 0 so the OS selects a free ephemeral port. Note there is still
   // a race window between releasing this port and binding the real server.
   tcp::acceptor acceptor(ioc, {boost::asio::ip::make_address("127.0.0.1"), 0});
@@ -47,7 +47,7 @@ template <typename ConfigureRequestFn>
 inline http::response<http::string_body> DoRequestTask(
     http::verb method, unsigned short port, const std::string& target,
     const std::string& body, ConfigureRequestFn&& configure_request) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
 
   HttpClientOptions options;
   options.resolve_timeout = std::chrono::seconds(2);

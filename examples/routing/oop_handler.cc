@@ -32,8 +32,8 @@ class HelloHandler : public bsrvcore::HttpRequestHandler {
     const auto* name_param = task->GetPathParameter("name");
     std::string const name = name_param == nullptr ? "world" : *name_param;
 
-    task->GetResponse().result(boost::beast::http::status::ok);
-    task->SetField(boost::beast::http::field::content_type,
+    task->GetResponse().result(bsrvcore::HttpStatus::ok);
+    task->SetField(bsrvcore::HttpField::content_type,
                    "text/plain; charset=utf-8");
     task->SetBody("Hello, " + name + ".");
   }

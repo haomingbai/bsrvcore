@@ -72,9 +72,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
   //
   // Threading: may be called from arbitrary threads; internally posts work to
   // the connection executor/strand.
-  void AddHeader(
-      boost::beast::http::response_header<boost::beast::http::fields> header,
-      std::size_t write_expiry) {
+  void AddHeader(HttpResponseHeader header, std::size_t write_expiry) {
     HeaderMessage message{std::move(header), write_expiry};
     auto self_sp = this->shared_from_this();
 
@@ -109,9 +107,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
   };
 
   struct HeaderMessage {
-    std::shared_ptr<
-        boost::beast::http::response<boost::beast::http::empty_body>>
-        resp_sp;
+    std::shared_ptr<HttpEmptyResponse> resp_sp;
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -119,7 +115,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
-    boost::beast::http::response_serializer<boost::beast::http::empty_body> sr;
+    HttpEmptyResponseSerializer sr;
 #ifdef __clang__
 #pragma clang diagnostic pop
 #elif defined(__GNUC__)
@@ -128,12 +124,8 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
     std::size_t write_expiry;
 
-    explicit HeaderMessage(boost::beast::http::response_header<
-                               boost::beast::http::fields>&& header,
-                           std::size_t expiry)
-        : resp_sp(AllocateShared<
-                  boost::beast::http::response<boost::beast::http::empty_body>>(
-              std::move(header))),
+    explicit HeaderMessage(HttpResponseHeader&& header, std::size_t expiry)
+        : resp_sp(AllocateShared<HttpEmptyResponse>(std::move(header))),
           sr(*resp_sp),
           write_expiry(expiry) {}
   };

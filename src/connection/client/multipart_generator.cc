@@ -104,7 +104,7 @@ struct MultipartBuildState {
   HttpClientOptions options;
   std::vector<PartSpec> parts;
   bool use_ssl{false};
-  std::shared_ptr<boost::asio::ssl::context> ssl_ctx;
+  SslContextPtr ssl_ctx;
   MultipartGenerator::ReadyCallback callback;
   std::atomic_bool done{false};
 
@@ -196,7 +196,7 @@ std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateHttp(
     SharedEnabler(HttpClientTask::Executor executor_in, std::string host_in,
                   std::string port_in, std::string target_in,
                   HttpClientOptions options_in, bool use_ssl_in,
-                  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_in)
+                  SslContextPtr ssl_ctx_in)
         : MultipartGenerator(PrivateTag{}, std::move(executor_in),
                              std::move(host_in), std::move(port_in),
                              std::move(target_in), std::move(options_in),
@@ -223,14 +223,13 @@ std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateHttps(
 }
 
 std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateHttps(
-    HttpClientTask::Executor executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
+    HttpClientTask::Executor executor, SslContextPtr ssl_ctx, std::string host,
     std::string port, std::string target, HttpClientOptions options) {
   struct SharedEnabler final : MultipartGenerator {
     SharedEnabler(HttpClientTask::Executor executor_in, std::string host_in,
                   std::string port_in, std::string target_in,
                   HttpClientOptions options_in, bool use_ssl_in,
-                  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_in)
+                  SslContextPtr ssl_ctx_in)
         : MultipartGenerator(PrivateTag{}, std::move(executor_in),
                              std::move(host_in), std::move(port_in),
                              std::move(target_in), std::move(options_in),
@@ -274,9 +273,8 @@ std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateFromUrl(
 }
 
 std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateFromUrl(
-    HttpClientTask::Executor executor,
-    std::shared_ptr<boost::asio::ssl::context> ssl_ctx, const std::string& url,
-    HttpClientOptions options) {
+    HttpClientTask::Executor executor, SslContextPtr ssl_ctx,
+    const std::string& url, HttpClientOptions options) {
   auto client =
       CreateHttp(std::move(executor), "", "", "/", std::move(options));
   auto parsed = ParseHttpUrl(url);
@@ -289,19 +287,19 @@ std::shared_ptr<MultipartGenerator> MultipartGenerator::CreateFromUrl(
   client->port_ = parsed->port;
   client->target_ = parsed->target;
   client->use_ssl_ = parsed->https;
-  client->ssl_ctx_ = parsed->https
-                         ? std::move(ssl_ctx)
-                         : std::shared_ptr<boost::asio::ssl::context>{};
+  client->ssl_ctx_ = parsed->https ? std::move(ssl_ctx) : SslContextPtr{};
   if (parsed->https && client->ssl_ctx_ == nullptr) {
     client->create_error_ = std::make_error_code(std::errc::invalid_argument);
   }
   return client;
 }
 
-MultipartGenerator::MultipartGenerator(
-    PrivateTag, HttpClientTask::Executor executor, std::string host,
-    std::string port, std::string target, HttpClientOptions options,
-    bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx)
+MultipartGenerator::MultipartGenerator(PrivateTag,
+                                       HttpClientTask::Executor executor,
+                                       std::string host, std::string port,
+                                       std::string target,
+                                       HttpClientOptions options, bool use_ssl,
+                                       SslContextPtr ssl_ctx)
     : executor_(std::move(executor)),
       host_(std::move(host)),
       port_(std::move(port)),

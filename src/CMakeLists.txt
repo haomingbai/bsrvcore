@@ -150,7 +150,7 @@ target_compile_definitions(bsrvcore
 )
 
 # OpenSSL and Boost.Json stay PUBLIC because installed headers expose
-# boost::asio::ssl::context and boost::json types in public APIs.
+# aliases from bsrvcore/core/types.h that wrap SslContext and boost::json.
 target_link_libraries(bsrvcore
   PRIVATE
     Boost::url

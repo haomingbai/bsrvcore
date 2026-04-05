@@ -25,7 +25,7 @@ namespace bsrvcore {
 namespace {
 
 namespace websocket = boost::beast::websocket;
-using tcp = boost::asio::ip::tcp;
+using tcp = Tcp;
 
 template <typename Stream, typename Handler>
 void StartWebSocketCloseForStream(Stream& stream, Handler&& handler) {
@@ -213,7 +213,7 @@ void WebSocketClientTask::BeginReadLoop() {
 
   auto self = shared_from_this();
   if (ws_stream_ != nullptr) {
-    PlainWebSocketStream* stream = ws_stream_.get();
+    WebSocketStream* stream = ws_stream_.get();
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {

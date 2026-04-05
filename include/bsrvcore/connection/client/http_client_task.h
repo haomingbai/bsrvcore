@@ -25,7 +25,7 @@
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/json.h"
+#include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 
@@ -162,7 +162,7 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
                        public NonCopyableNonMovable<HttpClientTask> {
  public:
   /** @brief Executor type accepted by HttpClientTask factories. */
-  using Executor = boost::asio::io_context::executor_type;
+  using Executor = IoContextExecutor;
   /** @brief Callback type used by all stages. */
   using Callback = std::function<void(const HttpClientResult&)>;
 
@@ -171,12 +171,11 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    */
   static std::shared_ptr<HttpClientTask> CreateHttp(
       Executor io_executor, std::string host, std::string port,
-      std::string target, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      std::string target, HttpVerb method, HttpClientOptions options = {});
   /** @brief Create plain HTTP task with a dedicated callback executor. */
   static std::shared_ptr<HttpClientTask> CreateHttp(
       Executor io_executor, Executor callback_executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
 
   /**
@@ -184,27 +183,25 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, std::string host, std::string port,
-      std::string target, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      std::string target, HttpVerb method, HttpClientOptions options = {});
   /** @brief Create HTTPS task with a dedicated callback executor. */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, Executor callback_executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
   /**
    * @brief Create HTTPS task from host/port/target with caller-provided SSL
    * context.
    */
   static std::shared_ptr<HttpClientTask> CreateHttps(
-      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-      std::string host, std::string port, std::string target,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      Executor io_executor, SslContextPtr ssl_ctx, std::string host,
+      std::string port, std::string target, HttpVerb method,
+      HttpClientOptions options = {});
   /** @brief Create HTTPS task with a dedicated callback executor and SSL
    * context. */
   static std::shared_ptr<HttpClientTask> CreateHttps(
-      Executor io_executor, Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
+      std::string host, std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
 
   /**
@@ -214,26 +211,23 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    * client SSL context and load system default trust roots.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      Executor io_executor, const std::string& url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      Executor io_executor, const std::string& url, HttpVerb method,
+      HttpClientOptions options = {});
   /** @brief Create task from URL with a dedicated callback executor. */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       Executor io_executor, Executor callback_executor, const std::string& url,
-      boost::beast::http::verb method, HttpClientOptions options = {});
+      HttpVerb method, HttpClientOptions options = {});
 
   /**
    * @brief Create task from URL with SSL context.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      Executor io_executor, std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-      const std::string& url, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      Executor io_executor, SslContextPtr ssl_ctx, const std::string& url,
+      HttpVerb method, HttpClientOptions options = {});
   /** @brief Create HTTPS task from URL with a dedicated callback executor. */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
-      Executor io_executor, Executor callback_executor,
-      std::shared_ptr<boost::asio::ssl::context> ssl_ctx,
-      const std::string& url, boost::beast::http::verb method,
-      HttpClientOptions options = {});
+      Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
+      const std::string& url, HttpVerb method, HttpClientOptions options = {});
 
   /** @brief Register connected-stage callback. */
   std::shared_ptr<HttpClientTask> OnConnected(Callback cb);
@@ -293,7 +287,7 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
 
   static std::shared_ptr<Impl> CreateDefaultHttpsImpl(
       Executor io_executor, Executor callback_executor, std::string host,
-      std::string port, std::string target, boost::beast::http::verb method,
+      std::string port, std::string target, HttpVerb method,
       HttpClientOptions options);
 
   explicit HttpClientTask(std::shared_ptr<Impl> impl);

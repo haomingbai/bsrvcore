@@ -38,13 +38,13 @@ class HttpClientTask::Impl
     : public std::enable_shared_from_this<HttpClientTask::Impl> {
  public:
   using Callback = HttpClientTask::Callback;
-  using tcp = boost::asio::ip::tcp;
+  using tcp = Tcp;
 
   Impl(HttpClientTask::Executor io_executor,
        HttpClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target,
        http_client_detail::http::verb method, HttpClientOptions options,
-       bool use_ssl, std::shared_ptr<boost::asio::ssl::context> ssl_ctx = {});
+       bool use_ssl, SslContextPtr ssl_ctx = {});
 
   HttpClientRequest& Request() noexcept;
   void SetSession(std::weak_ptr<HttpClientSession> session);
@@ -99,11 +99,10 @@ class HttpClientTask::Impl
   boost::asio::strand<HttpClientTask::Executor> strand_;
   tcp::resolver resolver_;
 
-  std::unique_ptr<boost::beast::tcp_stream> tcp_stream_;
-  std::unique_ptr<boost::beast::ssl_stream<boost::beast::tcp_stream>>
-      ssl_stream_;
+  std::unique_ptr<TcpStream> tcp_stream_;
+  std::unique_ptr<SslStream> ssl_stream_;
 
-  boost::beast::flat_buffer buffer_;
+  FlatBuffer buffer_;
   std::optional<http_client_detail::http::response_parser<
       http_client_detail::http::string_body>>
       parser_;
@@ -115,7 +114,7 @@ class HttpClientTask::Impl
   HttpClientOptions options_;
 
   bool use_ssl_{false};
-  std::shared_ptr<boost::asio::ssl::context> ssl_ctx_;
+  SslContextPtr ssl_ctx_;
 
   bool started_{false};
   bool done_{false};

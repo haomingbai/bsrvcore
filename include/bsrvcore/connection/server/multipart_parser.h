@@ -43,12 +43,11 @@ class MultipartParser : public std::enable_shared_from_this<MultipartParser>,
       HttpTaskBase& task);
   /** @brief Create a parser from a request and explicit executors. */
   [[nodiscard]] static std::shared_ptr<MultipartParser> Create(
-      const HttpRequest& request, boost::asio::any_io_executor work_executor,
-      boost::asio::any_io_executor callback_executor);
+      const HttpRequest& request, IoExecutor work_executor,
+      IoExecutor callback_executor);
   /** @brief Create a parser using the same executor for work and callbacks. */
   [[nodiscard]] static std::shared_ptr<MultipartParser> Create(
-      const HttpRequest& request,
-      boost::asio::any_io_executor executor = boost::asio::any_io_executor());
+      const HttpRequest& request, IoExecutor executor = IoExecutor());
 
   /** @brief Return the number of parsed multipart sections. */
   [[nodiscard]] std::size_t GetPartCount() const noexcept;
@@ -83,14 +82,13 @@ class MultipartParser : public std::enable_shared_from_this<MultipartParser>,
   };
 
   MultipartParser(PrivateTag, const HttpRequest& request,
-                  boost::asio::any_io_executor work_executor,
-                  boost::asio::any_io_executor callback_executor);
+                  IoExecutor work_executor, IoExecutor callback_executor);
 
   void Parse(const HttpRequest& request);
 
   std::vector<PartData> parts_;
-  boost::asio::any_io_executor work_executor_;
-  boost::asio::any_io_executor callback_executor_;
+  IoExecutor work_executor_;
+  IoExecutor callback_executor_;
 };
 
 }  // namespace bsrvcore

@@ -62,8 +62,8 @@ int main() {
           bsrvcore::HttpRequestMethod::kGet, "/log",
           [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->Log(bsrvcore::LogLevel::kInfo, "Handling /log");
-            task->GetResponse().result(boost::beast::http::status::ok);
-            task->SetField(boost::beast::http::field::content_type,
+            task->GetResponse().result(bsrvcore::HttpStatus::ok);
+            task->SetField(bsrvcore::HttpField::content_type,
                            "text/plain; charset=utf-8");
             task->SetBody("Logged a message.\n");
           })

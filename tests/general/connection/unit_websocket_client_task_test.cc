@@ -41,7 +41,7 @@ class ClientHandler : public bsrvcore::WebSocketHandler {
 };
 
 TEST(WebSocketClientTaskTest, CreateHttpSetsUpgradeHeadersOnRequest) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<ClientHandlerState>();
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "8080", "/ws",
@@ -56,7 +56,7 @@ TEST(WebSocketClientTaskTest, CreateHttpSetsUpgradeHeadersOnRequest) {
 }
 
 TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
 
   auto ws_task = bsrvcore::WebSocketClientTask::CreateFromUrl(
       ioc.get_executor(), "ws://127.0.0.1:8080/ws",
@@ -73,9 +73,9 @@ TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
 }
 
 TEST(WebSocketClientTaskTest, ExplicitWssFactoryAcceptsSharedSslContext) {
-  boost::asio::io_context ioc;
-  auto ssl_ctx = std::make_shared<boost::asio::ssl::context>(
-      boost::asio::ssl::context::tls_client);
+  bsrvcore::IoContext ioc;
+  auto ssl_ctx =
+      std::make_shared<bsrvcore::SslContext>(bsrvcore::SslContext::tls_client);
   auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
       ioc.get_executor(), std::move(ssl_ctx), "wss://127.0.0.1:8443/ws",
       std::make_unique<ClientHandler>(std::make_shared<ClientHandlerState>()));
@@ -85,7 +85,7 @@ TEST(WebSocketClientTaskTest, ExplicitWssFactoryAcceptsSharedSslContext) {
 }
 
 TEST(WebSocketClientTaskTest, OnHttpDoneSetterSupportsChaining) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "8080", "/ws",
       std::make_unique<ClientHandler>(std::make_shared<ClientHandlerState>()));
@@ -96,7 +96,7 @@ TEST(WebSocketClientTaskTest, OnHttpDoneSetterSupportsChaining) {
 }
 
 TEST(WebSocketClientTaskTest, SessionFactoryInjectsCookieBeforeStart) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto session = bsrvcore::HttpClientSession::Create();
   ASSERT_NE(session, nullptr);
 
@@ -114,7 +114,7 @@ TEST(WebSocketClientTaskTest, SessionFactoryInjectsCookieBeforeStart) {
 
 TEST(WebSocketClientTaskTest,
      WriteMethodsReturnFalseBeforeStartAndCancelCloses) {
-  boost::asio::io_context ioc;
+  bsrvcore::IoContext ioc;
   auto state = std::make_shared<ClientHandlerState>();
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", "8080", "/ws",

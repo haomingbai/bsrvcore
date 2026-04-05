@@ -45,7 +45,7 @@
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/json.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_route_result.h"
 
 namespace bsrvcore {
@@ -64,24 +64,6 @@ struct HttpPreTaskDeleter;
 struct HttpServerTaskDeleter;
 struct HttpPostTaskDeleter;
 }  // namespace task_internal
-
-// Type aliases for Boost.Beast HTTP types
-/** @brief Canonical HTTP request type used by bsrvcore server APIs. */
-using HttpRequest = boost::beast::http::request<boost::beast::http::string_body,
-                                                boost::beast::http::fields>;
-
-/** @brief Canonical HTTP response type used by bsrvcore server APIs. */
-using HttpResponse =
-    boost::beast::http::response<boost::beast::http::string_body,
-                                 boost::beast::http::fields>;
-
-/** @brief Response-header-only type used by staged callbacks and snapshots. */
-using HttpResponseHeader =
-    boost::beast::http::response_header<boost::beast::http::fields>;
-
-/** @brief Request-header-only type used by staged callbacks and snapshots. */
-using HttpRequestHeader =
-    boost::beast::http::request_header<boost::beast::http::fields>;
 
 enum class HttpTaskConnectionLifecycleMode {
   kAutomatic,
@@ -193,7 +175,7 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
    * @param key Header field enum.
    * @param value Header value.
    */
-  void SetField(boost::beast::http::field key, const std::string_view value);
+  void SetField(HttpField key, const std::string_view value);
 
   /**
    * @brief Configure keep-alive for final response write.
@@ -229,25 +211,25 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
    * @brief Get this request's connection-local io executor.
    * @return Type-erased io executor.
    */
-  boost::asio::any_io_executor GetIoExecutor() noexcept;
+  IoExecutor GetIoExecutor() noexcept;
 
   /**
    * @brief Get io executors for the current endpoint.
    * @return Endpoint-local io executors, or empty when unavailable.
    */
-  std::vector<boost::asio::any_io_executor> GetEndpointExecutors() noexcept;
+  std::vector<IoExecutor> GetEndpointExecutors() noexcept;
 
   /**
    * @brief Get global io executors for all endpoints.
    * @return Global io executors, or empty when unavailable.
    */
-  std::vector<boost::asio::any_io_executor> GetGlobalExecutors() noexcept;
+  std::vector<IoExecutor> GetGlobalExecutors() noexcept;
 
   /**
    * @brief Get the server worker executor for async callbacks.
    * @return Type-erased executor backed by the server worker pool.
    */
-  boost::asio::any_io_executor GetExecutor() noexcept;
+  IoExecutor GetExecutor() noexcept;
 
   /**
    * @brief Log message through server logger.
