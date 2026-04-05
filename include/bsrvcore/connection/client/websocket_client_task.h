@@ -16,7 +16,9 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/core/tcp_stream.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket/stream.hpp>
 #include <memory>
 #include <optional>
@@ -56,8 +58,6 @@ class WebSocketClientTask
   std::shared_ptr<WebSocketClientTask> OnHttpDone(HttpDoneCallback cb);
 
   HttpClientRequest& Request() noexcept;
-  void SetJson(const JsonValue& value);
-  void SetJson(JsonValue&& value);
   void AttachSession(std::weak_ptr<HttpClientSession> session);
 
   void Start() override;
@@ -71,22 +71,36 @@ class WebSocketClientTask
 
   explicit WebSocketClientTask(Executor io_executor, std::string host,
                                std::string port, std::string target,
-                               HandlerPtr handler, bool use_ssl = false,
+                               HandlerPtr handler, HttpClientOptions options,
+                               bool use_ssl = false,
                                boost::asio::ssl::context* ssl_ctx = nullptr);
 
  private:
-  bool PrecheckAndPrepareStart();
+  using PlainWebSocketStream =
+      boost::beast::websocket::stream<boost::beast::tcp_stream>;
+  using SecureWebSocketStream = boost::beast::websocket::stream<
+      boost::beast::ssl_stream<boost::beast::tcp_stream>>;
+
+  bool PrepareStart();
+  bool CreateTransport();
   void StartResolve();
   void OnResolveCompleted(boost::system::error_code ec,
                           boost::asio::ip::tcp::resolver::results_type results);
-  void OnConnectCompleted(boost::system::error_code ec);
-  void StartHandshake();
-  void OnHandshakeCompleted(
+  void StartTcpConnect(
+      const boost::asio::ip::tcp::resolver::results_type& results);
+  void OnTcpConnectCompleted(boost::system::error_code ec);
+  void StartTlsHandshake();
+  void OnTlsHandshakeCompleted(boost::system::error_code ec);
+  void StartWebSocketHandshake();
+  void OnWebSocketHandshakeCompleted(
       boost::system::error_code ec,
       std::shared_ptr<boost::beast::websocket::response_type> response);
   void SyncHandshakeSetCookies(
       const boost::beast::websocket::response_type& response);
 
+  bool WritePingControl(std::string payload);
+  bool WritePongControl(std::string payload);
+  bool WriteCloseControl();
   void BeginReadLoop();
   void NotifyCloseOnce(boost::system::error_code ec);
   void FailAndClose(boost::system::error_code ec, std::string message);
@@ -98,16 +112,18 @@ class WebSocketClientTask
   std::string host_;
   std::string port_;
   std::string target_;
+  HttpClientOptions options_;
   bool use_ssl_{false};
   boost::asio::ssl::context* ssl_ctx_{nullptr};
   HttpClientRequest request_;
   std::unique_ptr<boost::asio::ip::tcp::resolver> resolver_;
-  std::optional<boost::beast::websocket::stream<boost::asio::ip::tcp::socket>>
-      ws_stream_;
+  std::optional<PlainWebSocketStream> ws_stream_;
+  std::optional<SecureWebSocketStream> wss_stream_;
   boost::beast::flat_buffer ws_read_buffer_;
   std::weak_ptr<HttpClientSession> session_;
   HttpDoneCallback on_http_done_;
-  bool started_{false};
+  bool start_requested_{false};
+  bool opened_{false};
   bool cancelled_{false};
   bool close_notified_{false};
 };

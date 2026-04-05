@@ -73,6 +73,24 @@ TEST(WebSocketClientTaskTest, CreateFromUrlSupportsWsAndWssPrefixes) {
   EXPECT_EQ(wss_task->Request().method(), http::verb::get);
 }
 
+TEST(WebSocketClientTaskTest, WssStartFailsWithoutSslContext) {
+  boost::asio::io_context ioc;
+  auto state = std::make_shared<ClientHandlerState>();
+  auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
+      ioc.get_executor(), "wss://127.0.0.1:8443/ws",
+      std::make_unique<ClientHandler>(state));
+
+  ASSERT_NE(task, nullptr);
+
+  task->Start();
+  ioc.run();
+
+  EXPECT_EQ(state->open_count, 0);
+  EXPECT_EQ(state->error_count, 1);
+  EXPECT_EQ(state->close_count, 1);
+  EXPECT_NE(state->last_error.find("SSL context"), std::string::npos);
+}
+
 TEST(WebSocketClientTaskTest, OnHttpDoneSetterSupportsChaining) {
   boost::asio::io_context ioc;
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(

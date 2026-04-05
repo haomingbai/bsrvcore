@@ -270,6 +270,12 @@ class HttpServerConnectionImpl : public StreamServerConnection {
  private:
   // Ensure message_queue_ is created. If already created, no-op.
   void EnsureMessageQueueCreated();
+  void DoWebSocketPingControl(std::string payload,
+                              WebSocketWriteCallback callback);
+  void DoWebSocketPongControl(std::string payload,
+                              WebSocketWriteCallback callback);
+  void DoWebSocketCloseControl(std::string payload,
+                               WebSocketWriteCallback callback);
 
   // members
   boost::beast::http::response<boost::beast::http::string_body> resp_;
@@ -461,37 +467,58 @@ void HttpServerConnectionImpl<S>::DoWebSocketControl(
     ArmTimeout(GetKeepAliveTimeout() * 1000);
     switch (kind) {
       case WebSocketControlKind::kPing:
-        ws_stream_->async_ping(
-            boost::beast::websocket::ping_data(payload),
-            boost::asio::bind_executor(
-                GetExecutor(), [self, this, callback = std::move(callback)](
-                                   boost::system::error_code ec) mutable {
-                  CancelTimeout();
-                  callback(ec);
-                }));
+        DoWebSocketPingControl(std::move(payload), std::move(callback));
         return;
       case WebSocketControlKind::kPong:
-        ws_stream_->async_pong(
-            boost::beast::websocket::ping_data(payload),
-            boost::asio::bind_executor(
-                GetExecutor(), [self, this, callback = std::move(callback)](
-                                   boost::system::error_code ec) mutable {
-                  CancelTimeout();
-                  callback(ec);
-                }));
+        DoWebSocketPongControl(std::move(payload), std::move(callback));
         return;
       case WebSocketControlKind::kClose:
-        ws_stream_->async_close(
-            boost::beast::websocket::close_reason(payload),
-            boost::asio::bind_executor(
-                GetExecutor(), [self, this, callback = std::move(callback)](
-                                   boost::system::error_code ec) mutable {
-                  CancelTimeout();
-                  callback(ec);
-                }));
+        DoWebSocketCloseControl(std::move(payload), std::move(callback));
         return;
     }
   });
+}
+
+template <ValidStream S>
+void HttpServerConnectionImpl<S>::DoWebSocketPingControl(
+    std::string payload, WebSocketWriteCallback callback) {
+  ws_stream_->async_ping(
+      boost::beast::websocket::ping_data(std::move(payload)),
+      boost::asio::bind_executor(GetExecutor(),
+                                 [self = this->shared_from_this(), this,
+                                  callback = std::move(callback)](
+                                     boost::system::error_code ec) mutable {
+                                   CancelTimeout();
+                                   callback(ec);
+                                 }));
+}
+
+template <ValidStream S>
+void HttpServerConnectionImpl<S>::DoWebSocketPongControl(
+    std::string payload, WebSocketWriteCallback callback) {
+  ws_stream_->async_pong(
+      boost::beast::websocket::ping_data(std::move(payload)),
+      boost::asio::bind_executor(GetExecutor(),
+                                 [self = this->shared_from_this(), this,
+                                  callback = std::move(callback)](
+                                     boost::system::error_code ec) mutable {
+                                   CancelTimeout();
+                                   callback(ec);
+                                 }));
+}
+
+template <ValidStream S>
+void HttpServerConnectionImpl<S>::DoWebSocketCloseControl(
+    std::string payload, WebSocketWriteCallback callback) {
+  ws_stream_->async_close(
+      boost::beast::websocket::close_reason(std::move(payload)),
+      boost::asio::bind_executor(GetExecutor(),
+                                 [self = this->shared_from_this(), this,
+                                  callback = std::move(callback)](
+                                     boost::system::error_code ec) mutable {
+                                   CancelTimeout();
+                                   callback(ec);
+                                 }));
 }
 
 template <ValidStream S>
