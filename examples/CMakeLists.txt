@@ -27,6 +27,7 @@ add_subdirectory(aspects)
 add_subdirectory(sessions-context)
 add_subdirectory(logging)
 add_subdirectory(client-tasks)
+add_subdirectory(websocket-tasks)
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bsrvrun/plugins")
   add_subdirectory(bsrvrun/plugins)

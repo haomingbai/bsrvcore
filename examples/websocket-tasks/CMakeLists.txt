@@ -1,0 +1,5 @@
+add_executable(example_websocket_service service.cc)
+target_link_libraries(example_websocket_service PRIVATE bsrvcore)
+
+add_executable(example_websocket_request request.cc)
+target_link_libraries(example_websocket_request PRIVATE bsrvcore)

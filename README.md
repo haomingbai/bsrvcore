@@ -178,6 +178,7 @@ The `examples/` folder contains runnable programs:
 - `examples/sessions-context/`
 - `examples/logging/`
 - `examples/client-tasks/`
+- `examples/websocket-tasks/`
 - `examples/bsrvrun/`
 
 - See [docs/manual/examples.md](docs/manual/examples.md)
