@@ -168,6 +168,39 @@ def comparison_concurrency_candidates(base: int) -> list[int]:
     return sorted(values)
 
 
+def nearby_loadgen_concurrency_candidates(base: int) -> list[int]:
+    values = {
+        max(1, base - 8),
+        base,
+        base + 8,
+    }
+    return sorted(values)
+
+
+def low_worker_candidates(base: int) -> list[int]:
+    values = {
+        1,
+        2,
+        4,
+        8,
+        max(1, base // 2),
+        max(1, int(round(base * 0.75))),
+        base,
+    }
+    return sorted(values)
+
+
+def high_io_candidates(base: int) -> list[int]:
+    values = {
+        base,
+        max(1, int(round(base * 1.25))),
+        max(1, int(round(base * 1.5))),
+        max(1, base * 2),
+        max(1, int(round(base * 2.4))),
+    }
+    return sorted(values)
+
+
 def refine_rows(
     cells: list[dict], sweep_depth: str
 ) -> list[tuple[str, int, int, int, int, int]]:
@@ -223,6 +256,63 @@ def refine_rows(
                 client_processes,
                 wrk_threads_per_process,
             )
+
+        for worker_candidate in low_worker_candidates(worker_threads):
+            append_row(
+                rows,
+                seen,
+                io_threads,
+                worker_candidate,
+                concurrency,
+                client_processes,
+                wrk_threads_per_process,
+            )
+
+        for io_candidate in high_io_candidates(io_threads):
+            for conc in comparison_concurrency_candidates(concurrency):
+                append_row(
+                    rows,
+                    seen,
+                    io_candidate,
+                    1,
+                    conc,
+                    client_processes,
+                    wrk_threads_per_process,
+                )
+            for conc in nearby_loadgen_concurrency_candidates(concurrency):
+                for compare_proc in range(1, min(4, conc) + 1):
+                    wrk_cap = min(
+                        int(profile["compare_wrk_max"]),
+                        math.ceil(conc / compare_proc),
+                    )
+                    for compare_wrk in range(1, max(1, wrk_cap) + 1):
+                        append_row(
+                            rows,
+                            seen,
+                            io_candidate,
+                            1,
+                            conc,
+                            compare_proc,
+                            compare_wrk,
+                        )
+
+        for conc in nearby_loadgen_concurrency_candidates(concurrency):
+            for worker_candidate in low_worker_candidates(worker_threads):
+                for compare_proc in range(1, min(4, conc) + 1):
+                    wrk_cap = min(
+                        int(profile["compare_wrk_max"]),
+                        math.ceil(conc / compare_proc),
+                    )
+                    for compare_wrk in range(1, max(1, wrk_cap) + 1):
+                        append_row(
+                            rows,
+                            seen,
+                            io_threads,
+                            worker_candidate,
+                            conc,
+                            compare_proc,
+                            compare_wrk,
+                        )
 
         for io_candidate in range(
             max(1, io_threads - int(profile["io_radius"])),

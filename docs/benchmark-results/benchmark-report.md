@@ -1,209 +1,105 @@
-# Bsrvcore HTTP Benchmark Integrated Submission Report
+# Bsrvcore Main-Branch HTTP Benchmark Report
 
 ## 1. Current Outcome
 
-This submission is centered on the latest benchmark outcome. The current architecture delivers a clear step-change in throughput while keeping latency within a practical range.
+This report benchmarks the `main` branch after discarding the `switch-executor` experiment. The tested HTTP scenario is `http_get_static` under single-host self-loop load.
 
-Current official result (repository methodology):
+Complete sweep-fix package:
 
-- command: `bash scripts/benchmark.sh run --build-dir build-bench --scenario http_get_static --sweep-depth quick --output-dir .artifacts/benchmark-results/local-official-dispatch-20260401-125139`
-- winner: `io10-worker20-conc56-proc2-wrk2`
-- `mean_rps = 423307.75`
-- `p95 = 353.86 us`, `p99 = 437.92 us`
+- command: `bash scripts/benchmark.sh run --build-dir build-bench --scenario http_get_static --sweep-depth quick --output-dir .artifacts/benchmark-results/local-main-sweepfix-20260406-054218Z`
+- winner: `io15-worker1-conc88-proc3-wrk2`
+- `mean_rps = 477092.21`
+- `p95 = 2492.46 us`, `p99 = 4119.96 us`
 - stability: `stable`
+- cell count: `306`
 
-Additional high-IO verification (3 runs each) confirms sustained high throughput beyond the single winner cell:
+The previous main-branch quick package, before fixing the sweep shape, selected `io10-worker20-conc72-proc3-wrk2` at `452264.99 rps`, `p95 = 414.35 us`, `p99 = 521.25 us`. The new sweep improves peak throughput by `+5.49%`, but the selected winner pays a large tail-latency cost.
 
-- `io=16` avg `508723.70 rps`
-- `io=20` avg `495459.56 rps`
-- `io=24` avg `482825.45 rps`
+![Capacity Overview](./benchmark-report-capacity-overview.png)
 
-In practical terms, this run demonstrates that the current system reliably operates in the ~480k-510k class under high-IO settings, with robust headroom for production-oriented tuning.
+## 2. Worker And IO Finding
 
-## 2. Integrated View: Historical Vs Current
+The updated sweep confirms that the ordinary main-branch HTTP hot path is not worker-bound. `worker=1` can win on throughput when paired with more IO threads and a heavier load-generator shape, but it is not a free improvement.
 
-Historical repository baseline (from the previous official report revision) identified:
+Top stable cells from the complete sweep-fix package:
 
-- top stable cell: `io6-worker12-conc80-proc2-wrk1`
-- `mean_rps = 178563.83`
-- near-peak center: `io=5-6`, worker band `7-15`
+| rank | pressure | mean_rps | p95_us | p99_us |
+| ---: | --- | ---: | ---: | ---: |
+| 1 | `io15-worker1-conc88-proc3-wrk2` | 477092.21 | 2492.46 | 4119.96 |
+| 2 | `io15-worker1-conc80-proc4-wrk2` | 475384.56 | 2647.37 | 3912.57 |
+| 3 | `io15-worker1-conc80-proc3-wrk2` | 468269.05 | 2110.36 | 3488.80 |
+| 4 | `io20-worker1-conc80-proc3-wrk2` | 467945.51 | 2243.86 | 3678.23 |
+| 5 | `io20-worker1-conc88-proc3-wrk2` | 467697.62 | 2497.80 | 4058.90 |
+| 6 | `io15-worker1-conc88-proc4-wrk2` | 466766.19 | 2319.22 | 3523.67 |
+| 7 | `io20-worker1-conc88-proc4-wrk2` | 466449.52 | 2771.41 | 3959.97 |
+| 8 | `io24-worker1-conc88-proc3-wrk2` | 466206.91 | 2636.89 | 4166.73 |
+| 9 | `io15-worker1-conc72-proc3-wrk2` | 464276.91 | 2129.34 | 3551.26 |
+| 10 | `io12-worker1-conc88-proc4-wrk2` | 463913.41 | 1127.97 | 1754.27 |
 
-Important clarification: the pre-change **official** baseline did not reach the 400k class. The 400k+ / 500k-class numbers in this document belong to the current architecture run and its supplemental high-IO rechecks.
+The practical low-latency counterpoint is that `io10-worker8-conc80-proc4-wrk2` reached `459234.76 rps` with `p95 = 532.72 us` and `p99 = 697.64 us`. That is about `3.74%` below the throughput winner, but with much better tail latency.
 
-Current official repository run identifies:
-
-- top stable cell: `io10-worker20-conc56-proc2-wrk2`
-- `mean_rps = 423307.75`
-
-Top-cell uplift:
-
-- from `178563.83` to `423307.75`
-- improvement: `+137.06%`
-
-This is not a marginal gain. It is a generation-level performance jump, and it aligns with your expectation that current performance has effectively more than doubled.
-
-## 3. Peak Analysis
-
-### 3.1 Winner And Peak Neighborhood
-
-The current official winner is:
-
-- `io10-worker20-conc56-proc2-wrk2`
-- `mean_rps = 423307.75`
-- `p95 = 353.86 us`, `p99 = 437.92 us`
-
-Because this run uses `quick` sweep depth, the sampled grid is sparser than the previous `standard` report. Under this grid:
-
-- within `1%` of winner: `1` stable cell
-- within `3%` of winner: `3` stable cells
-- within `5%` of winner: `5` stable cells
-- within `10%` of winner: `10` stable cells
-
-Top stable cells from current official data:
-
-| rank | pressure | mean_rps | p95_us | p99_us | gap_to_top |
-| --- | --- | ---: | ---: | ---: | ---: |
-| 1 | `io10-worker20-conc56-proc2-wrk2` | 423307.75 | 353.86 | 437.92 | 0.00% |
-| 2 | `io10-worker20-conc48-proc4-wrk2` | 414470.48 | 356.18 | 452.75 | 2.09% |
-| 3 | `io10-worker20-conc40-proc4-wrk2` | 413740.71 | 387.37 | 541.91 | 2.26% |
-| 4 | `io10-worker20-conc56-proc3-wrk1` | 406145.75 | 288.06 | 331.70 | 4.05% |
-| 5 | `io10-worker20-conc48-proc3-wrk1` | 405371.25 | 240.72 | 270.23 | 4.24% |
-| 6 | `io10-worker20-conc56-proc4-wrk1` | 397552.38 | 311.00 | 360.19 | 6.08% |
-| 7 | `io10-worker20-conc48-proc2-wrk2` | 392192.50 | 340.71 | 414.33 | 7.35% |
-| 8 | `io10-worker20-conc48-proc4-wrk1` | 388097.14 | 388.65 | 528.62 | 8.32% |
-| 9 | `io10-worker20-conc32-proc4-wrk2` | 386034.05 | 247.16 | 326.18 | 8.81% |
-| 10 | `io10-worker20-conc40-proc3-wrk1` | 383989.00 | 209.31 | 235.51 | 9.29% |
-
-Practical reading: the winner is clear, and the usable high-throughput neighborhood spans roughly `~384k` to `~423k` in this run.
-
-### 3.2 Load-Generator Sensitivity At The Winner Server Slot
-
-Fixing server shape at `io=10, worker=20, conc=56`, loadgen shape still changes both throughput and latency:
-
-| client shape | mean_rps | p95_us | p99_us |
-| --- | ---: | ---: | ---: |
-| `proc=2, wrk=2` | 423307.75 | 353.86 | 437.92 |
-| `proc=3, wrk=1` | 406145.75 | 288.06 | 331.70 |
-| `proc=4, wrk=1` | 397552.38 | 311.00 | 360.19 |
-| `proc=1, wrk=2` | 343743.75 | 274.00 | 318.00 |
-| `proc=2, wrk=1` | 332552.50 | 318.77 | 379.43 |
-| `proc=1, wrk=1` | 201712.50 | 359.78 | 430.00 |
-
-This confirms that peak interpretation must include loadgen topology, not only server threads.
-
-### 3.3 Thread Sensitivity (Current Official Grid)
-
-Best stable point by IO thread from the current official run:
+Best stable point by IO thread count:
 
 | io_threads | best pressure | mean_rps | p95_us | p99_us |
 | ---: | --- | ---: | ---: | ---: |
-| 1 | `io1-worker1-conc8-proc2-wrk1` | 93968.33 | 199.33 | 278.00 |
-| 5 | `io5-worker10-conc20-proc2-wrk1` | 260856.94 | 206.67 | 243.28 |
-| 8 | `io8-worker20-conc40-proc2-wrk1` | 330498.25 | 298.18 | 378.69 |
-| 9 | `io9-worker18-conc40-proc2-wrk1` | 325540.00 | 319.64 | 417.38 |
-| 10 | `io10-worker20-conc56-proc2-wrk2` | 423307.75 | 353.86 | 437.92 |
-| 11 | `io11-worker20-conc40-proc2-wrk1` | 340663.75 | 207.57 | 256.10 |
-| 12 | `io12-worker20-conc40-proc2-wrk1` | 323251.25 | 224.47 | 276.23 |
+| 1 | `io1-worker1-conc8-proc2-wrk1` | 99034.85 | 139.10 | 185.38 |
+| 5 | `io5-worker10-conc20-proc2-wrk1` | 260299.25 | 217.19 | 264.18 |
+| 8 | `io8-worker1-conc80-proc2-wrk1` | 347656.50 | 416.05 | 488.00 |
+| 9 | `io9-worker2-conc80-proc2-wrk1` | 356974.00 | 365.44 | 433.40 |
+| 10 | `io10-worker8-conc80-proc4-wrk2` | 459234.76 | 532.72 | 697.64 |
+| 11 | `io11-worker3-conc80-proc2-wrk1` | 343808.50 | 331.83 | 397.51 |
+| 12 | `io12-worker1-conc88-proc4-wrk2` | 463913.41 | 1127.97 | 1754.27 |
+| 15 | `io15-worker1-conc88-proc3-wrk2` | 477092.21 | 2492.46 | 4119.96 |
+| 20 | `io20-worker1-conc80-proc3-wrk2` | 467945.51 | 2243.86 | 3678.23 |
+| 24 | `io24-worker1-conc88-proc3-wrk2` | 466206.91 | 2636.89 | 4166.73 |
 
-In this dataset, `io=10` is the dominant center. Together with high-IO rechecks, this indicates materially stronger IO scaling than the previous generation.
+Conclusion: `worker=1` is better for this run's maximum RPS only when IO is raised to around `15` and the load generator uses `proc=3/4, wrk=2`. Pushing IO to `20` or `24` does not improve the winner; it keeps throughput in the same class while retaining high tail latency.
 
-## 4. What Changed In Capacity Shape
+![Thread Sensitivity](./benchmark-report-thread-sensitivity.png)
 
-The integrated dataset shows two important shape changes relative to the prior baseline:
+## 3. Sweep Code Update
 
-1. Throughput ceiling moved from ~178k class to ~423k official class, and to ~500k class in high-IO repeated verification.
-2. High-IO operation now forms a usable band (`io=16~24`) rather than a fragile single-point spike.
+The benchmark sweep was updated because the old quick matrix under-sampled the current main-branch shape:
 
-This is the key operational improvement: not only a higher peak, but also a broader and more practical tuning window.
+- `scripts/benchmark.sh` now seeds low-worker high-IO server pairs in quick mode.
+- `scripts/benchmark.sh` now derives coarse concurrency from `max(io_threads, worker_threads)` rather than only `worker_threads`.
+- `scripts/benchmark_refine.py` now adds low-worker candidates such as `1/2/4/8`.
+- `scripts/benchmark_refine.py` now adds high-IO/worker1 candidates and expands nearby loadgen shapes across `proc=1..4`, `wrk=1..2`, and `concurrency-8/base/+8`.
 
-![Integrated Comparison](./benchmark-report-integrated-comparison.png)
+The completed run used `55` coarse cells and `251` fine cells. This keeps the benchmark compatible with both designs: worker-heavy routes still get sampled through existing worker-centered pairs, and main-branch ordinary HTTP routes now get sampled through IO-heavy / low-worker pairs.
 
-![IO Scaling Comparison](./benchmark-report-io-scaling-compare.png)
+![Peak Neighborhood](./benchmark-report-peak-neighborhood.png)
 
-In the IO scaling chart above, the dashed line is the historical **official** top-cell baseline (`178,563.83 rps`), while the solid curve represents current-run local sweep points.
+![Load Generator Sensitivity](./benchmark-report-loadgen-sensitivity.png)
 
-## 5. Architecture Change Impact
+## 4. Environment
 
-The key architecture change in this cycle is the Dispatch path migration in connection-layer scheduling (dispatch-related operations moved from `post` style queueing to `dispatch` semantics on the target executor path).
+Environment snapshot collected with `fastfetch 2.59.0`, `lscpu`, `hostnamectl`, `free`, and compiler/toolchain commands:
 
-Observed impact from combined benchmark evidence:
-
-- fewer unnecessary executor queue hops on hot paths,
-- improved response under moderate-to-high IO threading,
-- reduced likelihood of throughput collapse when pushing IO threads upward,
-- stronger consistency when validated by repeated high-IO runs.
-
-The architecture impact is therefore both quantitative (higher RPS) and qualitative (wider stable operating region).
-
-## 6. High-IO Support Capability (Submission Evidence)
-
-High-IO 3-run recheck (6s per run, wrk 8 threads / 512 connections):
-
-| io | rep1 | rep2 | rep3 | avg |
-| ---: | ---: | ---: | ---: | ---: |
-| 16 | 504744.59 | 512008.14 | 509418.36 | 508723.70 |
-| 20 | 504572.42 | 505130.38 | 476675.89 | 495459.56 |
-| 24 | 495765.27 | 475276.55 | 477434.53 | 482825.45 |
-
-Interpretation:
-
-- `io=16` is the strongest point in this recheck set.
-- `io=20` and `io=24` remain in the same performance class and keep the system above the prior generation by a large margin.
-- The platform now demonstrates materially stronger IO-thread support than historical runs.
-
-## 7. Methodology Notes (For Reviewers)
-
-To keep this submission credible:
-
-- Official comparison is anchored to repository-produced reports.
-- Supplemental high-IO data was added only to validate stability and avoid over-reading single-pass variance.
-- Both old and new runs are single-host style measurements; absolute hardware ceiling claims are avoided.
-- The `+137.06%` uplift is computed strictly between official top cells (`178563.83` -> `423307.75`), not from ad-hoc local sweep points.
-
-This report is intended for architecture and regression evaluation, where relative uplift and stability-band expansion are the main decision criteria.
-
-### 7.1 Local Environment Snapshot
-
-The following environment data is collected from local CLI commands on this host at benchmark time:
-
-- timestamp: `2026-04-01T13:30:15+08:00`
-- hostname: `haomingbai-PC`
+- host: `haomingbai-PC`
+- hardware: `Lenovo ThinkBook 16p G4 IRH`
 - OS: `Fedora Linux 43 (Workstation Edition)`
 - kernel: `Linux 6.19.8-200.fc43.x86_64`
 - CPU: `13th Gen Intel(R) Core(TM) i9-13900H`
-- logical CPUs: `20`
-- sockets / cores / threads-per-core: `1 / 14 / 2`
-- CPU max MHz: `5400.0000`
-- memory (free -h): `31Gi total, 16Gi used, 5.1Gi free, 14Gi available`
-- swap (free -h): `46Gi total, 5.3Gi used, 41Gi free`
-- uptime: `up 1 week, 2 hours, 19 minutes`
-- NVIDIA driver: `580.126.18`
-- GPU memory: `8188 MiB`
+- CPU topology: `1 socket / 14 cores / 20 logical CPUs / 2 threads per core`
+- CPU frequency range from `lscpu`: `400 MHz - 5400 MHz`
+- CPU frequency policy from `cpupower`: `400 MHz - 4.10 GHz`, governor `powersave`, EPP `balance_performance`, boost active
+- memory: `31Gi total`
+- GPU: `NVIDIA GeForce RTX 4060 Max-Q / Mobile`, driver `nvidia 580.126.18`; integrated `Intel Iris Xe Graphics`
+- CMake: `3.31.11`
+- compiler: `GCC 15.2.1 20260123 (Red Hat 15.2.1-7)`
 
-Raw CLI snapshot file:
+The official package also stores the benchmark-collected environment snapshot in `package/client-env.json`.
 
-- `.artifacts/local-env-snapshot.txt`
+## 5. Artifact Index
 
-## 8. Final Statement For Submission
-
-The integrated evidence is conclusive:
-
-- current performance is more than 2x the historical repository baseline,
-- the new architecture materially improves both peak throughput and high-IO operating resilience,
-- and the benchmark outcomes are repeatable enough for submission-level confidence.
-
-## 9. Artifact Index
-
-- integrated report: `benchmark-report.md`
-- current official summary: `package/summary.md`
-- current official data: `benchmark-report.json`
-- current official charts:
+- official report data: `benchmark-report.json`
+- official summary: `package/summary.md`
+- official environment: `package/client-env.json`
+- official charts:
   - `benchmark-report-capacity-overview.png`
   - `benchmark-report-peak-neighborhood.png`
+  - `benchmark-report-thread-sensitivity.png`
   - `benchmark-report-loadgen-sensitivity.png`
-- submission comparison charts:
-  - `benchmark-report-integrated-comparison.png`
-  - `benchmark-report-io-scaling-compare.png`
-- supplemental sweep: `.artifacts/benchmark-results/local-dispatch-ab-20260401-125040/summary.tsv`
-- supplemental high-IO recheck: `.artifacts/benchmark-results/local-dispatch-ab-20260401-125040/high-io-recheck.tsv`
-- historical baseline value (top cell): `178563.83 rps` (archived prior to this update)
+- complete sweep-fix run: `.artifacts/benchmark-results/local-main-sweepfix-20260406-054218Z`
+- previous main quick run before sweep fix: `.artifacts/benchmark-results/local-main-20260406-045537Z`

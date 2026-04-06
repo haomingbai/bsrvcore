@@ -368,15 +368,22 @@ prepare_outputs() {
 }
 
 server_pairs_for_depth() {
-  local half_cpu quarter_cpu double_cpu
+  local half_cpu quarter_cpu three_quarter_cpu boosted_io_cpu double_cpu
   half_cpu="$(max1 $(( CPU_COUNT / 2 )))"
   quarter_cpu="$(max1 $(( CPU_COUNT / 4 )))"
+  three_quarter_cpu="$(max1 $(( (CPU_COUNT * 3 + 3) / 4 )))"
+  boosted_io_cpu="$(max1 $(( (CPU_COUNT * 6 + 4) / 5 )))"
   double_cpu="$(max1 $(( CPU_COUNT * 2 )))"
 
   echo "1 1"
+  echo "${half_cpu} 1"
+  echo "${three_quarter_cpu} 1"
+  echo "${CPU_COUNT} 1"
+  echo "${boosted_io_cpu} 1"
   echo "${quarter_cpu} ${half_cpu}"
   echo "${half_cpu} ${CPU_COUNT}"
   if [[ "${SWEEP_DEPTH}" != "quick" ]]; then
+    echo "${quarter_cpu} 1"
     echo "${half_cpu} ${double_cpu}"
   fi
 }
@@ -395,12 +402,16 @@ emit_local_matrix() {
   local -A seen=()
   while read -r io_threads worker_threads; do
     [[ -z "${io_threads}" ]] && continue
+    local pressure_threads="${worker_threads}"
+    if (( io_threads > pressure_threads )); then
+      pressure_threads="${io_threads}"
+    fi
     local conc_values=()
     mapfile -t conc_values < <(dedupe_numbers \
-      "$(max1 "${worker_threads}")" \
-      "$(max1 $(( worker_threads * 2 )))" \
-      "$(max1 $(( worker_threads * 4 )))" \
-      "$(max1 $(( worker_threads * 8 )))")
+      "$(max1 "${pressure_threads}")" \
+      "$(max1 $(( pressure_threads * 2 )))" \
+      "$(max1 $(( pressure_threads * 4 )))" \
+      "$(max1 $(( pressure_threads * 8 )))")
     while read -r client_processes wrk_threads; do
       [[ -z "${client_processes}" ]] && continue
       local conc
@@ -433,11 +444,15 @@ emit_client_matrix() {
   if [[ -n "${CLIENT_ONLY_CONCURRENCY}" ]]; then
     conc_values=("${CLIENT_ONLY_CONCURRENCY}")
   else
+    local pressure_threads="${worker_threads}"
+    if (( io_threads > pressure_threads )); then
+      pressure_threads="${io_threads}"
+    fi
     mapfile -t conc_values < <(dedupe_numbers \
-      "$(max1 "${worker_threads}")" \
-      "$(max1 $(( worker_threads * 2 )))" \
-      "$(max1 $(( worker_threads * 4 )))" \
-      "$(max1 $(( worker_threads * 8 )))")
+      "$(max1 "${pressure_threads}")" \
+      "$(max1 $(( pressure_threads * 2 )))" \
+      "$(max1 $(( pressure_threads * 4 )))" \
+      "$(max1 $(( pressure_threads * 8 )))")
   fi
 
   if [[ -n "${CLIENT_ONLY_PROCESSES}" && -n "${CLIENT_ONLY_WRK_THREADS}" ]]; then

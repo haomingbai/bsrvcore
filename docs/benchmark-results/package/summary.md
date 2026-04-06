@@ -9,38 +9,38 @@ This package is intentionally concise. It records the benchmark facts, the winne
 - scenario: `http_get_static`
 - sweep_depth: `quick`
 - server_url: `local-started-per-cell`
-- benchmark_command: `bash scripts/benchmark.sh run --scenario http_get_static --sweep-depth quick --output-dir .artifacts/benchmark-results/local-official-dispatch-20260401-125139`
-- cell_count: `108`
+- benchmark_command: `bash scripts/benchmark.sh run --scenario http_get_static --sweep-depth quick --output-dir .artifacts/benchmark-results/local-main-sweepfix-20260406-054218Z`
+- cell_count: `306`
 
 ## Winner
 
 | scenario | pressure | stability | mean_rps | p95_us | p99_us | server_io_threads | server_worker_threads | client_concurrency | client_processes | wrk_threads_per_process |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| http_get_static | io10-worker20-conc56-proc2-wrk2 | stable | 423307.75 | 353.86 | 437.92 | 10 | 20 | 56 | 2 | 2 |
+| http_get_static | io15-worker1-conc88-proc3-wrk2 | stable | 477092.21 | 2492.46 | 4119.96 | 15 | 1 | 88 | 3 | 2 |
 
 ## Top Cells
 
 | rank | scenario | pressure | stability | mean_rps | p95_us | server_io_threads | server_worker_threads | client_concurrency | client_processes | wrk_threads_per_process |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | http_get_static | io10-worker20-conc56-proc2-wrk2 | stable | 423307.75 | 353.86 | 10 | 20 | 56 | 2 | 2 |
-| 2 | http_get_static | io10-worker20-conc48-proc4-wrk2 | stable | 414470.48 | 356.18 | 10 | 20 | 48 | 4 | 2 |
-| 3 | http_get_static | io10-worker20-conc40-proc4-wrk2 | stable | 413740.71 | 387.37 | 10 | 20 | 40 | 4 | 2 |
-| 4 | http_get_static | io10-worker20-conc56-proc3-wrk1 | stable | 406145.75 | 288.06 | 10 | 20 | 56 | 3 | 1 |
-| 5 | http_get_static | io10-worker20-conc48-proc3-wrk1 | stable | 405371.25 | 240.72 | 10 | 20 | 48 | 3 | 1 |
-| 6 | http_get_static | io10-worker20-conc56-proc4-wrk1 | stable | 397552.38 | 311.00 | 10 | 20 | 56 | 4 | 1 |
-| 7 | http_get_static | io10-worker20-conc48-proc2-wrk2 | stable | 392192.50 | 340.71 | 10 | 20 | 48 | 2 | 2 |
-| 8 | http_get_static | io10-worker20-conc48-proc4-wrk1 | stable | 388097.14 | 388.65 | 10 | 20 | 48 | 4 | 1 |
-| 9 | http_get_static | io10-worker20-conc32-proc4-wrk2 | stable | 386034.05 | 247.16 | 10 | 20 | 32 | 4 | 2 |
-| 10 | http_get_static | io10-worker20-conc40-proc3-wrk1 | stable | 383989.00 | 209.31 | 10 | 20 | 40 | 3 | 1 |
+| 1 | http_get_static | io15-worker1-conc88-proc3-wrk2 | stable | 477092.21 | 2492.46 | 15 | 1 | 88 | 3 | 2 |
+| 2 | http_get_static | io15-worker1-conc80-proc4-wrk2 | stable | 475384.56 | 2647.37 | 15 | 1 | 80 | 4 | 2 |
+| 3 | http_get_static | io15-worker1-conc80-proc3-wrk2 | stable | 468269.05 | 2110.36 | 15 | 1 | 80 | 3 | 2 |
+| 4 | http_get_static | io20-worker1-conc80-proc3-wrk2 | stable | 467945.51 | 2243.86 | 20 | 1 | 80 | 3 | 2 |
+| 5 | http_get_static | io20-worker1-conc88-proc3-wrk2 | stable | 467697.62 | 2497.80 | 20 | 1 | 88 | 3 | 2 |
+| 6 | http_get_static | io15-worker1-conc88-proc4-wrk2 | stable | 466766.19 | 2319.22 | 15 | 1 | 88 | 4 | 2 |
+| 7 | http_get_static | io20-worker1-conc88-proc4-wrk2 | stable | 466449.52 | 2771.41 | 20 | 1 | 88 | 4 | 2 |
+| 8 | http_get_static | io24-worker1-conc88-proc3-wrk2 | stable | 466206.91 | 2636.89 | 24 | 1 | 88 | 3 | 2 |
+| 9 | http_get_static | io15-worker1-conc72-proc3-wrk2 | stable | 464276.91 | 2129.34 | 15 | 1 | 72 | 3 | 2 |
+| 10 | http_get_static | io12-worker1-conc88-proc4-wrk2 | stable | 463913.41 | 1127.97 | 12 | 1 | 88 | 4 | 2 |
 
 ## Sweep Space
 
 | dimension | values |
 | --- | --- |
 | scenario | http_get_static |
-| server_io_threads | 1, 5, 8, 9, 10, 11, 12 |
-| server_worker_threads | 1, 10, 16, 17, 18, 19, 20, 21, 22, 23, 24 |
-| client_concurrency | 1, 2, 4, 8, 10, 16, 20, 24, 28, 30, 32, 34, 36, 38, 40, 42, 44, 46, 48, 50, 52, 56, 60, 64, 80, 160 |
+| server_io_threads | 1, 5, 8, 9, 10, 11, 12, 15, 20, 24 |
+| server_worker_threads | 1, 2, 3, 4, 5, 8, 10, 20 |
+| client_concurrency | 1, 2, 4, 8, 10, 15, 20, 24, 30, 40, 48, 56, 60, 64, 68, 70, 72, 74, 76, 78, 80, 82, 84, 86, 88, 90, 92, 96, 100, 104, 120, 160, 192 |
 | client_processes | 1, 2, 3, 4 |
 | wrk_threads_per_process | 1, 2 |
 
