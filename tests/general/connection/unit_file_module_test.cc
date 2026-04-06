@@ -21,11 +21,12 @@ class IoContextRunner {
       : guard_(boost::asio::make_work_guard(ioc_)),
         ready_future_(ready_.get_future()),
         thread_([this]() {
-          thread_id_ = std::this_thread::get_id();
-          ready_.set_value();
+          ready_.set_value(std::this_thread::get_id());
           ioc_.run();
         }) {
-    ready_future_.get();
+    // std::thread starts during member initialization. Passing the id through
+    // the promise avoids racing a worker write against later member init.
+    thread_id_ = ready_future_.get();
   }
 
   ~IoContextRunner() {
@@ -42,8 +43,8 @@ class IoContextRunner {
  private:
   bsrvcore::IoContext ioc_;
   bsrvcore::IoWorkGuard guard_;
-  std::promise<void> ready_;
-  std::future<void> ready_future_;
+  std::promise<std::thread::id> ready_;
+  std::future<std::thread::id> ready_future_;
   std::thread thread_;
   std::thread::id thread_id_{};
 };
