@@ -435,6 +435,23 @@ class StreamServerConnection
   FlatBuffer& GetBuffer();
 
   /**
+   * @brief Ensure read buffer can hold at least @p bytes without reallocation.
+   * @param bytes Target reservation size in bytes.
+   */
+  void ReserveReadBuffer(std::size_t bytes);
+
+  /**
+   * @brief Clear all consumed+unconsumed bytes from the shared read buffer.
+   */
+  void ClearReadBuffer();
+
+  /**
+   * @brief Reserve request body storage on the active parser message.
+   * @param bytes Target reservation size in bytes.
+   */
+  void ReserveRequestBodyBuffer(std::size_t bytes);
+
+  /**
    * @brief Get the executor for this connection
    * @return ASIO io executor
    */
@@ -491,7 +508,7 @@ class StreamServerConnection
  private:
   IoExecutor io_executor_;        ///< Connection-local io executor.
   SteadyTimer timer_;             ///< Timer for timeouts
-  FlatBuffer buf_;                ///< Buffer for reading requests
+  FlatBuffer buf_;                ///< Shared read buffer for HTTP and WebSocket
   HttpRouteResult route_result_;  ///< Result of routing the current request
   HttpServer* srv_;               ///< Reference to HTTP server
   OwnedPtr<HttpRequestParser> parser_;  ///< HTTP request parser

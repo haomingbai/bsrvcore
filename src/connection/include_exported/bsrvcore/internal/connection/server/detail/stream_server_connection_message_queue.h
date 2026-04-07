@@ -20,6 +20,7 @@
 #ifndef BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_MESSAGE_QUEUE_H_
 #define BSRVCORE_INTERNAL_CONNECTION_SERVER_STREAM_SERVER_CONNECTION_MESSAGE_QUEUE_H_
 
+#include <algorithm>
 #include <atomic>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/buffer.hpp>
@@ -165,9 +166,6 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
   // ---- write starters ----
   void StartWriteBody(BodyMessage& task) {
-    auto msg_sp = task.msg;
-    auto buf = boost::asio::buffer(*msg_sp);
-
     auto conn_sp = conn_wp_.lock();
     if (!conn_sp || !conn_sp->IsServerRunning() ||
         !conn_sp->IsStreamAvailable()) {
@@ -175,14 +173,49 @@ class HttpServerConnectionImpl<S>::MessageQueue
       return;
     }
 
-    conn_sp->ArmTimeout(task.write_expiry);
+    std::size_t batch_count = 0;
+    std::size_t total_size = 0;
+    std::size_t write_expiry = task.write_expiry;
+    for (const auto& item : queue_) {
+      if (!std::holds_alternative<BodyMessage>(item)) {
+        break;
+      }
+      const auto& body = std::get<BodyMessage>(item);
+      ++batch_count;
+      total_size += body.msg->size();
+      if (body.write_expiry > write_expiry) {
+        write_expiry = body.write_expiry;
+      }
+    }
+
+    if (batch_count == 0u) {
+      HandleConnectionUnavailable();
+      return;
+    }
+
+    auto merged = AllocateShared<std::string>();
+    merged->reserve(total_size);
+
+    std::size_t appended = 0;
+    for (const auto& item : queue_) {
+      if (appended >= batch_count) {
+        break;
+      }
+      const auto& body = std::get<BodyMessage>(item);
+      merged->append(*body.msg);
+      ++appended;
+    }
+
+    auto buf = boost::asio::buffer(*merged);
+
+    conn_sp->ArmTimeout(write_expiry);
     boost::asio::async_write(
         conn_sp->stream_, buf,
         boost::asio::bind_executor(
             conn_sp->GetExecutor(),
-            [conn_sp, mq = this->shared_from_this(), msg_sp](
+            [conn_sp, mq = this->shared_from_this(), merged, batch_count](
                 boost::system::error_code ec, [[maybe_unused]] std::size_t) {
-              mq->HandleBodyWriteComplete(ec);
+              mq->HandleBodyWriteComplete(ec, batch_count);
             }));
   }
 
@@ -209,7 +242,8 @@ class HttpServerConnectionImpl<S>::MessageQueue
   }
 
   // ---- completion handlers (run on strand) ----
-  void HandleBodyWriteComplete(const boost::system::error_code& ec) {
+  void HandleBodyWriteComplete(const boost::system::error_code& ec,
+                               std::size_t batch_count) {
     if (auto conn_sp = conn_wp_.lock()) {
       conn_sp->CancelTimeout();
     }
@@ -217,7 +251,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
       HandleWriteError(ec);
       return;
     }
-    PopFrontAndNotifyIfEmpty();
+    PopFrontNAndNotifyIfEmpty(batch_count);
     is_writing_ = false;
     if (!queue_.empty()) {
       StartWriteIfNeeded();
@@ -244,6 +278,23 @@ class HttpServerConnectionImpl<S>::MessageQueue
     queue_.pop_front();
     auto prev = queue_size_.fetch_sub(1, std::memory_order_relaxed);
     if (prev == 1) {
+      std::scoped_lock const lk(cv_mutex_);
+      cv_.notify_all();
+    }
+  }
+
+  void PopFrontNAndNotifyIfEmpty(std::size_t count) {
+    if (count == 0u) {
+      return;
+    }
+
+    const std::size_t actual = std::min(count, queue_.size());
+    for (std::size_t i = 0; i < actual; ++i) {
+      queue_.pop_front();
+    }
+
+    const auto prev = queue_size_.fetch_sub(actual, std::memory_order_relaxed);
+    if (prev == actual) {
       std::scoped_lock const lk(cv_mutex_);
       cv_.notify_all();
     }

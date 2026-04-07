@@ -276,7 +276,6 @@ class HttpServerConnectionImpl : public StreamServerConnection {
   std::mutex mtx_;
   std::shared_ptr<MessageQueue> message_queue_;  // now shared
   std::unique_ptr<UpgradeWebSocketStream> ws_stream_;
-  FlatBuffer ws_read_buffer_;
   std::atomic<bool> closed_;
 };
 
@@ -387,9 +386,11 @@ void HttpServerConnectionImpl<S>::DoWebSocketRead(
       return;
     }
 
+    constexpr std::size_t kWebSocketReadReserveBytes = 16 * 1024;
+    ReserveReadBuffer(kWebSocketReadReserveBytes);
     ArmTimeout(GetKeepAliveTimeout() * 1000);
     ws_stream_->async_read(
-        ws_read_buffer_,
+        GetBuffer(),
         boost::asio::bind_executor(
             GetExecutor(),
             [self, this, callback = std::move(callback)](
@@ -399,8 +400,8 @@ void HttpServerConnectionImpl<S>::DoWebSocketRead(
               if (!ec) {
                 message.binary = ws_stream_->got_binary();
                 message.payload =
-                    boost::beast::buffers_to_string(ws_read_buffer_.data());
-                ws_read_buffer_.consume(ws_read_buffer_.size());
+                    boost::beast::buffers_to_string(GetBuffer().data());
+                ClearReadBuffer();
               }
               callback(ec, std::move(message));
             }));

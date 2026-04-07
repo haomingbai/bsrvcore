@@ -26,6 +26,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -43,6 +44,10 @@ using bsrvcore::HttpRequestParser;
 using bsrvcore::IoExecutor;
 using bsrvcore::SteadyTimer;
 using bsrvcore::StreamServerConnection;
+
+namespace {
+constexpr std::size_t kInitialReadBufferReserveBytes = 16 * 1024;
+}  // namespace
 
 void StreamServerConnection::Post(std::function<void()> fn) {
   if (srv_ == nullptr) {
@@ -181,6 +186,20 @@ void StreamServerConnection::DoRoute() {
   ArmTimeout(route_result_.read_expiry);
 
   if (route_result_.max_body_size != 0u) {
+    if (res.has_content_length()) {
+      std::uint64_t content_length{};
+      res.content_length(content_length);
+      if (content_length > route_result_.max_body_size) {
+        DoClose();
+      } else {
+        const std::size_t reserve_bytes =
+            static_cast<std::size_t>(std::min<std::uint64_t>(
+                content_length,
+                static_cast<std::uint64_t>(route_result_.max_body_size)));
+        ReserveReadBuffer(reserve_bytes);
+        ReserveRequestBodyBuffer(reserve_bytes);
+      }
+    }
     parser_->body_limit(route_result_.max_body_size);
   }
 
@@ -204,6 +223,8 @@ void StreamServerConnection::DoCycle() {
   if (IsServerRunning() && IsStreamAvailable()) {
     route_result_ = {};
     parser_ = AllocateUnique<HttpRequestParser>();
+    ClearReadBuffer();
+    ReserveReadBuffer(kInitialReadBufferReserveBytes);
     ArmTimeout(header_read_expiry_ + keep_alive_timeout_);
 
     Run();
@@ -220,7 +241,7 @@ StreamServerConnection::StreamServerConnection(
     std::size_t endpoint_index)
     : io_executor_(std::move(io_executor)),
       timer_(io_executor_),
-      buf_(4096),
+      buf_(),
       srv_(srv),
       parser_(AllocateUnique<HttpRequestParser>()),
       header_read_expiry_(header_read_expiry),
@@ -229,6 +250,8 @@ StreamServerConnection::StreamServerConnection(
       available_connection_num_(available_connection_num),
       endpoint_index_(endpoint_index),
       handler_alloc_() {
+  ReserveReadBuffer(kInitialReadBufferReserveBytes);
+
   if (kHasMaxConnection_ && available_connection_num_ != nullptr) {
     available_connection_num_->fetch_sub(1, std::memory_order_relaxed);
   }
@@ -274,6 +297,32 @@ IoExecutor StreamServerConnection::GetExecutor() const noexcept {
 }
 
 FlatBuffer& StreamServerConnection::GetBuffer() { return buf_; }
+
+void StreamServerConnection::ReserveReadBuffer(std::size_t bytes) {
+  if (bytes == 0u) {
+    return;
+  }
+
+  buf_.reserve(bytes);
+}
+
+void StreamServerConnection::ClearReadBuffer() {
+  if (buf_.size() != 0u) {
+    buf_.consume(buf_.size());
+  }
+}
+
+void StreamServerConnection::ReserveRequestBodyBuffer(std::size_t bytes) {
+  if (bytes == 0u || parser_ == nullptr) {
+    return;
+  }
+
+  if (bytes > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+    bytes = static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
+  }
+
+  parser_->get().body().reserve(bytes);
+}
 
 bsrvcore::HttpServer* StreamServerConnection::GetServer() const noexcept {
   return srv_;
