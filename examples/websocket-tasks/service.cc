@@ -31,15 +31,14 @@ class ExampleServerWebSocketHandler : public bsrvcore::WebSocketHandler {
   void OnOpen() override { std::cout << "[server] websocket opened" << '\n'; }
 
   void OnReadMessage(const bsrvcore::WebSocketMessage& message) override {
-    std::cout << "[server] received "
-              << (message.binary ? "binary" : "text")
+    std::cout << "[server] received " << (message.binary ? "binary" : "text")
               << " message: " << message.payload << '\n';
   }
 
   void OnError(boost::system::error_code ec,
                const std::string& message) override {
-    std::cerr << "[server] websocket error: " << message
-              << " (" << ec.message() << ")" << '\n';
+    std::cerr << "[server] websocket error: " << message << " (" << ec.message()
+              << ")" << '\n';
   }
 
   void OnClose(boost::system::error_code ec) override {
@@ -69,7 +68,7 @@ int main() {
             }
 
             const bool upgraded = task->UpgradeToWebSocket(
-              std::make_unique<ExampleServerWebSocketHandler>());
+                std::make_unique<ExampleServerWebSocketHandler>());
             if (!upgraded) {
               task->GetResponse().result(
                   bsrvcore::HttpStatus::internal_server_error);

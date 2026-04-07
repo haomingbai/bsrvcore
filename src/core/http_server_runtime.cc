@@ -57,6 +57,35 @@ IoExecutor HttpServer::SelectIoExecutorRoundRobin() noexcept {
   return (*global_snapshot)[idx];
 }
 
+void HttpServer::SetServiceProvider(std::size_t index, void* provider) {
+  std::unique_lock const lock(mtx_);
+  if (index >= service_providers_.size()) {
+    service_providers_.resize(index + 1);
+  }
+
+  service_providers_[index].pointer = provider;
+}
+
+HttpServer::ServiceProvider HttpServer::GetServiceProvider(
+    std::size_t index) const noexcept {
+  std::shared_lock const lock(mtx_);
+  if (index >= service_providers_.size()) {
+    return {};
+  }
+
+  return service_providers_[index];
+}
+
+std::vector<HttpServer::ThreadNativeHandleRecord>
+HttpServer::GetThreadNativeHandles() const noexcept {
+  std::shared_lock const lock(mtx_);
+  if (!is_running_) {
+    return {};
+  }
+
+  return thread_native_handles_;
+}
+
 void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
   if (!is_running_.load(std::memory_order_acquire)) {
     return;
@@ -79,31 +108,43 @@ void HttpServer::SetTimer(std::size_t timeout, std::function<void()> fn) {
           return;
         }
 
-        // Keep timer bookkeeping on an IO shard, but run user callbacks on the
-        // worker pool so timer-driven work follows the same execution model as
-        // normal handlers and HttpServerTask helpers.
+        // Keep timer bookkeeping on an IO shard, but prefer the worker pool so
+        // timer-driven work follows the same execution model as normal
+        // handlers and HttpServerTask helpers.
         Post(std::move(fn));
       });
 }
 
 void HttpServer::Post(std::function<void()> fn) {
-  std::scoped_lock const lock(mtx_);
+  std::shared_lock const lock(mtx_);
   if (!is_running_) {
     return;
   }
 
-  // The mutex closes the race with Stop(), which tears the worker pool down
-  // under the same lock.
-  boost::asio::post(GetThreadPoolExecutor(), std::move(fn));
+  auto exec = GetThreadPoolExecutor();
+  if (exec) {
+    // The mutex closes the race with Stop(), which tears the worker pool down
+    // under the same lock.
+    boost::asio::post(exec, std::move(fn));
+    return;
+  }
+
+  PostToIoContext(std::move(fn));
 }
 
 void HttpServer::Dispatch(std::function<void()> fn) {
-  std::scoped_lock const lock(mtx_);
+  std::shared_lock const lock(mtx_);
   if (!is_running_) {
     return;
   }
 
-  boost::asio::dispatch(GetThreadPoolExecutor(), std::move(fn));
+  auto exec = GetThreadPoolExecutor();
+  if (exec) {
+    boost::asio::dispatch(exec, std::move(fn));
+    return;
+  }
+
+  DispatchToIoContext(std::move(fn));
 }
 
 void HttpServer::PostToIoContext(std::function<void()> fn) {
@@ -163,12 +204,17 @@ IoExecutor HttpServer::GetIoExecutor() noexcept {
 }
 
 IoExecutor HttpServer::GetExecutor() noexcept {
-  std::scoped_lock const lock(mtx_);
+  std::shared_lock const lock(mtx_);
   if (!is_running_) {
     return {};
   }
 
-  return GetThreadPoolExecutor();
+  auto exec = GetThreadPoolExecutor();
+  if (exec) {
+    return exec;
+  }
+
+  return SelectIoExecutorRoundRobin();
 }
 
 std::vector<IoExecutor> HttpServer::GetEndpointExecutors(

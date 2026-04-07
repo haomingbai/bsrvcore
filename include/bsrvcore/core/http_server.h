@@ -33,6 +33,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -131,6 +132,25 @@ using HttpServerExecutorOptions = HttpServerRuntimeOptions;
  */
 class HttpServer : public NonCopyableNonMovable<HttpServer> {
  public:
+  struct ServiceProvider {
+    void* pointer{nullptr};
+
+    template <typename T>
+    T* Get() const noexcept {
+      return static_cast<T*>(pointer);
+    }
+  };
+
+  using ThreadNativeHandle =
+      decltype(std::declval<std::thread>().native_handle());
+
+  struct ThreadNativeHandleRecord {
+    ThreadNativeHandle native_handle{};
+    std::size_t endpoint_index{std::numeric_limits<std::size_t>::max()};
+    std::size_t shard_index{0};
+    bool is_control{false};
+  };
+
   /**
    * @brief Set a timer to execute a function after timeout
    * @param timeout Timeout in milliseconds
@@ -616,6 +636,26 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   std::shared_ptr<Context> GetContext();
 
   /**
+   * @brief Set a non-owning service provider slot.
+   * @param index Slot index in the provider array.
+   * @param provider Opaque pointer owned by the caller.
+   */
+  void SetServiceProvider(std::size_t index, void* provider);
+
+  /**
+   * @brief Get a non-owning service provider slot.
+   * @param index Slot index in the provider array.
+   * @return Stored provider wrapper, or empty when the slot is missing.
+   */
+  ServiceProvider GetServiceProvider(std::size_t index) const noexcept;
+
+  /**
+   * @brief Get all running thread native handles.
+   * @return Endpoint I/O and control thread handles while the server runs.
+   */
+  std::vector<ThreadNativeHandleRecord> GetThreadNativeHandles() const noexcept;
+
+  /**
    * @brief Get keep-alive timeout setting
    * @return Keep-alive timeout in milliseconds
    */
@@ -753,6 +793,8 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       std::vector<std::vector<IoExecutor>> endpoint_execs,
       std::vector<IoExecutor> global_execs);
   void ClearExecutorSnapshotsLocked();
+  void PublishThreadNativeHandlesLocked();
+  void ClearThreadNativeHandlesLocked();
   void ResetControlIoLocked();
   void RollbackStartLocked();
   void JoinThreadPool();
@@ -773,15 +815,19 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
       endpoint_configs_;  ///< Listener declarations configured before Start().
   std::vector<OwnedPtr<EndpointRuntime>>
       endpoint_runtimes_;  ///< Runtime endpoint shards created at Start().
+  std::vector<ServiceProvider>
+      service_providers_;  ///< Non-owning service slots configured by callers.
   AtomicSharedPtr<std::vector<std::vector<IoExecutor>>>
       endpoint_io_execs_snapshot_;  ///< Endpoint-local I/O executor snapshot.
   AtomicSharedPtr<std::vector<IoExecutor>>
       global_io_execs_snapshot_;  ///< Flat global endpoint executor snapshot.
+  std::vector<ThreadNativeHandleRecord>
+      thread_native_handles_;  ///< Snapshot generated at Start().
   std::atomic<std::size_t> io_exec_round_robin_{
       0};  ///< Round-robin cursor for GetIoExecutor.
   bool reuse_port_supported_{
       false};  ///< Runtime decision: true when REUSEPORT fan-out is enabled.
-  std::mutex mtx_;                         ///< Mutex for thread synchronization
+  mutable std::shared_mutex mtx_;          ///< The only server lock.
   std::shared_ptr<Context> context_;       ///< Global server context
   std::shared_ptr<Logger> logger_;         ///< Logger for server events
   OwnedPtr<ThreadPoolState> thread_pool_;  ///< Worker executor backend

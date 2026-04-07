@@ -14,6 +14,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <boost/asio/post.hpp>
 #include <chrono>
@@ -97,6 +98,43 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   EXPECT_TRUE(future.get());
 
   server.Stop();
+}
+
+TEST(Server, ServiceProviderStoresNonOwningPointer) {
+  using namespace bsrvcore;
+
+  HttpServer server(1);
+
+  struct Service {
+    int value{0};
+  } service{42};
+
+  server.SetServiceProvider(0, &service);
+
+  auto provider = server.GetServiceProvider(0);
+  ASSERT_NE(provider.pointer, nullptr);
+  ASSERT_NE(provider.Get<Service>(), nullptr);
+  EXPECT_EQ(provider.Get<Service>(), &service);
+  EXPECT_EQ(provider.Get<Service>()->value, 42);
+  EXPECT_EQ(server.GetServiceProvider(1).pointer, nullptr);
+}
+
+TEST(Server, GetThreadNativeHandlesExposesRunningThreads) {
+  using namespace bsrvcore;
+
+  HttpServer server(1);
+  server.AddListen({boost::asio::ip::make_address("127.0.0.1"), 0}, 1);
+  ASSERT_TRUE(server.Start());
+
+  auto handles = server.GetThreadNativeHandles();
+  EXPECT_FALSE(handles.empty());
+  EXPECT_TRUE(std::any_of(handles.begin(), handles.end(),
+                          [](const auto& item) { return item.is_control; }));
+  EXPECT_TRUE(std::any_of(handles.begin(), handles.end(),
+                          [](const auto& item) { return !item.is_control; }));
+
+  server.Stop();
+  EXPECT_TRUE(server.GetThreadNativeHandles().empty());
 }
 
 TEST(Server, SetTimerDispatchesCallback) {

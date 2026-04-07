@@ -317,7 +317,8 @@ void StreamServerConnection::ReserveRequestBodyBuffer(std::size_t bytes) {
     return;
   }
 
-  if (bytes > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
+  if (bytes >
+      static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
     bytes = static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max());
   }
 

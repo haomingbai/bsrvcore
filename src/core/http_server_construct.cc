@@ -70,12 +70,26 @@ OwnedPtr<HttpServer::ThreadPoolState> HttpServer::CreateThreadPool(
 }
 
 IoExecutor HttpServer::GetThreadPoolExecutor() noexcept {
+  if (thread_pool_ == nullptr) {
+    return {};
+  }
+
   return thread_pool_->pool.get_executor();
 }
 
-void HttpServer::JoinThreadPool() { thread_pool_->pool.join(); }
+void HttpServer::JoinThreadPool() {
+  if (thread_pool_ == nullptr) {
+    return;
+  }
+
+  thread_pool_->pool.join();
+}
 
 void HttpServer::ResetThreadPool() {
+  if (thread_pool_ != nullptr && is_running_.load(std::memory_order_acquire)) {
+    thread_pool_->pool.join();
+  }
+
   thread_pool_ = CreateThreadPool(kRuntimeOptions_);
 }
 

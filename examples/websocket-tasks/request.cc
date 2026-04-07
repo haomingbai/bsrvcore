@@ -12,8 +12,8 @@
  * Run: ./build/examples/websocket-tasks/example_websocket_request
  */
 
-#include <boost/beast/http/status.hpp>
 #include <atomic>
+#include <boost/beast/http/status.hpp>
 #include <future>
 #include <iostream>
 #include <memory>
@@ -72,8 +72,8 @@ class ExampleClientWebSocketHandler : public bsrvcore::WebSocketHandler {
 
   void OnError(boost::system::error_code ec,
                const std::string& message) override {
-    std::cerr << "[client] websocket error: " << message
-              << " (" << ec.message() << ")" << '\n';
+    std::cerr << "[client] websocket error: " << message << " (" << ec.message()
+              << ")" << '\n';
     CompleteOnce(state_, 1);
   }
 
@@ -116,9 +116,10 @@ int main() {
       return;
     }
 
-    std::cout << "[client] handshake status: "
-              << result.response.result_int() << '\n';
-    if (result.response.result() != boost::beast::http::status::switching_protocols) {
+    std::cout << "[client] handshake status: " << result.response.result_int()
+              << '\n';
+    if (result.response.result() !=
+        boost::beast::http::status::switching_protocols) {
       std::cerr << "[client] unexpected handshake response" << '\n';
     }
   });

@@ -134,6 +134,7 @@ void HttpServer::ClearExecutorSnapshotsLocked() {
   global_io_execs_snapshot_.store(AllocateShared<std::vector<IoExecutor>>(),
                                   std::memory_order_release);
   io_exec_round_robin_.store(0, std::memory_order_relaxed);
+  ClearThreadNativeHandlesLocked();
 }
 
 void HttpServer::PublishExecutorSnapshotsLocked(
@@ -147,6 +148,42 @@ void HttpServer::PublishExecutorSnapshotsLocked(
       AllocateShared<std::vector<IoExecutor>>(std::move(global_execs)),
       std::memory_order_release);
   io_exec_round_robin_.store(0, std::memory_order_relaxed);
+}
+
+void HttpServer::PublishThreadNativeHandlesLocked() {
+  std::vector<ThreadNativeHandleRecord> handles;
+  handles.reserve(endpoint_runtimes_.size() + 1);
+
+  for (std::size_t endpoint_index = 0;
+       endpoint_index < endpoint_runtimes_.size(); ++endpoint_index) {
+    auto& runtime = endpoint_runtimes_[endpoint_index];
+    if (runtime == nullptr) {
+      continue;
+    }
+
+    for (std::size_t shard_index = 0; shard_index < runtime->io_threads.size();
+         ++shard_index) {
+      auto& thread = runtime->io_threads[shard_index];
+      if (!thread.joinable()) {
+        continue;
+      }
+
+      handles.push_back(ThreadNativeHandleRecord{
+          thread.native_handle(), endpoint_index, shard_index, false});
+    }
+  }
+
+  if (control_io_thread_.has_value() && control_io_thread_->joinable()) {
+    handles.push_back(ThreadNativeHandleRecord{
+        control_io_thread_->native_handle(),
+        std::numeric_limits<std::size_t>::max(), 0, true});
+  }
+
+  thread_native_handles_ = std::move(handles);
+}
+
+void HttpServer::ClearThreadNativeHandlesLocked() {
+  thread_native_handles_.clear();
 }
 
 void HttpServer::StopEndpointIoLocked() {
@@ -351,7 +388,7 @@ void HttpServer::StartEndpointRuntimesLocked() {
 }
 
 bool HttpServer::Start() {
-  std::unique_lock<std::mutex> const lock(mtx_);
+  std::unique_lock<std::shared_mutex> const lock(mtx_);
 
   if (is_running_) {
     return false;
@@ -386,12 +423,13 @@ bool HttpServer::Start() {
   PublishExecutorSnapshotsLocked(std::move(endpoint_execs),
                                  std::move(global_execs));
   StartEndpointRuntimesLocked();
+  PublishThreadNativeHandlesLocked();
 
   return true;
 }
 
 void HttpServer::Stop() {
-  std::unique_lock<std::mutex> const lock(mtx_);
+  std::unique_lock<std::shared_mutex> const lock(mtx_);
 
   if (!is_running_) {
     return;
