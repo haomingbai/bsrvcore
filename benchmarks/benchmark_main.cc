@@ -44,7 +44,7 @@ int main(int argc, char** argv) try {
     }
     const auto& scenario = FindScenario(scenarios, cli.scenario_name);
     return RunServer(scenario, run_settings.pressures.front(), cli.listen_host,
-                     *cli.listen_port);
+                     *cli.listen_port, run_settings);
   }
 
   const auto selected_scenarios = ResolveSelectedScenarios(scenarios, cli);

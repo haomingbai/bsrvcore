@@ -59,9 +59,12 @@ std::string JsonCell(const CellResult& cell) {
   out << "{"
       << "\"scenario\":\"" << EscapeJson(cell.scenario_name) << "\","
       << "\"pressure\":\"" << EscapeJson(cell.pressure_name) << "\","
+      << "\"http_method\":\"" << EscapeJson(cell.http_method) << "\","
       << "\"server_io_threads\":" << cell.server_io_threads << ','
       << "\"server_worker_threads\":" << cell.server_worker_threads << ','
       << "\"client_concurrency\":" << cell.client_concurrency << ','
+      << "\"request_body_bytes\":" << cell.request_body_bytes << ','
+      << "\"response_body_bytes\":" << cell.response_body_bytes << ','
       << "\"warmup_ms\":" << cell.warmup_ms << ','
       << "\"duration_ms\":" << cell.duration_ms << ','
       << "\"repetitions\":" << cell.repetitions << ','
@@ -122,6 +125,10 @@ void PrintScenarioList(const std::vector<ScenarioDefinition>& scenarios) {
 
 void PrintCellSummary(const CellResult& cell) {
   std::cout << "[" << cell.scenario_name << "/" << cell.pressure_name << "] "
+            << "http_method=" << cell.http_method
+            << " request_body_bytes=" << cell.request_body_bytes
+            << " response_body_bytes=" << cell.response_body_bytes
+            << " "
             << "server_io_threads=" << cell.server_io_threads
             << " server_worker_threads=" << cell.server_worker_threads
             << " client_concurrency=" << cell.client_concurrency
@@ -168,6 +175,8 @@ std::string BuildJson(const EnvironmentInfo& environment, const CliConfig& cli,
       << "\"repetitions\":" << run_settings.repetitions << ','
       << "\"cooldown_ms\":" << run_settings.cooldown_ms << ','
       << "\"client_processes\":" << run_settings.client_processes << ','
+      << "\"request_body_bytes\":" << run_settings.request_body_bytes << ','
+      << "\"response_body_bytes\":" << run_settings.response_body_bytes << ','
       << "\"wrk_threads_per_process\":" << run_settings.wrk_threads_per_process
       << ',' << "\"wrk_bin\":\"" << EscapeJson(run_settings.wrk_bin.string())
       << "\"},"

@@ -44,6 +44,9 @@ def build_cell_key(cell: dict) -> str:
         f"{cell['scenario']}|{cell['pressure']}|io={cell['server_io_threads']}"
         f"|worker={cell['server_worker_threads']}|conc={cell['client_concurrency']}"
         f"|proc={cell['client_processes']}|wrk={cell['wrk_threads_per_process']}"
+        f"|method={cell.get('http_method', 'GET')}"
+        f"|req={int(cell.get('request_body_bytes', 0))}"
+        f"|resp={int(cell.get('response_body_bytes', 0))}"
     )
 
 
@@ -64,7 +67,12 @@ def derive_rows(data: dict) -> list[dict]:
                 "wrk_threads_per_process": int(
                     cell.get("wrk_threads_per_process", 0)
                 ),
+                "http_method": str(cell.get("http_method", "GET")),
+                "request_body_bytes": int(cell.get("request_body_bytes", 0)),
+                "response_body_bytes": int(cell.get("response_body_bytes", 0)),
                 "mean_rps": float(aggregate.get("rps", {}).get("mean", 0.0)),
+                "per_connection_rps": float(aggregate.get("rps", {}).get("mean", 0.0))
+                / max(1, int(cell.get("client_concurrency", 0) or 1)),
                 "p95_us": float(latency.get("p95", {}).get("mean", 0.0)),
                 "p99_us": float(latency.get("p99", {}).get("mean", 0.0)),
                 "failure_ratio_max": float(
@@ -81,26 +89,58 @@ def derive_rows(data: dict) -> list[dict]:
             row["client_concurrency"],
             row["client_processes"],
             row["wrk_threads_per_process"],
+            row["http_method"],
+            row["request_body_bytes"],
+            row["response_body_bytes"],
         )
     )
     return rows
 
 
 def group_key(row: dict) -> tuple:
+    if row["scenario"].startswith("http_body_matrix_"):
+        return (
+            row["scenario"],
+            row["server_io_threads"],
+            row["server_worker_threads"],
+            -1,
+            -1,
+            row["http_method"],
+            row["request_body_bytes"],
+            row["response_body_bytes"],
+        )
     return (
         row["scenario"],
         row["server_io_threads"],
         row["server_worker_threads"],
         row["client_processes"],
         row["wrk_threads_per_process"],
+        row["http_method"],
+        row["request_body_bytes"],
+        row["response_body_bytes"],
     )
 
 
 def line_label(key: tuple, note: str = "") -> str:
-    scenario, io_threads, worker_threads, client_processes, wrk_threads = key
+    (
+        scenario,
+        io_threads,
+        worker_threads,
+        client_processes,
+        wrk_threads,
+        http_method,
+        request_body_bytes,
+        response_body_bytes,
+    ) = key
+    loadgen_label = (
+        "adaptive loadgen"
+        if client_processes < 0 or wrk_threads < 0
+        else f"proc={client_processes} wrk={wrk_threads}"
+    )
     label = (
         f"io={io_threads} worker={worker_threads} "
-        f"proc={client_processes} wrk={wrk_threads}"
+        f"{loadgen_label} {http_method} "
+        f"req={request_body_bytes} resp={response_body_bytes}"
     )
     if note:
         return f"{label} ({note})"
@@ -341,6 +381,52 @@ def save_capacity_overview(
     return output
 
 
+def save_per_connection_sensitivity(
+    rows: list[dict], winner: dict, output: Path
+) -> Path | None:
+    selections = representative_groups(rows, winner)
+    if len(selections) < 2:
+        return None
+
+    figure, axes = plt.subplots(2, 1, figsize=(11, 9), sharex=True)
+    for index, (key, series, note) in enumerate(selections):
+        color = COLORS[index % len(COLORS)]
+        plot_metric_series(
+            axes[0],
+            series,
+            "per_connection_rps",
+            color,
+            line_label(key, note),
+            winner["cell_key"],
+        )
+        plot_metric_series(
+            axes[1],
+            series,
+            "p95_us",
+            color,
+            line_label(key, note),
+            winner["cell_key"],
+        )
+
+    axes[0].set_title(
+        f"Per-Connection Throughput: {winner['scenario']} representative families",
+        pad=12,
+        wrap=True,
+    )
+    axes[0].set_ylabel("Mean RPS / connection")
+    axes[0].grid(alpha=0.25)
+    axes[0].legend(loc="best")
+
+    axes[1].set_ylabel("p95 latency (us)")
+    axes[1].set_xlabel("Client concurrency")
+    axes[1].grid(alpha=0.25)
+
+    finalize_figure(figure)
+    figure.savefig(output)
+    plt.close(figure)
+    return output
+
+
 def save_peak_neighborhood(rows: list[dict], winner: dict, output: Path) -> Path | None:
     reference_key = reference_family_key(rows, winner)
     if reference_key is None:
@@ -363,11 +449,21 @@ def save_peak_neighborhood(rows: list[dict], winner: dict, output: Path) -> Path
     p95 = [row["p95_us"] for row in ordered]
     p99 = [row["p99_us"] for row in ordered]
 
-    ref_scenario, ref_io, ref_worker, ref_proc, ref_wrk = reference_key
+    (
+        ref_scenario,
+        ref_io,
+        ref_worker,
+        ref_proc,
+        ref_wrk,
+        ref_http_method,
+        ref_request_body_bytes,
+        ref_response_body_bytes,
+    ) = reference_key
+    detail_bits = [f"{ref_http_method}", f"req={ref_request_body_bytes}", f"resp={ref_response_body_bytes}"]
     figure, axes = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     figure.suptitle(
         f"Peak Neighborhood: io={ref_io} worker={ref_worker} "
-        f"proc={ref_proc} wrk={ref_wrk}",
+        f"proc={ref_proc} wrk={ref_wrk} {' '.join(detail_bits)}",
         y=0.985,
     )
     axes[0].plot(x, rps, color="#d97706", linewidth=1.8, marker="o")
@@ -556,6 +652,11 @@ def main() -> None:
     outputs = [
         save_capacity_overview(
             rows, winner, output_dir / f"{args.prefix}-capacity-overview.png"
+        ),
+        save_per_connection_sensitivity(
+            rows,
+            winner,
+            output_dir / f"{args.prefix}-per-connection-throughput.png",
         ),
         save_peak_neighborhood(
             rows, winner, output_dir / f"{args.prefix}-peak-neighborhood.png"

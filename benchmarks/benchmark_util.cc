@@ -225,6 +225,8 @@ RunSettings ResolveRunSettings(const CliConfig& cli) {
   run.client_processes = cli.client_processes_override.value_or(2);
   run.wrk_threads_per_process =
       cli.wrk_threads_per_process_override.value_or(1);
+  run.request_body_bytes = cli.request_body_bytes_override.value_or(0);
+  run.response_body_bytes = cli.response_body_bytes_override.value_or(0);
   run.wrk_bin = ResolveWrkBinary(cli);
   run.server_url = cli.server_url.value_or("");
 

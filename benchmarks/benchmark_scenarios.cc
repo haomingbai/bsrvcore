@@ -54,6 +54,15 @@ std::string HeaderValue(const BenchmarkHttpResponse& response,
   return {};
 }
 
+ScenarioShape MakeShape(std::string method, std::size_t request_body_bytes,
+                        std::size_t response_body_bytes) {
+  ScenarioShape shape;
+  shape.http_method = std::move(method);
+  shape.request_body_bytes = request_body_bytes;
+  shape.response_body_bytes = response_body_bytes;
+  return shape;
+}
+
 }  // namespace
 
 std::vector<ScenarioDefinition> BuildScenarios() {
@@ -62,7 +71,8 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.name = "http_get_static";
     scenario.summary = "GET /ping returning a small text body";
     scenario.io_focused = true;
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.mainline_focused = true;
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/ping",
           [](std::shared_ptr<HttpServerTask> task) {
@@ -73,14 +83,18 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->SetBody("pong");
           });
     };
-    scenario.make_request = [](WorkerState&) {
+    scenario.make_request = [](WorkerState&, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::get;
       request.target = "/ping";
       return request;
     };
+    scenario.describe_shape = [](const RunSettings&) {
+      return MakeShape("GET", 0, 4);
+    };
     scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState&, std::string& error) {
+                                    WorkerState&, const RunSettings&,
+                                    std::string& error) {
       if (response.result() != http::status::ok || response.body() != "pong") {
         error = "expected 200/pong";
         return false;
@@ -94,7 +108,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     ScenarioDefinition scenario;
     scenario.name = "http_get_route_param";
     scenario.summary = "GET /users/{id} with path parameter extraction";
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/users/{id}",
           [](std::shared_ptr<HttpServerTask> task) {
@@ -111,15 +125,19 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->SetBody(*id);
           });
     };
-    scenario.make_request = [](WorkerState& state) {
+    scenario.make_request = [](WorkerState& state, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::get;
       request.target = "/users/w" + std::to_string(state.worker_index) + "-" +
                        std::to_string(state.request_index);
       return request;
     };
+    scenario.describe_shape = [](const RunSettings&) {
+      return MakeShape("GET", 0, 0);
+    };
     scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState& state, std::string& error) {
+                                    WorkerState& state, const RunSettings&,
+                                    std::string& error) {
       const std::string expected = "w" + std::to_string(state.worker_index) +
                                    "-" + std::to_string(state.request_index);
       if (response.result() != http::status::ok ||
@@ -137,7 +155,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     ScenarioDefinition scenario;
     scenario.name = "http_get_global_aspect";
     scenario.summary = "GET /ping with one global pre/post aspect pair";
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddGlobalAspect(
           [](std::shared_ptr<HttpPreServerTask> task) {
             task->SetField("X-Bench-Aspect-Pre", "1");
@@ -155,14 +173,18 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->SetBody("pong");
           });
     };
-    scenario.make_request = [](WorkerState&) {
+    scenario.make_request = [](WorkerState&, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::get;
       request.target = "/ping";
       return request;
     };
+    scenario.describe_shape = [](const RunSettings&) {
+      return MakeShape("GET", 0, 4);
+    };
     scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState&, std::string& error) {
+                                    WorkerState&, const RunSettings&,
+                                    std::string& error) {
       if (response.result() != http::status::ok || response.body() != "pong" ||
           !HasHeader(response, "X-Bench-Aspect-Pre") ||
           !HasHeader(response, "X-Bench-Aspect-Post")) {
@@ -181,7 +203,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.name = "http_get_aspect_chain_64";
     scenario.summary =
         "GET /ping with 64 global aspects to validate pre/post order";
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       for (std::size_t i = 0; i < kAspectCount; ++i) {
         server.AddGlobalAspect(
             [i](std::shared_ptr<HttpPreServerTask> task) {
@@ -202,14 +224,18 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->SetBody("pong");
           });
     };
-    scenario.make_request = [](WorkerState&) {
+    scenario.make_request = [](WorkerState&, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::get;
       request.target = "/ping";
       return request;
     };
+    scenario.describe_shape = [](const RunSettings&) {
+      return MakeShape("GET", 0, 4);
+    };
     scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState&, std::string& error) {
+                                    WorkerState&, const RunSettings&,
+                                    std::string& error) {
       if (response.result() != http::status::ok || response.body() != "pong") {
         error = "expected 200/pong";
         return false;
@@ -235,7 +261,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.io_focused = true;
     scenario.required_max_body_size =
         std::max<std::size_t>(size * 2, 256 * 1024);
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddRouteEntry(
           HttpRequestMethod::kPost, "/echo",
           [](std::shared_ptr<HttpServerTask> task) {
@@ -247,7 +273,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
           });
     };
     const std::string payload(size, fill);
-    scenario.make_request = [payload](WorkerState&) {
+    scenario.make_request = [payload](WorkerState&, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::post;
       request.target = "/echo";
@@ -255,9 +281,13 @@ std::vector<ScenarioDefinition> BuildScenarios() {
       request.headers.emplace_back(http::field::content_type, "text/plain");
       return request;
     };
+    scenario.describe_shape = [size](const RunSettings&) {
+      return MakeShape("POST", size, size);
+    };
     scenario.validate_response = [payload](
                                      const BenchmarkHttpResponse& response,
-                                     WorkerState&, std::string& error) {
+                                     WorkerState&, const RunSettings&,
+                                     std::string& error) {
       if (response.result() != http::status::ok || response.body() != payload) {
         error = "echo response mismatch";
         return false;
@@ -273,7 +303,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.summary =
         "GET /session increments a counter in the session context";
     scenario.prime_each_worker = true;
-    scenario.configure_server = [](HttpServer& server) {
+    scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.SetDefaultSessionTimeout(60000);
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/session",
@@ -302,14 +332,18 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->SetBody(std::to_string(next_value));
           });
     };
-    scenario.make_request = [](WorkerState&) {
+    scenario.make_request = [](WorkerState&, const RunSettings&) {
       RequestSpec request;
       request.method = http::verb::get;
       request.target = "/session";
       return request;
     };
+    scenario.describe_shape = [](const RunSettings&) {
+      return MakeShape("GET", 0, 0);
+    };
     scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState& state, std::string& error) {
+                                    WorkerState& state, const RunSettings&,
+                                    std::string& error) {
       if (response.result() != http::status::ok) {
         error = "expected 200 for session request";
         return false;
@@ -339,13 +373,110 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     return scenario;
   };
 
+  auto make_body_matrix_get = []() -> ScenarioDefinition {
+    ScenarioDefinition scenario;
+    scenario.name = "http_body_matrix_get";
+    scenario.summary =
+        "GET /body with parameterized response body size for body sweeps";
+    scenario.body_matrix_capable = true;
+    scenario.configure_server = [](HttpServer& server,
+                                   const RunSettings& run_settings) {
+      const std::string payload(run_settings.response_body_bytes, 'g');
+      server.AddRouteEntry(
+          HttpRequestMethod::kGet, "/body",
+          [payload](std::shared_ptr<HttpServerTask> task) {
+            task->SetKeepAlive(task->GetRequest().keep_alive());
+            task->GetResponse().result(http::status::ok);
+            task->SetField(http::field::content_type,
+                           "text/plain; charset=utf-8");
+            task->SetBody(payload);
+          });
+    };
+    scenario.make_request = [](WorkerState&, const RunSettings&) {
+      RequestSpec request;
+      request.method = http::verb::get;
+      request.target = "/body";
+      return request;
+    };
+    scenario.describe_shape = [](const RunSettings& run_settings) {
+      return MakeShape("GET", 0, run_settings.response_body_bytes);
+    };
+    scenario.validate_response = [](const BenchmarkHttpResponse& response,
+                                    WorkerState&, const RunSettings& run_settings,
+                                    std::string& error) {
+      if (response.result() != http::status::ok) {
+        error = "expected 200";
+        return false;
+      }
+      if (response.body().size() != run_settings.response_body_bytes) {
+        error = "response size mismatch";
+        return false;
+      }
+      return true;
+    };
+    return scenario;
+  };
+
+  auto make_body_matrix_post = []() -> ScenarioDefinition {
+    ScenarioDefinition scenario;
+    scenario.name = "http_body_matrix_post";
+    scenario.summary =
+        "POST /body with parameterized request and response body sizes";
+    scenario.body_matrix_capable = true;
+    scenario.resolve_required_max_body_size = [](const RunSettings& run_settings) {
+      return std::max<std::size_t>(run_settings.request_body_bytes * 2,
+                                   256 * 1024);
+    };
+    scenario.configure_server = [](HttpServer& server,
+                                   const RunSettings& run_settings) {
+      const std::string payload(run_settings.response_body_bytes, 's');
+      server.AddRouteEntry(
+          HttpRequestMethod::kPost, "/body",
+          [payload](std::shared_ptr<HttpServerTask> task) {
+            task->SetKeepAlive(task->GetRequest().keep_alive());
+            task->GetResponse().result(http::status::ok);
+            task->SetField(http::field::content_type,
+                           "text/plain; charset=utf-8");
+            task->SetBody(payload);
+          });
+    };
+    scenario.make_request = [](WorkerState&, const RunSettings& run_settings) {
+      RequestSpec request;
+      request.method = http::verb::post;
+      request.target = "/body";
+      request.body.assign(run_settings.request_body_bytes, 'r');
+      request.headers.emplace_back(http::field::content_type, "text/plain");
+      return request;
+    };
+    scenario.describe_shape = [](const RunSettings& run_settings) {
+      return MakeShape("POST", run_settings.request_body_bytes,
+                       run_settings.response_body_bytes);
+    };
+    scenario.validate_response = [](const BenchmarkHttpResponse& response,
+                                    WorkerState&, const RunSettings& run_settings,
+                                    std::string& error) {
+      if (response.result() != http::status::ok) {
+        error = "expected 200";
+        return false;
+      }
+      if (response.body().size() != run_settings.response_body_bytes) {
+        error = "response size mismatch";
+        return false;
+      }
+      return true;
+    };
+    return scenario;
+  };
+
   return {make_static_get(),
           make_route_param(),
           make_global_aspect(),
           make_long_aspect_chain(),
           make_post_echo("http_post_echo_1k", 1024, 'x'),
           make_post_echo("http_post_echo_64k", 64 * 1024, 'y'),
-          make_session_counter()};
+          make_session_counter(),
+          make_body_matrix_get(),
+          make_body_matrix_post()};
 }
 
 const ScenarioDefinition& FindScenario(
@@ -362,6 +493,19 @@ const ScenarioDefinition& FindScenario(
 
 std::vector<const ScenarioDefinition*> ResolveSelectedScenarios(
     const std::vector<ScenarioDefinition>& scenarios, const CliConfig& cli) {
+  if (cli.scenario_name == "mainline") {
+    std::vector<const ScenarioDefinition*> selected;
+    for (const auto& scenario : scenarios) {
+      if (scenario.mainline_focused) {
+        selected.push_back(&scenario);
+      }
+    }
+    if (selected.empty()) {
+      throw std::invalid_argument("No mainline benchmark scenarios are defined");
+    }
+    return selected;
+  }
+
   if (cli.scenario_name == "io") {
     std::vector<const ScenarioDefinition*> selected;
     for (const auto& scenario : scenarios) {

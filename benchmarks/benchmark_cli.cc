@@ -23,7 +23,7 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Mode: local|client|server")(
       "scenario",
       po::value<std::string>(&cli.scenario_name)->default_value("all"),
-      "Scenario name, 'io', or 'all'")(
+      "Scenario name, 'mainline', 'io', or 'all'")(
       "profile", po::value<std::string>()->default_value("quick"),
       "Profile: quick or full")(
       "pressure", po::value<std::string>(),
@@ -47,6 +47,10 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "Number of wrk processes that concurrently pressure one server")(
       "wrk-threads-per-process", po::value<std::size_t>(),
       "wrk threads used by each client process")(
+      "request-body-bytes", po::value<std::size_t>(),
+      "Override request body size in bytes for parameterized body scenarios")(
+      "response-body-bytes", po::value<std::size_t>(),
+      "Override response body size in bytes for parameterized body scenarios")(
       "wrk-bin", po::value<std::string>(),
       "Path to wrk binary (default probe: /bin,/usr/bin,/usr/local/bin, then "
       "PATH)")("warmup-ms", po::value<std::size_t>(), "Warmup duration in ms")(
@@ -79,6 +83,10 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
       "wrk client process count for internal cell mode")(
       "internal-wrk-threads-per-process", po::value<std::size_t>(),
       "wrk threads per process for internal cell mode")(
+      "internal-request-body-bytes", po::value<std::size_t>(),
+      "Request body size override for internal cell mode")(
+      "internal-response-body-bytes", po::value<std::size_t>(),
+      "Response body size override for internal cell mode")(
       "internal-wrk-bin", po::value<std::string>(),
       "wrk binary for internal cell mode")(
       "internal-warmup-ms", po::value<std::size_t>(),
@@ -152,6 +160,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
     cli.wrk_threads_per_process_override =
         vm["wrk-threads-per-process"].as<std::size_t>();
   }
+  if (vm.count("request-body-bytes") != 0) {
+    cli.request_body_bytes_override =
+        vm["request-body-bytes"].as<std::size_t>();
+  }
+  if (vm.count("response-body-bytes") != 0) {
+    cli.response_body_bytes_override =
+        vm["response-body-bytes"].as<std::size_t>();
+  }
   if (vm.count("wrk-bin") != 0) {
     cli.wrk_bin_override =
         std::filesystem::path(vm["wrk-bin"].as<std::string>());
@@ -207,6 +223,14 @@ CliConfig ParseCli(int argc, char** argv, std::string& help_text) {
   if (vm.count("internal-wrk-threads-per-process") != 0) {
     cli.internal_wrk_threads_per_process =
         vm["internal-wrk-threads-per-process"].as<std::size_t>();
+  }
+  if (vm.count("internal-request-body-bytes") != 0) {
+    cli.internal_request_body_bytes =
+        vm["internal-request-body-bytes"].as<std::size_t>();
+  }
+  if (vm.count("internal-response-body-bytes") != 0) {
+    cli.internal_response_body_bytes =
+        vm["internal-response-body-bytes"].as<std::size_t>();
   }
   if (vm.count("internal-wrk-bin") != 0) {
     cli.internal_wrk_bin =

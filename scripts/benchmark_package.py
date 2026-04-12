@@ -48,6 +48,9 @@ def cell_key(cell: dict) -> str:
         f"{cell['scenario']}|{cell['pressure']}|io={cell['server_io_threads']}"
         f"|worker={cell['server_worker_threads']}|conc={cell['client_concurrency']}"
         f"|proc={cell['client_processes']}|wrk={cell['wrk_threads_per_process']}"
+        f"|method={cell.get('http_method', 'GET')}"
+        f"|req={int(cell.get('request_body_bytes', 0))}"
+        f"|resp={int(cell.get('response_body_bytes', 0))}"
     )
 
 
@@ -78,9 +81,20 @@ def collect_cells(input_dir: Path) -> tuple[list[dict], dict]:
             cell["wrk_threads_per_process"] = int(
                 run_config.get("wrk_threads_per_process", 0)
             )
+            cell["http_method"] = str(cell.get("http_method", "GET"))
+            cell["request_body_bytes"] = int(cell.get("request_body_bytes", 0))
+            cell["response_body_bytes"] = int(cell.get("response_body_bytes", 0))
             cell["mode"] = run_config.get("mode", "local")
             cell["server_url"] = run_config.get("server_url", "")
             cell["cell_key"] = cell_key(cell)
+            concurrency = max(1, int(cell["client_concurrency"]))
+            cell["derived"] = {
+                "per_connection_rps": metric_mean(cell, "rps") / concurrency,
+                "per_connection_mib_per_sec": float(
+                    cell["aggregate"]["mib_per_sec"]["mean"]
+                )
+                / concurrency,
+            }
             cells.append(cell)
 
     cells.sort(key=winner_sort_key)
@@ -105,6 +119,9 @@ def build_sweep_space(cells: list[dict]) -> dict:
             "client_concurrency": unique_values("client_concurrency"),
             "client_processes": unique_values("client_processes"),
             "wrk_threads_per_process": unique_values("wrk_threads_per_process"),
+            "http_method": unique_values("http_method"),
+            "request_body_bytes": unique_values("request_body_bytes"),
+            "response_body_bytes": unique_values("response_body_bytes"),
         },
     }
 
@@ -127,6 +144,11 @@ def pick_winner(cells: list[dict]) -> dict:
         "client_concurrency": winner["client_concurrency"],
         "client_processes": winner["client_processes"],
         "wrk_threads_per_process": winner["wrk_threads_per_process"],
+        "http_method": winner["http_method"],
+        "request_body_bytes": winner["request_body_bytes"],
+        "response_body_bytes": winner["response_body_bytes"],
+        "per_connection_rps": winner["derived"]["per_connection_rps"],
+        "per_connection_mib_per_sec": winner["derived"]["per_connection_mib_per_sec"],
         "selection_mode": (
             "stable-first" if any(
                 cell["aggregate"].get("stability") == "stable" for cell in cells
@@ -152,6 +174,14 @@ def build_summary(
     client_env: dict,
     server_env: dict | None,
 ) -> str:
+    def kernel_release(env: dict) -> str:
+        uname = str(env.get("uname", "")).split()
+        return uname[2] if len(uname) >= 3 else "unknown"
+
+    def os_name(env: dict) -> str:
+        os_release = env.get("os_release", {})
+        return str(os_release.get("PRETTY_NAME", "unknown"))
+
     top_rows = []
     for cell in cells[: min(10, len(cells))]:
         top_rows.append(
@@ -159,8 +189,12 @@ def build_summary(
                 str(cell["rank"]),
                 cell["scenario"],
                 cell["pressure"],
+                cell["http_method"],
+                str(cell["request_body_bytes"]),
+                str(cell["response_body_bytes"]),
                 cell["aggregate"].get("stability", "unknown"),
                 f"{metric_mean(cell, 'rps'):.2f}",
+                f"{cell['derived']['per_connection_rps']:.2f}",
                 f"{latency_mean(cell, 'p95'):.2f}",
                 str(cell["server_io_threads"]),
                 str(cell["server_worker_threads"]),
@@ -201,6 +235,19 @@ def build_summary(
                 for value in sorted({cell["wrk_threads_per_process"] for cell in cells})
             ),
         ],
+        ["http_method", ", ".join(sorted({cell["http_method"] for cell in cells}))],
+        [
+            "request_body_bytes",
+            ", ".join(
+                str(value) for value in sorted({cell["request_body_bytes"] for cell in cells})
+            ),
+        ],
+        [
+            "response_body_bytes",
+            ", ".join(
+                str(value) for value in sorted({cell["response_body_bytes"] for cell in cells})
+            ),
+        ],
     ]
 
     lines = [
@@ -224,8 +271,12 @@ def build_summary(
             [
                 "scenario",
                 "pressure",
+                "http_method",
+                "request_body_bytes",
+                "response_body_bytes",
                 "stability",
                 "mean_rps",
+                "per_conn_rps",
                 "p95_us",
                 "p99_us",
                 "server_io_threads",
@@ -237,8 +288,12 @@ def build_summary(
             [[
                 winner["scenario"],
                 winner["pressure"],
+                winner["http_method"],
+                str(winner["request_body_bytes"]),
+                str(winner["response_body_bytes"]),
                 winner["stability"],
                 f"{winner['mean_rps']:.2f}",
+                f"{winner['per_connection_rps']:.2f}",
                 f"{winner['p95_us']:.2f}",
                 f"{winner['p99_us']:.2f}",
                 str(winner["server_io_threads"]),
@@ -256,8 +311,12 @@ def build_summary(
                 "rank",
                 "scenario",
                 "pressure",
+                "http_method",
+                "request_body_bytes",
+                "response_body_bytes",
                 "stability",
                 "mean_rps",
+                "per_conn_rps",
                 "p95_us",
                 "server_io_threads",
                 "server_worker_threads",
@@ -274,17 +333,17 @@ def build_summary(
         "",
         "## Environment",
         "",
-        f"- client_hostname: `{client_env.get('hostname', 'unknown')}`",
         f"- client_cpus: `{client_env.get('logical_cpu_count', 'unknown')}`",
-        f"- client_uname: `{client_env.get('uname', 'unknown')}`",
+        f"- client_os: `{os_name(client_env)}`",
+        f"- client_kernel: `{kernel_release(client_env)}`",
     ]
 
     if server_env:
         lines.extend(
             [
-                f"- server_hostname: `{server_env.get('hostname', 'unknown')}`",
                 f"- server_cpus: `{server_env.get('logical_cpu_count', 'unknown')}`",
-                f"- server_uname: `{server_env.get('uname', 'unknown')}`",
+                f"- server_os: `{os_name(server_env)}`",
+                f"- server_kernel: `{kernel_release(server_env)}`",
             ]
         )
 

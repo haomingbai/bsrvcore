@@ -209,6 +209,10 @@ int RunInternalCell(const CliConfig& cli,
     run_settings.client_processes = *cli.internal_client_processes;
     run_settings.wrk_threads_per_process =
         *cli.internal_wrk_threads_per_process;
+    run_settings.request_body_bytes =
+        cli.internal_request_body_bytes.value_or(0);
+    run_settings.response_body_bytes =
+        cli.internal_response_body_bytes.value_or(0);
     run_settings.wrk_bin = *cli.internal_wrk_bin;
     run_settings.server_url = cli.internal_server_url.value_or("");
 
@@ -328,6 +332,10 @@ std::vector<std::string> BuildChildArgs(
       std::to_string(run_settings.client_processes),
       "--internal-wrk-threads-per-process",
       std::to_string(run_settings.wrk_threads_per_process),
+      "--internal-request-body-bytes",
+      std::to_string(run_settings.request_body_bytes),
+      "--internal-response-body-bytes",
+      std::to_string(run_settings.response_body_bytes),
       "--internal-wrk-bin",
       run_settings.wrk_bin.string(),
       "--internal-warmup-ms",

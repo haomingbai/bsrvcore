@@ -42,6 +42,8 @@ struct CliConfig {
   std::optional<std::size_t> client_concurrency_override;
   std::optional<std::size_t> client_processes_override;
   std::optional<std::size_t> wrk_threads_per_process_override;
+  std::optional<std::size_t> request_body_bytes_override;
+  std::optional<std::size_t> response_body_bytes_override;
   std::optional<std::filesystem::path> wrk_bin_override;
   std::optional<std::size_t> warmup_ms_override;
   std::optional<std::size_t> duration_ms_override;
@@ -65,6 +67,8 @@ struct CliConfig {
   std::optional<std::filesystem::path> internal_wrk_bin;
   std::optional<std::size_t> internal_client_processes;
   std::optional<std::size_t> internal_wrk_threads_per_process;
+  std::optional<std::size_t> internal_request_body_bytes;
+  std::optional<std::size_t> internal_response_body_bytes;
 };
 
 struct ProfileSettings {
@@ -94,6 +98,8 @@ struct RunSettings {
   std::string server_url;
   std::size_t client_processes = 4;
   std::size_t wrk_threads_per_process = 2;
+  std::size_t request_body_bytes = 0;
+  std::size_t response_body_bytes = 0;
 };
 
 struct WorkerState {
@@ -110,15 +116,26 @@ struct RequestSpec {
   std::vector<std::pair<http::field, std::string>> headers;
 };
 
+struct ScenarioShape {
+  std::string http_method = "GET";
+  std::size_t request_body_bytes = 0;
+  std::size_t response_body_bytes = 0;
+};
+
 struct ScenarioDefinition {
   std::string name;
   std::string summary;
   std::size_t required_max_body_size = 256 * 1024;
+  std::function<std::size_t(const RunSettings&)> resolve_required_max_body_size;
   bool prime_each_worker = false;
   bool io_focused = false;
-  std::function<void(HttpServer&)> configure_server;
-  std::function<RequestSpec(WorkerState&)> make_request;
-  std::function<bool(const BenchmarkHttpResponse&, WorkerState&, std::string&)>
+  bool mainline_focused = false;
+  bool body_matrix_capable = false;
+  std::function<void(HttpServer&, const RunSettings&)> configure_server;
+  std::function<RequestSpec(WorkerState&, const RunSettings&)> make_request;
+  std::function<ScenarioShape(const RunSettings&)> describe_shape;
+  std::function<bool(const BenchmarkHttpResponse&, WorkerState&,
+                     const RunSettings&, std::string&)>
       validate_response;
 };
 
@@ -189,9 +206,12 @@ struct AggregateMetrics {
 struct CellResult {
   std::string scenario_name;
   std::string pressure_name;
+  std::string http_method = "GET";
   std::size_t server_io_threads = 1;
   std::size_t server_worker_threads = 1;
   std::size_t client_concurrency = 1;
+  std::size_t request_body_bytes = 0;
+  std::size_t response_body_bytes = 0;
   std::size_t warmup_ms = 0;
   std::size_t duration_ms = 0;
   std::size_t repetitions = 0;

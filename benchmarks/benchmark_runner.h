@@ -14,7 +14,7 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
                                     std::size_t repetition);
 int RunServer(const ScenarioDefinition& scenario,
               const PressureSettings& pressure, std::string_view listen_host,
-              unsigned short listen_port);
+              unsigned short listen_port, const RunSettings& run_settings);
 
 std::vector<CellResult> RunBenchmarks(
     const std::filesystem::path& executable_path,

@@ -23,13 +23,17 @@ RUN_ID="${BSRVCORE_BENCH_RUN_ID:-$(date -u +%Y%m%d-%H%M%SZ)}"
 PACKAGE_DIR=""
 TMP_DIR=""
 PREFIX="${BSRVCORE_BENCH_TAG:-benchmark-report}"
-SCENARIO="io"
+SCENARIO="mainline"
 SWEEP_DEPTH="${BSRVCORE_BENCH_SWEEP_DEPTH:-standard}"
 LISTEN_HOST="0.0.0.0"
 LISTEN_PORT="${BSRVCORE_BENCH_LISTEN_PORT:-18080}"
 SERVER_URL=""
 SERVER_IO_THREADS=""
 SERVER_WORKER_THREADS=""
+SCRIPT_RUN_MODE="local"
+HTTP_METHOD=""
+REQUEST_BODY_BYTES="${BSRVCORE_BENCH_REQUEST_BODY_BYTES:-0}"
+RESPONSE_BODY_BYTES="${BSRVCORE_BENCH_RESPONSE_BODY_BYTES:-0}"
 CLIENT_ONLY_CONCURRENCY=""
 CLIENT_ONLY_PROCESSES=""
 CLIENT_ONLY_WRK_THREADS=""
@@ -37,6 +41,10 @@ WARMUP_MS=""
 DURATION_MS=""
 COOLDOWN_MS=""
 REPETITIONS=""
+FINE_WARMUP_MS=""
+FINE_DURATION_MS=""
+FINE_COOLDOWN_MS=""
+FINE_REPETITIONS=""
 SSH_TARGET=""
 SSH_PORT=""
 SSH_KEY=""
@@ -50,6 +58,19 @@ BENCH_BIN="${ROOT_DIR}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark"
 BUNDLED_WRK_BIN="${ROOT_DIR}/${BUILD_DIR}/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk"
 PLOT_PYTHON=""
 RUN_CELL_INDEX=0
+SOURCE_JSON=""
+NEIGHBOR_COUNT=5
+BODY_PHASE="get-response"
+BODY_SIZE_START=0
+BODY_SIZE_STOP=$((128 * 1024))
+BODY_SIZE_STEP=$((8 * 1024))
+BODY_REFINE_STEP=$((2 * 1024))
+BODY_MAX_BYTES=$((1024 * 1024))
+BODY_STOP_BEST_STABLE_CONCURRENCY=8
+BODY_REQUEST_SIZES=""
+BODY_RESPONSE_SIZES=""
+BODY_CONCURRENCY_VALUES="1,2,4,8,16,32,48,64,96,128,160,192,256,320"
+COARSE_ONLY=0
 
 usage() {
   cat <<'EOF'
@@ -59,9 +80,11 @@ Usage:
   bash scripts/benchmark.sh server [options]
   bash scripts/benchmark.sh client [options]
   bash scripts/benchmark.sh ssh-run [options]
+  bash scripts/benchmark.sh probe [options]
+  bash scripts/benchmark.sh body-run [options]
 
 Common options:
-  --scenario <name|io|all>
+  --scenario <name|mainline|io|all>
   --sweep-depth <quick|standard|full>
   --build-dir <dir>
   --output-dir <dir>
@@ -71,6 +94,29 @@ Common options:
   --duration-ms <n>
   --cooldown-ms <n>
   --repetitions <n>
+  --fine-warmup-ms <n>
+  --fine-duration-ms <n>
+  --fine-cooldown-ms <n>
+  --fine-repetitions <n>
+  --coarse-only
+
+Probe/body options:
+  --mode <local|client>
+  --http-method <get|post>
+  --request-body-bytes <n>
+  --response-body-bytes <n>
+  --source-json <path>
+  --neighbor-count <n>
+  --body-phase <get-response|post-request|post-matrix>
+  --body-size-start <n>
+  --body-size-stop <n>
+  --body-size-step <n>
+  --body-refine-step-bytes <n>
+  --body-max-bytes <n>
+  --body-stop-best-stable-concurrency <n>
+  --body-request-sizes <csv>
+  --body-response-sizes <csv>
+  --body-concurrency-values <csv>
 
 Server/client options:
   --listen-host <ip>
@@ -142,6 +188,22 @@ while [[ $# -gt 0 ]]; do
       SERVER_WORKER_THREADS="$2"
       shift 2
       ;;
+    --mode)
+      SCRIPT_RUN_MODE="$2"
+      shift 2
+      ;;
+    --http-method)
+      HTTP_METHOD="$2"
+      shift 2
+      ;;
+    --request-body-bytes)
+      REQUEST_BODY_BYTES="$2"
+      shift 2
+      ;;
+    --response-body-bytes)
+      RESPONSE_BODY_BYTES="$2"
+      shift 2
+      ;;
     --client-concurrency)
       CLIENT_ONLY_CONCURRENCY="$2"
       shift 2
@@ -170,8 +232,76 @@ while [[ $# -gt 0 ]]; do
       REPETITIONS="$2"
       shift 2
       ;;
+    --fine-warmup-ms)
+      FINE_WARMUP_MS="$2"
+      shift 2
+      ;;
+    --fine-duration-ms)
+      FINE_DURATION_MS="$2"
+      shift 2
+      ;;
+    --fine-cooldown-ms)
+      FINE_COOLDOWN_MS="$2"
+      shift 2
+      ;;
+    --fine-repetitions)
+      FINE_REPETITIONS="$2"
+      shift 2
+      ;;
+    --coarse-only)
+      COARSE_ONLY=1
+      shift 1
+      ;;
     --server-env-json)
       SERVER_ENV_JSON="$2"
+      shift 2
+      ;;
+    --source-json)
+      SOURCE_JSON="$2"
+      shift 2
+      ;;
+    --neighbor-count)
+      NEIGHBOR_COUNT="$2"
+      shift 2
+      ;;
+    --body-phase)
+      BODY_PHASE="$2"
+      shift 2
+      ;;
+    --body-size-start)
+      BODY_SIZE_START="$2"
+      shift 2
+      ;;
+    --body-size-stop)
+      BODY_SIZE_STOP="$2"
+      shift 2
+      ;;
+    --body-size-step)
+      BODY_SIZE_STEP="$2"
+      shift 2
+      ;;
+    --body-refine-step-bytes)
+      BODY_REFINE_STEP="$2"
+      shift 2
+      ;;
+    --body-max-bytes)
+      BODY_MAX_BYTES="$2"
+      shift 2
+      ;;
+    --body-stop-best-stable-concurrency)
+      BODY_STOP_BEST_STABLE_CONCURRENCY="$2"
+      shift 2
+      ;;
+    --body-request-sizes)
+      BODY_REQUEST_SIZES="$2"
+      shift 2
+      ;;
+    --body-response-sizes)
+      BODY_RESPONSE_SIZES="$2"
+      shift 2
+      ;;
+    --body-concurrency-values)
+      BODY_CONCURRENCY_VALUES="$2"
       shift 2
       ;;
     --ssh-target)
@@ -212,18 +342,30 @@ case "${SWEEP_DEPTH}" in
     : "${DURATION_MS:=2000}"
     : "${COOLDOWN_MS:=400}"
     : "${REPETITIONS:=2}"
+    : "${FINE_WARMUP_MS:=${WARMUP_MS}}"
+    : "${FINE_DURATION_MS:=${DURATION_MS}}"
+    : "${FINE_COOLDOWN_MS:=${COOLDOWN_MS}}"
+    : "${FINE_REPETITIONS:=${REPETITIONS}}"
     ;;
   standard)
     : "${WARMUP_MS:=1000}"
     : "${DURATION_MS:=3000}"
     : "${COOLDOWN_MS:=500}"
     : "${REPETITIONS:=2}"
+    : "${FINE_WARMUP_MS:=${WARMUP_MS}}"
+    : "${FINE_DURATION_MS:=${DURATION_MS}}"
+    : "${FINE_COOLDOWN_MS:=${COOLDOWN_MS}}"
+    : "${FINE_REPETITIONS:=${REPETITIONS}}"
     ;;
   full)
     : "${WARMUP_MS:=1500}"
     : "${DURATION_MS:=5000}"
     : "${COOLDOWN_MS:=800}"
     : "${REPETITIONS:=3}"
+    : "${FINE_WARMUP_MS:=${WARMUP_MS}}"
+    : "${FINE_DURATION_MS:=${DURATION_MS}}"
+    : "${FINE_COOLDOWN_MS:=${COOLDOWN_MS}}"
+    : "${FINE_REPETITIONS:=${REPETITIONS}}"
     ;;
   *)
     echo "Unsupported sweep depth: ${SWEEP_DEPTH}" >&2
@@ -251,8 +393,52 @@ max1() {
   fi
 }
 
+normalize_http_method() {
+  local method="${1:-}"
+  method="${method,,}"
+  case "${method}" in
+    ""|get|post)
+      echo "${method}"
+      ;;
+    *)
+      echo "Unsupported --http-method: ${1}" >&2
+      exit 1
+      ;;
+  esac
+}
+
+probe_scenario_name() {
+  local scenario_name="${SCENARIO}"
+  local method
+  method="$(normalize_http_method "${HTTP_METHOD}")"
+  if [[ "${scenario_name}" == "body-matrix" || "${scenario_name}" == "http_body_matrix" ]]; then
+    if [[ -z "${method}" ]]; then
+      echo "probe for body-matrix requires --http-method get|post" >&2
+      exit 1
+    fi
+    if [[ "${method}" == "get" ]]; then
+      echo "http_body_matrix_get"
+    else
+      echo "http_body_matrix_post"
+    fi
+    return
+  fi
+  if [[ -n "${method}" && ( "${scenario_name}" == "mainline" || "${scenario_name}" == "io" || "${scenario_name}" == "all" ) ]]; then
+    if [[ "${method}" == "get" ]]; then
+      echo "http_body_matrix_get"
+    else
+      echo "http_body_matrix_post"
+    fi
+    return
+  fi
+  echo "${scenario_name}"
+}
+
 scenario_count() {
   case "${SCENARIO}" in
+    mainline)
+      echo 1
+      ;;
     io)
       echo 3
       ;;
@@ -266,7 +452,7 @@ scenario_count() {
 }
 
 ensure_named_scenario() {
-  if [[ "${SCENARIO}" == "io" || "${SCENARIO}" == "all" ]]; then
+  if [[ "${SCENARIO}" == "mainline" || "${SCENARIO}" == "io" || "${SCENARIO}" == "all" ]]; then
     echo "${COMMAND} requires a single named benchmark scenario" >&2
     exit 1
   fi
@@ -350,6 +536,7 @@ prepare_outputs() {
     "${OUTPUT_DIR}/${PREFIX}.json"
     "${OUTPUT_DIR}/${PREFIX}.md"
     "${OUTPUT_DIR}/${PREFIX}-capacity-overview.png"
+    "${OUTPUT_DIR}/${PREFIX}-per-connection-throughput.png"
     "${OUTPUT_DIR}/${PREFIX}-peak-neighborhood.png"
     "${OUTPUT_DIR}/${PREFIX}-thread-sensitivity.png"
     "${OUTPUT_DIR}/${PREFIX}-loadgen-sensitivity.png"
@@ -489,24 +676,29 @@ emit_client_matrix() {
 
 run_cell() {
   local mode="$1"
-  local label="$2"
-  local io_threads="$3"
-  local worker_threads="$4"
-  local client_concurrency="$5"
-  local client_processes="$6"
-  local wrk_threads="$7"
-  local output_json="$8"
+  local scenario_name="$2"
+  local label="$3"
+  local io_threads="$4"
+  local worker_threads="$5"
+  local client_concurrency="$6"
+  local client_processes="$7"
+  local wrk_threads="$8"
+  local request_body_bytes="$9"
+  local response_body_bytes="${10}"
+  local output_json="${11}"
 
   local -a cmd=(
     "${BENCH_BIN}"
     --mode "${mode}"
-    --scenario "${SCENARIO}"
+    --scenario "${scenario_name}"
     --pressure-label "${label}"
     --server-io-threads "${io_threads}"
     --server-worker-threads "${worker_threads}"
     --client-concurrency "${client_concurrency}"
     --client-processes "${client_processes}"
     --wrk-threads-per-process "${wrk_threads}"
+    --request-body-bytes "${request_body_bytes}"
+    --response-body-bytes "${response_body_bytes}"
     --warmup-ms "${WARMUP_MS}"
     --duration-ms "${DURATION_MS}"
     --cooldown-ms "${COOLDOWN_MS}"
@@ -570,13 +762,23 @@ run_matrix_file() {
   local total
   total="$(wc -l < "${matrix_file}" | tr -d ' ')"
   local local_index=0
-  while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
+  while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads scenario_name request_body_bytes response_body_bytes; do
     [[ -z "${label}" ]] && continue
+    if [[ -z "${scenario_name:-}" ]]; then
+      scenario_name="${SCENARIO}"
+    fi
+    if [[ -z "${request_body_bytes:-}" ]]; then
+      request_body_bytes="${REQUEST_BODY_BYTES}"
+    fi
+    if [[ -z "${response_body_bytes:-}" ]]; then
+      response_body_bytes="${RESPONSE_BODY_BYTES}"
+    fi
     local_index=$(( local_index + 1 ))
     RUN_CELL_INDEX=$(( RUN_CELL_INDEX + 1 ))
     printf '[%s %s/%s] %s\n' "${prefix}" "${local_index}" "${total}" "${label}"
-    run_cell "${mode}" "${label}" "${io_threads}" "${worker_threads}" \
+    run_cell "${mode}" "${scenario_name}" "${label}" "${io_threads}" "${worker_threads}" \
       "${client_concurrency}" "${client_processes}" "${wrk_threads}" \
+      "${request_body_bytes}" "${response_body_bytes}" \
       "${TMP_DIR}/cells/cell-${RUN_CELL_INDEX}.json"
   done < "${matrix_file}"
 }
@@ -616,12 +818,12 @@ package_results() {
   "${package_cmd[@]}"
 
   ensure_plot_python
-  mapfile -t generated_plots < <(
-    "${PLOT_PYTHON}" "${ROOT_DIR}/scripts/benchmark_plot.py" \
-      --json "${OUTPUT_DIR}/${PREFIX}.json" \
-      --output-dir "${OUTPUT_DIR}" \
-      --prefix "${PREFIX}"
-  )
+  local plots_manifest="${TMP_DIR}/generated-plots.txt"
+  "${PLOT_PYTHON}" "${ROOT_DIR}/scripts/benchmark_plot.py" \
+    --json "${OUTPUT_DIR}/${PREFIX}.json" \
+    --output-dir "${OUTPUT_DIR}" \
+    --prefix "${PREFIX}" > "${plots_manifest}"
+  mapfile -t generated_plots < "${plots_manifest}"
   copy_package_artifacts
   printf 'Generated plots:\n'
   printf '  %s\n' "${generated_plots[@]}"
@@ -636,6 +838,112 @@ prepare_command() {
   printf 'wrk binary: %s\n' "${WRK_BIN}"
   printf 'plot python: %s\n' "${PLOT_PYTHON}"
   printf 'output dir: %s\n' "${OUTPUT_DIR}"
+}
+
+probe_command() {
+  local scenario_name
+  scenario_name="$(probe_scenario_name)"
+  local mode="${SCRIPT_RUN_MODE}"
+  local client_concurrency="${CLIENT_ONLY_CONCURRENCY:-1}"
+  local client_processes="${CLIENT_ONLY_PROCESSES:-1}"
+  local wrk_threads="${CLIENT_ONLY_WRK_THREADS:-1}"
+  local io_threads="${SERVER_IO_THREADS:-$(max1 $(( CPU_COUNT / 2 )))}"
+  local worker_threads="${SERVER_WORKER_THREADS:-${CPU_COUNT}}"
+
+  if [[ "${mode}" == "client" && -z "${SERVER_URL}" ]]; then
+    echo "probe --mode client requires --server-url" >&2
+    exit 1
+  fi
+
+  mkdir -p "${OUTPUT_DIR}"
+  build_benchmark
+  resolve_wrk_bin
+  local env_path="${OUTPUT_DIR}/${PREFIX}-env.json"
+  collect_env_json client "${env_path}"
+
+  local label="${scenario_name}-io${io_threads}-worker${worker_threads}-conc${client_concurrency}-proc${client_processes}-wrk${wrk_threads}-req${REQUEST_BODY_BYTES}-resp${RESPONSE_BODY_BYTES}"
+  local output_json="${OUTPUT_DIR}/${PREFIX}.json"
+  if [[ -e "${output_json}" ]]; then
+    echo "Refusing to overwrite existing probe artifact: ${output_json}" >&2
+    exit 1
+  fi
+
+  run_cell "${mode}" "${scenario_name}" "${label}" "${io_threads}" "${worker_threads}" \
+    "${client_concurrency}" "${client_processes}" "${wrk_threads}" \
+    "${REQUEST_BODY_BYTES}" "${RESPONSE_BODY_BYTES}" "${output_json}"
+  printf 'Probe artifact: %s\n' "${output_json}"
+}
+
+emit_body_matrix() {
+  local matrix_file="$1"
+  if [[ -z "${SOURCE_JSON}" ]]; then
+    echo "body-run requires --source-json pointing to a consolidated benchmark JSON" >&2
+    exit 1
+  fi
+  local -a cmd=(
+    python3 "${ROOT_DIR}/scripts/benchmark_body_matrix.py"
+    --json "${SOURCE_JSON}"
+    --output-tsv "${matrix_file}"
+    --phase "${BODY_PHASE}"
+    --neighbor-count "${NEIGHBOR_COUNT}"
+    --concurrency-values "${BODY_CONCURRENCY_VALUES}"
+    --body-start-bytes "${BODY_SIZE_START}"
+    --body-stop-bytes "${BODY_SIZE_STOP}"
+    --body-step-bytes "${BODY_SIZE_STEP}"
+    --body-refine-step-bytes "${BODY_REFINE_STEP}"
+    --body-max-bytes "${BODY_MAX_BYTES}"
+    --body-stop-best-stable-concurrency "${BODY_STOP_BEST_STABLE_CONCURRENCY}"
+  )
+  if [[ -n "${BODY_REQUEST_SIZES}" ]]; then
+    cmd+=(--request-sizes "${BODY_REQUEST_SIZES}")
+  fi
+  if [[ -n "${BODY_RESPONSE_SIZES}" ]]; then
+    cmd+=(--response-sizes "${BODY_RESPONSE_SIZES}")
+  fi
+  "${cmd[@]}"
+}
+
+body_run_command() {
+  local mode="${SCRIPT_RUN_MODE}"
+  if [[ "${mode}" == "client" && -z "${SERVER_URL}" ]]; then
+    echo "body-run --mode client requires --server-url" >&2
+    exit 1
+  fi
+
+  prepare_outputs
+  build_benchmark
+  resolve_wrk_bin
+  collect_env_json client "${TMP_DIR}/client-env.json"
+  if [[ -n "${SERVER_ENV_JSON}" ]]; then
+    cp "${SERVER_ENV_JSON}" "${TMP_DIR}/server-env.json"
+    SERVER_ENV_JSON="${TMP_DIR}/server-env.json"
+  fi
+
+  local matrix_file="${TMP_DIR}/matrix.tsv"
+  : > "${matrix_file}"
+  emit_body_matrix "${matrix_file}"
+
+  local matrix_total
+  matrix_total="$(wc -l < "${matrix_file}" | tr -d ' ')"
+  if (( matrix_total == 0 )); then
+    echo "body-run matrix is empty" >&2
+    exit 1
+  fi
+
+  local scenario_label="body-${BODY_PHASE}"
+  local previous_scenario="${SCENARIO}"
+  local topology="single-host"
+  if [[ "${mode}" == "client" ]]; then
+    topology="dual-host-manual"
+  fi
+  SCENARIO="${scenario_label}"
+  RUN_CELL_INDEX=0
+  printf 'Running body sweep phase %s with %s cells derived from %s\n' \
+    "${BODY_PHASE}" "${matrix_total}" "${SOURCE_JSON}"
+  run_matrix_file "${mode}" "${matrix_file}" body
+  package_results "${mode}" "${topology}" \
+    "bash scripts/benchmark.sh body-run --source-json ${SOURCE_JSON} --body-phase ${BODY_PHASE} --output-dir ${OUTPUT_DIR}"
+  SCENARIO="${previous_scenario}"
 }
 
 run_local_command() {
@@ -659,13 +967,31 @@ run_local_command() {
   run_matrix_file local "${matrix_file}" coarse
   build_interim_json local "single-host" \
     "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
+  if (( COARSE_ONLY == 1 )); then
+    SERVER_ENV_JSON=""
+    package_results local "single-host" \
+      "bash scripts/benchmark.sh run --scenario ${SCENARIO} --sweep-depth ${SWEEP_DEPTH} --coarse-only --output-dir ${OUTPUT_DIR}"
+    return
+  fi
   emit_refined_matrix
 
   local refine_total
   refine_total="$(wc -l < "${TMP_DIR}/refine-only.tsv" | tr -d ' ')"
   if (( refine_total > 0 )); then
     printf 'Running fine sweep with %s additional pressure cells near peak regions\n' "${refine_total}"
+    local coarse_warmup_ms="${WARMUP_MS}"
+    local coarse_duration_ms="${DURATION_MS}"
+    local coarse_cooldown_ms="${COOLDOWN_MS}"
+    local coarse_repetitions="${REPETITIONS}"
+    WARMUP_MS="${FINE_WARMUP_MS}"
+    DURATION_MS="${FINE_DURATION_MS}"
+    COOLDOWN_MS="${FINE_COOLDOWN_MS}"
+    REPETITIONS="${FINE_REPETITIONS}"
     run_matrix_file local "${TMP_DIR}/refine-only.tsv" fine
+    WARMUP_MS="${coarse_warmup_ms}"
+    DURATION_MS="${coarse_duration_ms}"
+    COOLDOWN_MS="${coarse_cooldown_ms}"
+    REPETITIONS="${coarse_repetitions}"
   fi
 
   SERVER_ENV_JSON=""
@@ -690,6 +1016,8 @@ server_command() {
     --pressure-label "server-mode" \
     --server-io-threads "${SERVER_IO_THREADS}" \
     --server-worker-threads "${SERVER_WORKER_THREADS}" \
+    --request-body-bytes "${REQUEST_BODY_BYTES}" \
+    --response-body-bytes "${RESPONSE_BODY_BYTES}" \
     --client-concurrency 1
 }
 
@@ -724,13 +1052,30 @@ client_command() {
   run_matrix_file client "${matrix_file}" coarse
   build_interim_json client "dual-host-manual" \
     "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH} --output-dir ${OUTPUT_DIR}"
+  if (( COARSE_ONLY == 1 )); then
+    package_results client "dual-host-manual" \
+      "bash scripts/benchmark.sh client --scenario ${SCENARIO} --server-url ${SERVER_URL} --server-io-threads ${SERVER_IO_THREADS} --server-worker-threads ${SERVER_WORKER_THREADS} --sweep-depth ${SWEEP_DEPTH} --coarse-only --output-dir ${OUTPUT_DIR}"
+    return
+  fi
   emit_refined_matrix
 
   local refine_total
   refine_total="$(wc -l < "${TMP_DIR}/refine-only.tsv" | tr -d ' ')"
   if (( refine_total > 0 )); then
     printf 'Running fine client-side sweep with %s additional cells near peak regions\n' "${refine_total}"
+    local coarse_warmup_ms="${WARMUP_MS}"
+    local coarse_duration_ms="${DURATION_MS}"
+    local coarse_cooldown_ms="${COOLDOWN_MS}"
+    local coarse_repetitions="${REPETITIONS}"
+    WARMUP_MS="${FINE_WARMUP_MS}"
+    DURATION_MS="${FINE_DURATION_MS}"
+    COOLDOWN_MS="${FINE_COOLDOWN_MS}"
+    REPETITIONS="${FINE_REPETITIONS}"
     run_matrix_file client "${TMP_DIR}/refine-only.tsv" fine
+    WARMUP_MS="${coarse_warmup_ms}"
+    DURATION_MS="${coarse_duration_ms}"
+    COOLDOWN_MS="${coarse_cooldown_ms}"
+    REPETITIONS="${coarse_repetitions}"
   fi
 
   package_results client "dual-host-manual" \
@@ -825,12 +1170,22 @@ ssh_run_command() {
       local index=0
       local subgroup_total
       subgroup_total="$(wc -l < "${subgroup_file}" | tr -d ' ')"
-      while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads; do
+      while IFS=$'\t' read -r label io_threads worker_threads client_concurrency client_processes wrk_threads scenario_name request_body_bytes response_body_bytes; do
         [[ -z "${label}" ]] && continue
         index=$(( index + 1 ))
+        if [[ -z "${scenario_name:-}" ]]; then
+          scenario_name="${SCENARIO}"
+        fi
+        if [[ -z "${request_body_bytes:-}" ]]; then
+          request_body_bytes="${REQUEST_BODY_BYTES}"
+        fi
+        if [[ -z "${response_body_bytes:-}" ]]; then
+          response_body_bytes="${RESPONSE_BODY_BYTES}"
+        fi
         printf '[ssh %s/%s] %s\n' "${index}" "${subgroup_total}" "${label}"
-        run_cell client "${label}" "${io_threads}" "${worker_threads}" \
+        run_cell client "${scenario_name}" "${label}" "${io_threads}" "${worker_threads}" \
           "${client_concurrency}" "${client_processes}" "${wrk_threads}" \
+          "${request_body_bytes}" "${response_body_bytes}" \
           "${TMP_DIR}/cells/cell-${io_threads}-${worker_threads}-${index}.json"
       done < "${subgroup_file}"
       ssh "${ssh_extra[@]}" "${SSH_TARGET}" "kill '${remote_pid}' >/dev/null 2>&1 || true"
@@ -857,6 +1212,12 @@ case "${COMMAND}" in
     ;;
   ssh-run)
     ssh_run_command
+    ;;
+  probe)
+    probe_command
+    ;;
+  body-run)
+    body_run_command
     ;;
   *)
     echo "Unknown command: ${COMMAND}" >&2

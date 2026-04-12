@@ -122,28 +122,34 @@ extern "C" void HandleServerSignal(int) { g_server_stop_requested.store(true); }
 
 bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
-    const bsrvcore::benchmark::PressureSettings& pressure) {
+    const bsrvcore::benchmark::PressureSettings& pressure,
+    const bsrvcore::benchmark::RunSettings& run_settings) {
   bsrvcore::HttpServerExecutorOptions options;
   options.core_thread_num = pressure.server_worker_threads;
   options.max_thread_num = pressure.server_worker_threads;
 
+  const std::size_t required_max_body_size =
+      scenario.resolve_required_max_body_size
+          ? scenario.resolve_required_max_body_size(run_settings)
+          : scenario.required_max_body_size;
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
   server->SetHeaderReadExpiry(5000)
       ->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
       ->SetKeepAliveTimeout(5000)
-      ->SetDefaultMaxBodySize(
-          std::max<std::size_t>(scenario.required_max_body_size, 256 * 1024));
-  scenario.configure_server(*server);
+      ->SetDefaultMaxBodySize(std::max<std::size_t>(required_max_body_size,
+                                                    256 * 1024));
+  scenario.configure_server(*server, run_settings);
   return server;
 }
 
 StartedServer StartServerWithRetry(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
-    const bsrvcore::benchmark::PressureSettings& pressure) {
+    const bsrvcore::benchmark::PressureSettings& pressure,
+    const bsrvcore::benchmark::RunSettings& run_settings) {
   std::string last_error = "unknown";
   for (std::size_t attempt = 0; attempt < kServerStartRetries; ++attempt) {
-    auto server = BuildServer(scenario, pressure);
+    auto server = BuildServer(scenario, pressure, run_settings);
     try {
       const auto port = FindFreePort();
       server->AddListen({asio::ip::make_address("127.0.0.1"), port},
@@ -174,8 +180,9 @@ StartedServer StartServerWithRetry(
 StartedServer StartServerAt(
     const bsrvcore::benchmark::ScenarioDefinition& scenario,
     const bsrvcore::benchmark::PressureSettings& pressure,
+    const bsrvcore::benchmark::RunSettings& run_settings,
     std::string_view listen_host, unsigned short port) {
-  auto server = BuildServer(scenario, pressure);
+  auto server = BuildServer(scenario, pressure, run_settings);
   server->AddListen({asio::ip::make_address(std::string(listen_host)), port},
                     pressure.server_io_threads);
   if (!server->Start()) {
@@ -706,13 +713,13 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
   if (use_remote_server) {
     server_url = run_settings.server_url;
   } else {
-    started_server = StartServerWithRetry(scenario, pressure);
+    started_server = StartServerWithRetry(scenario, pressure, run_settings);
     server_url = BuildServerUrl("127.0.0.1", started_server.port);
     Trace(std::string("server started ") + scenario.name + "/" + pressure.name);
   }
 
   WorkerState request_state;
-  const auto request = scenario.make_request(request_state);
+  const auto request = scenario.make_request(request_state, run_settings);
   const auto wrk_script = WriteWrkScript(request);
   const auto cleanup_script = [&]() {
     std::error_code ec;
@@ -760,13 +767,13 @@ RepetitionMetrics RunCellRepetition(const ScenarioDefinition& scenario,
 
 int RunServer(const ScenarioDefinition& scenario,
               const PressureSettings& pressure, std::string_view listen_host,
-              unsigned short listen_port) {
+              unsigned short listen_port, const RunSettings& run_settings) {
   if (listen_port == 0) {
     throw std::invalid_argument("server mode requires a non-zero listen port");
   }
 
   auto started_server =
-      StartServerAt(scenario, pressure, listen_host, listen_port);
+      StartServerAt(scenario, pressure, run_settings, listen_host, listen_port);
 
   g_server_stop_requested.store(false);
   const auto previous_sigint = std::signal(SIGINT, HandleServerSignal);
@@ -805,6 +812,9 @@ std::vector<CellResult> RunBenchmarks(
 
     for (const ScenarioDefinition* scenario : ordered) {
       for (const auto& pressure : run_settings.pressures) {
+        const auto shape = scenario->describe_shape
+                               ? scenario->describe_shape(run_settings)
+                               : ScenarioShape{};
         std::cout << "Running " << scenario->name << " under " << pressure.name
                   << " (rep " << (repetition + 1) << "/"
                   << run_settings.repetitions
@@ -827,9 +837,12 @@ std::vector<CellResult> RunBenchmarks(
         auto [it, inserted] =
             cells_by_key.emplace(key, CellResult{scenario->name,
                                                  pressure.name,
+                                                 shape.http_method,
                                                  pressure.server_io_threads,
                                                  pressure.server_worker_threads,
                                                  pressure.client_concurrency,
+                                                 shape.request_body_bytes,
+                                                 shape.response_body_bytes,
                                                  run_settings.warmup_ms,
                                                  run_settings.duration_ms,
                                                  run_settings.repetitions,
