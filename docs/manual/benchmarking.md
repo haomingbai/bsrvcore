@@ -10,6 +10,8 @@ The benchmark stack is split into three layers:
 - `scripts/benchmark_plot.py`: reads consolidated JSON and generates images only
 - `scripts/benchmark.sh`: orchestrates build, sweep, env detection, packaging,
   and single-host or dual-host execution
+- `scripts/benchmark_body_matrix.py`: derives body-sweep matrices from a prior
+  consolidated benchmark JSON
 
 The script-generated package is intentionally concise. It records the facts,
 tables, and plots for a run. The final performance analysis report should be
@@ -39,7 +41,7 @@ Common overrides:
 ```bash
 bash scripts/benchmark.sh run \
   --build-dir build-release \
-  --scenario http_get_static \
+  --scenario mainline \
   --sweep-depth quick
 ```
 
@@ -53,6 +55,57 @@ bash scripts/benchmark.sh run \
 - generates charts
 - writes a concise package summary under a gitignored run directory,
   defaulting to `.artifacts/benchmark-results/<UTC timestamp>/package/`
+
+`mainline` is a selector intended for the coarse/fine winner search. It
+currently resolves to `http_get_static` and excludes the parameterized body
+matrix scenarios.
+
+## Direct Probe Workflow
+
+Use `probe` when you want one explicit point instead of a sweep:
+
+```bash
+bash scripts/benchmark.sh probe \
+  --build-dir build-release \
+  --scenario body-matrix \
+  --http-method post \
+  --server-io-threads 20 \
+  --server-worker-threads 4 \
+  --client-concurrency 32 \
+  --client-processes 2 \
+  --wrk-threads-per-process 2 \
+  --request-body-bytes 32768 \
+  --response-body-bytes 0
+```
+
+`probe` is useful for initial body-size exploration before you decide the
+coarse sweep step size.
+
+## Body Sweep Workflow
+
+Body sweeps are intentionally separate from the main winner search:
+
+```bash
+bash scripts/benchmark.sh body-run \
+  --build-dir build-release \
+  --source-json .artifacts/benchmark-results/<mainline run>/benchmark-report.json \
+  --body-phase get-response \
+  --neighbor-count 5 \
+  --body-size-start 0 \
+  --body-size-stop 131072 \
+  --body-size-step 8192
+```
+
+Supported body phases:
+
+- `get-response`: GET with parameterized response size
+- `post-request`: POST with parameterized request size and zero-byte response
+- `post-matrix`: POST with parameterized request and response sizes
+
+`body-run` derives the winner neighborhood thread groups from the supplied
+consolidated JSON and uses the winner's load-generator shape as the reference,
+while automatically shrinking `client_processes` / `wrk_threads_per_process`
+for low-concurrency points when needed.
 
 ## Dual-Host Workflow
 
@@ -114,6 +167,11 @@ Current sweep dimensions:
 - `client_processes`
 - `wrk_threads_per_process`
 
+Parameterized body sweeps add:
+
+- `request_body_bytes`
+- `response_body_bytes`
+
 Depth presets:
 
 - `quick`
@@ -139,9 +197,13 @@ The per-run output directory contains:
 - `benchmark-report.json`
 - `benchmark-report.md`
 - `benchmark-report-capacity-overview.png`
+- `benchmark-report-per-connection-throughput.png`
 - `benchmark-report-peak-neighborhood.png`
 - `benchmark-report-thread-sensitivity.png`
 - `benchmark-report-loadgen-sensitivity.png`
+
+Single-point probes write only their JSON and environment snapshot. They do not
+create the full package/report set.
 
 The concise package is written under:
 

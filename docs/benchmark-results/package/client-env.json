@@ -1,66 +1,10 @@
 {
-  "hostname": "haomingbai-PC",
+  "client_cpu_model": "13th Gen Intel(R) Core(TM) i9-13900H",
   "logical_cpu_count": 20,
-  "os_release": {
-    "ANSI_COLOR": "0;38;2;60;110;180",
-    "BUG_REPORT_URL": "https://bugzilla.redhat.com/",
-    "CPE_NAME": "cpe:/o:fedoraproject:fedora:43",
-    "DEFAULT_HOSTNAME": "fedora",
-    "DOCUMENTATION_URL": "https://docs.fedoraproject.org/en-US/fedora/f43/",
-    "HOME_URL": "https://fedoraproject.org/",
-    "ID": "fedora",
-    "LOGO": "fedora-logo-icon",
-    "NAME": "Fedora Linux",
-    "PRETTY_NAME": "Fedora Linux 43 (Workstation Edition)",
-    "REDHAT_BUGZILLA_PRODUCT": "Fedora",
-    "REDHAT_BUGZILLA_PRODUCT_VERSION": "43",
-    "REDHAT_SUPPORT_PRODUCT": "Fedora",
-    "REDHAT_SUPPORT_PRODUCT_VERSION": "43",
-    "RELEASE_TYPE": "stable",
-    "SUPPORT_END": "2026-12-02",
-    "SUPPORT_URL": "https://ask.fedoraproject.org/",
-    "VARIANT": "Workstation Edition",
-    "VARIANT_ID": "workstation",
-    "VERSION": "43 (Workstation Edition)",
-    "VERSION_CODENAME": "",
-    "VERSION_ID": "43"
-  },
-  "primary_ips": [
-    "192.168.50.46",
-    "192.168.122.1",
-    "240c:c283:4001:ba07:9240:a922:d3d9:238c"
-  ],
-  "role": "client",
-  "snapshots": {
-    "free_h": "total        used        free      shared  buff/cache   available\nMem:            31Gi        14Gi       5.7Gi       2.0Gi        13Gi        16Gi\nSwap:           46Gi       8.5Gi        38Gi",
-    "hostnamectl": "Static hostname: haomingbai-PC\n           Icon name: computer-laptop\n             Chassis: laptop \ud83d\udcbb\n   Chassis Asset Tag: NO Asset Tag\n          Machine ID: c5a99bedbd4347ad8e447a0206035e96\n             Boot ID: 6502a046a3e54c87b033a43b92b27b7f\n    Operating System: Fedora Linux 43 (Workstation Edition)\n         CPE OS Name: cpe:/o:fedoraproject:fedora:43\n      OS Support End: Wed 2026-12-02\nOS Support Remaining: 7month 3w 5d\n              Kernel: Linux 6.19.8-200.fc43.x86_64\n        Architecture: x86-64\n     Hardware Vendor: Lenovo\n      Hardware Model: ThinkBook 16p G4 IRH\n        Hardware SKU: LENOVO_MT_21J8_BU_idea_FM_ThinkBook 16p G4 IRH\n    Firmware Version: LRCN45WW\n       Firmware Date: Wed 2024-04-17\n        Firmware Age: 1y 11month 2w 5d",
-    "ip_addr": "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000\n    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n    inet 127.0.0.1/8 scope host lo\n       valid_lft forever preferred_lft forever\n    inet6 ::1/128 scope host noprefixroute \n       valid_lft forever preferred_lft forever\n3: wlan0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000\n    link/ether e4:60:17:91:7a:c6 brd ff:ff:ff:ff:ff:ff\n    altname wlp0s20f3\n    altname wlxe46017917ac6\n    inet 192.168.50.46/24 brd 192.168.50.255 scope global dynamic noprefixroute wlan0\n       valid_lft 74780sec preferred_lft 74780sec\n    inet6 240c:c283:4001:ba07:9240:a922:d3d9:238c/64 scope global dynamic noprefixroute \n       valid_lft 596sec preferred_lft 596sec\n    inet6 fe80::28ea:d079:2844:5c39/64 scope link noprefixroute \n       valid_lft forever preferred_lft forever\n4: virbr0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default qlen 1000\n    link/ether 52:54:00:cf:6a:49 brd ff:ff:ff:ff:ff:ff\n    inet 192.168.122.1/24 brd 192.168.122.255 scope global virbr0\n       valid_lft forever preferred_lft forever",
-    "lscpu": "Architecture:                            x86_64\nCPU op-mode(s):                          32-bit, 64-bit\nAddress sizes:                           46 bits physical, 48 bits virtual\nByte Order:                              Little Endian\nCPU(s):                                  20\nOn-line CPU(s) list:                     0-19\nVendor ID:                               GenuineIntel\nModel name:                              13th Gen Intel(R) Core(TM) i9-13900H\nCPU family:                              6\nModel:                                   186\nThread(s) per core:                      2\nCore(s) per socket:                      14\nSocket(s):                               1\nStepping:                                2\nCPU(s) scaling MHz:                      33%\nCPU max MHz:                             5400.0000\nCPU min MHz:                             400.0000\nBogoMIPS:                                5990.40\nFlags:                                   fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf tsc_known_freq pni pclmulqdq dtes64 monitor ds_cpl vmx smx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb ssbd ibrs ibpb stibp ibrs_enhanced tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid rdseed adx smap clflushopt clwb intel_pt sha_ni xsaveopt xsavec xgetbv1 xsaves split_lock_detect user_shstk avx_vnni dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp hwp_pkg_req hfi vnmi umip pku ospke waitpkg gfni vaes vpclmulqdq rdpid movdiri movdir64b fsrm md_clear serialize pconfig arch_lbr ibt flush_l1d arch_capabilities\nVirtualization:                          VT-x\nL1d cache:                               544 KiB (14 instances)\nL1i cache:                               704 KiB (14 instances)\nL2 cache:                                11.5 MiB (8 instances)\nL3 cache:                                24 MiB (1 instance)\nNUMA node(s):                            1\nNUMA node0 CPU(s):                       0-19\nVulnerability Gather data sampling:      Not affected\nVulnerability Ghostwrite:                Not affected\nVulnerability Indirect target selection: Not affected\nVulnerability Itlb multihit:             Not affected\nVulnerability L1tf:                      Not affected\nVulnerability Mds:                       Not affected\nVulnerability Meltdown:                  Not affected\nVulnerability Mmio stale data:           Not affected\nVulnerability Old microcode:             Not affected\nVulnerability Reg file data sampling:    Mitigation; Clear Register File\nVulnerability Retbleed:                  Not affected\nVulnerability Spec rstack overflow:      Not affected\nVulnerability Spec store bypass:         Mitigation; Speculative Store Bypass disabled via prctl\nVulnerability Spectre v1:                Mitigation; usercopy/swapgs barriers and __user pointer sanitization\nVulnerability Spectre v2:                Mitigation; Enhanced / Automatic IBRS; IBPB conditional; PBRSB-eIBRS SW sequence; BHI BHI_DIS_S\nVulnerability Srbds:                     Not affected\nVulnerability Tsa:                       Not affected\nVulnerability Tsx async abort:           Not affected\nVulnerability Vmscape:                   Mitigation; IBPB before exit to userspace",
-    "nproc": "20",
-    "proc_meminfo": "MemTotal:       32564912 kB\nMemFree:         6022088 kB\nMemAvailable:   17070248 kB\nBuffers:            1836 kB\nCached:          9932228 kB\nSwapCached:        36412 kB\nActive:          6716440 kB\nInactive:        7319432 kB\nActive(anon):    4672248 kB\nInactive(anon):  1422972 kB\nActive(file):    2044192 kB\nInactive(file):  5896460 kB\nUnevictable:     1480492 kB\nMlocked:            6128 kB\nSwapTotal:      48846332 kB\nSwapFree:       39905920 kB\nZswap:                 0 kB\nZswapped:              0 kB\nDirty:             54532 kB\nWriteback:             0 kB\nAnonPages:       5580256 kB\nMapped:          1909040 kB\nShmem:           2061728 kB\nKReclaimable:    4016624 kB\nSlab:            5527224 kB\nSReclaimable:    4016624 kB\nSUnreclaim:      1510600 kB\nKernelStack:       43904 kB\nPageTables:       144088 kB\nSecPageTables:      2084 kB\nNFS_Unstable:          0 kB\nBounce:                0 kB\nWritebackTmp:          0 kB\nCommitLimit:    65128788 kB\nCommitted_AS:   77776328 kB\nVmallocTotal:   34359738367 kB\nVmallocUsed:     1098908 kB\nVmallocChunk:          0 kB\nPercpu:            31680 kB\nHardwareCorrupted:     0 kB\nAnonHugePages:         0 kB\nShmemHugePages:    10240 kB\nShmemPmdMapped:        0 kB\nFileHugePages:      2048 kB\nFilePmdMapped:         0 kB\nCmaTotal:              0 kB\nCmaFree:               0 kB\nUnaccepted:            0 kB\nBalloon:               0 kB\nHugePages_Total:       0\nHugePages_Free:        0\nHugePages_Rsvd:        0\nHugePages_Surp:        0\nHugepagesize:       2048 kB\nHugetlb:               0 kB\nDirectMap4k:    31541504 kB\nDirectMap2M:     1730560 kB\nDirectMap1G:           0 kB"
-  },
-  "timestamp_utc": "2026-04-06T08:11:40Z",
-  "tools": {
-    "cmake": {
-      "path": "/usr/bin/cmake",
-      "version": "cmake version 3.31.11"
-    },
-    "cxx": {
-      "path": "/usr/lib64/ccache/c++",
-      "version": "c++ (GCC) 15.2.1 20260123 (Red Hat 15.2.1-7)"
-    },
-    "gxx": {
-      "path": "/usr/lib64/ccache/g++",
-      "version": "g++ (GCC) 15.2.1 20260123 (Red Hat 15.2.1-7)"
-    },
-    "python3": {
-      "path": "/usr/bin/python3",
-      "version": "Python 3.14.3"
-    },
-    "wrk": {
-      "path": "",
-      "version": ""
-    }
-  },
-  "uname": "Linux haomingbai-PC 6.19.8-200.fc43.x86_64 #1 SMP PREEMPT_DYNAMIC Fri Mar 13 22:06:06 UTC 2026 x86_64 GNU/Linux"
+  "client_os": "Fedora Linux 43 (Workstation Edition)",
+  "client_kernel": "6.19.11-200.fc43.x86_64",
+  "compiler": "GNU 15.2.1",
+  "build_type": "Release",
+  "python3": "Python 3.14.3",
+  "note": "Sanitized summary for the published report. Hostname, IP addresses, and raw uname output are intentionally omitted."
 }
