@@ -29,6 +29,10 @@ add_subdirectory(logging)
 add_subdirectory(client-tasks)
 add_subdirectory(websocket-tasks)
 
+if(TARGET bsrvcore_c)
+  add_subdirectory(c-binding)
+endif()
+
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/bsrvrun/plugins")
   add_subdirectory(bsrvrun/plugins)
 endif()

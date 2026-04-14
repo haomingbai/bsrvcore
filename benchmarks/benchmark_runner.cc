@@ -137,8 +137,8 @@ bsrvcore::OwnedPtr<bsrvcore::HttpServer> BuildServer(
       ->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
       ->SetKeepAliveTimeout(5000)
-      ->SetDefaultMaxBodySize(std::max<std::size_t>(required_max_body_size,
-                                                    256 * 1024));
+      ->SetDefaultMaxBodySize(
+          std::max<std::size_t>(required_max_body_size, 256 * 1024));
   scenario.configure_server(*server, run_settings);
   return server;
 }

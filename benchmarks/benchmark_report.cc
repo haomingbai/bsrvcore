@@ -127,8 +127,7 @@ void PrintCellSummary(const CellResult& cell) {
   std::cout << "[" << cell.scenario_name << "/" << cell.pressure_name << "] "
             << "http_method=" << cell.http_method
             << " request_body_bytes=" << cell.request_body_bytes
-            << " response_body_bytes=" << cell.response_body_bytes
-            << " "
+            << " response_body_bytes=" << cell.response_body_bytes << " "
             << "server_io_threads=" << cell.server_io_threads
             << " server_worker_threads=" << cell.server_worker_threads
             << " client_concurrency=" << cell.client_concurrency

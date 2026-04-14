@@ -201,6 +201,10 @@ if(NOT WIN32)
   set_target_properties(bsrvcore PROPERTIES POSITION_INDEPENDENT_CODE ON)
 endif()
 
+if(BSRVCORE_BUILD_C_BINDINGS)
+  add_subdirectory(c_binding)
+endif()
+
 # ------------------------------------------------------------------
 # Component-aware install rules
 # - "runtime" component: shared libraries and runtime executables
@@ -224,9 +228,10 @@ install(TARGETS bsrvcore
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# Install public headers into devel component. Internal headers are kept under
-# src/include and are intentionally not installed.
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+# Install public C++ headers into the core devel component. C binding headers
+# are installed by src/c_binding into their own c_devel component.
+install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/bsrvcore/
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/bsrvcore
   COMPONENT devel
   FILES_MATCHING PATTERN "*.h*"
 )

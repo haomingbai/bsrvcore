@@ -1,0 +1,15 @@
+bsrvcore_add_test(unit_c_binding_http_server_test unit_c_binding_http_server_test.cc general)
+target_link_libraries(unit_c_binding_http_server_test PRIVATE bsrvcore_c)
+
+add_executable(unit_c_binding_header_smoke unit_c_binding_header_smoke.c)
+set_target_properties(unit_c_binding_header_smoke PROPERTIES
+  C_STANDARD 11
+  LINKER_LANGUAGE CXX
+)
+target_link_libraries(unit_c_binding_header_smoke PRIVATE bsrvcore_c)
+target_include_directories(unit_c_binding_header_smoke
+  PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME unit_c_binding_header_smoke COMMAND unit_c_binding_header_smoke)
+set_tests_properties(unit_c_binding_header_smoke PROPERTIES LABELS general)

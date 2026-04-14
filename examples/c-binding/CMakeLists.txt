@@ -1,0 +1,6 @@
+add_executable(example_c_binding_quick_start quick_start.c)
+set_target_properties(example_c_binding_quick_start PROPERTIES
+  C_STANDARD 11
+  LINKER_LANGUAGE CXX
+)
+target_link_libraries(example_c_binding_quick_start PRIVATE bsrvcore_c)

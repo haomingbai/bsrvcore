@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 0.14.0 LANGUAGES CXX)
+project(bsrvcore VERSION 0.14.0 LANGUAGES C CXX)
 
 if(POLICY CMP0167)
   # Keep CMP0167 scoped to Apple toolchains only: Homebrew Boost can miss
@@ -59,6 +59,8 @@ include(GNUInstallDirs)
 # Helpers to generate package config files
 include(CMakePackageConfigHelpers)
 
+option(BSRVCORE_BUILD_C_BINDINGS "Build bsrvcore C bindings. Default: ON" ON)
+
 # Build library from src
 add_subdirectory(src)
 
@@ -81,12 +83,6 @@ if(BSRVCORE_BUILD_BENCHMARKS)
     message(STATUS "BSRVCORE_BUILD_BENCHMARKS is ON but the 'benchmarks' directory does not exist.")
   endif()
 endif()
-
-# Install public headers
-install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-  COMPONENT devel
-)
 
 # Directory to install config files
 set(INSTALL_CONFIGDIR ${CMAKE_INSTALL_LIBDIR}/cmake/bsrvcore)
@@ -160,14 +156,21 @@ set(CPACK_COMPONENTS_GROUPING "ONE_PER_GROUP")
 # Enable component-aware packaging for DEB and RPM
 set(CPACK_DEB_COMPONENT_INSTALL ON)   # DEB: produce multiple .deb (e.g. package and package-dev)
 set(CPACK_RPM_COMPONENT_INSTALL ON)   # RPM: produce multiple .rpm (e.g. package and package-devel)
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)  # TGZ: produce one archive per component
 
 # Which components we define (order is presentation order)
 # Note: install(... COMPONENT ...) should use these names ("runtime", "devel")
 if(BUILD_SHARED_LIBS)
   set(CPACK_COMPONENTS_ALL runtime devel)
+  if(BSRVCORE_BUILD_C_BINDINGS)
+    list(APPEND CPACK_COMPONENTS_ALL c_devel)
+  endif()
 else()
   # Static-only builds don't install runtime shared objects.
   set(CPACK_COMPONENTS_ALL devel)
+  if(BSRVCORE_BUILD_C_BINDINGS)
+    list(APPEND CPACK_COMPONENTS_ALL c_devel)
+  endif()
 endif()
 
 # Human-friendly names & descriptions shown by some installers
@@ -175,6 +178,10 @@ set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Runtime libraries")
 set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Shared libraries required to run ${PROJECT_NAME}.")
 set(CPACK_COMPONENT_DEVEL_DISPLAY_NAME "Development files")
 set(CPACK_COMPONENT_DEVEL_DESCRIPTION "Headers, CMake config and pkg-config files for developing against ${PROJECT_NAME}.")
+if(BSRVCORE_BUILD_C_BINDINGS)
+  set(CPACK_COMPONENT_C_DEVEL_DISPLAY_NAME "C binding development files")
+  set(CPACK_COMPONENT_C_DEVEL_DESCRIPTION "C headers, CMake config and pkg-config files for developing against the bsrvcore C bindings.")
+endif()
 
 # Let dpkg-shlibdeps compute runtime deps automatically for DEB
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
@@ -185,6 +192,9 @@ set(CPACK_DEBIAN_RUNTIME_PACKAGE_SHLIBDEPS ON)
 # Debian naming: we want e.g. bsrvcore_<ver> and bsrvcore-dev_<ver>
 set(CPACK_DEBIAN_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_DEBIAN_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-dev")
+if(BSRVCORE_BUILD_C_BINDINGS)
+  set(CPACK_DEBIAN_C_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-c-dev")
+endif()
 
 # Ensure devel package metadata pulls required development dependencies.
 # - Public headers expose Boost.Asio/Beast and OpenSSL types.
@@ -198,10 +208,22 @@ else()
     "libboost-dev, libboost-system-dev, libboost-url-dev, libboost-json-dev, libssl-dev"
   )
 endif()
+if(BSRVCORE_BUILD_C_BINDINGS)
+  if(BUILD_SHARED_LIBS)
+    set(CPACK_DEBIAN_C_DEVEL_PACKAGE_DEPENDS
+      "${CPACK_DEBIAN_RUNTIME_PACKAGE_NAME} (= ${CPACK_PACKAGE_VERSION})"
+    )
+  else()
+    set(CPACK_DEBIAN_C_DEVEL_PACKAGE_DEPENDS "")
+  endif()
+endif()
 
 # RPM naming: typical rpm convention uses "-devel"
 set(CPACK_RPM_RUNTIME_PACKAGE_NAME "${CPACK_PACKAGE_NAME}")
 set(CPACK_RPM_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-devel")
+if(BSRVCORE_BUILD_C_BINDINGS)
+  set(CPACK_RPM_C_DEVEL_PACKAGE_NAME "${CPACK_PACKAGE_NAME}-c-devel")
+endif()
 
 # Ensure devel RPM declares toolchain-level development dependencies.
 # boost-devel provides the public Boost.Asio/Beast headers and component libs.
@@ -209,6 +231,13 @@ if(BUILD_SHARED_LIBS)
   set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}, boost-devel, openssl-devel")
 else()
   set(CPACK_RPM_DEVEL_PACKAGE_REQUIRES "boost-devel, openssl-devel")
+endif()
+if(BSRVCORE_BUILD_C_BINDINGS)
+  if(BUILD_SHARED_LIBS)
+    set(CPACK_RPM_C_DEVEL_PACKAGE_REQUIRES "${CPACK_RPM_RUNTIME_PACKAGE_NAME} = ${CPACK_PACKAGE_VERSION}")
+  else()
+    set(CPACK_RPM_C_DEVEL_PACKAGE_REQUIRES "")
+  endif()
 endif()
 
 # Refresh linker cache on install/uninstall so newly installed libbsrvcore.so.N
@@ -223,6 +252,9 @@ set(CPACK_RPM_RUNTIME_POST_UNINSTALL_SCRIPT_FILE
 # Optional: short summaries for each RPM package
 set(CPACK_RPM_RUNTIME_PACKAGE_SUMMARY "Runtime libraries for ${PROJECT_NAME}")
 set(CPACK_RPM_DEVEL_PACKAGE_SUMMARY "Development files (headers & cmake config) for ${PROJECT_NAME}")
+if(BSRVCORE_BUILD_C_BINDINGS)
+  set(CPACK_RPM_C_DEVEL_PACKAGE_SUMMARY "Development files for the ${PROJECT_NAME} C bindings")
+endif()
 
 # If you need to set Debian package architecture explicitly:
 # set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")

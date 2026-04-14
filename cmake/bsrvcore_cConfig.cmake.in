@@ -1,0 +1,5 @@
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/bsrvcore_cTargets.cmake")
+
+check_required_components(bsrvcore_c)

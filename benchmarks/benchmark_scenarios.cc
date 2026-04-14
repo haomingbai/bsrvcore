@@ -401,19 +401,19 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.describe_shape = [](const RunSettings& run_settings) {
       return MakeShape("GET", 0, run_settings.response_body_bytes);
     };
-    scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState&, const RunSettings& run_settings,
-                                    std::string& error) {
-      if (response.result() != http::status::ok) {
-        error = "expected 200";
-        return false;
-      }
-      if (response.body().size() != run_settings.response_body_bytes) {
-        error = "response size mismatch";
-        return false;
-      }
-      return true;
-    };
+    scenario.validate_response =
+        [](const BenchmarkHttpResponse& response, WorkerState&,
+           const RunSettings& run_settings, std::string& error) {
+          if (response.result() != http::status::ok) {
+            error = "expected 200";
+            return false;
+          }
+          if (response.body().size() != run_settings.response_body_bytes) {
+            error = "response size mismatch";
+            return false;
+          }
+          return true;
+        };
     return scenario;
   };
 
@@ -423,10 +423,11 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.summary =
         "POST /body with parameterized request and response body sizes";
     scenario.body_matrix_capable = true;
-    scenario.resolve_required_max_body_size = [](const RunSettings& run_settings) {
-      return std::max<std::size_t>(run_settings.request_body_bytes * 2,
-                                   256 * 1024);
-    };
+    scenario.resolve_required_max_body_size =
+        [](const RunSettings& run_settings) {
+          return std::max<std::size_t>(run_settings.request_body_bytes * 2,
+                                       256 * 1024);
+        };
     scenario.configure_server = [](HttpServer& server,
                                    const RunSettings& run_settings) {
       const std::string payload(run_settings.response_body_bytes, 's');
@@ -452,19 +453,19 @@ std::vector<ScenarioDefinition> BuildScenarios() {
       return MakeShape("POST", run_settings.request_body_bytes,
                        run_settings.response_body_bytes);
     };
-    scenario.validate_response = [](const BenchmarkHttpResponse& response,
-                                    WorkerState&, const RunSettings& run_settings,
-                                    std::string& error) {
-      if (response.result() != http::status::ok) {
-        error = "expected 200";
-        return false;
-      }
-      if (response.body().size() != run_settings.response_body_bytes) {
-        error = "response size mismatch";
-        return false;
-      }
-      return true;
-    };
+    scenario.validate_response =
+        [](const BenchmarkHttpResponse& response, WorkerState&,
+           const RunSettings& run_settings, std::string& error) {
+          if (response.result() != http::status::ok) {
+            error = "expected 200";
+            return false;
+          }
+          if (response.body().size() != run_settings.response_body_bytes) {
+            error = "response size mismatch";
+            return false;
+          }
+          return true;
+        };
     return scenario;
   };
 
@@ -501,7 +502,8 @@ std::vector<const ScenarioDefinition*> ResolveSelectedScenarios(
       }
     }
     if (selected.empty()) {
-      throw std::invalid_argument("No mainline benchmark scenarios are defined");
+      throw std::invalid_argument(
+          "No mainline benchmark scenarios are defined");
     }
     return selected;
   }
