@@ -1,5 +1,26 @@
 @PACKAGE_INIT@
 
-include("${CMAKE_CURRENT_LIST_DIR}/bsrvcore_cTargets.cmake")
+set_and_check(BSRVCORE_C_INCLUDE_DIR
+  "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@"
+)
+
+if(@BUILD_SHARED_LIBS@)
+  set_and_check(BSRVCORE_C_LIBRARY
+    "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/@CMAKE_SHARED_LIBRARY_PREFIX@bsrvcore@CMAKE_SHARED_LIBRARY_SUFFIX@"
+  )
+
+  if(NOT TARGET bsrvcore::bsrvcore_c)
+    add_library(bsrvcore::bsrvcore_c SHARED IMPORTED)
+    set_target_properties(bsrvcore::bsrvcore_c PROPERTIES
+      IMPORTED_LOCATION "${BSRVCORE_C_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${BSRVCORE_C_INCLUDE_DIR}"
+    )
+  endif()
+else()
+  message(FATAL_ERROR
+    "The standalone bsrvcore_c package currently supports shared-library "
+    "installs only. Configure bsrvcore with BUILD_SHARED_LIBS=ON."
+  )
+endif()
 
 check_required_components(bsrvcore_c)

@@ -6,5 +6,6 @@ includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
 Name: bsrvcore-c
 Description: C bindings for bsrvcore
 Version: @PROJECT_VERSION@
-Libs: -L${libdir} -lbsrvcore-c
+@BSRVCORE_C_PC_REQUIRES_PRIVATE_LINE@
+Libs: -L${libdir} -lbsrvcore
 Cflags: -I${includedir}
