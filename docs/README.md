@@ -4,6 +4,7 @@ This folder contains project documentation.
 
 - Manual (simple English): see [manual/index.md](manual/index.md)
 - Maintainer design docs: see [design/index.md](design/index.md)
+- C binding packaging design note: see [design/c-bindings-and-packaging.md](design/c-bindings-and-packaging.md)
 - Benchmark manual: see [manual/benchmarking.md](manual/benchmarking.md)
 - Linux I/O model choice: see [manual/linux-io-model-choice.md](manual/linux-io-model-choice.md)
 - Benchmark report: see [benchmark-results/benchmark-report.md](benchmark-results/benchmark-report.md)

@@ -7,5 +7,5 @@ Name: bsrvcore-c
 Description: C bindings for bsrvcore
 Version: @PROJECT_VERSION@
 @BSRVCORE_C_PC_REQUIRES_PRIVATE_LINE@
-Libs: -L${libdir} -lbsrvcore
+Libs: -L${libdir} -lbsrvcore-c
 Cflags: -I${includedir}

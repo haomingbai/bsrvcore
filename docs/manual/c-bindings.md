@@ -40,11 +40,12 @@ sudo cmake --install build
 
 ## Installed files and packages
 
-The runtime stays in the main shared library:
+The runtime installs two shared libraries:
 
 - `libbsrvcore.so`
+- `libbsrvcore-c.so`
 
-There is no separate `libbsrvcore-c.so`.
+`libbsrvcore-c.so` is the standalone C ABI wrapper library.
 
 The C development package installs:
 
@@ -59,8 +60,9 @@ Package split:
 - `c_devel`: C header and C package metadata
 
 The standalone `c_devel` package is designed for **shared-library** installs.
-Static standalone consumption is not supported, because the only static archive
-belongs to the C++ `devel` package.
+Static standalone consumption is not supported, because keeping `c_devel`
+independent from the C++ `devel` package requires the C API to stay on its own
+shared wrapper library.
 
 ## Minimal server
 
@@ -231,8 +233,7 @@ add_executable(app main.c)
 target_link_libraries(app PRIVATE bsrvcore::bsrvcore_c)
 ```
 
-The installed `bsrvcore_c` package points to the main shared library
-`libbsrvcore.so`.
+The installed `bsrvcore_c` package points to `libbsrvcore-c.so`.
 
 ## Consume from pkg-config
 

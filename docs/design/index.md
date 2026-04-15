@@ -9,10 +9,11 @@ changes safely.
 ## Reading Order
 
 1. [Architecture overview](architecture-overview.md)
-2. [Request lifecycle](request-lifecycle.md)
-3. [Threading and executors](threading-and-executors.md)
-4. [Routing and sessions](routing-and-sessions.md)
-5. [WebSocket lifecycle](websocket-lifecycle.md)
+2. [C bindings and packaging](c-bindings-and-packaging.md)
+3. [Request lifecycle](request-lifecycle.md)
+4. [Threading and executors](threading-and-executors.md)
+5. [Routing and sessions](routing-and-sessions.md)
+6. [WebSocket lifecycle](websocket-lifecycle.md)
 
 ## Scope
 

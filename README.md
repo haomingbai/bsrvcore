@@ -90,6 +90,8 @@ add_executable(app main.c)
 target_link_libraries(app PRIVATE bsrvcore::bsrvcore_c)
 ```
 
+The C package links against the standalone wrapper library `libbsrvcore-c.so`.
+
 Direct `pkg-config` use also works:
 
 ```bash
