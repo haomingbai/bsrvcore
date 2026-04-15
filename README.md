@@ -20,7 +20,7 @@ Maintainer / internals notes:
 
 API reference:
 
-- This project relies on Doxygen generated from public headers under `include/bsrvcore/`.
+- This project relies on Doxygen generated from public headers under `include/`.
 
 ## Requirements
 
@@ -74,6 +74,30 @@ Compile a standalone program against installed `bsrvcore`:
 ```bash
 g++ a.cpp -std=c++20 $(pkg-config --cflags --libs bsrvcore)
 ```
+
+For C applications, enable the C bindings and include the standalone header:
+
+```c
+#include <bsrvcore-c/bsrvcore.h>
+```
+
+Recommended CMake consumption:
+
+```cmake
+find_package(bsrvcore_c CONFIG REQUIRED)
+
+add_executable(app main.c)
+target_link_libraries(app PRIVATE bsrvcore::bsrvcore_c)
+```
+
+Direct `pkg-config` use also works:
+
+```bash
+cc main.c $(pkg-config --cflags --libs bsrvcore-c)
+```
+
+See [docs/manual/c-bindings.md](docs/manual/c-bindings.md) for the full C API guide,
+package layout, stateful handlers, aspects, and request/response rules.
 
 If you install shared libraries manually (without `dnf/apt/rpm/dpkg`), refresh the
 dynamic linker cache once:
@@ -130,9 +154,50 @@ int main() {
 }
 ```
 
+## C Binding Quick Start
+
+Source: [examples/c-binding/quick_start.c](examples/c-binding/quick_start.c)
+
+```c
+#include <bsrvcore-c/bsrvcore.h>
+
+#include <stdio.h>
+
+static void hello_handler(bsrvcore_http_server_task_t* task) {
+  bsrvcore_http_server_task_set_response(
+      task, 200, "text/plain; charset=utf-8", "Hello, bsrvcore C binding.\n",
+      sizeof("Hello, bsrvcore C binding.\n") - 1);
+}
+
+int main(void) {
+  bsrvcore_server_t* server = NULL;
+
+  if (bsrvcore_server_create(4, &server) != BSRVCORE_RESULT_OK) {
+    return 1;
+  }
+
+  if (bsrvcore_server_add_route(server, BSRVCORE_HTTP_METHOD_GET, "/hello",
+                                hello_handler) != BSRVCORE_RESULT_OK ||
+      bsrvcore_server_add_listen(server, "0.0.0.0", 8080, 2) !=
+          BSRVCORE_RESULT_OK ||
+      bsrvcore_server_start(server) != BSRVCORE_RESULT_OK) {
+    bsrvcore_server_destroy(server);
+    return 1;
+  }
+
+  puts("Listening on http://0.0.0.0:8080/hello");
+  (void)getchar();
+
+  (void)bsrvcore_server_stop(server);
+  bsrvcore_server_destroy(server);
+  return 0;
+}
+```
+
 ## Next steps (tutorial)
 
 - Start here: [docs/manual/getting-started.md](docs/manual/getting-started.md)
+- Use the C API: [docs/manual/c-bindings.md](docs/manual/c-bindings.md)
 - Learn routing: [docs/manual/routing.md](docs/manual/routing.md)
 - Process multipart and PUT bodies: [docs/manual/request-body-processing.md](docs/manual/request-body-processing.md)
 - Serve SSE streams: [docs/manual/sse-server.md](docs/manual/sse-server.md)
@@ -171,6 +236,7 @@ For full schema and plugin ABI contract, see:
 The `examples/` folder contains runnable programs:
 
 - `examples/getting-started/`
+- `examples/c-binding/`
 - `examples/http-server/`
 - `examples/sse/`
 - `examples/routing/`

@@ -9,6 +9,9 @@ It also provides client-side helper tasks:
 - `HttpClientTask` for HTTP/HTTPS requests
 - `HttpSseClientTask` for Server-Sent Events (SSE)
 
+If you want to use bsrvcore from C instead of C++, read
+[C bindings](c-bindings.md).
+
 ## Requirements
 
 - C++20 compiler

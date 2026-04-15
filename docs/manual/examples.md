@@ -8,6 +8,7 @@ manual learning path.
 | Module | Directory | Binary examples |
 | --- | --- | --- |
 | Getting started | `examples/getting-started/` | `example_quick_start` |
+| C bindings | `examples/c-binding/` | `example_c_binding_quick_start` |
 | HTTP server | `examples/http-server/` | `example_configuration` |
 | SSE server | `examples/sse/` | `example_sse_stream` |
 | Routing | `examples/routing/` | `example_oop_handler` |
@@ -31,6 +32,7 @@ cmake --build build --parallel
 
 ```bash
 ./build/examples/getting-started/example_quick_start
+./build/examples/c-binding/example_c_binding_quick_start
 ./build/examples/http-server/example_configuration
 ./build/examples/example_sse_stream
 ./build/examples/routing/example_oop_handler
