@@ -19,10 +19,10 @@ Run for every request:
 
 ```cpp
 server->AddGlobalAspect(
-  [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
     task->SetField("X-Request-Start", "1");
   },
-  [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
     task->SetField("X-Request-End", "1");
   });
 ```
@@ -40,10 +40,10 @@ Attach before/after helpers to one route:
 server->AddAspect(
   bsrvcore::HttpRequestMethod::kGet,
   "/ping",
-  [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
     task->SetField("X-Route-Aspect", "pre");
   },
-  [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
     task->SetField("X-Route-Aspect", "post");
   });
 ```

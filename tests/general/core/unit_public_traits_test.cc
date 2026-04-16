@@ -58,25 +58,26 @@ class DummyParameterMap final : public bsrvcore::bsrvrun::ParameterMap {
 
 class DummyHandler final : public bsrvcore::HttpRequestHandler {
  public:
-  void Service([[maybe_unused]] std::shared_ptr<bsrvcore::HttpServerTask> task)
-      override {}
+  void Service([[maybe_unused]] const std::shared_ptr<bsrvcore::HttpServerTask>&
+                   task) override {}
 };
 
 class DummyAspect final : public bsrvcore::HttpRequestAspectHandler {
  public:
-  void PreService([[maybe_unused]] std::shared_ptr<bsrvcore::HttpPreServerTask>
-                      task) override {}
+  void PreService(
+      [[maybe_unused]] const std::shared_ptr<bsrvcore::HttpPreServerTask>& task)
+      override {}
 
   void PostService(
-      [[maybe_unused]] std::shared_ptr<bsrvcore::HttpPostServerTask> task)
-      override {}
+      [[maybe_unused]] const std::shared_ptr<bsrvcore::HttpPostServerTask>&
+          task) override {}
 };
 
 class DummyCloneableHandler final
     : public bsrvcore::CloneableHttpRequestHandler {
  public:
-  void Service([[maybe_unused]] std::shared_ptr<bsrvcore::HttpServerTask> task)
-      override {}
+  void Service([[maybe_unused]] const std::shared_ptr<bsrvcore::HttpServerTask>&
+                   task) override {}
 
   [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::CloneableHttpRequestHandler>
   Clone() const override {
@@ -87,12 +88,13 @@ class DummyCloneableHandler final
 class DummyCloneableAspect final
     : public bsrvcore::CloneableHttpRequestAspectHandler {
  public:
-  void PreService([[maybe_unused]] std::shared_ptr<bsrvcore::HttpPreServerTask>
-                      task) override {}
+  void PreService(
+      [[maybe_unused]] const std::shared_ptr<bsrvcore::HttpPreServerTask>& task)
+      override {}
 
   void PostService(
-      [[maybe_unused]] std::shared_ptr<bsrvcore::HttpPostServerTask> task)
-      override {}
+      [[maybe_unused]] const std::shared_ptr<bsrvcore::HttpPostServerTask>&
+          task) override {}
 
   [[nodiscard]] bsrvcore::OwnedPtr<bsrvcore::CloneableHttpRequestAspectHandler>
   Clone() const override {

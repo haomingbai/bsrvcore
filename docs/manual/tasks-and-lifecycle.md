@@ -62,6 +62,85 @@ When manual mode is **off** (default), the normal flow is:
 2. bsrvcore writes the response
 3. Post aspects run
 
+## API Signature Migration (v0.16.0+)
+
+Starting with bsrvcore v0.15.0, handler and aspect virtual functions accept
+`const std::shared_ptr<T>&` (const reference) instead of `std::shared_ptr<T>`
+(by value) for performance optimization.
+
+### Updating Custom Handlers
+
+If you have a custom class inheriting from `HttpRequestHandler`:
+
+**Before (v0.14.x)**:
+
+```cpp
+class MyHandler : public bsrvcore::HttpRequestHandler {
+  void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
+    task->SetBody("response");
+  }
+};
+```
+
+**After (v0.16.0+)**:
+
+```cpp
+class MyHandler : public bsrvcore::HttpRequestHandler {
+  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override {
+    task->SetBody("response");  // Same logic, just change signature
+  }
+};
+```
+
+### Updating Custom Aspects
+
+Similarly for `HttpRequestAspectHandler`:
+
+**Before (v0.14.x)**:
+
+```cpp
+class MyAspect : public bsrvcore::HttpRequestAspectHandler {
+  void PreService(std::shared_ptr<bsrvcore::HttpPreServerTask> task) override { }
+  void PostService(std::shared_ptr<bsrvcore::HttpPostServerTask> task) override { }
+};
+```
+
+**After (v0.16.0+)**:
+
+```cpp
+class MyAspect : public bsrvcore::HttpRequestAspectHandler {
+  void PreService(const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) override { }
+  void PostService(const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) override { }
+};
+```
+
+### Lambda Handlers: No Changes Needed
+
+Lambda handlers in application code **automatically adapt** to the new signature:
+
+```cpp
+// This lambda automatically works with the new const-ref signature
+server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
+  [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+    task->SetBody("pong");
+  });
+```
+
+### When to Capture Explicitly
+
+If your handler needs to retain the request lifetime (e.g., for CPU-bound or
+async work), capture by move:
+
+```cpp
+[task = std::move(task)]() {
+  // Now the shared_ptr is copied into the lambda
+  // Handler lifetime extended until lambda completes
+}
+```
+
+See [Request Lifecycle](../design/request-lifecycle.md#cpu-tasks-and-async-semantics)
+for detailed examples.
+
 ## WebSocket upgrade entry
 
 `HttpTaskBase` provides `IsWebSocketRequest()` to detect HTTP upgrade shape.

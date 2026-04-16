@@ -499,7 +499,8 @@ class HttpPreServerTask
 
   static void RunScheduledPrePhase(
       const std::shared_ptr<HttpPreServerTask>& self);
-  void DoPreService(std::size_t curr_idx);
+  void DoPreService(const std::shared_ptr<HttpPreServerTask>& self,
+                    std::size_t curr_idx);
 };
 
 /**
@@ -595,7 +596,8 @@ class HttpPostServerTask
 
   static void RunScheduledPostPhase(
       const std::shared_ptr<HttpPostServerTask>& self, std::size_t curr_idx);
-  void DoPostService(std::size_t curr_idx);
+  void DoPostService(const std::shared_ptr<HttpPostServerTask>& self,
+                     std::size_t curr_idx);
 };
 
 }  // namespace bsrvcore

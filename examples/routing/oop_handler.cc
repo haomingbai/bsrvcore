@@ -28,7 +28,9 @@
 
 class HelloHandler : public bsrvcore::HttpRequestHandler {
  public:
-  void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
+  // Note: C++ requires const-ref parameter for performance.
+  // This is now the standard for all handler/aspect overrides.
+  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override {
     const auto* name_param = task->GetPathParameter("name");
     std::string const name = name_param == nullptr ? "world" : *name_param;
 

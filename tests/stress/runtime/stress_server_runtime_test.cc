@@ -29,10 +29,11 @@ TEST(StressServerRuntimeTest, CyclicServerStartStop) {
 
   for (std::size_t i = 0; i < cycles; ++i) {
     bsrvcore::HttpServer server(cfg.threads);
-    server.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
-                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                           task->SetBody("pong");
-                         });
+    server.AddRouteEntry(
+        bsrvcore::HttpRequestMethod::kGet, "/ping",
+        [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+          task->SetBody("pong");
+        });
     const auto port = FindFreePort();
     server.AddListen({boost::asio::ip::make_address("127.0.0.1"), port}, 1);
     ASSERT_TRUE(server.Start());
@@ -49,10 +50,11 @@ TEST(StressServerRuntimeTest, MultipleListenersUnderConcurrentLoad) {
   const auto cfg = LoadStressConfig(6, 60, 120000);
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
-  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
-                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                          task->SetBody("pong");
-                        });
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kGet, "/ping",
+      [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+        task->SetBody("pong");
+      });
 
   std::vector<unsigned short> ports;
   for (int i = 0; i < 3; ++i) {

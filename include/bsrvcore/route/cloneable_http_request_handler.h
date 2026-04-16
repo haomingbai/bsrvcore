@@ -44,7 +44,7 @@ class CloneableHttpRequestHandler
  */
 template <typename Fn>
   requires std::copy_constructible<Fn> &&
-               requires(Fn fn, std::shared_ptr<HttpServerTask> task) {
+               requires(Fn fn, const std::shared_ptr<HttpServerTask>& task) {
                  { fn(task) };
                }
 class CloneableFunctionRouteHandler
@@ -61,7 +61,7 @@ class CloneableFunctionRouteHandler
    * @brief Invoke the wrapped handler.
    * @param task HTTP request task.
    */
-  void Service(std::shared_ptr<HttpServerTask> task) override try {
+  void Service(const std::shared_ptr<HttpServerTask>& task) override try {
     fn_(task);
   } catch (const std::exception& e) {
     task->Log(LogLevel::kWarn, e.what());

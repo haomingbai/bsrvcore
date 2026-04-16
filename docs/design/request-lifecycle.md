@@ -54,6 +54,97 @@ Manual mode:
    `DoCycle()`, or `DoClose()`.
 3. Lifecycle finalization skips automatic `DoWriteResponse()`.
 
+## IO Thread Optimizations via const-ref Handler Parameters
+
+Starting with bsrvcore v0.16.0, all handler and aspect virtual functions accept
+`const std::shared_ptr<T>&` instead of `std::shared_ptr<T>` by value. This
+optimization reduces atomic reference-count operations when handlers execute on
+the IO thread:
+
+### Performance Benefit
+
+For a typical synchronous GET request:
+
+- **Old signature**: `void Service(std::shared_ptr<HttpServerTask> task)`
+  - Creates temporary copy on entry: atomic increment
+  - Destroys copy on exit: atomic decrement
+  - Cost: 2 atomic operations per handler invocation
+  
+- **New signature**: `void Service(const std::shared_ptr<HttpServerTask>& task)`
+  - Passes reference to existing shared_ptr: no atomic operations
+  - Cost: 0 atomic operations per handler invocation
+
+On request paths with multiple aspects (e.g., 64-aspect chain), the savings
+multiply: a single 64-aspect middleware setup saves ~128 atomic operations per
+request.
+
+### When const-ref is Safe
+
+The const-ref parameter is **safe and sufficient** in three scenarios:
+
+1. **Synchronous handlers**: Handler returns without retaining the shared_ptr.
+2. **IO-bound handlers**: Handler submits IO work that completes synchronously
+   (e.g., blocking `GetBody()`, `SetField()`).
+3. **Framework-managed async**: Handler enqueues work using framework APIs that
+   internally hold the shared_ptr (e.g., task schedulers, worker pools).
+
+### Explicit Capture for Deferred Handlers
+
+If a handler needs to execute **after** the handler function returns (e.g.,
+deferred callback, CPU-bound task), it **must capture the shared_ptr explicitly**:
+
+```cpp
+server.AddRouteEntry(
+    HttpRequestMethod::kGet, "/async-work",
+    [](const std::shared_ptr<HttpServerTask>& task) {
+      // Capture by move to extend lifetime
+      auto cpu_task = worker_pool->Enqueue(
+          [task = std::move(task)]() {
+            task->SetBody("expensive computation result");
+          });
+    });
+```
+
+Without the explicit capture, the shared_ptr is destroyed at function exit,
+triggering post-phase and response finalization prematurely.
+
+### Aspect Chain Execution
+
+Pre and post aspects receive the same const-ref parameter and follow identical
+rules:
+
+- Post aspects run in **reverse order** as handlers are destroyed.
+- If an aspect needs to defer work (e.g., logging to async storage), it must
+  capture the const-ref explicitly.
+
+## CPU Tasks and Async Semantics
+
+When scheduling work on a CPU-bound thread pool or with system async (e.g.,
+`std::async`), the task holder **must preserve the shared_ptr lifetime**:
+
+```cpp
+// ❌ CPU work loses connection while request/response writes are pending
+auto cpu_task_bad = std::async(std::launch::async,
+    [](const std::shared_ptr<HttpServerTask>& task) {
+      // task reference valid here, but:
+      // - shared_ptr destroyed after function exit
+      // - post-phase runs, finalizes response
+      // - CPU work starts, but connection may already be closed
+      cpu_expensive_computation();
+      task->SetBody("result");  // ❌ May fail; connection closed
+    }, task);
+
+// ✅ CPU work prolongs request lifetime
+auto cpu_task_good = std::async(std::launch::async,
+    [task = std::move(task)]() {  // Capture by move
+      cpu_expensive_computation();
+      task->SetBody("result");  // ✅ Safe; connection held until shared_ptr destroyed
+    });
+```
+
+The difference: moving the shared_ptr into the lambda extends its lifetime until
+the lambda completes, keeping the connection alive for response finalization.
+
 ## Failure Semantics
 
 - If the stream or server is no longer available, delayed callbacks stop

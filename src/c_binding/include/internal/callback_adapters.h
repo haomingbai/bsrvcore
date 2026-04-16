@@ -12,7 +12,7 @@ class RouteHandlerAdapter : public bsrvcore::HttpRequestHandler {
   explicit RouteHandlerAdapter(bsrvcore_http_handler_fn fn);
   RouteHandlerAdapter(bsrvcore_http_handler_ctx_fn fn, void* ctx);
 
-  void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override;
+  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override;
 
  private:
   bsrvcore_http_handler_fn fn_{nullptr};
@@ -27,8 +27,10 @@ class AspectHandlerAdapter : public bsrvcore::HttpRequestAspectHandler {
   AspectHandlerAdapter(bsrvcore_http_pre_aspect_ctx_fn pre_fn,
                        bsrvcore_http_post_aspect_ctx_fn post_fn, void* ctx);
 
-  void PreService(std::shared_ptr<bsrvcore::HttpPreServerTask> task) override;
-  void PostService(std::shared_ptr<bsrvcore::HttpPostServerTask> task) override;
+  void PreService(
+      const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) override;
+  void PostService(
+      const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) override;
 
  private:
   bsrvcore_http_pre_aspect_fn pre_fn_{nullptr};

@@ -22,7 +22,8 @@ class DemoHandler : public bsrvcore::HttpRequestHandler {
  public:
   explicit DemoHandler(std::string body) : body_(std::move(body)) {}
 
-  void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
+  // Service method accepts const-ref to HttpServerTask (v0.16.0+).
+  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override {
     task->AppendBody(body_);
   }
 

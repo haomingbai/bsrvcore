@@ -12,7 +12,7 @@ Register a route by **method + path pattern**.
 
 ```cpp
 server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
-  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
     task->SetBody("pong");
   });
 ```
@@ -28,7 +28,7 @@ Use it for longer CPU-bound work when you still want to keep the normal
 ```cpp
 server->AddComputingRouteEntry(
   bsrvcore::HttpRequestMethod::kGet, "/report",
-  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
     task->SetBody("heavy result");
   });
 ```
@@ -74,7 +74,7 @@ prefix.
 ```cpp
 auto blue_print = bsrvcore::BluePrintFactory::Create();
 blue_print.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
     const auto* id = task->GetPathParameter("id");
     task->SetBody(id == nullptr ? "missing" : *id);
   });
@@ -91,7 +91,7 @@ A fallback handler runs when no route matches.
 This is useful for a simple 404 page, or for API version fallbacks:
 
 ```cpp
-server->SetDefaultHandler([](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+server->SetDefaultHandler([](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
   task->GetResponse().result(bsrvcore::HttpStatus::not_found);
   task->SetBody("Not found\n");
 });

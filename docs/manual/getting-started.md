@@ -59,7 +59,7 @@ int main() {
   server->AddRouteEntry(
             bsrvcore::HttpRequestMethod::kGet,
             "/hello",
-            [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+            [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
               task->GetResponse().result(bsrvcore::HttpStatus::ok);
               task->SetField(bsrvcore::HttpField::content_type,
                              "text/plain; charset=utf-8");

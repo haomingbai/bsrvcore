@@ -23,14 +23,14 @@ ComputingRouteHandler::ComputingRouteHandler(
     OwnedPtr<HttpRequestHandler> handler)
     : handler_(std::move(handler)) {}
 
-void ComputingRouteHandler::Service(std::shared_ptr<HttpServerTask> task) {
+void ComputingRouteHandler::Service(
+    const std::shared_ptr<HttpServerTask>& task) {
   HttpRequestHandler* inner = handler_.get();
   if (inner == nullptr || !task) {
     return;
   }
 
-  auto dispatch_task = task;
-  dispatch_task->Dispatch(
+  task->Dispatch(
       [task = std::move(task), inner]() mutable { inner->Service(task); });
 }
 

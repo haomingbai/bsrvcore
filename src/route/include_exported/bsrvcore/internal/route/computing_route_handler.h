@@ -30,7 +30,7 @@ class ComputingRouteHandler
  public:
   explicit ComputingRouteHandler(OwnedPtr<HttpRequestHandler> handler);
 
-  void Service(std::shared_ptr<HttpServerTask> task) override;
+  void Service(const std::shared_ptr<HttpServerTask>& task) override;
 
   ~ComputingRouteHandler() override = default;
 

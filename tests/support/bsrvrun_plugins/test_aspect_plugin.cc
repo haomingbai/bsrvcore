@@ -16,7 +16,8 @@ class TestAspect : public bsrvcore::HttpRequestAspectHandler {
         post_(std::move(post)),
         append_thread_id_(append_thread_id) {}
 
-  void PreService(std::shared_ptr<bsrvcore::HttpPreServerTask> task) override {
+  void PreService(
+      const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) override {
     task->AppendBody(pre_);
     if (append_thread_id_) {
       std::ostringstream oss;
@@ -26,7 +27,7 @@ class TestAspect : public bsrvcore::HttpRequestAspectHandler {
   }
 
   void PostService(
-      std::shared_ptr<bsrvcore::HttpPostServerTask> task) override {
+      const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) override {
     task->AppendBody(post_);
     if (append_thread_id_) {
       std::ostringstream oss;

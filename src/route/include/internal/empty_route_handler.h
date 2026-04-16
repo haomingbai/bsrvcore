@@ -35,7 +35,7 @@ class EmptyRouteHandler : public HttpRequestHandler,
    * @brief Produce a default response for unmatched routes.
    * @param task Request task to write the response into.
    */
-  void Service(std::shared_ptr<HttpServerTask> task) override;
+  void Service(const std::shared_ptr<HttpServerTask>& task) override;
 
   ~EmptyRouteHandler() override = default;
 };

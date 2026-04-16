@@ -111,7 +111,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/users/{id}",
-          [](std::shared_ptr<HttpServerTask> task) {
+          [](const std::shared_ptr<HttpServerTask>& task) {
             task->SetKeepAlive(task->GetRequest().keep_alive());
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,
@@ -157,15 +157,15 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.summary = "GET /ping with one global pre/post aspect pair";
     scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddGlobalAspect(
-          [](std::shared_ptr<HttpPreServerTask> task) {
+          [](const std::shared_ptr<HttpPreServerTask>& task) {
             task->SetField("X-Bench-Aspect-Pre", "1");
           },
-          [](std::shared_ptr<HttpPostServerTask> task) {
+          [](const std::shared_ptr<HttpPostServerTask>& task) {
             task->SetField("X-Bench-Aspect-Post", "1");
           });
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/ping",
-          [](std::shared_ptr<HttpServerTask> task) {
+          [](const std::shared_ptr<HttpServerTask>& task) {
             task->SetKeepAlive(task->GetRequest().keep_alive());
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,
@@ -206,17 +206,17 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       for (std::size_t i = 0; i < kAspectCount; ++i) {
         server.AddGlobalAspect(
-            [i](std::shared_ptr<HttpPreServerTask> task) {
+            [i](const std::shared_ptr<HttpPreServerTask>& task) {
               task->SetField("X-Bench-Aspect-Pre-Last", std::to_string(i));
             },
-            [i](std::shared_ptr<HttpPostServerTask> task) {
+            [i](const std::shared_ptr<HttpPostServerTask>& task) {
               task->SetField("X-Bench-Aspect-Post-Last", std::to_string(i));
             });
       }
 
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/ping",
-          [](std::shared_ptr<HttpServerTask> task) {
+          [](const std::shared_ptr<HttpServerTask>& task) {
             task->SetKeepAlive(task->GetRequest().keep_alive());
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,
@@ -264,7 +264,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
     scenario.configure_server = [](HttpServer& server, const RunSettings&) {
       server.AddRouteEntry(
           HttpRequestMethod::kPost, "/echo",
-          [](std::shared_ptr<HttpServerTask> task) {
+          [](const std::shared_ptr<HttpServerTask>& task) {
             task->SetKeepAlive(task->GetRequest().keep_alive());
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,
@@ -307,7 +307,7 @@ std::vector<ScenarioDefinition> BuildScenarios() {
       server.SetDefaultSessionTimeout(60000);
       server.AddRouteEntry(
           HttpRequestMethod::kGet, "/session",
-          [](std::shared_ptr<HttpServerTask> task) {
+          [](const std::shared_ptr<HttpServerTask>& task) {
             task->SetKeepAlive(task->GetRequest().keep_alive());
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,

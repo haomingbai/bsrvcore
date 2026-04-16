@@ -146,13 +146,13 @@ TEST(StressKeepAliveRouteParamTest,
       ->SetDefaultWriteExpiry(5000)
       ->SetKeepAliveTimeout(5000);
   server->AddGlobalAspect(
-      [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+      [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
         task->SetField("X-Stress-Aspect", "1");
       },
-      [](std::shared_ptr<bsrvcore::HttpPostServerTask>) {});
+      [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {});
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+      [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
         task->SetKeepAlive(task->GetRequest().keep_alive());
         task->GetResponse().result(http::status::ok);
         task->SetField(http::field::content_type, "text/plain; charset=utf-8");

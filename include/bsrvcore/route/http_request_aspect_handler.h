@@ -69,7 +69,7 @@ class HttpRequestAspectHandler
    * @note Can modify the request or short-circuit processing by setting
    *       a response early (e.g., for authentication failures)
    */
-  virtual void PreService(std::shared_ptr<HttpPreServerTask> task) = 0;
+  virtual void PreService(const std::shared_ptr<HttpPreServerTask>& task) = 0;
 
   /**
    * @brief Execute after the main request handler
@@ -77,7 +77,7 @@ class HttpRequestAspectHandler
    *
    * @note Can modify the response, log results, or clean up resources
    */
-  virtual void PostService(std::shared_ptr<HttpPostServerTask> task) = 0;
+  virtual void PostService(const std::shared_ptr<HttpPostServerTask>& task) = 0;
 
   /**
    * @brief Virtual destructor for proper cleanup
@@ -124,7 +124,7 @@ class FunctionRequestAspectHandler
    * @brief Execute pre-service function
    * @param task Pre-phase task being processed
    */
-  void PreService(std::shared_ptr<HttpPreServerTask> task) override {
+  void PreService(const std::shared_ptr<HttpPreServerTask>& task) override {
     f1_(task);
   }
 
@@ -132,7 +132,7 @@ class FunctionRequestAspectHandler
    * @brief Execute post-service function
    * @param task Post-phase task that was processed
    */
-  void PostService(std::shared_ptr<HttpPostServerTask> task) override {
+  void PostService(const std::shared_ptr<HttpPostServerTask>& task) override {
     f2_(task);
   }
 

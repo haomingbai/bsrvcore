@@ -10,7 +10,7 @@ RouteHandlerAdapter::RouteHandlerAdapter(bsrvcore_http_handler_ctx_fn fn,
     : ctx_fn_(fn), ctx_(ctx) {}
 
 void RouteHandlerAdapter::Service(
-    std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
   bsrvcore_http_server_task_t wrapper{task.get()};
   try {
     if (ctx_fn_ != nullptr) {
@@ -35,7 +35,7 @@ AspectHandlerAdapter::AspectHandlerAdapter(
     : pre_ctx_fn_(pre_fn), post_ctx_fn_(post_fn), ctx_(ctx) {}
 
 void AspectHandlerAdapter::PreService(
-    std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+    const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
   bsrvcore_http_pre_server_task_t wrapper{task.get()};
   try {
     if (pre_ctx_fn_ != nullptr) {
@@ -51,7 +51,7 @@ void AspectHandlerAdapter::PreService(
 }
 
 void AspectHandlerAdapter::PostService(
-    std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+    const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
   bsrvcore_http_post_server_task_t wrapper{task.get()};
   try {
     if (post_ctx_fn_ != nullptr) {

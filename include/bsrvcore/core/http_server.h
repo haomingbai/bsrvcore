@@ -287,7 +287,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename Func>
-    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+    requires requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
       { fn(task) };
     }
   HttpServer* AddRouteEntry(HttpRequestMethod method,
@@ -306,7 +306,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining.
    */
   template <typename Func>
-    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+    requires requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
       { fn(task) };
     }
   HttpServer* AddComputingRouteEntry(HttpRequestMethod method,
@@ -338,7 +338,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename Func>
-    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+    requires requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
       { fn(task) };
     }
   HttpServer* AddExclusiveRouteEntry(HttpRequestMethod method,
@@ -369,9 +369,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
       { fn1(pre_task) };
       { fn2(post_task) };
     }
@@ -408,9 +408,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
       { fn1(pre_task) };
       { fn2(post_task) };
     }
@@ -429,9 +429,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
       { fn1(pre_task) };
       { fn2(post_task) };
     }
@@ -555,7 +555,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   template <typename F>
-    requires requires(F f, std::shared_ptr<HttpServerTask> task) {
+    requires requires(F f, const std::shared_ptr<HttpServerTask>& task) {
       { f(task) };
     }
   HttpServer* SetDefaultHandler(F f) {

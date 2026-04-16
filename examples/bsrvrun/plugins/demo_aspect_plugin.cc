@@ -23,12 +23,14 @@ class DemoAspect : public bsrvcore::HttpRequestAspectHandler {
   DemoAspect(std::string pre, std::string post)
       : pre_(std::move(pre)), post_(std::move(post)) {}
 
-  void PreService(std::shared_ptr<bsrvcore::HttpPreServerTask> task) override {
+  // PreService and PostService now accept const-ref parameters (v0.16.0+).
+  void PreService(
+      const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) override {
     task->AppendBody(pre_);
   }
 
   void PostService(
-      std::shared_ptr<bsrvcore::HttpPostServerTask> task) override {
+      const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) override {
     task->AppendBody(post_);
   }
 

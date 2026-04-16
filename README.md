@@ -131,7 +131,7 @@ int main() {
     server
             ->AddRouteEntry(
                     bsrvcore::HttpRequestMethod::kGet, "/hello",
-                    [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                    [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
                         task->GetResponse().result(bsrvcore::HttpStatus::ok);
                         task->SetField(bsrvcore::HttpField::content_type,
                                                      "text/plain; charset=utf-8");
@@ -195,6 +195,36 @@ int main(void) {
   return 0;
 }
 ```
+
+## Upgrade Information
+
+### API Change (v0.16.0+)
+
+Handler and aspect virtual functions now accept `const std::shared_ptr<T>&`
+instead of `std::shared_ptr<T>` by value. This is a **breaking change** that
+requires:
+
+1. **Recompilation required** for all code using custom handler/aspect classes.
+2. **Code updates** only if you define custom handlers or aspects:
+
+   ```cpp
+   // OLD (v0.14.x)
+   class MyHandler : public HttpRequestHandler {
+     void Service(std::shared_ptr<HttpServerTask> task) override { ... }
+   };
+
+   // NEW (v0.16.0+)
+   class MyHandler : public HttpRequestHandler {
+     void Service(const std::shared_ptr<HttpServerTask>& task) override { ... }
+   };
+   ```
+
+3. **Lambda handlers** (in examples and application code) auto-adapt—no changes
+   needed.
+
+**Benefit**: ~5-15% throughput improvement in typical request paths through
+reduced atomic reference-count operations. See [IO Thread Optimizations in the
+design docs](docs/design/request-lifecycle.md#io-thread-optimizations-via-const-ref-handler-parameters).
 
 ## Next steps (tutorial)
 

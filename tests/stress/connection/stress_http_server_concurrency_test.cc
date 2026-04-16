@@ -75,14 +75,16 @@ TEST(StressHttpServerConcurrencyTest, ConcurrentRequests) {
 
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
   server
-      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
-                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->SetBody("pong");
-                      })
-      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kPost, "/echo",
-                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->SetBody(task->GetRequest().body());
-                      });
+      ->AddRouteEntry(
+          bsrvcore::HttpRequestMethod::kGet, "/ping",
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+            task->SetBody("pong");
+          })
+      ->AddRouteEntry(
+          bsrvcore::HttpRequestMethod::kPost, "/echo",
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+            task->SetBody(task->GetRequest().body());
+          });
 
   bsrvcore::test::ServerGuard guard(std::move(server));
   auto port = bsrvcore::test::StartServerWithRoutes(guard);

@@ -65,7 +65,7 @@ class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
    * @note Implementations should read from task->GetRequest() and
    *       write to task->GetResponse() or task->SetResponse()
    */
-  virtual void Service(std::shared_ptr<HttpServerTask> task) = 0;
+  virtual void Service(const std::shared_ptr<HttpServerTask>& task) = 0;
 
   /**
    * @brief Virtual destructor for proper cleanup
@@ -105,7 +105,7 @@ class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
  * @endcode
  */
 template <typename Fn>
-  requires requires(Fn fn, std::shared_ptr<HttpServerTask> task) {
+  requires requires(Fn fn, const std::shared_ptr<HttpServerTask>& task) {
     { fn(task) };
   }
 class FunctionRouteHandler
@@ -125,7 +125,7 @@ class FunctionRouteHandler
    * @note Automatically catches and logs exceptions to prevent
    *       server crashes from handler errors
    */
-  void Service(std::shared_ptr<HttpServerTask> task) override try {
+  void Service(const std::shared_ptr<HttpServerTask>& task) override try {
     fn_(task);
   } catch (const std::exception& e) {
     task->Log(LogLevel::kWarn, e.what());

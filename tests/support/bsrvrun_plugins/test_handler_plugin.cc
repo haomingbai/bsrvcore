@@ -14,7 +14,7 @@ class TestHandler : public bsrvcore::HttpRequestHandler {
   TestHandler(std::string body, bool append_thread_id)
       : body_(std::move(body)), append_thread_id_(append_thread_id) {}
 
-  void Service(std::shared_ptr<bsrvcore::HttpServerTask> task) override {
+  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override {
     task->AppendBody(body_);
     if (append_thread_id_) {
       std::ostringstream oss;

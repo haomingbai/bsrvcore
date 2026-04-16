@@ -68,7 +68,7 @@ class CloneableFunctionRequestAspectHandler
    * @brief Invoke the wrapped pre-service callable.
    * @param task Pre-service task.
    */
-  void PreService(std::shared_ptr<HttpPreServerTask> task) override {
+  void PreService(const std::shared_ptr<HttpPreServerTask>& task) override {
     f1_(task);
   }
 
@@ -76,7 +76,7 @@ class CloneableFunctionRequestAspectHandler
    * @brief Invoke the wrapped post-service callable.
    * @param task Post-service task.
    */
-  void PostService(std::shared_ptr<HttpPostServerTask> task) override {
+  void PostService(const std::shared_ptr<HttpPostServerTask>& task) override {
     f2_(task);
   }
 

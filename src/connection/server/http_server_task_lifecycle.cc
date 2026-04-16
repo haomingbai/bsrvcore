@@ -257,16 +257,16 @@ void HttpPreServerTask::Start() {
 
 void HttpPreServerTask::RunScheduledPrePhase(
     const std::shared_ptr<HttpPreServerTask>& self) {
-  self->DoPreService(0);
+  self->DoPreService(self, 0);
 }
 
-void HttpPreServerTask::DoPreService(std::size_t curr_idx) {
+void HttpPreServerTask::DoPreService(
+    const std::shared_ptr<HttpPreServerTask>& self, std::size_t curr_idx) {
   auto& state = GetState();
   if (curr_idx >= state.route_result.aspects.size()) {
     return;
   }
 
-  auto self = shared_from_this();
   while (curr_idx < state.route_result.aspects.size()) {
     try {
       // Pre aspects run in registration order and share mutable access to the
@@ -365,17 +365,17 @@ void HttpPostServerTask::Start() {
 
 void HttpPostServerTask::RunScheduledPostPhase(
     const std::shared_ptr<HttpPostServerTask>& self, std::size_t curr_idx) {
-  self->DoPostService(curr_idx);
+  self->DoPostService(self, curr_idx);
 }
 
-void HttpPostServerTask::DoPostService(std::size_t curr_idx) {
+void HttpPostServerTask::DoPostService(
+    const std::shared_ptr<HttpPostServerTask>& self, std::size_t curr_idx) {
   auto& state = GetState();
   if (curr_idx >= state.route_result.aspects.size()) {
     assert(false);
     return;
   }
 
-  auto self = shared_from_this();
   while (true) {
     try {
       state.route_result.aspects[curr_idx]->PostService(self);

@@ -19,7 +19,7 @@
 
 using bsrvcore::route_internal::EmptyRouteHandler;
 
-void EmptyRouteHandler::Service(std::shared_ptr<HttpServerTask> task) {
+void EmptyRouteHandler::Service(const std::shared_ptr<HttpServerTask>& task) {
   task->SetBody(R"(
 {
   "message": "Service is not available currently",
