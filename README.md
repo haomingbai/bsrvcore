@@ -242,6 +242,11 @@ design docs](docs/design/request-lifecycle.md#io-thread-optimizations-via-const-
 - OAI chat completion has moved to the standalone `boai` library.
 - `bsrvcore` now stays focused on the reusable server/client foundation that
   other libraries can depend on.
+- For the same ecosystem,
+  [bcas](https://github.com/haomingbai/bcas),
+  [boai](https://github.com/haomingbai/boai), and
+  [bozo](https://github.com/haomingbai/bozo) are also recommended companion
+  components depending on your use case.
 
 ## bsrvrun (runtime executable)
 
