@@ -76,6 +76,7 @@ struct ServerConfig {
   ExecutorConfig executor;
   std::vector<ListenerConfig> listeners;
   std::vector<ServiceConfig> services;
+  std::optional<FactoryConfig> logger;
   GlobalConfig global;
   std::vector<RouteConfig> routes;
 };

@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 #define BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -24,9 +25,11 @@
 
 namespace bsrvcore {
 class HttpServer;
+class Logger;
 }
 
 namespace bsrvcore::bsrvrun {
+class LoggerFactory;
 class ServiceFactory;
 }
 
@@ -55,6 +58,9 @@ class PluginLoader {
       const FactoryConfig& config) const;
 
   bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> CreateAspect(
+      const FactoryConfig& config) const;
+
+  std::shared_ptr<bsrvcore::Logger> CreateLogger(
       const FactoryConfig& config) const;
 
   void* CreateService(const ServiceConfig& config);

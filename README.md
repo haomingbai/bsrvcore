@@ -251,7 +251,7 @@ design docs](docs/design/request-lifecycle.md#io-thread-optimizations-via-const-
 ## bsrvrun (runtime executable)
 
 `bsrvrun` is installed in the runtime package and starts a server from YAML.
-It can load service, handler, and aspect factories from shared libraries.
+It can load logger, service, handler, and aspect factories from shared libraries.
 
 Config path resolution order:
 

@@ -233,6 +233,69 @@ TEST(BsrvRunRuntimeIntegrationTest,
   std::filesystem::remove(destroy_marker);
 }
 
+TEST(BsrvRunRuntimeIntegrationTest, InstallsLoggerPluginFromConfig) {
+  const unsigned short port = bsrvcore::test::FindFreePort();
+  const auto log_path =
+      std::filesystem::temp_directory_path() / "bsrvrun_runtime_logger.log";
+  std::filesystem::remove(log_path);
+
+  const std::string yaml =
+      "server:\n"
+      "  thread_count: 2\n"
+      "listeners:\n"
+      "  - address: \"127.0.0.1\"\n"
+      "    port: " +
+      std::to_string(port) +
+      "\n"
+      "logger:\n"
+      "  factory: \"" +
+      EscapePath(BSRVRUN_TEST_LOGGER_PLUGIN) +
+      "\"\n"
+      "  params:\n"
+      "    path: \"" +
+      EscapePath(log_path.string()) +
+      "\"\n"
+      "    prefix: \"runtime|\"\n"
+      "routes:\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/log\"\n"
+      "    handler:\n"
+      "      factory: \"" +
+      EscapePath(BSRVRUN_TEST_HANDLER_PLUGIN) +
+      "\"\n"
+      "      params:\n"
+      "        body: \"handler|\"\n"
+      "        log_level: \"warn\"\n"
+      "        log_message: \"request-logged\"\n";
+
+  const auto config_path =
+      WriteConfig(yaml, "bsrvrun_runtime_integration_logger.yaml");
+
+  const auto config =
+      bsrvcore::runtime::LoadConfigFromFile(config_path.string());
+  bsrvcore::runtime::PluginLoader loader;
+  auto server =
+      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
+
+  ASSERT_TRUE(server->Start());
+  const auto res = DoRequestWithRetry(http::verb::get, port, "/log", "");
+  server->Stop();
+  server.reset();
+
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "handler|");
+
+  std::ifstream in(log_path);
+  std::string line;
+  std::getline(in, line);
+  in.close();
+  EXPECT_EQ(line, "runtime|WARN|request-logged");
+
+  std::filesystem::remove(config_path);
+  std::filesystem::remove(log_path);
+}
+
 TEST(BsrvRunRuntimeIntegrationTest, CpuRouteRunsOnWorkerPool) {
   const unsigned short port = bsrvcore::test::FindFreePort();
 

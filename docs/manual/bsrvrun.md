@@ -2,7 +2,7 @@
 
 `bsrvrun` is a runtime executable packaged in the runtime component.
 
-It reads a YAML file, loads service/handler/aspect factories from shared
+It reads a YAML file, loads logger/service/handler/aspect factories from shared
 libraries, and builds an `HttpServer` from configuration.
 
 ## Config path resolution
@@ -37,6 +37,11 @@ listeners:
   - address: "0.0.0.0"
     port: 8080
 
+logger:
+  factory: "/opt/bsrv/plugins/libruntime_logger.so"
+  params:
+    prefix: "runtime|"
+
 services:
   - slot: 0
     factory: "/opt/bsrv/plugins/libgreeting_service.so"
@@ -64,6 +69,8 @@ routes:
       params:
         service_slot: "0"
         greeting: "hello"
+        log_level: "info"
+        log_message: "GET /hello"
     aspects:
       - factory: "/opt/bsrv/plugins/libauth_aspect.so"
         params:
@@ -86,6 +93,16 @@ routes:
 - `ignore_default_route: true` maps to exclusive route registration.
 - `cpu: true` maps the route to `AddComputingRouteEntry()` semantics so the handler body runs on the worker pool while keeping the normal task lifecycle.
 
+## Logger behavior notes
+
+- `logger` is an optional top-level object.
+- `logger.factory` is a shared-library path.
+- `logger.params` is an optional string:string map passed to
+  `LoggerFactory::Create()`.
+- The created logger is owned by `HttpServer` through `std::shared_ptr`.
+- Request code can emit logs through `task->Log(...)` or
+  `HttpServer::Log(...)`.
+
 ## Service behavior notes
 
 - `services` is an optional top-level array.
@@ -105,6 +122,7 @@ Public ABI headers live under `include/bsrvcore/bsrvrun/`.
 
 - `bsrvcore::bsrvrun::String`
 - `bsrvcore::bsrvrun::ParameterMap`
+- `bsrvcore::bsrvrun::LoggerFactory`
 - `bsrvcore::bsrvrun::ServiceFactory`
 - `bsrvcore::bsrvrun::HttpRequestHandlerFactory`
 - `bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory`
@@ -113,13 +131,15 @@ Each plugin should export one fixed symbol:
 
 - Handler plugin: `GetHandlerFactory`
 - Aspect plugin: `GetAspectFactory`
+- Logger plugin: `GetLoggerFactory`
 - Service plugin: `GetServiceFactory`
 
-Both exports should use the provided export macros so the symbol is visible
+These exports should use the provided export macros so the symbol is visible
 from shared libraries on every platform, including Windows DLLs:
 
 - `BSRVCORE_BSRVRUN_HANDLER_FACTORY_EXPORT`
 - `BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT`
+- `BSRVCORE_BSRVRUN_LOGGER_FACTORY_EXPORT`
 - `BSRVCORE_BSRVRUN_SERVICE_FACTORY_EXPORT`
 
 These macros include `extern "C"` and the required export visibility
@@ -128,6 +148,45 @@ attributes. The returned factory pointer is not owned by `HttpServer`.
 Plugins that previously exported only `extern "C"` should be rebuilt with
 these macros before they are loaded on Windows. Otherwise `bsrvrun` can fail
 to find exported factories via `GetProcAddress()`.
+
+### Logger plugin example
+
+```cpp
+#include <bsrvcore/bsrvcore.h>
+
+class PrefixLogger : public bsrvcore::Logger {
+ public:
+  explicit PrefixLogger(std::string prefix) : prefix_(std::move(prefix)) {}
+
+  void Log(bsrvcore::LogLevel level, std::string message) override {
+    std::clog << prefix_ << static_cast<int>(level) << "|" << message << '\n';
+  }
+
+ private:
+  std::string prefix_;
+};
+
+class PrefixLoggerFactory : public bsrvcore::bsrvrun::LoggerFactory {
+ public:
+  std::shared_ptr<bsrvcore::Logger> Create(
+      bsrvcore::bsrvrun::ParameterMap* params) override {
+    std::string prefix = "runtime|";
+    if (params != nullptr) {
+      const auto value =
+          params->Get(bsrvcore::bsrvrun::String("prefix")).ToStdString();
+      if (!value.empty()) {
+        prefix = value;
+      }
+    }
+    return bsrvcore::AllocateShared<PrefixLogger>(std::move(prefix));
+  }
+};
+
+BSRVCORE_BSRVRUN_LOGGER_FACTORY_EXPORT GetLoggerFactory() {
+  static PrefixLoggerFactory factory;
+  return &factory;
+}
+```
 
 ### Service plugin example
 

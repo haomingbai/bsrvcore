@@ -17,7 +17,7 @@ manual learning path.
 | Logging | `examples/logging/` | `example_logger_custom` |
 | Client tasks | `examples/client-tasks/` | `example_client_http_request`, `example_client_sse_events` |
 | WebSocket tasks | `examples/websocket-tasks/` | `example_websocket_service`, `example_websocket_request` |
-| bsrvrun plugins | `examples/bsrvrun/plugins/` | handler/aspect/service shared libraries |
+| bsrvrun plugins | `examples/bsrvrun/plugins/` | handler/aspect/logger/service shared libraries |
 
 ## Build examples
 

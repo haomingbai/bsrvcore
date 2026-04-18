@@ -17,6 +17,11 @@ listeners:
   - address: "0.0.0.0"
     port: 8080
 
+logger:
+  factory: "./plugins/libexample_bsrvrun_demo_logger_plugin.so"
+  params:
+    prefix: "demo|"
+
 services:
   - slot: 0
     factory: "./plugins/libexample_bsrvrun_demo_service_plugin.so"
@@ -44,6 +49,8 @@ routes:
       params:
         service_slot: "0"
         body: "handler|"
+        log_level: "info"
+        log_message: "GET /demo"
     aspects:
       - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
         params:

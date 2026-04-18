@@ -12,10 +12,12 @@ target_include_directories(integration_bsrvrun_runtime_test PRIVATE
 target_compile_definitions(integration_bsrvrun_runtime_test PRIVATE
   BSRVRUN_TEST_HANDLER_PLUGIN="$<TARGET_FILE:test_bsrvrun_handler_plugin>"
   BSRVRUN_TEST_ASPECT_PLUGIN="$<TARGET_FILE:test_bsrvrun_aspect_plugin>"
+  BSRVRUN_TEST_LOGGER_PLUGIN="$<TARGET_FILE:test_bsrvrun_logger_plugin>"
   BSRVRUN_TEST_SERVICE_PLUGIN="$<TARGET_FILE:test_bsrvrun_service_plugin>"
 )
 add_dependencies(integration_bsrvrun_runtime_test
   test_bsrvrun_handler_plugin
   test_bsrvrun_aspect_plugin
+  test_bsrvrun_logger_plugin
   test_bsrvrun_service_plugin
 )

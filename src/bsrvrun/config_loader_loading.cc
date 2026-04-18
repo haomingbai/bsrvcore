@@ -71,6 +71,7 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
       .executor = server.executor,
       .listeners = config_loader_detail::ParseListeners(root["listeners"]),
       .services = config_loader_detail::ParseServices(root["services"]),
+      .logger = config_loader_detail::ParseLogger(root["logger"]),
       .global = config_loader_detail::ParseGlobal(root["global"]),
       .routes = config_loader_detail::ParseRoutes(root["routes"]),
   };

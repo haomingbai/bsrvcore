@@ -30,8 +30,10 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
+#include "bsrvcore/bsrvrun/logger_factory.h"
 #include "bsrvcore/bsrvrun/service_factory.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/logger.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "config_types.h"
@@ -226,6 +228,28 @@ PluginLoader::CreateAspect(const FactoryConfig& config) const {
   }
 
   return aspect;
+}
+
+std::shared_ptr<bsrvcore::Logger> PluginLoader::CreateLogger(
+    const FactoryConfig& config) const {
+  void* handle = GetOrOpenLibrary(config.library);
+  void* symbol = ResolveFactorySymbol(handle, config.library, "GetLoggerFactory");
+
+  auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetLoggerFactoryFn>(symbol);
+  bsrvcore::bsrvrun::LoggerFactory* factory = fn();
+  if (factory == nullptr) {
+    throw std::runtime_error("GetLoggerFactory returned nullptr in `" +
+                             config.library + "`");
+  }
+
+  RuntimeParameterMap params = BuildMap(config);
+  auto logger = factory->Create(&params);
+  if (!logger) {
+    throw std::runtime_error("logger factory returned nullptr in `" +
+                             config.library + "`");
+  }
+
+  return logger;
 }
 
 void* PluginLoader::CreateService(const ServiceConfig& config) {

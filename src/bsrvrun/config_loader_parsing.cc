@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -204,6 +205,14 @@ std::vector<ServiceConfig> ParseServices(const YAML::Node& node) {
   }
 
   return services;
+}
+
+std::optional<FactoryConfig> ParseLogger(const YAML::Node& node) {
+  if (!node) {
+    return std::nullopt;
+  }
+
+  return ParseFactoryConfig(node, "logger");
 }
 
 std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {

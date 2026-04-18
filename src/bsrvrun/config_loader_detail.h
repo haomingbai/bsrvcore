@@ -16,6 +16,7 @@
 #include <yaml-cpp/yaml.h>
 
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -42,6 +43,8 @@ std::vector<FactoryConfig> ParseFactoryConfigList(const YAML::Node& node,
 std::vector<ListenerConfig> ParseListeners(const YAML::Node& node);
 
 std::vector<ServiceConfig> ParseServices(const YAML::Node& node);
+
+std::optional<FactoryConfig> ParseLogger(const YAML::Node& node);
 
 std::vector<RouteConfig> ParseRoutes(const YAML::Node& node);
 

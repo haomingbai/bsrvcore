@@ -36,6 +36,10 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
     server->AddListen(TcpEndpoint(addr, listener.port), listener.io_threads);
   }
 
+  if (config.logger.has_value()) {
+    server->SetLogger(loader->CreateLogger(*config.logger));
+  }
+
   for (const auto& service_config : config.services) {
     server->SetServiceProvider(service_config.slot,
                                loader->CreateService(service_config));

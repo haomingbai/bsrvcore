@@ -45,6 +45,10 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
       "  - address: \"127.0.0.1\"\n"
       "    port: 8081\n"
       "    io_threads: 2\n"
+      "logger:\n"
+      "  factory: \"/tmp/logger.so\"\n"
+      "  params:\n"
+      "    prefix: \"demo|\"\n"
       "services:\n"
       "  - slot: 2\n"
       "    factory: \"/tmp/service.so\"\n"
@@ -81,6 +85,10 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
   EXPECT_EQ(config.listeners[0].address, "127.0.0.1");
   EXPECT_EQ(config.listeners[0].port, 8081);
   EXPECT_EQ(config.listeners[0].io_threads, 2u);
+
+  ASSERT_TRUE(config.logger.has_value());
+  EXPECT_EQ(config.logger->library, "/tmp/logger.so");
+  EXPECT_EQ(config.logger->params.at("prefix"), "demo|");
 
   ASSERT_EQ(config.services.size(), 1u);
   EXPECT_EQ(config.services[0].slot, 2u);
@@ -133,6 +141,26 @@ TEST(BsrvRunConfigTest, RejectDuplicateServiceSlot) {
       "    handler:\n"
       "      factory: \"/tmp/handler.so\"\n",
       "bsrvrun_test_duplicate_service_slot.yaml");
+
+  EXPECT_THROW((void)bsrvcore::runtime::LoadConfigFromFile(path.string()),
+               std::runtime_error);
+
+  std::filesystem::remove(path);
+}
+
+TEST(BsrvRunConfigTest, RejectInvalidLoggerShape) {
+  const auto path = WriteTempFile(
+      "listeners:\n"
+      "  - address: \"127.0.0.1\"\n"
+      "    port: 8081\n"
+      "logger:\n"
+      "  - factory: \"/tmp/logger.so\"\n"
+      "routes:\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/x\"\n"
+      "    handler:\n"
+      "      factory: \"/tmp/handler.so\"\n",
+      "bsrvrun_test_invalid_logger.yaml");
 
   EXPECT_THROW((void)bsrvcore::runtime::LoadConfigFromFile(path.string()),
                std::runtime_error);

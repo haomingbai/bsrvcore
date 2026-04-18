@@ -8,6 +8,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
+#include "bsrvcore/bsrvrun/logger_factory.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
 #include "bsrvcore/bsrvrun/string.h"
 #include "bsrvcore/connection/client/http_client_session.h"
@@ -126,6 +127,14 @@ class DummyAspectFactory final
   }
 };
 
+class DummyLoggerFactory final : public bsrvcore::bsrvrun::LoggerFactory {
+ public:
+  [[nodiscard]] std::shared_ptr<bsrvcore::Logger> Create(
+      [[maybe_unused]] bsrvcore::bsrvrun::ParameterMap* parameters) override {
+    return {};
+  }
+};
+
 static_assert(
     std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::Allocator<int>>,
                       bsrvcore::Allocator<int>>);
@@ -163,6 +172,10 @@ static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<
                           bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory>,
                       bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory>);
+static_assert(
+    std::is_base_of_v<
+        bsrvcore::NonCopyableNonMovable<bsrvcore::bsrvrun::LoggerFactory>,
+        bsrvcore::bsrvrun::LoggerFactory>);
 static_assert(std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::Attribute>,
                                 bsrvcore::Attribute>);
 static_assert(
@@ -297,6 +310,7 @@ TEST(PublicTraitsTest, PublicBasesRemainDerivable) {
   DummyAttribute attribute;
   DummyHandlerFactory handler_factory;
   DummyAspectFactory aspect_factory;
+  DummyLoggerFactory logger_factory;
 
   EXPECT_TRUE(parameters.Get(bsrvcore::bsrvrun::String()).Empty());
   EXPECT_EQ(attribute.ToString(), attribute.Type().name());
@@ -308,4 +322,5 @@ TEST(PublicTraitsTest, PublicBasesRemainDerivable) {
   EXPECT_TRUE(cloneable_aspect.Clone() != nullptr);
   EXPECT_EQ(handler_factory.Create(nullptr).get(), nullptr);
   EXPECT_EQ(aspect_factory.Create(nullptr).get(), nullptr);
+  EXPECT_EQ(logger_factory.Create(nullptr).get(), nullptr);
 }
