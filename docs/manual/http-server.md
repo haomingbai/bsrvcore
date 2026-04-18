@@ -60,6 +60,37 @@ server->SetDefaultReadExpiry(5000)
       ->SetKeepAliveTimeout(15000);
 ```
 
+## Service providers
+
+`HttpServer` can also expose non-owning application services through indexed
+slots.
+
+```cpp
+struct GreetingService {
+  std::string prefix;
+};
+
+GreetingService greeting{"service|"};
+
+server->SetServiceProvider(0, &greeting);
+server->AddRouteEntry(
+    bsrvcore::HttpRequestMethod::kGet, "/hello",
+    [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+      if (auto* service = task->GetService<GreetingService>(0)) {
+        task->AppendBody(service->prefix);
+      }
+      task->AppendBody("handler|");
+    });
+```
+
+Notes:
+
+- service slots are opaque `void*` storage; ownership stays with the caller
+- `GetServiceProvider(index)` returns the raw wrapper, and
+  `task->GetService<T>(index)` is the typed convenience helper
+- for `bsrvrun`, configure services before `Start()` and destroy them after
+  `Stop()`
+
 ## TLS (HTTPS)
 
 To enable HTTPS on one endpoint, provide a shared TLS context to that endpoint:

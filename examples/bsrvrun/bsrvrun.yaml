@@ -17,10 +17,17 @@ listeners:
   - address: "0.0.0.0"
     port: 8080
 
+services:
+  - slot: 0
+    factory: "./plugins/libexample_bsrvrun_demo_service_plugin.so"
+    params:
+      prefix: "service|"
+
 global:
   default_handler:
     factory: "./plugins/libexample_bsrvrun_demo_handler_plugin.so"
     params:
+      service_slot: "0"
       body: "default|"
   aspects:
     - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
@@ -35,6 +42,7 @@ routes:
     handler:
       factory: "./plugins/libexample_bsrvrun_demo_handler_plugin.so"
       params:
+        service_slot: "0"
         body: "handler|"
     aspects:
       - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"

@@ -22,6 +22,7 @@
 #include <dlfcn.h>
 #endif
 
+#include <exception>
 #include <ranges>
 #include <stdexcept>
 #include <string>
@@ -29,6 +30,8 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
+#include "bsrvcore/bsrvrun/service_factory.h"
+#include "bsrvcore/core/http_server.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "config_types.h"
@@ -44,6 +47,63 @@ RuntimeParameterMap BuildMap(const FactoryConfig& config) {
     params.SetRaw(key, value);
   }
   return params;
+}
+
+#ifdef _WIN32
+std::string GetLastErrorMessage(DWORD error_code);
+#endif
+
+void* ResolveFactorySymbol(void* handle, const std::string& library,
+                           const char* symbol_name) {
+  void* symbol = nullptr;
+#ifdef _WIN32
+  symbol = reinterpret_cast<void*>(
+      GetProcAddress(reinterpret_cast<HMODULE>(handle), symbol_name));
+  if (symbol == nullptr) {
+    throw std::runtime_error("`" + std::string(symbol_name) +
+                             "` not found in `" + library +
+                             "`: " + GetLastErrorMessage(GetLastError()));
+  }
+#else
+  dlerror();
+  symbol = dlsym(handle, symbol_name);
+  const char* symbol_error = dlerror();
+  if (symbol_error != nullptr || symbol == nullptr) {
+    throw std::runtime_error("`" + std::string(symbol_name) +
+                             "` not found in `" + library + "`");
+  }
+#endif
+  return symbol;
+}
+
+std::exception_ptr DestroyServiceRecords(
+    std::vector<service_runtime_detail::LoadedServiceRecord>* records,
+    bsrvcore::HttpServer* server) {
+  std::exception_ptr first_error;
+  for (auto& record : std::ranges::reverse_view(*records)) {
+    if (record.destroyed) {
+      continue;
+    }
+
+    if (server != nullptr) {
+      server->SetServiceProvider(record.slot, nullptr);
+    }
+
+    try {
+      if (record.factory != nullptr && record.service != nullptr) {
+        record.factory->DestroyService(record.service);
+      }
+    } catch (...) {
+      if (first_error == nullptr) {
+        first_error = std::current_exception();
+      }
+    }
+
+    record.destroyed = true;
+  }
+
+  records->clear();
+  return first_error;
 }
 
 #ifdef _WIN32
@@ -74,6 +134,8 @@ std::string GetLastErrorMessage(DWORD error_code) {
 }  // namespace
 
 PluginLoader::~PluginLoader() {
+  (void)DestroyServiceRecords(&loaded_services_, nullptr);
+
   for (auto& it : std::ranges::reverse_view(handle_order_)) {
     auto handle_it = handles_.find(it);
     if (handle_it != handles_.end() && handle_it->second != nullptr) {
@@ -121,25 +183,8 @@ void* PluginLoader::GetOrOpenLibrary(const std::string& path) const {
 bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
     const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
-
-  void* symbol = nullptr;
-#ifdef _WIN32
-  symbol = reinterpret_cast<void*>(
-      GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetHandlerFactory"));
-  if (symbol == nullptr) {
-    throw std::runtime_error("`GetHandlerFactory` not found in `" +
-                             config.library +
-                             "`: " + GetLastErrorMessage(GetLastError()));
-  }
-#else
-  dlerror();
-  symbol = dlsym(handle, "GetHandlerFactory");
-  const char* symbol_error = dlerror();
-  if (symbol_error != nullptr || symbol == nullptr) {
-    throw std::runtime_error("`GetHandlerFactory` not found in `" +
-                             config.library + "`");
-  }
-#endif
+  void* symbol =
+      ResolveFactorySymbol(handle, config.library, "GetHandlerFactory");
 
   auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetHandlerFactoryFn>(symbol);
   bsrvcore::bsrvrun::HttpRequestHandlerFactory* factory = fn();
@@ -163,25 +208,8 @@ bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> PluginLoader::CreateHandler(
 bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler>
 PluginLoader::CreateAspect(const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
-
-  void* symbol = nullptr;
-#ifdef _WIN32
-  symbol = reinterpret_cast<void*>(
-      GetProcAddress(reinterpret_cast<HMODULE>(handle), "GetAspectFactory"));
-  if (symbol == nullptr) {
-    throw std::runtime_error("`GetAspectFactory` not found in `" +
-                             config.library +
-                             "`: " + GetLastErrorMessage(GetLastError()));
-  }
-#else
-  dlerror();
-  symbol = dlsym(handle, "GetAspectFactory");
-  const char* symbol_error = dlerror();
-  if (symbol_error != nullptr || symbol == nullptr) {
-    throw std::runtime_error("`GetAspectFactory` not found in `" +
-                             config.library + "`");
-  }
-#endif
+  void* symbol =
+      ResolveFactorySymbol(handle, config.library, "GetAspectFactory");
 
   auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetAspectFactoryFn>(symbol);
   bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory* factory = fn();
@@ -198,6 +226,40 @@ PluginLoader::CreateAspect(const FactoryConfig& config) const {
   }
 
   return aspect;
+}
+
+void* PluginLoader::CreateService(const ServiceConfig& config) {
+  void* handle = GetOrOpenLibrary(config.factory.library);
+  void* symbol =
+      ResolveFactorySymbol(handle, config.factory.library, "GetServiceFactory");
+
+  auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetServiceFactoryFn>(symbol);
+  bsrvcore::bsrvrun::ServiceFactory* factory = fn();
+  if (factory == nullptr) {
+    throw std::runtime_error("GetServiceFactory returned nullptr in `" +
+                             config.factory.library + "`");
+  }
+
+  RuntimeParameterMap params = BuildMap(config.factory);
+  void* service = factory->GenerateService(&params);
+  if (service == nullptr) {
+    throw std::runtime_error("service factory returned nullptr in `" +
+                             config.factory.library + "`");
+  }
+
+  loaded_services_.push_back(service_runtime_detail::LoadedServiceRecord{
+      .slot = config.slot,
+      .service = service,
+      .factory = factory,
+  });
+  return service;
+}
+
+void PluginLoader::DestroyServices(bsrvcore::HttpServer* server) {
+  if (auto error = DestroyServiceRecords(&loaded_services_, server);
+      error != nullptr) {
+    std::rethrow_exception(error);
+  }
 }
 
 }  // namespace bsrvcore::runtime

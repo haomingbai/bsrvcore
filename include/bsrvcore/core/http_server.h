@@ -44,6 +44,7 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/service_provider.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
@@ -132,14 +133,7 @@ using HttpServerExecutorOptions = HttpServerRuntimeOptions;
  */
 class HttpServer : public NonCopyableNonMovable<HttpServer> {
  public:
-  struct ServiceProvider {
-    void* pointer{nullptr};
-
-    template <typename T>
-    T* Get() const noexcept {
-      return static_cast<T*>(pointer);
-    }
-  };
+  using ServiceProvider = bsrvcore::ServiceProvider;
 
   using ThreadNativeHandle =
       decltype(std::declval<std::thread>().native_handle());

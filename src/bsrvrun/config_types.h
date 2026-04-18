@@ -31,6 +31,11 @@ struct FactoryConfig {
   std::unordered_map<std::string, std::string> params;
 };
 
+struct ServiceConfig {
+  std::size_t slot{0};
+  FactoryConfig factory;
+};
+
 struct ListenerConfig {
   std::string address;
   std::uint16_t port;
@@ -70,6 +75,7 @@ struct ServerConfig {
   // Optional worker executor configuration for HttpServer construction.
   ExecutorConfig executor;
   std::vector<ListenerConfig> listeners;
+  std::vector<ServiceConfig> services;
   GlobalConfig global;
   std::vector<RouteConfig> routes;
 };

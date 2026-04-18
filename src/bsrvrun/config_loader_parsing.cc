@@ -14,6 +14,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -150,6 +151,59 @@ std::vector<ListenerConfig> ParseListeners(const YAML::Node& node) {
   }
 
   return listeners;
+}
+
+std::vector<ServiceConfig> ParseServices(const YAML::Node& node) {
+  std::vector<ServiceConfig> services;
+  if (!node) {
+    return services;
+  }
+
+  if (!node.IsSequence()) {
+    throw std::runtime_error("services must be an array");
+  }
+
+  services.reserve(node.size());
+  std::unordered_set<std::size_t> seen_slots;
+  for (std::size_t i = 0; i < node.size(); ++i) {
+    const YAML::Node service_node = node[i];
+    if (!service_node.IsMap()) {
+      throw std::runtime_error("service item must be an object");
+    }
+
+    std::ostringstream ctx;
+    ctx << "services[" << i << "]";
+
+    const YAML::Node slot_node = service_node["slot"];
+    if (!slot_node || !slot_node.IsScalar()) {
+      throw std::runtime_error(ctx.str() + ": field `slot` is required");
+    }
+
+    std::int64_t slot = 0;
+    try {
+      slot = slot_node.as<std::int64_t>();
+    } catch (const YAML::Exception&) {
+      throw std::runtime_error(ctx.str() + ": field `slot` must be an integer");
+    }
+    if (slot < 0) {
+      throw std::runtime_error(ctx.str() +
+                               ": field `slot` must be greater than or equal "
+                               "to 0");
+    }
+
+    const std::size_t slot_index = static_cast<std::size_t>(slot);
+    if (!seen_slots.insert(slot_index).second) {
+      throw std::runtime_error(ctx.str() + ": duplicate service slot " +
+                               std::to_string(slot_index));
+    }
+
+    services.push_back(ServiceConfig{
+        .slot = slot_index,
+        .factory = ParseFactoryConfig(service_node, ctx.str()),
+    });
+  }
+
+  return services;
 }
 
 std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {

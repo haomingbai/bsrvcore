@@ -70,6 +70,7 @@ ServerConfig LoadConfigFromFile(const std::string& path) {
       .max_connection = server.max_connection,
       .executor = server.executor,
       .listeners = config_loader_detail::ParseListeners(root["listeners"]),
+      .services = config_loader_detail::ParseServices(root["services"]),
       .global = config_loader_detail::ParseGlobal(root["global"]),
       .routes = config_loader_detail::ParseRoutes(root["routes"]),
   };

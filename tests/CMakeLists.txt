@@ -59,6 +59,11 @@ add_library(test_bsrvrun_aspect_plugin SHARED
 )
 target_link_libraries(test_bsrvrun_aspect_plugin PRIVATE bsrvcore)
 
+add_library(test_bsrvrun_service_plugin SHARED
+  ${CMAKE_SOURCE_DIR}/tests/support/bsrvrun_plugins/test_service_plugin.cc
+)
+target_link_libraries(test_bsrvrun_service_plugin PRIVATE bsrvcore)
+
 # General tests (unit + integration).
 add_subdirectory(general)
 

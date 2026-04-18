@@ -103,6 +103,7 @@ static int RunMain(int argc, char** argv) {
     std::signal(SIGTERM, HandleSignal);
 
     if (!server->Start()) {
+      loader.DestroyServices(server.get());
       std::cerr << "failed to start server" << '\n';
       return 3;
     }
@@ -113,6 +114,7 @@ static int RunMain(int argc, char** argv) {
     }
 
     server->Stop();
+    loader.DestroyServices(server.get());
     server.reset();
     return 0;
   } catch (const std::exception& e) {

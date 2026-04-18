@@ -218,6 +218,15 @@ std::shared_ptr<Context> HttpTaskBase::GetContext() noexcept {
   return conn ? conn->GetContext() : nullptr;
 }
 
+ServiceProvider HttpTaskBase::GetServiceProvider(
+    std::size_t index) const noexcept {
+  if (!state_ || state_->srv == nullptr) {
+    return {};
+  }
+
+  return state_->srv->GetServiceProvider(index);
+}
+
 bool HttpTaskBase::SetSessionTimeout(std::size_t timeout) {
   auto conn = GetConnection(state_);
   return conn ? conn->SetSessionTimeout(GetSessionId(), timeout) : false;

@@ -44,6 +44,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/service_provider.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_route_result.h"
@@ -206,6 +207,25 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
    * @return Context pointer, or nullptr if unavailable.
    */
   std::shared_ptr<Context> GetContext() noexcept;
+
+  /**
+   * @brief Get one configured server service slot.
+   * @param index Slot index in the server provider array.
+   * @return Opaque non-owning service pointer wrapper.
+   */
+  [[nodiscard]] ServiceProvider GetServiceProvider(
+      std::size_t index) const noexcept;
+
+  /**
+   * @brief Get one configured server service slot as a typed pointer.
+   * @tparam T Service type shared with the provider plugin.
+   * @param index Slot index in the server provider array.
+   * @return Typed pointer, or nullptr when the slot is empty.
+   */
+  template <typename T>
+  [[nodiscard]] T* GetService(std::size_t index) const noexcept {
+    return GetServiceProvider(index).Get<T>();
+  }
 
   /**
    * @brief Get this request's connection-local io executor.

@@ -3,3 +3,6 @@ target_link_libraries(example_bsrvrun_demo_handler_plugin PRIVATE bsrvcore)
 
 add_library(example_bsrvrun_demo_aspect_plugin SHARED demo_aspect_plugin.cc)
 target_link_libraries(example_bsrvrun_demo_aspect_plugin PRIVATE bsrvcore)
+
+add_library(example_bsrvrun_demo_service_plugin SHARED demo_service_plugin.cc)
+target_link_libraries(example_bsrvrun_demo_service_plugin PRIVATE bsrvcore)

@@ -17,6 +17,7 @@ namespace bsrvcore::bsrvrun {
 
 class HttpRequestAspectHandlerFactory;
 class HttpRequestHandlerFactory;
+class ServiceFactory;
 
 }  // namespace bsrvcore::bsrvrun
 
@@ -56,5 +57,15 @@ class HttpRequestHandlerFactory;
 #define BSRVCORE_BSRVRUN_ASPECT_FACTORY_EXPORT \
   extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT    \
       bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory*
+
+/**
+ * @def BSRVCORE_BSRVRUN_SERVICE_FACTORY_EXPORT
+ * @brief Declares the exported `GetServiceFactory()` entry point signature.
+ *
+ * Use this macro directly on the factory function definition in a service
+ * plugin so the symbol is exported with C linkage on every supported platform.
+ */
+#define BSRVCORE_BSRVRUN_SERVICE_FACTORY_EXPORT \
+  extern "C" BSRVCORE_BSRVRUN_PLUGIN_EXPORT bsrvcore::bsrvrun::ServiceFactory*
 
 #endif

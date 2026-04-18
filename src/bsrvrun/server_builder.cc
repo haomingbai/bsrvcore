@@ -36,6 +36,11 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
     server->AddListen(TcpEndpoint(addr, listener.port), listener.io_threads);
   }
 
+  for (const auto& service_config : config.services) {
+    server->SetServiceProvider(service_config.slot,
+                               loader->CreateService(service_config));
+  }
+
   if (config.global.default_handler.has_value()) {
     server->SetDefaultHandler(
         loader->CreateHandler(*config.global.default_handler));

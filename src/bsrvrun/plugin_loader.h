@@ -22,7 +22,26 @@
 #include "bsrvcore/route/http_request_handler.h"
 #include "config_types.h"
 
+namespace bsrvcore {
+class HttpServer;
+}
+
+namespace bsrvcore::bsrvrun {
+class ServiceFactory;
+}
+
 namespace bsrvcore::runtime {
+
+namespace service_runtime_detail {
+
+struct LoadedServiceRecord {
+  std::size_t slot{0};
+  void* service{nullptr};
+  bsrvcore::bsrvrun::ServiceFactory* factory{nullptr};
+  bool destroyed{false};
+};
+
+}  // namespace service_runtime_detail
 
 class PluginLoader {
  public:
@@ -38,11 +57,16 @@ class PluginLoader {
   bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> CreateAspect(
       const FactoryConfig& config) const;
 
+  void* CreateService(const ServiceConfig& config);
+
+  void DestroyServices(bsrvcore::HttpServer* server);
+
  private:
   void* GetOrOpenLibrary(const std::string& path) const;
 
   mutable std::unordered_map<std::string, void*> handles_;
   mutable std::vector<std::string> handle_order_;
+  std::vector<service_runtime_detail::LoadedServiceRecord> loaded_services_;
 };
 
 }  // namespace bsrvcore::runtime
