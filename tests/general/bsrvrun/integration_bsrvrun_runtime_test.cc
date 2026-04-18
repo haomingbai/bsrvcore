@@ -226,6 +226,7 @@ TEST(BsrvRunRuntimeIntegrationTest,
   std::ifstream in(destroy_marker);
   std::string destroy_body;
   std::getline(in, destroy_body);
+  in.close();
   EXPECT_EQ(destroy_body, "service|");
 
   std::filesystem::remove(config_path);
