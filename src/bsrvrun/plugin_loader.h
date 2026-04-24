@@ -26,12 +26,12 @@
 namespace bsrvcore {
 class HttpServer;
 class Logger;
-}
+}  // namespace bsrvcore
 
 namespace bsrvcore::bsrvrun {
 class LoggerFactory;
 class ServiceFactory;
-}
+}  // namespace bsrvcore::bsrvrun
 
 namespace bsrvcore::runtime {
 

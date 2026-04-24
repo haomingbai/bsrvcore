@@ -10,6 +10,8 @@ Each HTTP method owns one route tree:
 - static segments are stored in `map_`
 - parameter segments share `default_route_`
 - terminal layers hold handler/aspect/policy metadata
+- connection/runtime hot paths keep allocator-backed internal route results,
+  while public `HttpServer::Route()` converts to compatibility containers
 
 ```mermaid
 flowchart TD
@@ -28,6 +30,8 @@ flowchart TD
 - Method-specific global aspects are appended next.
 - Matched subtree aspects are appended next in root-to-leaf order.
 - Terminal aspects on the final matched route are appended last.
+- Collection now appends directly into the destination aspect chain and avoids
+  temporary per-layer vectors.
 - Pre phase runs in collection order.
 - Post phase runs in reverse order.
 

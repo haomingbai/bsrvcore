@@ -21,13 +21,11 @@
 #include <boost/url/url_view.hpp>
 #include <cstddef>
 #include <shared_mutex>
-#include <string>
 #include <string_view>
-#include <unordered_map>
-#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/internal/route/http_route_result_internal.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
 
@@ -79,6 +77,15 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    */
   HttpRouteResult Route(HttpRequestMethod method,
                         const std::string_view target) noexcept;
+
+  /**
+   * @brief Internal allocator-backed routing entry point.
+   * @param method HTTP request method.
+   * @param target Request path to match.
+   * @return Routing result that keeps hot-path containers allocator-backed.
+   */
+  route_internal::HttpRouteResultInternal RouteInternal(
+      HttpRequestMethod method, std::string_view target) noexcept;
 
   /**
    * @brief Add a route entry with a handler
@@ -255,6 +262,9 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   [[nodiscard]] HttpRouteResult BuildDefaultRouteResult(
       HttpRequestMethod method) const noexcept;
 
+  [[nodiscard]] route_internal::HttpRouteResultInternal
+  BuildDefaultRouteResultInternal(HttpRequestMethod method) const noexcept;
+
   /**
    * @brief Match URL segments against the route tree and extract parameters.
    * @param url The parsed URL view whose segments will be matched.
@@ -270,20 +280,19 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * layer; false otherwise.
    * @note This function is noexcept and will not throw.
    */
-  bool MatchSegments(
-      const boost::urls::url_view& url,
-      route_internal::HttpRouteTableLayer*& route_layer,
-      std::string& out_location,
-      std::vector<std::string>& out_parameter_values,
-      std::vector<route_internal::HttpRouteTableLayer*>& out_matched_layers)
-      const noexcept;
+  bool MatchSegments(const boost::urls::url_view& url,
+                     route_internal::HttpRouteTableLayer*& route_layer,
+                     AllocatedString& out_location,
+                     AllocatedVector<AllocatedString>& out_parameter_values,
+                     AllocatedVector<route_internal::HttpRouteTableLayer*>&
+                         out_matched_layers) const noexcept;
 
   /**
    * @brief Extract ordered parameter names from a route target.
    * @param target Route target template.
    * @return Parameter names in path order.
    */
-  static std::vector<std::string> ExtractParamNames(
+  static AllocatedVector<AllocatedString> ExtractParamNames(
       std::string_view target) noexcept;
 
   /**
@@ -291,7 +300,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @param target Route target template.
    * @return Normalized route template without query.
    */
-  static std::string NormalizeRouteTemplate(std::string_view target);
+  static AllocatedString NormalizeRouteTemplate(std::string_view target);
 
   /**
    * @brief Build the named parameter map for a matched terminal route layer.
@@ -299,9 +308,9 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @param parameter_values Extracted parameter values in path order.
    * @return Named parameter map.
    */
-  static std::unordered_map<std::string, std::string> BuildParameterMap(
+  static AllocatedStringMap BuildParameterMap(
       const route_internal::HttpRouteTableLayer& route_layer,
-      std::vector<std::string> parameter_values);
+      AllocatedVector<AllocatedString> parameter_values);
 
   /**
    * @brief Collect aspect handlers in order: global, method-specific,
@@ -317,16 +326,17 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * @note Returned pointers are non-owning; lifetime is bound to the stored
    * handlers.
    */
-  std::vector<HttpRequestAspectHandler*> CollectAspects(
-      const std::vector<route_internal::HttpRouteTableLayer*>& matched_layers,
+  AllocatedVector<HttpRequestAspectHandler*> CollectAspects(
+      const AllocatedVector<route_internal::HttpRouteTableLayer*>&
+          matched_layers,
       route_internal::HttpRouteTableLayer* route_layer,
       HttpRequestMethod method) const noexcept;
 
   static bool HasTerminalConfiguration(
       const route_internal::HttpRouteTableLayer& layer) noexcept;
 
-  static std::string JoinRouteTemplate(std::string_view prefix,
-                                       std::string_view route_template);
+  static AllocatedString JoinRouteTemplate(std::string_view prefix,
+                                           std::string_view route_template);
 
   static void PrefixRouteTemplates(route_internal::HttpRouteTableLayer& layer,
                                    std::string_view prefix);
@@ -343,7 +353,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
 
   static void CollectChildLayers(
       route_internal::HttpRouteTableLayer& layer,
-      std::vector<OwnedPtr<route_internal::HttpRouteTableLayer>>& pending);
+      AllocatedVector<OwnedPtr<route_internal::HttpRouteTableLayer>>& pending);
 
   static void DestroyLayerTreeIterative(
       OwnedPtr<route_internal::HttpRouteTableLayer>& root) noexcept;
@@ -353,10 +363,10 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
   std::array<OwnedPtr<route_internal::HttpRouteTableLayer>,
              kHttpRequestMethodNum>
       entrance_;  ///< Routing layers per HTTP method
-  std::array<std::vector<OwnedPtr<HttpRequestAspectHandler>>,
+  std::array<AllocatedVector<OwnedPtr<HttpRequestAspectHandler>>,
              kHttpRequestMethodNum>
       global_specific_aspects_;  ///< Method-specific global aspects
-  std::vector<OwnedPtr<HttpRequestAspectHandler>>
+  AllocatedVector<OwnedPtr<HttpRequestAspectHandler>>
       global_aspects_;  ///< Global aspects for all methods
   OwnedPtr<HttpRequestHandler>
       default_handler_;  ///< Fallback handler for unmatched routes

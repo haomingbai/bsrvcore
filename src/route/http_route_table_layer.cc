@@ -15,10 +15,8 @@
 
 #include <cstddef>
 #include <exception>
-#include <memory>
-#include <string>
+#include <string_view>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
@@ -64,7 +62,7 @@ bool HttpRouteTableLayer::SetDefaultRoute(
   return true;
 }
 
-bool HttpRouteTableLayer::SetRoute(std::string key,
+bool HttpRouteTableLayer::SetRoute(std::string_view key,
                                    OwnedPtr<HttpRouteTableLayer> link) try {
   if (key.empty()) {
     return false;
@@ -74,10 +72,11 @@ bool HttpRouteTableLayer::SetRoute(std::string key,
     return false;
   }
 
-  if (map_.contains(key) != 0u) {
-    map_.at(key) = std::move(link);
+  auto it = map_.find(key);
+  if (it != map_.end()) {
+    it->second = std::move(link);
   } else {
-    map_.emplace(std::move(key), std::move(link));
+    map_.emplace(bsrvcore::detail::ToAllocatedString(key), std::move(link));
   }
 
   return true;
@@ -94,16 +93,7 @@ HttpRouteTableLayer* HttpRouteTableLayer::GetDefaultRoute() const noexcept {
 }
 
 HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
-    const std::string& key) const noexcept {
-  auto it = map_.find(key);
-  if (it == map_.end()) {
-    return nullptr;
-  }
-  return it->second.get();
-}
-
-HttpRouteTableLayer* HttpRouteTableLayer::GetRoute(
-    std::string&& key) const noexcept {
+    std::string_view key) const noexcept {
   auto it = map_.find(key);
   if (it == map_.end()) {
     return nullptr;
@@ -116,21 +106,22 @@ bsrvcore::HttpRequestHandler* HttpRouteTableLayer::GetHandler() noexcept {
 }
 
 void HttpRouteTableLayer::SetParamNames(
-    std::vector<std::string> param_names) noexcept {
+    AllocatedVector<AllocatedString> param_names) noexcept {
   param_names_ = std::move(param_names);
 }
 
-const std::vector<std::string>& HttpRouteTableLayer::GetParamNames()
-    const noexcept {
+const bsrvcore::AllocatedVector<bsrvcore::AllocatedString>&
+HttpRouteTableLayer::GetParamNames() const noexcept {
   return param_names_;
 }
 
 void HttpRouteTableLayer::SetRouteTemplate(
-    std::string route_template) noexcept {
+    AllocatedString route_template) noexcept {
   route_template_ = std::move(route_template);
 }
 
-const std::string& HttpRouteTableLayer::GetRouteTemplate() const noexcept {
+const bsrvcore::AllocatedString& HttpRouteTableLayer::GetRouteTemplate()
+    const noexcept {
   return route_template_;
 }
 
@@ -152,35 +143,6 @@ bool HttpRouteTableLayer::AddTerminalAspect(
   return true;
 } catch (...) {
   return false;
-}
-
-std::vector<bsrvcore::HttpRequestAspectHandler*>
-HttpRouteTableLayer::GetAspects() const {
-  std::vector<bsrvcore::HttpRequestAspectHandler*> aspects(aspects_.size());
-  for (std::size_t i = 0; i < aspects_.size(); i++) {
-    aspects[i] = aspects_[i].get();
-  }
-
-  return aspects;
-}
-
-std::size_t HttpRouteTableLayer::GetAspectNum() const noexcept {
-  return aspects_.size();
-}
-
-std::vector<bsrvcore::HttpRequestAspectHandler*>
-HttpRouteTableLayer::GetTerminalAspects() const {
-  std::vector<bsrvcore::HttpRequestAspectHandler*> aspects(
-      terminal_aspects_.size());
-  for (std::size_t i = 0; i < aspects.size(); i++) {
-    aspects[i] = terminal_aspects_[i].get();
-  }
-
-  return aspects;
-}
-
-std::size_t HttpRouteTableLayer::GetTerminalAspectNum() const noexcept {
-  return terminal_aspects_.size();
 }
 
 std::size_t HttpRouteTableLayer::GetMaxBodySize() const noexcept {

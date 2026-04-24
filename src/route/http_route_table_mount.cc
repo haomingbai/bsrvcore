@@ -27,10 +27,10 @@ using bsrvcore::route_internal::HttpRouteTableLayer;
 
 namespace bsrvcore {
 
-std::string HttpRouteTable::JoinRouteTemplate(std::string_view prefix,
-                                              std::string_view route_template) {
-  std::string normalized_prefix = NormalizeRouteTemplate(prefix);
-  std::string normalized_route = NormalizeRouteTemplate(route_template);
+AllocatedString HttpRouteTable::JoinRouteTemplate(
+    std::string_view prefix, std::string_view route_template) {
+  AllocatedString normalized_prefix = NormalizeRouteTemplate(prefix);
+  AllocatedString normalized_route = NormalizeRouteTemplate(route_template);
 
   if (normalized_prefix.size() > 1 && normalized_prefix.back() == '/') {
     normalized_prefix.pop_back();
@@ -231,11 +231,12 @@ bool HttpRouteTable::MountAt(std::string_view prefix, HttpRouteTable&& source) {
         continue;
       }
 
-      auto it = route_layer->map_.find(std::string(word));
+      auto it = route_layer->map_.find(word);
       if (it == route_layer->map_.end()) {
         auto new_layer = AllocateUnique<HttpRouteTableLayer>();
         auto* next = new_layer.get();
-        route_layer->map_.emplace(std::string(word), std::move(new_layer));
+        route_layer->map_.emplace(detail::ToAllocatedString(word),
+                                  std::move(new_layer));
         route_layer = next;
       } else {
         route_layer = it->second.get();

@@ -45,7 +45,7 @@ int main() {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/hello/{name}",
-                      bsrvcore::AllocateUnique<HelloHandler>())
+                      std::make_unique<HelloHandler>())
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8082}, 1);
 
   if (!server->Start()) {

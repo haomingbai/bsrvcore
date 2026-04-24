@@ -12,13 +12,9 @@
 #include <boost/url/parse.hpp>
 #include <boost/url/url_view.hpp>
 #include <cstddef>
-#include <iterator>
-#include <memory>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/route/http_request_method.h"
@@ -29,36 +25,42 @@
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestMethod;
 using bsrvcore::HttpRouteResult;
+using bsrvcore::route_internal::HttpRouteResultInternal;
 using bsrvcore::route_internal::HttpRouteTableLayer;
 
 namespace bsrvcore {
 
 HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                                       std::string_view target) noexcept {
+  return route_internal::ToPublicRouteResult(RouteInternal(method, target));
+}
+
+HttpRouteResultInternal HttpRouteTable::RouteInternal(
+    HttpRequestMethod method, std::string_view target) noexcept {
   using boost::urls::parse_uri_reference;
 
   HttpRouteTableLayer* route_layer =
       entrance_[static_cast<std::size_t>(method)].get();
   if (route_layer == nullptr) {
-    return BuildDefaultRouteResult(method);
+    return BuildDefaultRouteResultInternal(method);
   }
 
   auto parsed = parse_uri_reference(target);
   if (!parsed) {
-    return BuildDefaultRouteResult(method);
+    return BuildDefaultRouteResultInternal(method);
   }
 
-  std::string current_location;
-  std::vector<std::string> parameter_values;
-  std::vector<HttpRouteTableLayer*> matched_layers;
+  AllocatedString current_location;
+  AllocatedVector<AllocatedString> parameter_values;
+  AllocatedVector<HttpRouteTableLayer*> matched_layers;
   if (!MatchSegments(*parsed, route_layer, current_location, parameter_values,
                      matched_layers)) {
-    return BuildDefaultRouteResult(method);
+    return BuildDefaultRouteResultInternal(method);
   }
 
   auto* handler = route_layer->GetHandler();
   if (handler == nullptr) {
-    return BuildDefaultRouteResult(method);
+    return BuildDefaultRouteResultInternal(method);
   }
   auto aspects = CollectAspects(matched_layers, route_layer, method);
 
@@ -72,7 +74,7 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
                           ? route_layer->GetWriteExpiry()
                           : default_write_expiry_;
 
-  HttpRouteResult result;
+  HttpRouteResultInternal result;
   result.current_location = std::move(current_location);
   result.route_template = route_layer->GetRouteTemplate();
   result.parameters =
@@ -87,7 +89,13 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
 HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
     [[maybe_unused]] HttpRequestMethod method) const noexcept {
-  std::vector<HttpRequestAspectHandler*> aspects;
+  return route_internal::ToPublicRouteResult(
+      BuildDefaultRouteResultInternal(method));
+}
+
+HttpRouteResultInternal HttpRouteTable::BuildDefaultRouteResultInternal(
+    [[maybe_unused]] HttpRequestMethod method) const noexcept {
+  AllocatedVector<HttpRequestAspectHandler*> aspects;
   aspects.reserve(global_aspects_.size());
   std::ranges::for_each(global_aspects_, [&aspects](const auto& aspect) {
     aspects.emplace_back(aspect.get());
@@ -95,9 +103,9 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 
   // Routing failures still run the default handler inside the global aspect
   // envelope so cross-cutting behavior such as logging/auth can stay uniform.
-  HttpRouteResult result;
-  result.current_location = "/";
-  result.route_template = "/";
+  HttpRouteResultInternal result;
+  result.current_location = detail::ToAllocatedString("/");
+  result.route_template = detail::ToAllocatedString("/");
   result.aspects = std::move(aspects);
   result.handler = default_handler_.get();
   result.max_body_size = default_max_body_size_;
@@ -108,9 +116,9 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 
 bool HttpRouteTable::MatchSegments(
     const boost::urls::url_view& url, HttpRouteTableLayer*& route_layer,
-    std::string& out_location,
-    std::vector<std::string>& out_parameter_values,
-    std::vector<HttpRouteTableLayer*>& out_matched_layers) const noexcept {
+    AllocatedString& out_location,
+    AllocatedVector<AllocatedString>& out_parameter_values,
+    AllocatedVector<HttpRouteTableLayer*>& out_matched_layers) const noexcept {
   out_location.clear();
   out_parameter_values.clear();
   out_matched_layers.clear();
@@ -128,10 +136,12 @@ bool HttpRouteTable::MatchSegments(
       continue;
     }
 
-    if (HttpRouteTableLayer* next = route_layer->GetRoute(std::string(seg))) {
+    const std::string segment_text(seg);
+
+    if (HttpRouteTableLayer* next = route_layer->GetRoute(segment_text)) {
       route_layer = next;
       out_location.push_back('/');
-      out_location.append(seg);
+      out_location.append(segment_text);
       out_matched_layers.emplace_back(route_layer);
       continue;
     }
@@ -147,10 +157,10 @@ bool HttpRouteTable::MatchSegments(
       return false;
     }
 
-    out_parameter_values.emplace_back(seg);
+    out_parameter_values.emplace_back(detail::ToAllocatedString(segment_text));
     route_layer = default_layer;
     out_location.push_back('/');
-    out_location.append(seg);
+    out_location.append(segment_text);
     out_matched_layers.emplace_back(route_layer);
   }
 
@@ -160,27 +170,29 @@ bool HttpRouteTable::MatchSegments(
   return true;
 }
 
-std::vector<std::string> HttpRouteTable::ExtractParamNames(
+AllocatedVector<AllocatedString> HttpRouteTable::ExtractParamNames(
     std::string_view target) noexcept {
-  std::vector<std::string> param_names;
+  AllocatedVector<AllocatedString> param_names;
   for (auto segment : route_internal::detail::SplitTargetSegments(target)) {
     const auto param_name = route_internal::detail::ExtractParamName(segment);
     if (!param_name.empty()) {
-      param_names.emplace_back(param_name);
+      param_names.emplace_back(detail::ToAllocatedString(param_name));
     }
   }
   return param_names;
 }
 
-std::string HttpRouteTable::NormalizeRouteTemplate(std::string_view target) {
+AllocatedString HttpRouteTable::NormalizeRouteTemplate(
+    std::string_view target) {
   const std::string_view url = route_internal::detail::StripQuery(target);
-  return url.empty() ? "/" : std::string(url);
+  return url.empty() ? detail::ToAllocatedString("/")
+                     : detail::ToAllocatedString(url);
 }
 
-std::unordered_map<std::string, std::string> HttpRouteTable::BuildParameterMap(
+AllocatedStringMap HttpRouteTable::BuildParameterMap(
     const HttpRouteTableLayer& route_layer,
-    std::vector<std::string> parameter_values) {
-  std::unordered_map<std::string, std::string> parameters;
+    AllocatedVector<AllocatedString> parameter_values) {
+  AllocatedStringMap parameters;
   const auto& param_names = route_layer.GetParamNames();
   const auto pair_count = std::min(param_names.size(), parameter_values.size());
   parameters.reserve(pair_count);
@@ -194,10 +206,10 @@ std::unordered_map<std::string, std::string> HttpRouteTable::BuildParameterMap(
   return parameters;
 }
 
-std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
-    const std::vector<HttpRouteTableLayer*>& matched_layers,
+AllocatedVector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
+    const AllocatedVector<HttpRouteTableLayer*>& matched_layers,
     HttpRouteTableLayer* route_layer, HttpRequestMethod method) const noexcept {
-  std::vector<HttpRequestAspectHandler*> aspects;
+  AllocatedVector<HttpRequestAspectHandler*> aspects;
   auto method_idx = static_cast<std::size_t>(method);
 
   std::size_t reserve_size = global_aspects_.size();
@@ -206,10 +218,10 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
   }
   for (const auto* layer : matched_layers) {
     if (layer != nullptr) {
-      reserve_size += layer->GetAspectNum();
+      reserve_size += layer->aspects_.size();
     }
   }
-  reserve_size += route_layer->GetTerminalAspectNum();
+  reserve_size += route_layer->terminal_aspects_.size();
   aspects.reserve(reserve_size);
 
   for (auto const& a : global_aspects_) {
@@ -227,16 +239,14 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
     if (layer == nullptr) {
       continue;
     }
-    auto subtree_aspects = layer->GetAspects();
-    aspects.insert(aspects.end(),
-                   std::make_move_iterator(subtree_aspects.begin()),
-                   std::make_move_iterator(subtree_aspects.end()));
+    for (const auto& subtree_aspect : layer->aspects_) {
+      aspects.emplace_back(subtree_aspect.get());
+    }
   }
 
-  auto terminal_aspects = route_layer->GetTerminalAspects();
-  aspects.insert(aspects.end(),
-                 std::make_move_iterator(terminal_aspects.begin()),
-                 std::make_move_iterator(terminal_aspects.end()));
+  for (const auto& terminal_aspect : route_layer->terminal_aspects_) {
+    aspects.emplace_back(terminal_aspect.get());
+  }
   return aspects;
 }
 

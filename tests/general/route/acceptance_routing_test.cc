@@ -96,3 +96,42 @@ TEST(RoutingAcceptanceTest, ExclusiveRouteBypassesParametricRoute) {
   EXPECT_EQ(res.result(), http::status::ok);
   EXPECT_EQ(res.body(), "exclusive");
 }
+
+TEST(RoutingAcceptanceTest, LegacyAndViewRouteMetadataStayConsistent) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(
+      bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
+      [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+        const auto* id = task->GetPathParameter("id");
+        const auto* id_view = task->GetPathParameterView("id");
+        const auto& legacy = task->GetPathParameters();
+        const auto& fast = task->GetPathParametersView();
+
+        bool consistent =
+            id != nullptr && id_view != nullptr &&
+            task->GetCurrentLocation() == task->GetCurrentLocationView() &&
+            task->GetRouteTemplate() == task->GetRouteTemplateView() &&
+            *id == std::string(id_view->begin(), id_view->end()) &&
+            legacy.size() == fast.size();
+
+        if (consistent) {
+          for (const auto& [key, value] : fast) {
+            const auto it = legacy.find(std::string(key.begin(), key.end()));
+            if (it == legacy.end() ||
+                it->second != std::string(value.begin(), value.end())) {
+              consistent = false;
+              break;
+            }
+          }
+        }
+
+        task->SetBody(consistent ? "ok" : "mismatch");
+      });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  const auto res = DoRequestWithRetry(http::verb::get, port, "/users/123", "");
+  EXPECT_EQ(res.result(), http::status::ok);
+  EXPECT_EQ(res.body(), "ok");
+}

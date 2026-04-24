@@ -116,13 +116,13 @@ std::vector<ScenarioDefinition> BuildScenarios() {
             task->GetResponse().result(http::status::ok);
             task->SetField(http::field::content_type,
                            "text/plain; charset=utf-8");
-            const auto* id = task->GetPathParameter("id");
+            const auto* id = task->GetPathParameterView("id");
             if (id == nullptr) {
               task->GetResponse().result(http::status::bad_request);
               task->SetBody("missing-id");
               return;
             }
-            task->SetBody(*id);
+            task->SetBody(std::string(id->begin(), id->end()));
           });
     };
     scenario.make_request = [](WorkerState& state, const RunSettings&) {

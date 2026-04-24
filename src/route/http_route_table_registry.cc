@@ -9,11 +9,9 @@
  */
 
 #include <cstddef>
-#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
@@ -89,12 +87,12 @@ HttpRouteTableLayer* HttpRouteTable::GetOrCreateRouteTableLayer(
       continue;
     }
 
-    if (auto* next_layer = route_layer->GetRoute(std::string(word))) {
+    if (auto* next_layer = route_layer->GetRoute(word)) {
       route_layer = next_layer;
     } else {
       auto new_layer = AllocateUnique<HttpRouteTableLayer>();
       auto* created_layer = new_layer.get();
-      route_layer->SetRoute(std::string(word), std::move(new_layer));
+      route_layer->SetRoute(word, std::move(new_layer));
       route_layer = created_layer;
     }
   }
@@ -241,7 +239,7 @@ HttpRouteTable::HttpRouteTable() noexcept
 
 void HttpRouteTable::CollectChildLayers(
     HttpRouteTableLayer& layer,
-    std::vector<OwnedPtr<HttpRouteTableLayer>>& pending) {
+    AllocatedVector<OwnedPtr<HttpRouteTableLayer>>& pending) {
   if (layer.default_route_ != nullptr) {
     pending.emplace_back(std::move(layer.default_route_));
   }
@@ -264,7 +262,7 @@ void HttpRouteTable::DestroyLayerTreeIterative(
 
   // Deep route trees are user-controlled. Destroy iteratively so teardown
   // depth is bounded by heap storage instead of the call stack.
-  std::vector<OwnedPtr<HttpRouteTableLayer>> pending;
+  AllocatedVector<OwnedPtr<HttpRouteTableLayer>> pending;
   pending.emplace_back(std::move(root));
   while (!pending.empty()) {
     auto current = std::move(pending.back());

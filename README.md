@@ -229,6 +229,10 @@ requires:
      binding, and `bsrvrun` route config (`aspects` vs `terminal_aspects`).
 4. **Lambda handlers** (in examples and application code) auto-adapt—no changes
    needed.
+5. **Object handler/aspect ownership choices**:
+   - `AllocateUnique<T>()` keeps registration objects on bsrvcore allocator.
+   - `std::make_unique<T>()` is also accepted by registration APIs; bsrvcore
+     adopts ownership and destroys those objects with system `delete`.
 
 **Benefit**: ~5-15% throughput improvement in typical request paths through
 reduced atomic reference-count operations. See [IO Thread Optimizations in the

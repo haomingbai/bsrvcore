@@ -52,6 +52,16 @@ class BluePrint : public MovableOnly<BluePrint> {
   BluePrint* AddRouteEntry(HttpRequestMethod method, std::string_view url,
                            OwnedPtr<HttpRequestHandler> handler);
 
+  /** @brief Add a route entry with `std::make_unique` handler. */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  BluePrint* AddRouteEntry(HttpRequestMethod method, std::string_view url,
+                           std::unique_ptr<Handler> handler) {
+    return AddRouteEntry(
+        method, url,
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
+
   /** @brief Add a route entry from a callable. */
   template <typename Func>
     requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
@@ -70,6 +80,17 @@ class BluePrint : public MovableOnly<BluePrint> {
                                     std::string_view url,
                                     OwnedPtr<HttpRequestHandler> handler);
 
+  /** @brief Add an exclusive route entry with `std::make_unique` handler. */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  BluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
+                                    std::string_view url,
+                                    std::unique_ptr<Handler> handler) {
+    return AddExclusiveRouteEntry(
+        method, url,
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
+
   /** @brief Add an exclusive route entry from a callable. */
   template <typename Func>
     requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
@@ -86,6 +107,16 @@ class BluePrint : public MovableOnly<BluePrint> {
   /** @brief Add a subtree aspect entry with an owned aspect object. */
   BluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
                        OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /** @brief Add a subtree aspect entry with `std::make_unique` aspect. */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  BluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
+                       std::unique_ptr<Aspect> aspect) {
+    return AddAspect(
+        method, url,
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
 
   /** @brief Add a subtree aspect entry from pre/post callables. */
   template <typename F1, typename F2>
@@ -108,6 +139,16 @@ class BluePrint : public MovableOnly<BluePrint> {
   /** @brief Add a terminal aspect entry with an owned aspect object. */
   BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
                                OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /** @brief Add a terminal aspect entry with `std::make_unique` aspect. */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
+                               std::unique_ptr<Aspect> aspect) {
+    return AddTerminalAspect(
+        method, url,
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
 
   /** @brief Add a terminal aspect entry from pre/post callables. */
   template <typename F1, typename F2>
@@ -165,6 +206,17 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestHandler> handler);
 
+  /** @brief Add a route entry with `std::make_unique` cloneable handler. */
+  template <typename Handler>
+    requires std::derived_from<Handler, CloneableHttpRequestHandler>
+  ReuseableBluePrint* AddRouteEntry(HttpRequestMethod method,
+                                    std::string_view url,
+                                    std::unique_ptr<Handler> handler) {
+    return AddRouteEntry(method, url,
+                         AdoptUniqueAs<CloneableHttpRequestHandler, Handler>(
+                             std::move(handler)));
+  }
+
   /** @brief Add a route entry from a copyable callable. */
   template <typename Func>
     requires std::copy_constructible<std::decay_t<Func>> &&
@@ -183,6 +235,21 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   ReuseableBluePrint* AddExclusiveRouteEntry(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestHandler> handler);
+
+  /**
+   * @brief Add an exclusive route entry with `std::make_unique` cloneable
+   * handler.
+   */
+  template <typename Handler>
+    requires std::derived_from<Handler, CloneableHttpRequestHandler>
+  ReuseableBluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
+                                             std::string_view url,
+                                             std::unique_ptr<Handler> handler) {
+    return AddExclusiveRouteEntry(
+        method, url,
+        AdoptUniqueAs<CloneableHttpRequestHandler, Handler>(
+            std::move(handler)));
+  }
 
   /** @brief Add an exclusive route entry from a copyable callable. */
   template <typename Func>
@@ -204,6 +271,19 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   ReuseableBluePrint* AddAspect(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a subtree aspect entry with `std::make_unique` cloneable
+   * aspect.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, CloneableHttpRequestAspectHandler>
+  ReuseableBluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
+                                std::unique_ptr<Aspect> aspect) {
+    return AddAspect(method, url,
+                     AdoptUniqueAs<CloneableHttpRequestAspectHandler, Aspect>(
+                         std::move(aspect)));
+  }
 
   /** @brief Add a subtree aspect entry from copyable pre/post callables. */
   template <typename F1, typename F2>
@@ -229,6 +309,21 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   ReuseableBluePrint* AddTerminalAspect(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a terminal aspect entry with `std::make_unique` cloneable
+   * aspect.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, CloneableHttpRequestAspectHandler>
+  ReuseableBluePrint* AddTerminalAspect(HttpRequestMethod method,
+                                        std::string_view url,
+                                        std::unique_ptr<Aspect> aspect) {
+    return AddTerminalAspect(
+        method, url,
+        AdoptUniqueAs<CloneableHttpRequestAspectHandler, Aspect>(
+            std::move(aspect)));
+  }
 
   /** @brief Add a terminal aspect entry from copyable pre/post callables. */
   template <typename F1, typename F2>

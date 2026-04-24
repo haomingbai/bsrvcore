@@ -222,6 +222,14 @@ void HttpPostTaskDeleter::operator()(HttpPostServerTask* ptr) const {
 std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<StreamServerConnection> conn) {
+  return Create(std::move(req),
+                route_internal::ToInternalRouteResult(route_result),
+                std::move(conn));
+}
+
+std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
+    HttpRequest req, route_internal::HttpRouteResultInternal route_result,
+    std::shared_ptr<StreamServerConnection> conn) {
   // All three lifecycle task objects share one HttpTaskSharedState instance so
   // request/response data, cookies, and connection state survive phase hops.
   auto state =
@@ -326,6 +334,14 @@ void HttpServerTask::DoService() {
 
 std::shared_ptr<HttpServerTask> HttpServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
+    std::shared_ptr<StreamServerConnection> conn) {
+  return Create(std::move(req),
+                route_internal::ToInternalRouteResult(route_result),
+                std::move(conn));
+}
+
+std::shared_ptr<HttpServerTask> HttpServerTask::Create(
+    HttpRequest req, route_internal::HttpRouteResultInternal route_result,
     std::shared_ptr<StreamServerConnection> conn) {
   auto state =
       CreateTaskState(std::move(req), std::move(route_result), std::move(conn));

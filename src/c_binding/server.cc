@@ -12,7 +12,7 @@ bsrvcore_result_t bsrvcore_server_create(size_t worker_threads,
     }
 
     *out_server = nullptr;
-    auto wrapper = std::make_unique<bsrvcore_server>();
+    auto wrapper = bsrvcore::AllocateUnique<bsrvcore_server>();
     if (worker_threads == 0) {
       wrapper->native = bsrvcore::AllocateUnique<bsrvcore::HttpServer>();
     } else {
@@ -24,7 +24,9 @@ bsrvcore_result_t bsrvcore_server_create(size_t worker_threads,
   });
 }
 
-void bsrvcore_server_destroy(bsrvcore_server_t* server) { delete server; }
+void bsrvcore_server_destroy(bsrvcore_server_t* server) {
+  bsrvcore::DestroyDeallocate(server);
+}
 
 bsrvcore_result_t bsrvcore_server_start(bsrvcore_server_t* server) {
   return cbind::Guard([&]() {

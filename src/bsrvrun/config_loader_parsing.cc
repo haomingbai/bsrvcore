@@ -255,9 +255,8 @@ std::vector<RouteConfig> ParseRoutes(const YAML::Node& node) {
             ParseFactoryConfig(route_node["handler"], ctx.str() + ".handler"),
         .aspects = ParseFactoryConfigList(route_node["aspects"],
                                           ctx.str() + ".aspects"),
-        .terminal_aspects =
-            ParseFactoryConfigList(route_node["terminal_aspects"],
-                                   ctx.str() + ".terminal_aspects"),
+        .terminal_aspects = ParseFactoryConfigList(
+            route_node["terminal_aspects"], ctx.str() + ".terminal_aspects"),
     };
 
     routes.emplace_back(std::move(route));

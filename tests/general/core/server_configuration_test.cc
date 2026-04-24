@@ -27,6 +27,7 @@
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"
 
@@ -286,4 +287,81 @@ TEST(Server, IoExecutorQueriesRemainSafeWhenStopRaces) {
 
   EXPECT_GT(observe_count.load(std::memory_order_relaxed), 0U);
   EXPECT_TRUE(server.GetGlobalExecutors().empty());
+}
+
+TEST(Server, SupportsStdUniquePtrRegistrationForHandlersAndAspects) {
+  using namespace bsrvcore;
+
+  class CountingHandler final : public HttpRequestHandler {
+   public:
+    explicit CountingHandler(std::atomic<int>* destroyed)
+        : destroyed_(destroyed) {}
+    ~CountingHandler() override {
+      if (destroyed_ != nullptr) {
+        destroyed_->fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+
+    void Service(
+        [[maybe_unused]] const std::shared_ptr<HttpServerTask>& task) override {
+    }
+
+   private:
+    std::atomic<int>* destroyed_;
+  };
+
+  class CountingAspect final : public HttpRequestAspectHandler {
+   public:
+    explicit CountingAspect(std::atomic<int>* destroyed)
+        : destroyed_(destroyed) {}
+    ~CountingAspect() override {
+      if (destroyed_ != nullptr) {
+        destroyed_->fetch_add(1, std::memory_order_relaxed);
+      }
+    }
+
+    void PreService([[maybe_unused]] const std::shared_ptr<HttpPreServerTask>&
+                        task) override {}
+    void PostService([[maybe_unused]] const std::shared_ptr<HttpPostServerTask>&
+                         task) override {}
+
+   private:
+    std::atomic<int>* destroyed_;
+  };
+
+  std::atomic<int> route_handler_destroyed{0};
+  std::atomic<int> default_handler_destroyed{0};
+  std::atomic<int> aspect_destroyed{0};
+
+  {
+    HttpServer server(1);
+
+    auto route_handler =
+        std::make_unique<CountingHandler>(&route_handler_destroyed);
+    auto* route_handler_ptr = route_handler.get();
+    auto default_handler =
+        std::make_unique<CountingHandler>(&default_handler_destroyed);
+    auto* default_handler_ptr = default_handler.get();
+    auto aspect = std::make_unique<CountingAspect>(&aspect_destroyed);
+    auto* aspect_ptr = aspect.get();
+
+    server
+        .AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
+                       std::move(route_handler))
+        ->AddTerminalAspect(HttpRequestMethod::kGet, "/users/{id}",
+                            std::move(aspect))
+        ->SetDefaultHandler(std::move(default_handler));
+
+    const auto matched = server.Route(HttpRequestMethod::kGet, "/users/123");
+    EXPECT_EQ(matched.handler, route_handler_ptr);
+    ASSERT_EQ(matched.aspects.size(), 1u);
+    EXPECT_EQ(matched.aspects[0], aspect_ptr);
+
+    const auto fallback = server.Route(HttpRequestMethod::kGet, "/missing");
+    EXPECT_EQ(fallback.handler, default_handler_ptr);
+  }
+
+  EXPECT_EQ(route_handler_destroyed.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(default_handler_destroyed.load(std::memory_order_relaxed), 1);
+  EXPECT_EQ(aspect_destroyed.load(std::memory_order_relaxed), 1);
 }

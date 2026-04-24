@@ -34,9 +34,9 @@ std::optional<std::size_t> ParseOptionalSlot(
 }
 
 bsrvcore::LogLevel ParseLogLevel(std::string level) {
-  std::transform(level.begin(), level.end(), level.begin(), [](unsigned char ch) {
-    return static_cast<char>(std::tolower(ch));
-  });
+  std::transform(
+      level.begin(), level.end(), level.begin(),
+      [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
   if (level == "trace") {
     return bsrvcore::LogLevel::kTrace;
@@ -62,8 +62,7 @@ struct HandlerLogConfig {
   std::string message;
 };
 
-HandlerLogConfig ParseLogConfig(
-    bsrvcore::bsrvrun::ParameterMap* parameters) {
+HandlerLogConfig ParseLogConfig(bsrvcore::bsrvrun::ParameterMap* parameters) {
   HandlerLogConfig config;
   if (parameters == nullptr) {
     return config;
@@ -134,9 +133,9 @@ class TestHandlerFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
           (thread_id == "1" || thread_id == "true" || thread_id == "TRUE");
     }
 
-    return bsrvcore::AllocateUnique<TestHandler>(
-        body, append_thread_id, ParseOptionalSlot(parameters),
-        ParseLogConfig(parameters));
+    return bsrvcore::AllocateUnique<TestHandler>(body, append_thread_id,
+                                                 ParseOptionalSlot(parameters),
+                                                 ParseLogConfig(parameters));
   }
 };
 

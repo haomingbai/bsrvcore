@@ -175,8 +175,9 @@ void StreamServerConnection::DoRoute() {
   auto& res = parser_->get();
   auto target = res.target();
 
-  route_result_ = srv_->Route(
-      HttpServer::BeastHttpVerbToHttpRequestMethod(res.method()), target);
+  srv_->RouteInternal(
+      HttpServer::BeastHttpVerbToHttpRequestMethod(res.method()), target,
+      route_result_);
 
   if (route_result_.handler == nullptr) {
     DoClose();

@@ -109,5 +109,10 @@ Execution model notes:
 - Post aspects begin only after the last `HttpServerTask` reference is
   released, so asynchronous handler work can defer the second half of the
   lifecycle naturally.
+- Aspect chain collection appends handlers directly into one allocator-backed
+  vector during routing; it no longer builds per-layer temporary vectors first.
+- For object registration, both `AllocateUnique<T>()` and
+  `std::make_unique<T>()` are supported. `AllocateUnique<T>()` keeps bsrvcore
+  allocator ownership, while `std::make_unique<T>()` stays on system `delete`.
 
 Next: [Sessions, context, cookies](sessions-context-cookies.md).

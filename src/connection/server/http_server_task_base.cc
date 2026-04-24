@@ -20,6 +20,7 @@
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -71,6 +72,27 @@ JsonErrorCode ParseJsonText(std::string_view text, JsonObject& out) {
 inline bool CanRunTaskCallback(
     const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
   return CanScheduleOnServer(state);
+}
+
+inline void EnsureRouteResultCompatCache(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  if (!state) {
+    return;
+  }
+
+  std::call_once(state->route_result_compat_once, [state] {
+    state->route_result_compat_current_location =
+        detail::ToStdString(state->route_result.current_location);
+    state->route_result_compat_template =
+        detail::ToStdString(state->route_result.route_template);
+    state->route_result_compat_parameters.clear();
+    state->route_result_compat_parameters.reserve(
+        state->route_result.parameters.size());
+    for (const auto& [key, value] : state->route_result.parameters) {
+      state->route_result_compat_parameters.emplace(detail::ToStdString(key),
+                                                    detail::ToStdString(value));
+    }
+  });
 }
 
 /**
@@ -397,19 +419,55 @@ bool HttpTaskBase::IsWebSocketRequest() const noexcept {
 }
 
 const std::string& HttpTaskBase::GetCurrentLocation() {
-  return state_->route_result.current_location;
+  EnsureRouteResultCompatCache(state_);
+  return state_->route_result_compat_current_location;
 }
 
 const std::string& HttpTaskBase::GetRouteTemplate() {
+  EnsureRouteResultCompatCache(state_);
+  return state_->route_result_compat_template;
+}
+
+std::string_view HttpTaskBase::GetCurrentLocationView() const noexcept {
+  if (!state_) {
+    return {};
+  }
+  return state_->route_result.current_location;
+}
+
+std::string_view HttpTaskBase::GetRouteTemplateView() const noexcept {
+  if (!state_) {
+    return {};
+  }
   return state_->route_result.route_template;
 }
 
 const std::unordered_map<std::string, std::string>&
 HttpTaskBase::GetPathParameters() {
+  EnsureRouteResultCompatCache(state_);
+  return state_->route_result_compat_parameters;
+}
+
+const AllocatedStringMap& HttpTaskBase::GetPathParametersView() const noexcept {
+  static const AllocatedStringMap kEmpty;
+  if (!state_) {
+    return kEmpty;
+  }
   return state_->route_result.parameters;
 }
 
 const std::string* HttpTaskBase::GetPathParameter(const std::string& key) {
+  EnsureRouteResultCompatCache(state_);
+  const auto it = state_->route_result_compat_parameters.find(key);
+  return it == state_->route_result_compat_parameters.end() ? nullptr
+                                                            : &it->second;
+}
+
+const AllocatedString* HttpTaskBase::GetPathParameterView(
+    std::string_view key) const noexcept {
+  if (!state_) {
+    return nullptr;
+  }
   const auto it = state_->route_result.parameters.find(key);
   return it == state_->route_result.parameters.end() ? nullptr : &it->second;
 }

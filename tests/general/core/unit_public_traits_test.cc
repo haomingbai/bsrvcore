@@ -172,10 +172,9 @@ static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<
                           bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory>,
                       bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory>);
-static_assert(
-    std::is_base_of_v<
-        bsrvcore::NonCopyableNonMovable<bsrvcore::bsrvrun::LoggerFactory>,
-        bsrvcore::bsrvrun::LoggerFactory>);
+static_assert(std::is_base_of_v<
+              bsrvcore::NonCopyableNonMovable<bsrvcore::bsrvrun::LoggerFactory>,
+              bsrvcore::bsrvrun::LoggerFactory>);
 static_assert(std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::Attribute>,
                                 bsrvcore::Attribute>);
 static_assert(

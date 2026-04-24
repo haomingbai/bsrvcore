@@ -187,7 +187,8 @@ TEST(CBindingHttpServerTest, StatefulRouteCanReadHeadersAndBody) {
   EXPECT_EQ(response["X-Reply"], "ctx");
 }
 
-TEST(CBindingHttpServerTest, AspectsRespectGlobalMethodSubtreeAndTerminalOrder) {
+TEST(CBindingHttpServerTest,
+     AspectsRespectGlobalMethodSubtreeAndTerminalOrder) {
   CServerGuard guard;
   AspectContext aspect_ctx{"preM|", "postM|"};
 
@@ -204,10 +205,10 @@ TEST(CBindingHttpServerTest, AspectsRespectGlobalMethodSubtreeAndTerminalOrder) 
   ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_route_aspect(
                                     guard.server, BSRVCORE_HTTP_METHOD_GET,
                                     "/order", pre_subtree, post_subtree));
-  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_terminal_aspect(
-                                    guard.server, BSRVCORE_HTTP_METHOD_GET,
-                                    "/order/leaf", pre_terminal,
-                                    post_terminal));
+  ASSERT_EQ(BSRVCORE_RESULT_OK,
+            bsrvcore_server_add_terminal_aspect(
+                guard.server, BSRVCORE_HTTP_METHOD_GET, "/order/leaf",
+                pre_terminal, post_terminal));
 
   const auto port = StartCServer(guard);
   ASSERT_NE(0, port);

@@ -233,7 +233,8 @@ PluginLoader::CreateAspect(const FactoryConfig& config) const {
 std::shared_ptr<bsrvcore::Logger> PluginLoader::CreateLogger(
     const FactoryConfig& config) const {
   void* handle = GetOrOpenLibrary(config.library);
-  void* symbol = ResolveFactorySymbol(handle, config.library, "GetLoggerFactory");
+  void* symbol =
+      ResolveFactorySymbol(handle, config.library, "GetLoggerFactory");
 
   auto fn = reinterpret_cast<bsrvcore::bsrvrun::GetLoggerFactoryFn>(symbol);
   bsrvcore::bsrvrun::LoggerFactory* factory = fn();

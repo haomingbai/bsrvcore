@@ -45,7 +45,7 @@
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
 #include "bsrvcore/core/trait.h"
-#include "bsrvcore/route/http_route_result.h"
+#include "bsrvcore/internal/route/http_route_result_internal.h"
 
 namespace bsrvcore {
 
@@ -506,11 +506,12 @@ class StreamServerConnection
   void CancelTimeout();
 
  private:
-  IoExecutor io_executor_;        ///< Connection-local io executor.
-  SteadyTimer timer_;             ///< Timer for timeouts
-  FlatBuffer buf_;                ///< Shared read buffer for HTTP and WebSocket
-  HttpRouteResult route_result_;  ///< Result of routing the current request
-  HttpServer* srv_;               ///< Reference to HTTP server
+  IoExecutor io_executor_;  ///< Connection-local io executor.
+  SteadyTimer timer_;       ///< Timer for timeouts
+  FlatBuffer buf_;          ///< Shared read buffer for HTTP and WebSocket
+  route_internal::HttpRouteResultInternal
+      route_result_;  ///< Result of routing the current request
+  HttpServer* srv_;   ///< Reference to HTTP server
   OwnedPtr<HttpRequestParser> parser_;  ///< HTTP request parser
   std::size_t header_read_expiry_;      ///< Header read timeout in ms
   std::size_t keep_alive_timeout_;      ///< Keep-alive timeout in ms

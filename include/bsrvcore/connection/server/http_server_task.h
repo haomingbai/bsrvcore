@@ -59,6 +59,10 @@ class HttpPostServerTask;
 class WebSocketHandler;
 class WebSocketServerTask;
 
+namespace route_internal {
+struct HttpRouteResultInternal;
+}  // namespace route_internal
+
 namespace task_internal {
 struct HttpTaskSharedState;
 struct HttpPreTaskDeleter;
@@ -395,6 +399,18 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
   const std::string& GetRouteTemplate();
 
   /**
+   * @brief Get matched route location view without compatibility conversion.
+   * @return Allocator-backed route location view.
+   */
+  [[nodiscard]] std::string_view GetCurrentLocationView() const noexcept;
+
+  /**
+   * @brief Get matched route template view without compatibility conversion.
+   * @return Allocator-backed route template view.
+   */
+  [[nodiscard]] std::string_view GetRouteTemplateView() const noexcept;
+
+  /**
    * @brief Get cookie by key from request.
    * @param key Cookie name.
    * @return Cookie value reference (empty string if not found).
@@ -411,11 +427,26 @@ class HttpTaskBase : public NonCopyableNonMovable<HttpTaskBase> {
   const std::unordered_map<std::string, std::string>& GetPathParameters();
 
   /**
+   * @brief Get allocator-backed path parameter map without compatibility copy.
+   * @return Allocator-backed path parameter map.
+   */
+  [[nodiscard]] const AllocatedStringMap& GetPathParametersView()
+      const noexcept;
+
+  /**
    * @brief Get one path parameter by name.
    * @param key Parameter name.
    * @return Pointer to parameter value, or nullptr if missing.
    */
   const std::string* GetPathParameter(const std::string& key);
+
+  /**
+   * @brief Get allocator-backed path parameter value by name.
+   * @param key Parameter name.
+   * @return Pointer to allocator-backed value, or nullptr if missing.
+   */
+  [[nodiscard]] const AllocatedString* GetPathParameterView(
+      std::string_view key) const noexcept;
 
   /**
    * @brief Add Set-Cookie entry to final response.
@@ -500,6 +531,13 @@ class HttpPreServerTask
       std::shared_ptr<StreamServerConnection> conn);
 
   /**
+   * @brief Internal overload that accepts allocator-backed route result.
+   */
+  static std::shared_ptr<HttpPreServerTask> Create(
+      HttpRequest req, route_internal::HttpRouteResultInternal route_result,
+      std::shared_ptr<StreamServerConnection> conn);
+
+  /**
    * @brief Start pre-aspect execution.
    */
   void Start();
@@ -540,6 +578,13 @@ class HttpServerTask : public HttpTaskBase,
    */
   static std::shared_ptr<HttpServerTask> Create(
       HttpRequest req, HttpRouteResult route_result,
+      std::shared_ptr<StreamServerConnection> conn);
+
+  /**
+   * @brief Internal overload that accepts allocator-backed route result.
+   */
+  static std::shared_ptr<HttpServerTask> Create(
+      HttpRequest req, route_internal::HttpRouteResultInternal route_result,
       std::shared_ptr<StreamServerConnection> conn);
 
   /**

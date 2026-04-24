@@ -25,6 +25,7 @@
 #include <cstddef>
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <ranges>
 #include <shared_mutex>
@@ -40,6 +41,7 @@
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
 #include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/internal/connection/server/stream_server_connection.h"
+#include "bsrvcore/internal/route/http_route_result_internal.h"
 
 namespace bsrvcore {
 
@@ -56,7 +58,8 @@ enum class WebSocketUpgradeState {
 // custom deleters in http_server_task_lifecycle.cc advance the lifecycle by
 // constructing the next task object on top of this same state.
 struct HttpTaskSharedState {
-  HttpTaskSharedState(HttpRequest in_req, HttpRouteResult in_route_result,
+  HttpTaskSharedState(HttpRequest in_req,
+                      route_internal::HttpRouteResultInternal in_route_result,
                       std::shared_ptr<StreamServerConnection> in_conn,
                       bsrvcore::internal::HandlerAllocator in_handler_alloc)
       : req(std::move(in_req)),
@@ -78,7 +81,12 @@ struct HttpTaskSharedState {
   // stream is closed. Subsequent task callbacks treat nullptr as "request is no
   // longer schedulable".
   AtomicSharedPtr<StreamServerConnection> conn;
-  HttpRouteResult route_result;
+  route_internal::HttpRouteResultInternal route_result;
+  mutable std::once_flag route_result_compat_once;
+  mutable std::string route_result_compat_current_location;
+  mutable std::string route_result_compat_template;
+  mutable std::unordered_map<std::string, std::string>
+      route_result_compat_parameters;
   HttpServer* srv;
   std::atomic_bool keep_alive;
   std::atomic<HttpTaskConnectionLifecycleMode> connection_mode;
@@ -129,7 +137,7 @@ inline T* AllocateTaskObject(
 }
 
 inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
-    HttpRequest req, HttpRouteResult route_result,
+    HttpRequest req, route_internal::HttpRouteResultInternal route_result,
     std::shared_ptr<StreamServerConnection> conn) {
   // Reuse the connection's small-object allocator so all lifecycle handlers and
   // task objects stay consistent with the connection's Asio allocation policy.
@@ -139,6 +147,14 @@ inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
   return std::allocate_shared<HttpTaskSharedState>(
       state_alloc, std::move(req), std::move(route_result), std::move(conn),
       handler_alloc);
+}
+
+inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
+    HttpRequest req, HttpRouteResult route_result,
+    std::shared_ptr<StreamServerConnection> conn) {
+  return CreateTaskState(std::move(req),
+                         route_internal::ToInternalRouteResult(route_result),
+                         std::move(conn));
 }
 
 inline std::string_view TrimView(std::string_view sv) {

@@ -20,8 +20,7 @@
 
 #include <cstddef>
 #include <string>
-#include <unordered_map>
-#include <vector>
+#include <string_view>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
@@ -110,7 +109,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @param link Sub-route layer for this segment
    * @return true if sub-route was added successfully
    */
-  bool SetRoute(std::string key, OwnedPtr<HttpRouteTableLayer> link);
+  bool SetRoute(std::string_view key, OwnedPtr<HttpRouteTableLayer> link);
 
   /**
    * @brief Enable/disable default route matching for exclusive routes
@@ -132,14 +131,7 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @param key Path segment to look up
    * @return Pointer to sub-route layer, nullptr if not found
    */
-  HttpRouteTableLayer* GetRoute(const std::string& key) const noexcept;
-
-  /**
-   * @brief Get sub-route for a specific path segment (move version)
-   * @param key Path segment to look up (will be moved)
-   * @return Pointer to sub-route layer, nullptr if not found
-   */
-  HttpRouteTableLayer* GetRoute(std::string&& key) const noexcept;
+  HttpRouteTableLayer* GetRoute(std::string_view key) const noexcept;
 
   /**
    * @brief Get the request handler for this route layer
@@ -151,25 +143,25 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
    * @brief Set path parameter names for this terminal route layer
    * @param param_names Parameter names in route order
    */
-  void SetParamNames(std::vector<std::string> param_names) noexcept;
+  void SetParamNames(AllocatedVector<AllocatedString> param_names) noexcept;
 
   /**
    * @brief Get path parameter names for this terminal route layer
    * @return Parameter names in route order
    */
-  const std::vector<std::string>& GetParamNames() const noexcept;
+  const AllocatedVector<AllocatedString>& GetParamNames() const noexcept;
 
   /**
    * @brief Set the route template string for this terminal route layer
    * @param route_template Normalized route template
    */
-  void SetRouteTemplate(std::string route_template) noexcept;
+  void SetRouteTemplate(AllocatedString route_template) noexcept;
 
   /**
    * @brief Get the route template string for this terminal route layer
    * @return Normalized route template
    */
-  const std::string& GetRouteTemplate() const noexcept;
+  const AllocatedString& GetRouteTemplate() const noexcept;
 
   /**
    * @brief Add a subtree aspect handler to this route layer
@@ -186,30 +178,6 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   bool AddTerminalAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
-   * @brief Get the number of subtree aspect handlers attached to this layer
-   * @return Number of subtree aspect handlers
-   */
-  std::size_t GetAspectNum() const noexcept;
-
-  /**
-   * @brief Get the number of terminal aspect handlers attached to this layer
-   * @return Number of terminal aspect handlers
-   */
-  std::size_t GetTerminalAspectNum() const noexcept;
-
-  /**
-   * @brief Get all subtree aspect handlers attached to this layer
-   * @return Vector of aspect handler pointers
-   */
-  std::vector<HttpRequestAspectHandler*> GetAspects() const;
-
-  /**
-   * @brief Get all terminal aspect handlers attached to this layer
-   * @return Vector of aspect handler pointers
-   */
-  std::vector<HttpRequestAspectHandler*> GetTerminalAspects() const;
-
-  /**
    * @brief Check if default route matching is disabled
    * @return true if default route is ignored
    */
@@ -223,18 +191,20 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
  private:
   friend class ::bsrvcore::HttpRouteTable;
 
-  std::unordered_map<std::string, OwnedPtr<HttpRouteTableLayer>>
+  AllocatedUnorderedMap<AllocatedString, OwnedPtr<HttpRouteTableLayer>,
+                        bsrvcore::detail::TransparentStringHash,
+                        bsrvcore::detail::TransparentStringEqual>
       map_;  ///< Sub-routes by path segment
-  std::vector<OwnedPtr<HttpRequestAspectHandler>>
+  AllocatedVector<OwnedPtr<HttpRequestAspectHandler>>
       aspects_;  ///< Subtree aspect handlers inherited by descendants
-  std::vector<OwnedPtr<HttpRequestAspectHandler>>
+  AllocatedVector<OwnedPtr<HttpRequestAspectHandler>>
       terminal_aspects_;  ///< Terminal aspect handlers for exact route hits
-  std::vector<std::string>
+  AllocatedVector<AllocatedString>
       param_names_;  ///< Path parameter names for terminal routes
   OwnedPtr<HttpRouteTableLayer>
       default_route_;  ///< Default route for parameter matching
   OwnedPtr<HttpRequestHandler> handler_;  ///< Request handler for this layer
-  std::string route_template_;            ///< Normalized route template
+  AllocatedString route_template_;        ///< Normalized route template
   std::size_t max_body_size_{0};          ///< Maximum request body size
   std::size_t read_expiry_{0};            ///< Read operation timeout
   std::size_t write_expiry_{0};           ///< Write operation timeout

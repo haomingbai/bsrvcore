@@ -114,8 +114,7 @@ TEST(BluePrintTest, MountsSubtreeAspectsUnderPrefixWithoutTerminalFallback) {
   auto* aspect_ptr = aspect.get();
 
   blue_print
-      .AddAspect(bsrvcore::HttpRequestMethod::kGet, "/users",
-                 std::move(aspect))
+      .AddAspect(bsrvcore::HttpRequestMethod::kGet, "/users", std::move(aspect))
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
                       std::move(handler));
 
@@ -180,8 +179,9 @@ TEST(BluePrintTest, ExclusiveRouteKeepsMatchedSubtreeAspectsOnDeeperPath) {
   auto* exclusive_ptr = exclusive_handler.get();
   auto param_handler = bsrvcore::AllocateUnique<DummyHandler>("param");
 
-  server.AddAspect(bsrvcore::HttpRequestMethod::kGet, "/static",
-                   std::move(subtree_aspect))
+  server
+      .AddAspect(bsrvcore::HttpRequestMethod::kGet, "/static",
+                 std::move(subtree_aspect))
       ->AddExclusiveRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/static",
                                std::move(exclusive_handler))
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/static/{file}",

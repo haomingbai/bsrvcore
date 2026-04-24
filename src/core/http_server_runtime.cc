@@ -185,6 +185,12 @@ HttpRouteResult HttpServer::Route(HttpRequestMethod method,
   return route_table_->Route(method, target);
 }
 
+void HttpServer::RouteInternal(
+    HttpRequestMethod method, std::string_view target,
+    route_internal::HttpRouteResultInternal& out_result) {
+  out_result = route_table_->RouteInternal(method, target);
+}
+
 std::shared_ptr<Context> HttpServer::GetSession(const std::string& sessionid) {
   return sessions_->GetSession(sessionid);
 }

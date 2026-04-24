@@ -26,6 +26,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <concepts>
 #include <cstddef>
 #include <functional>
 #include <future>
@@ -57,6 +58,10 @@ class HttpRouteTable;
 class SessionMap;
 class BluePrint;
 class ReuseableBluePrint;
+
+namespace route_internal {
+struct HttpRouteResultInternal;
+}  // namespace route_internal
 
 /**
  * @brief Parameters used to create server runtime resources.
@@ -257,6 +262,19 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                             OwnedPtr<HttpRequestHandler> handler);
 
   /**
+   * @brief Add a route with a handler allocated via `std::make_unique`.
+   */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  HttpServer* AddRouteEntry(HttpRequestMethod method,
+                            const std::string_view url,
+                            std::unique_ptr<Handler> handler) {
+    return AddRouteEntry(
+        method, url,
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
+
+  /**
    * @brief Add a route whose handler body runs on the worker pool.
    * @param method HTTP method.
    * @param url Route pattern.
@@ -271,6 +289,19 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   HttpServer* AddComputingRouteEntry(HttpRequestMethod method,
                                      const std::string_view url,
                                      OwnedPtr<HttpRequestHandler> handler);
+
+  /**
+   * @brief Add a computing route with a handler from `std::make_unique`.
+   */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  HttpServer* AddComputingRouteEntry(HttpRequestMethod method,
+                                     const std::string_view url,
+                                     std::unique_ptr<Handler> handler) {
+    return AddComputingRouteEntry(
+        method, url,
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
 
   /**
    * @brief Add a route with a function object (lambda or function pointer)
@@ -324,6 +355,19 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                                      OwnedPtr<HttpRequestHandler> handler);
 
   /**
+   * @brief Add an exclusive route with a handler from `std::make_unique`.
+   */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  HttpServer* AddExclusiveRouteEntry(HttpRequestMethod method,
+                                     const std::string_view url,
+                                     std::unique_ptr<Handler> handler) {
+    return AddExclusiveRouteEntry(
+        method, url,
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
+
+  /**
    * @brief Add an exclusive route with a function object
    * @tparam Func Callable type
    * @param method HTTP method
@@ -351,6 +395,18 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    */
   HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
                         OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a subtree aspect from `std::make_unique`.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  HttpServer* AddAspect(HttpRequestMethod method, const std::string_view url,
+                        std::unique_ptr<Aspect> aspect) {
+    return AddAspect(
+        method, url,
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
 
   /**
    * @brief Add a subtree aspect with function objects for pre/post processing
@@ -388,6 +444,19 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                                 OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
+   * @brief Add a terminal aspect from `std::make_unique`.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  HttpServer* AddTerminalAspect(HttpRequestMethod method,
+                                const std::string_view url,
+                                std::unique_ptr<Aspect> aspect) {
+    return AddTerminalAspect(
+        method, url,
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
+
+  /**
    * @brief Add a terminal aspect with function objects for pre/post processing
    * @tparam F1 Pre-service function type
    * @tparam F2 Post-service function type
@@ -421,11 +490,33 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                               OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
+   * @brief Add a method-scoped global aspect from `std::make_unique`.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  HttpServer* AddGlobalAspect(HttpRequestMethod method,
+                              std::unique_ptr<Aspect> aspect) {
+    return AddGlobalAspect(
+        method,
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
+
+  /**
    * @brief Add a global aspect for all HTTP methods
    * @param aspect Aspect handler
    * @return Pointer to server for method chaining
    */
   HttpServer* AddGlobalAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a global aspect from `std::make_unique`.
+   */
+  template <typename Aspect>
+    requires std::derived_from<Aspect, HttpRequestAspectHandler>
+  HttpServer* AddGlobalAspect(std::unique_ptr<Aspect> aspect) {
+    return AddGlobalAspect(
+        AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
+  }
 
   /**
    * @brief Add a global aspect with functions for specific HTTP method
@@ -576,6 +667,16 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
    * @return Pointer to server for method chaining
    */
   HttpServer* SetDefaultHandler(OwnedPtr<HttpRequestHandler> handler);
+
+  /**
+   * @brief Set default request handler from `std::make_unique`.
+   */
+  template <typename Handler>
+    requires std::derived_from<Handler, HttpRequestHandler>
+  HttpServer* SetDefaultHandler(std::unique_ptr<Handler> handler) {
+    return SetDefaultHandler(
+        AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
+  }
 
   /**
    * @brief Set default request handler with function object
@@ -770,6 +871,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   ~HttpServer();
 
  private:
+  friend class StreamServerConnection;
+
+  void RouteInternal(HttpRequestMethod method, std::string_view target,
+                     route_internal::HttpRouteResultInternal& out_result);
+
   struct EndpointListenConfig {
     TcpEndpoint endpoint;
     std::size_t io_threads{1};

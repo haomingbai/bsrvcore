@@ -6,11 +6,11 @@
  * This keeps the plugin ABI example intentionally small and easy to copy.
  */
 
+#include <cctype>
 #include <memory>
 #include <optional>
 #include <string>
 #include <utility>
-#include <cctype>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_handler_factory.h"
