@@ -346,7 +346,7 @@ bsrvcore_result_t bsrvcore_server_add_method_global_aspect_with_ctx(
     bsrvcore_http_post_aspect_ctx_fn post_aspect, void* ctx);
 
 /**
- * @brief Register stateless route-specific aspects.
+ * @brief Register stateless subtree aspects rooted at a route.
  * @param server Server handle.
  * @param method HTTP method to match.
  * @param route Route pattern.
@@ -360,7 +360,7 @@ bsrvcore_result_t bsrvcore_server_add_route_aspect(
     bsrvcore_http_post_aspect_fn post_aspect);
 
 /**
- * @brief Register stateful route-specific aspects.
+ * @brief Register stateful subtree aspects rooted at a route.
  * @param server Server handle.
  * @param method HTTP method to match.
  * @param route Route pattern.
@@ -370,6 +370,35 @@ bsrvcore_result_t bsrvcore_server_add_route_aspect(
  * @return `BSRVCORE_RESULT_OK` on success.
  */
 bsrvcore_result_t bsrvcore_server_add_route_aspect_with_ctx(
+    bsrvcore_server_t* server, bsrvcore_http_method_t method, const char* route,
+    bsrvcore_http_pre_aspect_ctx_fn pre_aspect,
+    bsrvcore_http_post_aspect_ctx_fn post_aspect, void* ctx);
+
+/**
+ * @brief Register stateless terminal aspects for an exact route hit.
+ * @param server Server handle.
+ * @param method HTTP method to match.
+ * @param route Route pattern.
+ * @param pre_aspect Optional pre-aspect callback. Pass `NULL` to omit it.
+ * @param post_aspect Optional post-aspect callback. Pass `NULL` to omit it.
+ * @return `BSRVCORE_RESULT_OK` on success.
+ */
+bsrvcore_result_t bsrvcore_server_add_terminal_aspect(
+    bsrvcore_server_t* server, bsrvcore_http_method_t method, const char* route,
+    bsrvcore_http_pre_aspect_fn pre_aspect,
+    bsrvcore_http_post_aspect_fn post_aspect);
+
+/**
+ * @brief Register stateful terminal aspects for an exact route hit.
+ * @param server Server handle.
+ * @param method HTTP method to match.
+ * @param route Route pattern.
+ * @param pre_aspect Optional pre-aspect callback. Pass `NULL` to omit it.
+ * @param post_aspect Optional post-aspect callback. Pass `NULL` to omit it.
+ * @param ctx User-provided context pointer bound to the aspect pair.
+ * @return `BSRVCORE_RESULT_OK` on success.
+ */
+bsrvcore_result_t bsrvcore_server_add_terminal_aspect_with_ctx(
     bsrvcore_server_t* server, bsrvcore_http_method_t method, const char* route,
     bsrvcore_http_pre_aspect_ctx_fn pre_aspect,
     bsrvcore_http_post_aspect_ctx_fn post_aspect, void* ctx);

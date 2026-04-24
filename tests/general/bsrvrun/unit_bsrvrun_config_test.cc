@@ -64,6 +64,14 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
       "    path: \"/health\"\n"
       "    ignore_default_route: true\n"
       "    cpu: true\n"
+      "    aspects:\n"
+      "      - factory: \"/tmp/subtree_aspect.so\"\n"
+      "        params:\n"
+      "          pre: \"spre|\"\n"
+      "    terminal_aspects:\n"
+      "      - factory: \"/tmp/terminal_aspect.so\"\n"
+      "        params:\n"
+      "          pre: \"tpre|\"\n"
       "    handler:\n"
       "      factory: \"/tmp/handler.so\"\n"
       "      params:\n"
@@ -102,6 +110,11 @@ TEST(BsrvRunConfigTest, ParseValidConfig) {
   EXPECT_TRUE(config.routes[0].ignore_default_route);
   EXPECT_TRUE(config.routes[0].cpu);
   EXPECT_EQ(config.routes[0].path, "/health");
+  ASSERT_EQ(config.routes[0].aspects.size(), 1u);
+  EXPECT_EQ(config.routes[0].aspects[0].library, "/tmp/subtree_aspect.so");
+  ASSERT_EQ(config.routes[0].terminal_aspects.size(), 1u);
+  EXPECT_EQ(config.routes[0].terminal_aspects[0].library,
+            "/tmp/terminal_aspect.so");
   EXPECT_EQ(config.routes[0].handler.params.at("body"), "ok|");
 
   std::filesystem::remove(path);

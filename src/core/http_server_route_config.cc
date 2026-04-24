@@ -68,6 +68,18 @@ HttpServer* HttpServer::AddAspect(HttpRequestMethod method,
   return this;
 }
 
+HttpServer* HttpServer::AddTerminalAspect(
+    HttpRequestMethod method, const std::string_view url,
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
+  std::scoped_lock const lock(mtx_);
+  if (is_running_) {
+    return this;
+  }
+
+  route_table_->AddTerminalAspect(method, url, std::move(aspect));
+  return this;
+}
+
 HttpServer* HttpServer::AddGlobalAspect(
     HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) {
   std::scoped_lock const lock(mtx_);

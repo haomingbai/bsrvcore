@@ -202,7 +202,8 @@ Supported aspect registration shapes:
 
 - global aspect
 - method-global aspect
-- route aspect
+- route subtree aspect
+- route terminal aspect
 - stateless callback pair
 - stateful callback pair with `void* ctx`
 
@@ -214,6 +215,12 @@ Use:
 - `bsrvcore_server_add_method_global_aspect_with_ctx`
 - `bsrvcore_server_add_route_aspect`
 - `bsrvcore_server_add_route_aspect_with_ctx`
+- `bsrvcore_server_add_terminal_aspect`
+- `bsrvcore_server_add_terminal_aspect_with_ctx`
+
+`bsrvcore_server_add_route_aspect*` registers subtree aspects rooted at the
+given route. `bsrvcore_server_add_terminal_aspect*` keeps the old exact-route
+behavior.
 
 Callback types:
 

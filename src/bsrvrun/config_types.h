@@ -49,6 +49,7 @@ struct RouteConfig {
   bool cpu{false};
   FactoryConfig handler;
   std::vector<FactoryConfig> aspects;
+  std::vector<FactoryConfig> terminal_aspects;
 };
 
 struct GlobalConfig {

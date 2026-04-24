@@ -358,7 +358,7 @@ void HttpPostServerTask::Start() {
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
       state.handler_alloc, [self = std::move(self), last_idx]() mutable {
         // Post hooks unwind in reverse order, mirroring middleware stacks where
-        // the innermost route-local aspect exits before outer/global aspects.
+        // terminal aspects exit before subtree and outer/global aspects.
         RunScheduledPostPhase(std::move(self), last_idx);
       }));
 }

@@ -325,4 +325,44 @@ bsrvcore_result_t bsrvcore_server_add_route_aspect_with_ctx(
   });
 }
 
+bsrvcore_result_t bsrvcore_server_add_terminal_aspect(
+    bsrvcore_server_t* server, bsrvcore_http_method_t method, const char* route,
+    bsrvcore_http_pre_aspect_fn pre_aspect,
+    bsrvcore_http_post_aspect_fn post_aspect) {
+  return cbind::Guard([&]() {
+    bsrvcore::HttpRequestMethod native_method{};
+    if (cbind::ValidateServer(server) != BSRVCORE_RESULT_OK ||
+        cbind::ValidateStringArg(route) != BSRVCORE_RESULT_OK ||
+        (pre_aspect == nullptr && post_aspect == nullptr) ||
+        !cbind::TryConvertMethod(method, &native_method)) {
+      return BSRVCORE_RESULT_INVALID_ARGUMENT;
+    }
+    server->native->AddTerminalAspect(
+        native_method, route,
+        bsrvcore::AllocateUnique<cbind::AspectHandlerAdapter>(pre_aspect,
+                                                              post_aspect));
+    return BSRVCORE_RESULT_OK;
+  });
+}
+
+bsrvcore_result_t bsrvcore_server_add_terminal_aspect_with_ctx(
+    bsrvcore_server_t* server, bsrvcore_http_method_t method, const char* route,
+    bsrvcore_http_pre_aspect_ctx_fn pre_aspect,
+    bsrvcore_http_post_aspect_ctx_fn post_aspect, void* ctx) {
+  return cbind::Guard([&]() {
+    bsrvcore::HttpRequestMethod native_method{};
+    if (cbind::ValidateServer(server) != BSRVCORE_RESULT_OK ||
+        cbind::ValidateStringArg(route) != BSRVCORE_RESULT_OK ||
+        (pre_aspect == nullptr && post_aspect == nullptr) ||
+        !cbind::TryConvertMethod(method, &native_method)) {
+      return BSRVCORE_RESULT_INVALID_ARGUMENT;
+    }
+    server->native->AddTerminalAspect(
+        native_method, route,
+        bsrvcore::AllocateUnique<cbind::AspectHandlerAdapter>(
+            pre_aspect, post_aspect, ctx));
+    return BSRVCORE_RESULT_OK;
+  });
+}
+
 }  // extern "C"

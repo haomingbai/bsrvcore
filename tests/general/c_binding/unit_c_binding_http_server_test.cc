@@ -60,16 +60,24 @@ extern "C" void pre_method(bsrvcore_http_pre_server_task_t* task, void* ctx) {
       std::char_traits<char>::length(aspect_ctx->pre_marker));
 }
 
-extern "C" void pre_route(bsrvcore_http_pre_server_task_t* task) {
-  (void)bsrvcore_http_pre_server_task_append_response_body(task, "preR|", 5);
+extern "C" void pre_subtree(bsrvcore_http_pre_server_task_t* task) {
+  (void)bsrvcore_http_pre_server_task_append_response_body(task, "preS|", 5);
 }
 
 extern "C" void order_handler(bsrvcore_http_server_task_t* task) {
   (void)bsrvcore_http_server_task_append_response_body(task, "handler|", 8);
 }
 
-extern "C" void post_route(bsrvcore_http_post_server_task_t* task) {
-  (void)bsrvcore_http_post_server_task_append_response_body(task, "postR|", 6);
+extern "C" void post_subtree(bsrvcore_http_post_server_task_t* task) {
+  (void)bsrvcore_http_post_server_task_append_response_body(task, "postS|", 6);
+}
+
+extern "C" void pre_terminal(bsrvcore_http_pre_server_task_t* task) {
+  (void)bsrvcore_http_pre_server_task_append_response_body(task, "preT|", 5);
+}
+
+extern "C" void post_terminal(bsrvcore_http_post_server_task_t* task) {
+  (void)bsrvcore_http_post_server_task_append_response_body(task, "postT|", 6);
 }
 
 extern "C" void post_method(bsrvcore_http_post_server_task_t* task, void* ctx) {
@@ -179,7 +187,7 @@ TEST(CBindingHttpServerTest, StatefulRouteCanReadHeadersAndBody) {
   EXPECT_EQ(response["X-Reply"], "ctx");
 }
 
-TEST(CBindingHttpServerTest, AspectsRespectGlobalMethodAndRouteOrder) {
+TEST(CBindingHttpServerTest, AspectsRespectGlobalMethodSubtreeAndTerminalOrder) {
   CServerGuard guard;
   AspectContext aspect_ctx{"preM|", "postM|"};
 
@@ -192,15 +200,43 @@ TEST(CBindingHttpServerTest, AspectsRespectGlobalMethodAndRouteOrder) {
                 &aspect_ctx));
   ASSERT_EQ(BSRVCORE_RESULT_OK,
             bsrvcore_server_add_route(guard.server, BSRVCORE_HTTP_METHOD_GET,
-                                      "/order", order_handler));
+                                      "/order/leaf", order_handler));
   ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_route_aspect(
                                     guard.server, BSRVCORE_HTTP_METHOD_GET,
-                                    "/order", pre_route, post_route));
+                                    "/order", pre_subtree, post_subtree));
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_terminal_aspect(
+                                    guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                    "/order/leaf", pre_terminal,
+                                    post_terminal));
 
   const auto port = StartCServer(guard);
   ASSERT_NE(0, port);
 
-  auto response = DoRequestWithRetry(http::verb::get, port, "/order", "");
+  auto response = DoRequestWithRetry(http::verb::get, port, "/order/leaf", "");
   EXPECT_EQ(response.result(), http::status::ok);
-  EXPECT_EQ(response.body(), "preG|preM|preR|handler|postR|postM|postG|");
+  EXPECT_EQ(response.body(),
+            "preG|preM|preS|preT|handler|postT|postS|postM|postG|");
+}
+
+TEST(CBindingHttpServerTest, RouteAspectActsAsSubtreeAspectOnlyOnSuccess) {
+  CServerGuard guard;
+
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_create(2, &guard.server));
+  ASSERT_EQ(BSRVCORE_RESULT_OK,
+            bsrvcore_server_add_route(guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                      "/tree/leaf", order_handler));
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_route_aspect(
+                                    guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                    "/tree", pre_subtree, post_subtree));
+
+  const auto port = StartCServer(guard);
+  ASSERT_NE(0, port);
+
+  auto child = DoRequestWithRetry(http::verb::get, port, "/tree/leaf", "");
+  EXPECT_EQ(child.result(), http::status::ok);
+  EXPECT_EQ(child.body(), "preS|handler|postS|");
+
+  auto parent = DoRequestWithRetry(http::verb::get, port, "/tree", "");
+  EXPECT_EQ(parent.body().find("preS|"), std::string::npos);
+  EXPECT_EQ(parent.body().find("postS|"), std::string::npos);
 }

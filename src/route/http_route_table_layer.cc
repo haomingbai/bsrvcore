@@ -146,6 +146,14 @@ bool HttpRouteTableLayer::AddAspect(
   return false;
 }
 
+bool HttpRouteTableLayer::AddTerminalAspect(
+    OwnedPtr<HttpRequestAspectHandler> aspect) try {
+  terminal_aspects_.emplace_back(std::move(aspect));
+  return true;
+} catch (...) {
+  return false;
+}
+
 std::vector<bsrvcore::HttpRequestAspectHandler*>
 HttpRouteTableLayer::GetAspects() const {
   std::vector<bsrvcore::HttpRequestAspectHandler*> aspects(aspects_.size());
@@ -158,6 +166,21 @@ HttpRouteTableLayer::GetAspects() const {
 
 std::size_t HttpRouteTableLayer::GetAspectNum() const noexcept {
   return aspects_.size();
+}
+
+std::vector<bsrvcore::HttpRequestAspectHandler*>
+HttpRouteTableLayer::GetTerminalAspects() const {
+  std::vector<bsrvcore::HttpRequestAspectHandler*> aspects(
+      terminal_aspects_.size());
+  for (std::size_t i = 0; i < aspects.size(); i++) {
+    aspects[i] = terminal_aspects_[i].get();
+  }
+
+  return aspects;
+}
+
+std::size_t HttpRouteTableLayer::GetTerminalAspectNum() const noexcept {
+  return terminal_aspects_.size();
 }
 
 std::size_t HttpRouteTableLayer::GetMaxBodySize() const noexcept {

@@ -165,7 +165,7 @@ TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
   EXPECT_TRUE(recovered);
 }
 
-// Verify aspect order across global/method/route hooks.
+// Verify aspect order across global/method/subtree/terminal hooks.
 TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
 
@@ -185,25 +185,42 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
             task->AppendBody("postM|");
           })
-      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/order",
-                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
-                        task->AppendBody("handler|");
-                      })
       ->AddAspect(
           bsrvcore::HttpRequestMethod::kGet, "/order",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
-            task->AppendBody("preR|");
+            task->AppendBody("preP|");
           },
           [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
-            task->AppendBody("postR|");
+            task->AppendBody("postP|");
+          })
+      ->AddAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/order/leaf",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preS|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postS|");
+          })
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/order/leaf",
+                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                        task->AppendBody("handler|");
+                      })
+      ->AddTerminalAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/order/leaf",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preT|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postT|");
           });
 
   ServerGuard guard(std::move(server));
   auto port = StartServerWithRoutes(guard);
 
-  auto res = DoRequestWithRetry(http::verb::get, port, "/order", "");
+  auto res = DoRequestWithRetry(http::verb::get, port, "/order/leaf", "");
   EXPECT_EQ(res.result(), http::status::ok);
-  EXPECT_EQ(res.body(), "preG|preM|preR|handler|postR|postM|postG|");
+  EXPECT_EQ(res.body(),
+            "preG|preM|preP|preS|preT|handler|postT|postS|postP|postM|postG|");
 }
 
 // Verify post phase starts only after service task references are released.
@@ -360,7 +377,7 @@ TEST(HttpServerIntegrationTest,
                             "handler:" +
                             ThreadIdToString(std::this_thread::get_id()) + "|");
                       })
-      ->AddAspect(
+      ->AddTerminalAspect(
           bsrvcore::HttpRequestMethod::kGet, "/io",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->AppendBody(
@@ -377,7 +394,7 @@ TEST(HttpServerIntegrationTest,
                 "handler:" + ThreadIdToString(std::this_thread::get_id()) +
                 "|");
           })
-      ->AddAspect(
+      ->AddTerminalAspect(
           bsrvcore::HttpRequestMethod::kGet, "/cpu",
           [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
             task->AppendBody(

@@ -40,7 +40,7 @@ It is based on the current repository implementation (public headers + internal 
 | Scenario | Purpose | Key assertions | Notes |
 | --- | --- | --- | --- |
 | Minimal HTTP server | End-to-end routing | GET/POST responses; body/headers correctness | Uses Boost.Beast client in the same process |
-| Aspect order (AOP) | Pre/Post ordering rules | global/method/route aspect order; reverse order for post-aspects | Mark order in response body and assert |
+| Aspect order (AOP) | Pre/Post ordering rules | global/method/subtree/terminal aspect order; reverse order for post-aspects | Mark order in response body and assert |
 | Session and cookies | session id generation and write-back | missing cookie generates a session id and emits `Set-Cookie` | Capture response headers from the test connection |
 
 ### 3) Stress tests (concurrency correctness / deadlock detection / long-run)

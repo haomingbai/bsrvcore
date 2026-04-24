@@ -91,14 +91,25 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
                      OwnedPtr<HttpRequestHandler> handler);
 
   /**
-   * @brief Add an aspect handler to a specific route
+   * @brief Add a subtree aspect handler rooted at a specific route
    * @param method HTTP method this aspect applies to
-   * @param target Route pattern to attach aspect to
+   * @param target Route pattern to attach the subtree aspect to
    * @param aspect Aspect handler to add
    * @return true if aspect was added successfully
    */
   bool AddAspect(HttpRequestMethod method, const std::string_view target,
                  OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a terminal aspect handler to a specific route
+   * @param method HTTP method this aspect applies to
+   * @param target Route pattern to attach the terminal aspect to
+   * @param aspect Aspect handler to add
+   * @return true if aspect was added successfully
+   */
+  bool AddTerminalAspect(HttpRequestMethod method,
+                         const std::string_view target,
+                         OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
    * @brief Add a global aspect for a specific HTTP method
@@ -253,6 +264,8 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * (e.g. "/users/{param0}/info").
    * @param out_parameter_values Output vector receiving parameter values
    * extracted from the URL in path order.
+   * @param out_matched_layers Output vector receiving the successfully matched
+   * route layers in root-to-leaf order.
    * @return True if matching succeeded and route_layer was advanced to a valid
    * layer; false otherwise.
    * @note This function is noexcept and will not throw.
@@ -261,7 +274,9 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
       const boost::urls::url_view& url,
       route_internal::HttpRouteTableLayer*& route_layer,
       std::string& out_location,
-      std::vector<std::string>& out_parameter_values) const noexcept;
+      std::vector<std::string>& out_parameter_values,
+      std::vector<route_internal::HttpRouteTableLayer*>& out_matched_layers)
+      const noexcept;
 
   /**
    * @brief Extract ordered parameter names from a route target.
@@ -289,9 +304,12 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
       std::vector<std::string> parameter_values);
 
   /**
-   * @brief Collect aspect handlers in order: global, method-specific, then
-   * route-specific.
-   * @param route_layer The route layer providing route-specific aspects.
+   * @brief Collect aspect handlers in order: global, method-specific,
+   * matched subtree, then terminal.
+   * @param matched_layers The successfully matched route layers in root-to-leaf
+   * order.
+   * @param route_layer The final matched route layer providing terminal
+   * aspects.
    * @param method The HTTP method whose method-specific aspects will be
    * included.
    * @return A vector of non-owning pointers to HttpRequestAspectHandler in
@@ -300,6 +318,7 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
    * handlers.
    */
   std::vector<HttpRequestAspectHandler*> CollectAspects(
+      const std::vector<route_internal::HttpRouteTableLayer*>& matched_layers,
       route_internal::HttpRouteTableLayer* route_layer,
       HttpRequestMethod method) const noexcept;
 

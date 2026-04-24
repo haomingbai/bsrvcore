@@ -54,5 +54,10 @@ routes:
     aspects:
       - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
         params:
+          pre: "spre|"
+          post: "spost|"
+    terminal_aspects:
+      - factory: "./plugins/libexample_bsrvrun_demo_aspect_plugin.so"
+        params:
           pre: "rpre|"
           post: "rpost|"

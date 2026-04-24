@@ -343,7 +343,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   }
 
   /**
-   * @brief Add an aspect handler to a specific route
+   * @brief Add a subtree aspect handler rooted at a specific route
    * @param method HTTP method
    * @param url Route pattern
    * @param aspect Aspect handler
@@ -353,7 +353,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
                         OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
-   * @brief Add an aspect with function objects for pre/post processing
+   * @brief Add a subtree aspect with function objects for pre/post processing
    * @tparam F1 Pre-service function type
    * @tparam F2 Post-service function type
    * @param method HTTP method
@@ -374,6 +374,41 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
     auto aspect = AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
 
     return AddAspect(method, url, std::move(aspect));
+  }
+
+  /**
+   * @brief Add a terminal aspect handler to a specific route
+   * @param method HTTP method
+   * @param url Route pattern
+   * @param aspect Aspect handler
+   * @return Pointer to server for method chaining
+   */
+  HttpServer* AddTerminalAspect(HttpRequestMethod method,
+                                const std::string_view url,
+                                OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Add a terminal aspect with function objects for pre/post processing
+   * @tparam F1 Pre-service function type
+   * @tparam F2 Post-service function type
+   * @param method HTTP method
+   * @param url Route pattern
+   * @param f1 Pre-service function (HttpPreServerTask)
+   * @param f2 Post-service function (HttpPostServerTask)
+   * @return Pointer to server for method chaining
+   */
+  template <typename F1, typename F2>
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
+      { fn1(pre_task) };
+      { fn2(post_task) };
+    }
+  HttpServer* AddTerminalAspect(HttpRequestMethod method,
+                                const std::string_view url, F1 f1, F2 f2) {
+    auto aspect = AllocateUnique<FunctionRequestAspectHandler<F1, F2>>(f1, f2);
+
+    return AddTerminalAspect(method, url, std::move(aspect));
   }
 
   /**

@@ -65,6 +65,13 @@ BluePrint* BluePrint::AddAspect(HttpRequestMethod method, std::string_view url,
   return this;
 }
 
+BluePrint* BluePrint::AddTerminalAspect(
+    HttpRequestMethod method, std::string_view url,
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
+  impl_->route_table_->AddTerminalAspect(method, url, std::move(aspect));
+  return this;
+}
+
 BluePrint* BluePrint::SetReadExpiry(HttpRequestMethod method,
                                     std::string_view url, std::size_t expiry) {
   impl_->route_table_->SetReadExpiry(method, url, expiry);
@@ -118,6 +125,13 @@ ReuseableBluePrint* ReuseableBluePrint::AddAspect(
     HttpRequestMethod method, std::string_view url,
     OwnedPtr<CloneableHttpRequestAspectHandler> aspect) {
   impl_->route_table_->AddAspect(method, url, std::move(aspect));
+  return this;
+}
+
+ReuseableBluePrint* ReuseableBluePrint::AddTerminalAspect(
+    HttpRequestMethod method, std::string_view url,
+    OwnedPtr<CloneableHttpRequestAspectHandler> aspect) {
+  impl_->route_table_->AddTerminalAspect(method, url, std::move(aspect));
   return this;
 }
 

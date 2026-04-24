@@ -26,7 +26,8 @@ flowchart TD
 
 - Global aspects are collected first.
 - Method-specific global aspects are appended next.
-- Route-local aspects are appended last.
+- Matched subtree aspects are appended next in root-to-leaf order.
+- Terminal aspects on the final matched route are appended last.
 - Pre phase runs in collection order.
 - Post phase runs in reverse order.
 

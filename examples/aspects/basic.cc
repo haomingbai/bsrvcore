@@ -1,10 +1,11 @@
 /**
  * @file example_aspect_basic.cc
- * @brief Global and route-specific aspects.
+ * @brief Global, subtree, and terminal aspects.
  *
  * Demonstrates:
  * - AddGlobalAspect for cross-cutting behavior
- * - AddAspect for route-specific behavior
+ * - AddAspect for subtree behavior
+ * - AddTerminalAspect for exact-route behavior
  *
  * Prerequisites: Boost, OpenSSL (required by bsrvcore build).
  * Build: cmake -S . -B build -DBSRVCORE_BUILD_EXAMPLES=ON
@@ -35,7 +36,7 @@ int main() {
             task->SetField("X-Request-End", "1");
           })
       ->AddRouteEntry(
-          bsrvcore::HttpRequestMethod::kGet, "/ping",
+          bsrvcore::HttpRequestMethod::kGet, "/v1/ping",
           [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
             task->GetResponse().result(bsrvcore::HttpStatus::ok);
             task->SetField(bsrvcore::HttpField::content_type,
@@ -43,12 +44,20 @@ int main() {
             task->SetBody("pong");
           })
       ->AddAspect(
-          bsrvcore::HttpRequestMethod::kGet, "/ping",
+          bsrvcore::HttpRequestMethod::kGet, "/v1",
           [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
-            task->SetField("X-Route-Aspect", "pre");
+            task->SetField("X-Subtree-Aspect", "pre");
           },
           [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
-            task->SetField("X-Route-Aspect", "post");
+            task->SetField("X-Subtree-Aspect", "post");
+          })
+      ->AddTerminalAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/v1/ping",
+          [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
+            task->SetField("X-Terminal-Aspect", "pre");
+          },
+          [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
+            task->SetField("X-Terminal-Aspect", "post");
           })
       ->AddListen({boost::asio::ip::make_address("0.0.0.0"), 8083}, 1);
 
@@ -57,7 +66,7 @@ int main() {
     return 1;
   }
 
-  std::cout << "Listening on http://0.0.0.0:8083/ping" << '\n';
+  std::cout << "Listening on http://0.0.0.0:8083/v1/ping" << '\n';
   std::cout << "Press Enter to stop." << '\n';
   std::cin.get();
 

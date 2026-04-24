@@ -75,6 +75,10 @@ routes:
       - factory: "/opt/bsrv/plugins/libauth_aspect.so"
         params:
           token: "demo"
+    terminal_aspects:
+      - factory: "/opt/bsrv/plugins/librequest_log_aspect.so"
+        params:
+          level: "debug"
 ```
 
 ## Route behavior notes
@@ -92,6 +96,8 @@ routes:
 - `path` follows the same parameter syntax as C++ API (for example `/users/{id}`).
 - `ignore_default_route: true` maps to exclusive route registration.
 - `cpu: true` maps the route to `AddComputingRouteEntry()` semantics so the handler body runs on the worker pool while keeping the normal task lifecycle.
+- `aspects` maps to subtree `AddAspect()` behavior for that route prefix.
+- `terminal_aspects` maps to exact-route `AddTerminalAspect()` behavior.
 
 ## Logger behavior notes
 

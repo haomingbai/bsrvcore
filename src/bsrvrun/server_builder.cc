@@ -76,6 +76,10 @@ void ApplyConfigToServer(const ServerConfig& config, PluginLoader* loader,
       server->AddAspect(route.method, route.path,
                         loader->CreateAspect(aspect_config));
     }
+    for (const auto& aspect_config : route.terminal_aspects) {
+      server->AddTerminalAspect(route.method, route.path,
+                                loader->CreateAspect(aspect_config));
+    }
   }
 }
 

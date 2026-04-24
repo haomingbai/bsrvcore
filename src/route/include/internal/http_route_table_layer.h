@@ -172,23 +172,42 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   const std::string& GetRouteTemplate() const noexcept;
 
   /**
-   * @brief Add an aspect handler to this route layer
+   * @brief Add a subtree aspect handler to this route layer
    * @param aspect Aspect handler to add
    * @return true if aspect was added successfully
    */
   bool AddAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
 
   /**
-   * @brief Get the number of aspect handlers attached to this layer
-   * @return Number of aspect handlers
+   * @brief Add a terminal aspect handler to this route layer
+   * @param aspect Aspect handler to add
+   * @return true if aspect was added successfully
+   */
+  bool AddTerminalAspect(OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /**
+   * @brief Get the number of subtree aspect handlers attached to this layer
+   * @return Number of subtree aspect handlers
    */
   std::size_t GetAspectNum() const noexcept;
 
   /**
-   * @brief Get all aspect handlers attached to this layer
+   * @brief Get the number of terminal aspect handlers attached to this layer
+   * @return Number of terminal aspect handlers
+   */
+  std::size_t GetTerminalAspectNum() const noexcept;
+
+  /**
+   * @brief Get all subtree aspect handlers attached to this layer
    * @return Vector of aspect handler pointers
    */
   std::vector<HttpRequestAspectHandler*> GetAspects() const;
+
+  /**
+   * @brief Get all terminal aspect handlers attached to this layer
+   * @return Vector of aspect handler pointers
+   */
+  std::vector<HttpRequestAspectHandler*> GetTerminalAspects() const;
 
   /**
    * @brief Check if default route matching is disabled
@@ -207,7 +226,9 @@ class HttpRouteTableLayer : NonCopyableNonMovable<HttpRouteTableLayer> {
   std::unordered_map<std::string, OwnedPtr<HttpRouteTableLayer>>
       map_;  ///< Sub-routes by path segment
   std::vector<OwnedPtr<HttpRequestAspectHandler>>
-      aspects_;  ///< Aspect handlers for this layer
+      aspects_;  ///< Subtree aspect handlers inherited by descendants
+  std::vector<OwnedPtr<HttpRequestAspectHandler>>
+      terminal_aspects_;  ///< Terminal aspect handlers for exact route hits
   std::vector<std::string>
       param_names_;  ///< Path parameter names for terminal routes
   OwnedPtr<HttpRouteTableLayer>

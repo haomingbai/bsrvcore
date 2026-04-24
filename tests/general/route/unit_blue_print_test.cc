@@ -53,8 +53,8 @@ TEST(BluePrintTest, MountsRouteTreeUnderPrefix) {
   blue_print
       .AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
                      std::move(handler))
-      ->AddAspect(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-                  std::move(aspect))
+      ->AddTerminalAspect(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
+                          std::move(aspect))
       ->SetReadExpiry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}", 1234);
 
   server.AddBluePrint("/api", std::move(blue_print));
@@ -79,7 +79,7 @@ TEST(BluePrintTest, ReuseableBluePrintClonesOnEachMount) {
       .AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
           [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {})
-      ->AddAspect(
+      ->AddTerminalAspect(
           bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
           [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {},
           [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {})
@@ -102,6 +102,97 @@ TEST(BluePrintTest, ReuseableBluePrintClonesOnEachMount) {
   EXPECT_EQ(v2.route_template, "/v2/users/{id}");
   EXPECT_EQ(v1.write_expiry, 4321u);
   EXPECT_EQ(v2.write_expiry, 4321u);
+}
+
+TEST(BluePrintTest, MountsSubtreeAspectsUnderPrefixWithoutTerminalFallback) {
+  bsrvcore::HttpServer server(1);
+
+  auto blue_print = bsrvcore::BluePrintFactory::Create();
+  auto handler = bsrvcore::AllocateUnique<DummyHandler>("mounted");
+  auto* handler_ptr = handler.get();
+  auto aspect = bsrvcore::AllocateUnique<DummyAspect>("subtree");
+  auto* aspect_ptr = aspect.get();
+
+  blue_print
+      .AddAspect(bsrvcore::HttpRequestMethod::kGet, "/users",
+                 std::move(aspect))
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
+                      std::move(handler));
+
+  server.AddBluePrint("/api", std::move(blue_print));
+
+  auto child =
+      server.Route(bsrvcore::HttpRequestMethod::kGet, "/api/users/123");
+  EXPECT_EQ(child.handler, handler_ptr);
+  ASSERT_EQ(child.aspects.size(), 1u);
+  EXPECT_EQ(child.aspects[0], aspect_ptr);
+
+  auto parent = server.Route(bsrvcore::HttpRequestMethod::kGet, "/api/users");
+  EXPECT_NE(parent.handler, handler_ptr);
+  EXPECT_TRUE(parent.aspects.empty());
+  EXPECT_EQ(parent.route_template, "/");
+}
+
+TEST(BluePrintTest, RouteCollectsGlobalMethodSubtreeAndTerminalAspectsInOrder) {
+  bsrvcore::HttpServer server(1);
+
+  auto handler = bsrvcore::AllocateUnique<DummyHandler>("leaf");
+  auto* handler_ptr = handler.get();
+  auto global_aspect = bsrvcore::AllocateUnique<DummyAspect>("global");
+  auto* global_ptr = global_aspect.get();
+  auto method_aspect = bsrvcore::AllocateUnique<DummyAspect>("method");
+  auto* method_ptr = method_aspect.get();
+  auto parent_subtree = bsrvcore::AllocateUnique<DummyAspect>("parent");
+  auto* parent_ptr = parent_subtree.get();
+  auto leaf_subtree = bsrvcore::AllocateUnique<DummyAspect>("leaf-subtree");
+  auto* leaf_subtree_ptr = leaf_subtree.get();
+  auto terminal_aspect = bsrvcore::AllocateUnique<DummyAspect>("terminal");
+  auto* terminal_ptr = terminal_aspect.get();
+
+  server.AddGlobalAspect(std::move(global_aspect))
+      ->AddGlobalAspect(bsrvcore::HttpRequestMethod::kGet,
+                        std::move(method_aspect))
+      ->AddAspect(bsrvcore::HttpRequestMethod::kGet, "/api",
+                  std::move(parent_subtree))
+      ->AddAspect(bsrvcore::HttpRequestMethod::kGet, "/api/ping",
+                  std::move(leaf_subtree))
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/api/ping",
+                      std::move(handler))
+      ->AddTerminalAspect(bsrvcore::HttpRequestMethod::kGet, "/api/ping",
+                          std::move(terminal_aspect));
+
+  auto result = server.Route(bsrvcore::HttpRequestMethod::kGet, "/api/ping");
+  EXPECT_EQ(result.handler, handler_ptr);
+  ASSERT_EQ(result.aspects.size(), 5u);
+  EXPECT_EQ(result.aspects[0], global_ptr);
+  EXPECT_EQ(result.aspects[1], method_ptr);
+  EXPECT_EQ(result.aspects[2], parent_ptr);
+  EXPECT_EQ(result.aspects[3], leaf_subtree_ptr);
+  EXPECT_EQ(result.aspects[4], terminal_ptr);
+}
+
+TEST(BluePrintTest, ExclusiveRouteKeepsMatchedSubtreeAspectsOnDeeperPath) {
+  bsrvcore::HttpServer server(1);
+
+  auto subtree_aspect = bsrvcore::AllocateUnique<DummyAspect>("static");
+  auto* subtree_ptr = subtree_aspect.get();
+  auto exclusive_handler = bsrvcore::AllocateUnique<DummyHandler>("static");
+  auto* exclusive_ptr = exclusive_handler.get();
+  auto param_handler = bsrvcore::AllocateUnique<DummyHandler>("param");
+
+  server.AddAspect(bsrvcore::HttpRequestMethod::kGet, "/static",
+                   std::move(subtree_aspect))
+      ->AddExclusiveRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/static",
+                               std::move(exclusive_handler))
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/static/{file}",
+                      std::move(param_handler));
+
+  auto result =
+      server.Route(bsrvcore::HttpRequestMethod::kGet, "/static/asset.png");
+  EXPECT_EQ(result.handler, exclusive_ptr);
+  ASSERT_EQ(result.aspects.size(), 1u);
+  EXPECT_EQ(result.aspects[0], subtree_ptr);
+  EXPECT_EQ(result.current_location, "/static");
 }
 
 TEST(BluePrintTest, RejectsConflictingMountWithoutOverwritingExistingRoute) {

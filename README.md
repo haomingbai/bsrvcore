@@ -219,7 +219,15 @@ requires:
    };
    ```
 
-3. **Lambda handlers** (in examples and application code) auto-adapt—no changes
+3. **Aspect scope update**: route aspect registration now distinguishes between
+   subtree and exact-route behavior:
+
+   - `AddAspect(...)` now registers a subtree aspect that affects the matched
+     route and its descendants.
+   - `AddTerminalAspect(...)` replaces the old exact-route behavior.
+   - The same split applies to `BluePrint`, `ReuseableBluePrint`, the C
+     binding, and `bsrvrun` route config (`aspects` vs `terminal_aspects`).
+4. **Lambda handlers** (in examples and application code) auto-adapt—no changes
    needed.
 
 **Benefit**: ~5-15% throughput improvement in typical request paths through

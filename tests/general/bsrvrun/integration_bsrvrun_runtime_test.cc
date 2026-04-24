@@ -3,7 +3,7 @@
  * @brief Integration tests for YAML loading + plugin-backed server assembly.
  *
  * Focus:
- * - global and route-local plugin aspects
+ * - global, subtree, and terminal plugin aspects
  * - handler factory parameter wiring
  * - YAML flags that map onto core routing behavior
  */
@@ -55,7 +55,7 @@ std::string ThreadIdToString(std::thread::id id) {
 
 }  // namespace
 
-TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
+TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndTerminalAspects) {
   const unsigned short port = bsrvcore::test::FindFreePort();
 
   const std::string yaml =
@@ -83,7 +83,7 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
       "\"\n"
       "      params:\n"
       "        body: \"handler|\"\n"
-      "    aspects:\n"
+      "    terminal_aspects:\n"
       "      - factory: \"" +
       EscapePath(BSRVRUN_TEST_ASPECT_PLUGIN) +
       "\"\n"
@@ -108,6 +108,67 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndRouteAspects) {
 
   EXPECT_EQ(res.result(), http::status::ok);
   EXPECT_EQ(res.body(), "gpre|rpre|handler|rpost|gpost|");
+
+  std::filesystem::remove(config_path);
+}
+
+TEST(BsrvRunRuntimeIntegrationTest,
+     AppliesRouteSubtreeAspectsToSelfAndDescendants) {
+  const unsigned short port = bsrvcore::test::FindFreePort();
+
+  const std::string yaml =
+      "server:\n"
+      "  thread_count: 2\n"
+      "listeners:\n"
+      "  - address: \"127.0.0.1\"\n"
+      "    port: " +
+      std::to_string(port) +
+      "\n"
+      "routes:\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/tree\"\n"
+      "    handler:\n"
+      "      factory: \"" +
+      EscapePath(BSRVRUN_TEST_HANDLER_PLUGIN) +
+      "\"\n"
+      "      params:\n"
+      "        body: \"parent|\"\n"
+      "    aspects:\n"
+      "      - factory: \"" +
+      EscapePath(BSRVRUN_TEST_ASPECT_PLUGIN) +
+      "\"\n"
+      "        params:\n"
+      "          pre: \"spre|\"\n"
+      "          post: \"spost|\"\n"
+      "  - method: \"GET\"\n"
+      "    path: \"/tree/leaf\"\n"
+      "    handler:\n"
+      "      factory: \"" +
+      EscapePath(BSRVRUN_TEST_HANDLER_PLUGIN) +
+      "\"\n"
+      "      params:\n"
+      "        body: \"child|\"\n";
+
+  const auto config_path =
+      WriteConfig(yaml, "bsrvrun_runtime_integration_subtree.yaml");
+
+  const auto config =
+      bsrvcore::runtime::LoadConfigFromFile(config_path.string());
+  bsrvcore::runtime::PluginLoader loader;
+  auto server =
+      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
+
+  ASSERT_TRUE(server->Start());
+  auto parent = DoRequestWithRetry(http::verb::get, port, "/tree", "");
+  auto child = DoRequestWithRetry(http::verb::get, port, "/tree/leaf", "");
+  server->Stop();
+  server.reset();
+
+  EXPECT_EQ(parent.result(), http::status::ok);
+  EXPECT_EQ(parent.body(), "spre|parent|spost|");
+  EXPECT_EQ(child.result(), http::status::ok);
+  EXPECT_EQ(child.body(), "spre|child|spost|");
 
   std::filesystem::remove(config_path);
 }

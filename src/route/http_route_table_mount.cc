@@ -68,7 +68,7 @@ bool HttpRouteTable::CanMergeLayer(const HttpRouteTableLayer& dst,
   if (HasTerminalConfiguration(src) && HasTerminalConfiguration(dst)) {
     // Mounting is rejected when both trees already define behavior at the same
     // logical node; this keeps MountAt() from silently overwriting handlers or
-    // route-local policies.
+    // terminal route policies.
     return false;
   }
 
@@ -104,7 +104,14 @@ void HttpRouteTable::MoveMergeLayer(HttpRouteTableLayer& dst,
   }
 
   if (!src.aspects_.empty()) {
-    dst.aspects_ = std::move(src.aspects_);
+    dst.aspects_.reserve(dst.aspects_.size() + src.aspects_.size());
+    for (auto& aspect : src.aspects_) {
+      dst.aspects_.emplace_back(std::move(aspect));
+    }
+    src.aspects_.clear();
+  }
+  if (!src.terminal_aspects_.empty()) {
+    dst.terminal_aspects_ = std::move(src.terminal_aspects_);
   }
   if (src.max_body_size_ != 0) {
     dst.max_body_size_ = src.max_body_size_;
@@ -175,6 +182,16 @@ bool HttpRouteTable::CloneLayer(const HttpRouteTableLayer& src,
       return false;
     }
     cloned->aspects_.emplace_back(cloneable_aspect->Clone());
+  }
+
+  cloned->terminal_aspects_.reserve(src.terminal_aspects_.size());
+  for (const auto& aspect : src.terminal_aspects_) {
+    auto* cloneable_aspect =
+        dynamic_cast<const CloneableHttpRequestAspectHandler*>(aspect.get());
+    if (cloneable_aspect == nullptr) {
+      return false;
+    }
+    cloned->terminal_aspects_.emplace_back(cloneable_aspect->Clone());
   }
 
   if (src.default_route_ != nullptr &&

@@ -83,11 +83,11 @@ class BluePrint : public MovableOnly<BluePrint> {
         AllocateUnique<FunctionRouteHandler<Fn>>(std::forward<Func>(func)));
   }
 
-  /** @brief Add an aspect entry with an owned aspect object. */
+  /** @brief Add a subtree aspect entry with an owned aspect object. */
   BluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
                        OwnedPtr<HttpRequestAspectHandler> aspect);
 
-  /** @brief Add an aspect entry from pre/post callables. */
+  /** @brief Add a subtree aspect entry from pre/post callables. */
   template <typename F1, typename F2>
     requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
                       std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
@@ -100,6 +100,28 @@ class BluePrint : public MovableOnly<BluePrint> {
     using PreFn = std::decay_t<F1>;
     using PostFn = std::decay_t<F2>;
     return AddAspect(
+        method, url,
+        AllocateUnique<FunctionRequestAspectHandler<PreFn, PostFn>>(
+            std::forward<F1>(f1), std::forward<F2>(f2)));
+  }
+
+  /** @brief Add a terminal aspect entry with an owned aspect object. */
+  BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
+                               OwnedPtr<HttpRequestAspectHandler> aspect);
+
+  /** @brief Add a terminal aspect entry from pre/post callables. */
+  template <typename F1, typename F2>
+    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                      F2 fn2) {
+      { fn1(pre_task) };
+      { fn2(post_task) };
+    }
+  BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
+                               F1&& f1, F2&& f2) {
+    using PreFn = std::decay_t<F1>;
+    using PostFn = std::decay_t<F2>;
+    return AddTerminalAspect(
         method, url,
         AllocateUnique<FunctionRequestAspectHandler<PreFn, PostFn>>(
             std::forward<F1>(f1), std::forward<F2>(f2)));
@@ -178,12 +200,12 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::forward<Func>(func)));
   }
 
-  /** @brief Add an aspect entry with a cloneable aspect object. */
+  /** @brief Add a subtree aspect entry with a cloneable aspect object. */
   ReuseableBluePrint* AddAspect(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
 
-  /** @brief Add an aspect entry from copyable pre/post callables. */
+  /** @brief Add a subtree aspect entry from copyable pre/post callables. */
   template <typename F1, typename F2>
     requires std::copy_constructible<std::decay_t<F1>> &&
              std::copy_constructible<std::decay_t<F2>> &&
@@ -198,6 +220,32 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
     using PreFn = std::decay_t<F1>;
     using PostFn = std::decay_t<F2>;
     return AddAspect(
+        method, url,
+        AllocateUnique<CloneableFunctionRequestAspectHandler<PreFn, PostFn>>(
+            std::forward<F1>(f1), std::forward<F2>(f2)));
+  }
+
+  /** @brief Add a terminal aspect entry with a cloneable aspect object. */
+  ReuseableBluePrint* AddTerminalAspect(
+      HttpRequestMethod method, std::string_view url,
+      OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
+
+  /** @brief Add a terminal aspect entry from copyable pre/post callables. */
+  template <typename F1, typename F2>
+    requires std::copy_constructible<std::decay_t<F1>> &&
+             std::copy_constructible<std::decay_t<F2>> &&
+             requires(std::shared_ptr<HttpPreServerTask> pre_task,
+                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
+                      F2 fn2) {
+               { fn1(pre_task) };
+               { fn2(post_task) };
+             }
+  ReuseableBluePrint* AddTerminalAspect(HttpRequestMethod method,
+                                        std::string_view url, F1&& f1,
+                                        F2&& f2) {
+    using PreFn = std::decay_t<F1>;
+    using PostFn = std::decay_t<F2>;
+    return AddTerminalAspect(
         method, url,
         AllocateUnique<CloneableFunctionRequestAspectHandler<PreFn, PostFn>>(
             std::forward<F1>(f1), std::forward<F2>(f2)));

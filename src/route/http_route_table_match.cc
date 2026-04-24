@@ -50,16 +50,17 @@ HttpRouteResult HttpRouteTable::Route(HttpRequestMethod method,
 
   std::string current_location;
   std::vector<std::string> parameter_values;
-  if (!MatchSegments(*parsed, route_layer, current_location,
-                     parameter_values)) {
+  std::vector<HttpRouteTableLayer*> matched_layers;
+  if (!MatchSegments(*parsed, route_layer, current_location, parameter_values,
+                     matched_layers)) {
     return BuildDefaultRouteResult(method);
   }
 
-  auto aspects = CollectAspects(route_layer, method);
   auto* handler = route_layer->GetHandler();
   if (handler == nullptr) {
     return BuildDefaultRouteResult(method);
   }
+  auto aspects = CollectAspects(matched_layers, route_layer, method);
 
   auto max_body_size = (route_layer->GetMaxBodySize() != 0u)
                            ? route_layer->GetMaxBodySize()
@@ -88,9 +89,9 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
     [[maybe_unused]] HttpRequestMethod method) const noexcept {
   std::vector<HttpRequestAspectHandler*> aspects;
   aspects.reserve(global_aspects_.size());
-  for (auto const& a : global_aspects_) {
-    aspects.emplace_back(a.get());
-  }
+  std::ranges::for_each(global_aspects_, [&aspects](const auto& aspect) {
+    aspects.emplace_back(aspect.get());
+  });
 
   // Routing failures still run the default handler inside the global aspect
   // envelope so cross-cutting behavior such as logging/auth can stay uniform.
@@ -108,9 +109,15 @@ HttpRouteResult HttpRouteTable::BuildDefaultRouteResult(
 bool HttpRouteTable::MatchSegments(
     const boost::urls::url_view& url, HttpRouteTableLayer*& route_layer,
     std::string& out_location,
-    std::vector<std::string>& out_parameter_values) const noexcept {
+    std::vector<std::string>& out_parameter_values,
+    std::vector<HttpRouteTableLayer*>& out_matched_layers) const noexcept {
   out_location.clear();
   out_parameter_values.clear();
+  out_matched_layers.clear();
+
+  if (route_layer != nullptr) {
+    out_matched_layers.emplace_back(route_layer);
+  }
 
   // Walk the parsed URL directly so each segment stays tied to Boost.URL's
   // backing storage. Converting the proxy segment objects into detached
@@ -125,6 +132,7 @@ bool HttpRouteTable::MatchSegments(
       route_layer = next;
       out_location.push_back('/');
       out_location.append(seg);
+      out_matched_layers.emplace_back(route_layer);
       continue;
     }
 
@@ -143,6 +151,7 @@ bool HttpRouteTable::MatchSegments(
     route_layer = default_layer;
     out_location.push_back('/');
     out_location.append(seg);
+    out_matched_layers.emplace_back(route_layer);
   }
 
   if (out_location.empty()) {
@@ -186,6 +195,7 @@ std::unordered_map<std::string, std::string> HttpRouteTable::BuildParameterMap(
 }
 
 std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
+    const std::vector<HttpRouteTableLayer*>& matched_layers,
     HttpRouteTableLayer* route_layer, HttpRequestMethod method) const noexcept {
   std::vector<HttpRequestAspectHandler*> aspects;
   auto method_idx = static_cast<std::size_t>(method);
@@ -194,7 +204,12 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
   if (method_idx < global_specific_aspects_.size()) {
     reserve_size += global_specific_aspects_[method_idx].size();
   }
-  reserve_size += route_layer->GetAspectNum();
+  for (const auto* layer : matched_layers) {
+    if (layer != nullptr) {
+      reserve_size += layer->GetAspectNum();
+    }
+  }
+  reserve_size += route_layer->GetTerminalAspectNum();
   aspects.reserve(reserve_size);
 
   for (auto const& a : global_aspects_) {
@@ -206,18 +221,28 @@ std::vector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
     }
   }
 
-  // Route-local aspects are already stored in pre-order on the matched layer.
-  // Appending them after global/method aspects yields the expected nesting:
-  // global -> method -> route on entry, and the reverse on exit.
-  auto route_aspects = route_layer->GetAspects();
-  aspects.insert(aspects.end(), std::make_move_iterator(route_aspects.begin()),
-                 std::make_move_iterator(route_aspects.end()));
+  // Subtree aspects follow the successfully matched layer stack from root to
+  // leaf, then terminal aspects on the final layer wrap the concrete handler.
+  for (const auto* layer : matched_layers) {
+    if (layer == nullptr) {
+      continue;
+    }
+    auto subtree_aspects = layer->GetAspects();
+    aspects.insert(aspects.end(),
+                   std::make_move_iterator(subtree_aspects.begin()),
+                   std::make_move_iterator(subtree_aspects.end()));
+  }
+
+  auto terminal_aspects = route_layer->GetTerminalAspects();
+  aspects.insert(aspects.end(),
+                 std::make_move_iterator(terminal_aspects.begin()),
+                 std::make_move_iterator(terminal_aspects.end()));
   return aspects;
 }
 
 bool HttpRouteTable::HasTerminalConfiguration(
     const HttpRouteTableLayer& layer) noexcept {
-  return layer.handler_ != nullptr || !layer.aspects_.empty() ||
+  return layer.handler_ != nullptr || !layer.terminal_aspects_.empty() ||
          layer.max_body_size_ != 0 || layer.read_expiry_ != 0 ||
          layer.write_expiry_ != 0;
 }

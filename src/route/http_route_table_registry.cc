@@ -124,6 +124,24 @@ bool HttpRouteTable::AddAspect(HttpRequestMethod method,
   return true;
 }
 
+bool HttpRouteTable::AddTerminalAspect(
+    HttpRequestMethod method, const std::string_view target,
+    OwnedPtr<HttpRequestAspectHandler> aspect) {
+  auto method_idx = static_cast<std::size_t>(method);
+  if (method_idx >= kHttpRequestMethodNum ||
+      !route_internal::IsValidParametricTarget(target)) {
+    return false;
+  }
+
+  auto* route_layer = GetOrCreateRouteTableLayer(method, target);
+  if (route_layer == nullptr) {
+    return false;
+  }
+
+  route_layer->AddTerminalAspect(std::move(aspect));
+  return true;
+}
+
 bool HttpRouteTable::AddGlobalAspect(
     HttpRequestMethod method, OwnedPtr<HttpRequestAspectHandler> aspect) try {
   auto method_idx = static_cast<std::size_t>(method);
