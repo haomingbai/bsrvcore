@@ -459,6 +459,7 @@ class AsyncSameTypeWaiter<void>
  private:
   struct PrivateTag {};
   using ReadyCompletion = std::optional<Callback>;
+  using StdBool = uint8_t;
 
   explicit AsyncSameTypeWaiter(PrivateTag, std::size_t wait_count)
       : remaining_(wait_count), slot_ready_(wait_count, false) {}
@@ -481,7 +482,7 @@ class AsyncSameTypeWaiter<void>
   std::mutex mutex_;
   bool fired_{false};
   std::size_t remaining_{0};
-  AllocatedVector<bool> slot_ready_;
+  AllocatedVector<StdBool> slot_ready_;
   Callback callback_;
 };
 
