@@ -1,33 +1,30 @@
 # Benchmark Package Summary
 
-This package is the published summary for the 2026-04-12 benchmark refresh.
+This package is the published summary for the 2026-04-25 benchmark refresh.
 
 ## Mainline Winner
 
-- pressure: `io18-worker1-conc160-proc4-wrk2`
+- pressure: `io15-worker1-conc144-proc4-wrk2`
 - scenario: `http_get_static`
-- `861148.07 rps`
-- `5382.18 rps / connection`
-- `p95 3171.76 us`, `p99 4419.79 us`
+- `835092.66 rps`
+- `5799.25 rps / connection`
+- `p95 3111.71 us`, `p99 4421.86 us`
 - stability: `stable`
 
-## Mainline Scan Path
+## Comparison To Previous Report
 
-- old winner peek: `io20-worker4-conc160-proc3-wrk2`, `854348.07 rps`
-- coarse-only winner: `io10-worker20-conc160-proc2-wrk1`, `575572.24 rps`
-- final winner gain over coarse-only: `+49.62%`
-- final winner gain over old winner peek: `+0.80%`
+- previous winner: `io20-worker1-conc170-proc4-wrk2`, `824608.14 rps`
+- throughput delta: `+1.27%` (`+10484.52 rps`)
+- p95 delta: `-158.70 us`
+- conclusion: current run improved in both throughput and tail latency
 
 ## Body-Size Highlights
 
-- GET response-size sweep stayed smooth and stable up to `256 KiB`
-- at `conc=160`, GET throughput fell from `821970.97 rps` at `0B` to `68013.15 rps` at `256 KiB`
-- POST request-size sweep did not produce a monotonic curve
-- reproducible POST platforms were confirmed at:
-  - `conc=64, req=16 KiB`, `207204.91 rps`
-  - `conc=64, req=24 KiB`, `200045.34 rps`
-  - `conc=80, req=32 KiB`, `212660.22 rps`
-- a short-window high at `conc=48, req=8 KiB` did not survive long-window confirmation
+- GET response-size probes were stable across `0 .. 256 KiB` at fixed `conc=256`
+- GET throughput remained monotonic (`851732.65 -> 58335.78 rps` from `0B` to `256 KiB`)
+- POST showed a stable local band at `conc=64` for `req<=16 KiB`
+- POST `conc=64, req=24 KiB` became unstable in this refresh
+- POST `conc=128, req=32 KiB` remained unstable and is treated as a boundary point
 
 ## Published Files
 
@@ -37,11 +34,8 @@ This package is the published summary for the 2026-04-12 benchmark refresh.
 - charts:
   - `benchmark-report-capacity-overview.png`
   - `benchmark-report-per-connection-throughput.png`
-  - `benchmark-report-thread-sensitivity.png`
   - `benchmark-report-loadgen-sensitivity.png`
   - `benchmark-report-peak-neighborhood.png`
-  - `benchmark-report-body-get-response-curves.png`
-  - `benchmark-report-body-get-response-slices.png`
-  - `benchmark-report-body-post-long-frontier.png`
-  - `benchmark-report-body-post-long-heatmap.png`
-  - `benchmark-report-body-post-short-heatmap.png`
+  - `benchmark-report-mainline-comparison.png`
+  - `benchmark-report-body-get-conc256.png`
+  - `benchmark-report-body-post-probes.png`

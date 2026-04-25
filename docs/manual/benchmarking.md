@@ -199,7 +199,7 @@ The per-run output directory contains:
 - `benchmark-report-capacity-overview.png`
 - `benchmark-report-per-connection-throughput.png`
 - `benchmark-report-peak-neighborhood.png`
-- `benchmark-report-thread-sensitivity.png`
+- `benchmark-report-thread-sensitivity.png` (optional, only when the winner shape has comparable thread series)
 - `benchmark-report-loadgen-sensitivity.png`
 
 Single-point probes write only their JSON and environment snapshot. They do not
