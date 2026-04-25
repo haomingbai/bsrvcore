@@ -15,6 +15,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
@@ -271,10 +272,10 @@ class AsyncSameTypeWaiter
       OnReadyAllocated(AllocatedCallback{});
       return;
     }
-    OnReadyAllocated([callback = std::move(callback)](
-                         AllocatedVector<T> values) mutable {
-      callback(detail::ToStdVector(std::move(values)));
-    });
+    OnReadyAllocated(
+        [callback = std::move(callback)](AllocatedVector<T> values) mutable {
+          callback(detail::ToStdVector(std::move(values)));
+        });
   }
 
   /** @brief Register allocator-backed callback to avoid compatibility copy. */
@@ -366,18 +367,20 @@ class AsyncSameTypeWaiter
     }
   }
 
+  using Bool = uint8_t;
+
   std::mutex mutex_;
   bool fired_{false};
   std::size_t remaining_{0};
-  AllocatedVector<bool> slot_ready_;
+  AllocatedVector<Bool> slot_ready_;
   AllocatedVector<std::optional<T>> values_;
   AllocatedCallback callback_;
 };
 
-template <>
 /**
  * @brief Wait for `N` completion signals when no per-slot value is needed.
  */
+template <>
 class AsyncSameTypeWaiter<void>
     : public std::enable_shared_from_this<AsyncSameTypeWaiter<void>>,
       public NonCopyableNonMovable<AsyncSameTypeWaiter<void>> {
@@ -392,7 +395,7 @@ class AsyncSameTypeWaiter<void>
   /** @brief Create a shared waiter instance. */
   [[nodiscard]] static std::shared_ptr<AsyncSameTypeWaiter> Create(
       std::size_t wait_count) {
-    struct SharedEnabler final : AsyncSameTypeWaiter {
+    struct SharedEnabler final : AsyncSameTypeWaiter<void> {
       explicit SharedEnabler(std::size_t count)
           : AsyncSameTypeWaiter(PrivateTag{}, count) {}
     };
@@ -459,7 +462,7 @@ class AsyncSameTypeWaiter<void>
  private:
   struct PrivateTag {};
   using ReadyCompletion = std::optional<Callback>;
-  using StdBool = uint8_t;
+  using Bool = uint8_t;
 
   explicit AsyncSameTypeWaiter(PrivateTag, std::size_t wait_count)
       : remaining_(wait_count), slot_ready_(wait_count, false) {}
@@ -482,7 +485,7 @@ class AsyncSameTypeWaiter<void>
   std::mutex mutex_;
   bool fired_{false};
   std::size_t remaining_{0};
-  AllocatedVector<StdBool> slot_ready_;
+  AllocatedVector<Bool> slot_ready_;
   Callback callback_;
 };
 
