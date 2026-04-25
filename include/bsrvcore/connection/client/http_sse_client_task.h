@@ -167,6 +167,33 @@ class HttpSseClientTask
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       const std::string& url, HttpSseClientOptions options = {});
 
+  /**
+   * @brief Create HTTP SSE task from an already connected TCP stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<HttpSseClientTask> CreateHttpRaw(
+      Executor io_executor, TcpStream stream, std::string host,
+      std::string target, HttpSseClientOptions options = {});
+  /** @brief Create HTTP SSE raw task with a dedicated callback executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateHttpRaw(
+      Executor io_executor, Executor callback_executor, TcpStream stream,
+      std::string host, std::string target, HttpSseClientOptions options = {});
+
+  /**
+   * @brief Create HTTPS SSE task from an already connected and handshaked SSL
+   * stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<HttpSseClientTask> CreateHttpsRaw(
+      Executor io_executor, SslStream stream, std::string host,
+      std::string target, HttpSseClientOptions options = {});
+  /** @brief Create HTTPS SSE raw task with a dedicated callback executor. */
+  static std::shared_ptr<HttpSseClientTask> CreateHttpsRaw(
+      Executor io_executor, Executor callback_executor, SslStream stream,
+      std::string host, std::string target, HttpSseClientOptions options = {});
+
   /** @brief Access mutable request before Start(). */
   HttpRequest& Request() noexcept;
 

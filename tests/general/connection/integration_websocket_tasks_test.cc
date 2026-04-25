@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/stream.hpp>
@@ -169,6 +170,58 @@ TEST(WebSocketIntegrationTest, ClientTaskReportsErrorForNonWebSocketResponse) {
   EXPECT_EQ(state->error_count, 1);
   EXPECT_EQ(state->close_count, 1);
   EXPECT_NE(state->last_error.find("handshake"), std::string::npos);
+}
+
+TEST(WebSocketIntegrationTest, RawFactoryOpensWithConnectedTcpStream) {
+  bsrvcore::IoContext server_ioc;
+  boost::asio::ip::tcp::acceptor acceptor(
+      server_ioc,
+      boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 0));
+  const auto port = acceptor.local_endpoint().port();
+  std::thread server_thread([&acceptor]() {
+    boost::asio::ip::tcp::socket socket(acceptor.get_executor());
+    boost::system::error_code ec;
+    acceptor.accept(socket, ec);
+    if (ec) {
+      return;
+    }
+
+    websocket::stream<boost::asio::ip::tcp::socket> ws(std::move(socket));
+    ws.accept(ec);
+    if (ec) {
+      return;
+    }
+
+    ws.close(websocket::close_code::normal, ec);
+  });
+
+  bsrvcore::IoContext ioc;
+  auto state = std::make_shared<IntegrationHandlerState>();
+  bsrvcore::TcpStream stream(ioc.get_executor());
+  boost::system::error_code connect_ec;
+  stream.socket().connect(
+      bsrvcore::TcpEndpoint(boost::asio::ip::make_address("127.0.0.1"), port),
+      connect_ec);
+  ASSERT_FALSE(connect_ec);
+
+  auto task = bsrvcore::WebSocketClientTask::CreateHttpRaw(
+      ioc.get_executor(), std::move(stream), "127.0.0.1", "/ws",
+      std::make_unique<IntegrationHandler>(state));
+
+  std::promise<bsrvcore::HttpClientResult> done_promise;
+  auto done_future = done_promise.get_future();
+  task->OnHttpDone([&done_promise](const bsrvcore::HttpClientResult& result) {
+    done_promise.set_value(result);
+  });
+
+  task->Start();
+  ioc.run();
+  server_thread.join();
+
+  const auto done = done_future.get();
+  EXPECT_FALSE(done.ec);
+  EXPECT_EQ(done.response.result(), http::status::switching_protocols);
+  EXPECT_EQ(state->open_count, 1);
 }
 
 TEST(WebSocketIntegrationTest, WssClientTaskOpensWhenTlsHandshakeSucceeds) {

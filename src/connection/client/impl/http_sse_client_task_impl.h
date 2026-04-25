@@ -39,6 +39,11 @@ class HttpSseClientTask::Impl
   using Callback = HttpSseClientTask::Callback;
   using tcp = Tcp;
 
+  enum class LifecycleState { kIdle, kStarting, kStreaming, kDone };
+  enum class TerminationState { kNone, kEof, kFailure, kCancelled };
+  enum class CancellationState { kNone, kRequested };
+  enum class NextReadState { kIdle, kPending };
+
   Impl(HttpSseClientTask::Executor io_executor,
        HttpSseClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target, HttpSseClientOptions options,
@@ -53,6 +58,8 @@ class HttpSseClientTask::Impl
   HttpSseClientErrorStage ErrorStage() const noexcept;
   void SetCreateError(boost::system::error_code ec,
                       HttpSseClientErrorStage error_stage);
+  void SetRawTcpStream(TcpStream stream);
+  void SetRawSslStream(SslStream stream);
   void DispatchCallback(Callback cb, HttpSseClientResult result) const;
 
  private:
@@ -95,12 +102,14 @@ class HttpSseClientTask::Impl
 
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
+  bool raw_mode_{false};
+  std::unique_ptr<TcpStream> raw_tcp_stream_;
+  std::unique_ptr<SslStream> raw_ssl_stream_;
 
-  bool started_{false};
-  bool done_{false};
-  bool cancelled_{false};
-  bool next_pending_{false};
-  bool failed_{false};
+  LifecycleState lifecycle_state_{LifecycleState::kIdle};
+  TerminationState termination_state_{TerminationState::kNone};
+  CancellationState cancellation_state_{CancellationState::kNone};
+  NextReadState next_read_state_{NextReadState::kIdle};
   std::size_t last_emitted_body_size_{0};
 
   std::optional<boost::system::error_code> create_error_;

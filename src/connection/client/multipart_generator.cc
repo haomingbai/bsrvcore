@@ -356,11 +356,10 @@ bool MultipartGenerator::AsyncCreateTask(ReadyCallback callback) const {
   build_state->callback = std::move(callback);
 
   if (file_part_count_ == 0) {
-    PostOrRun(build_state->executor,
-              [build_state]() mutable {
-                build_state->BuildTask(
-                    AllocatedVector<std::shared_ptr<FileReadingState>>{});
-              });
+    PostOrRun(build_state->executor, [build_state]() mutable {
+      build_state->BuildTask(
+          AllocatedVector<std::shared_ptr<FileReadingState>>{});
+    });
     return true;
   }
 

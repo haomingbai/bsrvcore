@@ -40,6 +40,10 @@ class HttpClientTask::Impl
   using Callback = HttpClientTask::Callback;
   using tcp = Tcp;
 
+  enum class LifecycleState { kIdle, kRunning, kDone };
+  enum class CompletionState { kNone, kSuccess, kFailure, kCancelled };
+  enum class CancellationState { kNone, kRequested };
+
   Impl(HttpClientTask::Executor io_executor,
        HttpClientTask::Executor callback_executor, std::string host,
        std::string port, std::string target,
@@ -60,6 +64,8 @@ class HttpClientTask::Impl
   HttpClientErrorStage ErrorStage() const noexcept;
   void SetCreateError(boost::system::error_code ec,
                       HttpClientErrorStage error_stage);
+  void SetRawTcpStream(TcpStream stream);
+  void SetRawSslStream(SslStream stream);
 
  private:
   static void RunPostedStart(const std::shared_ptr<Impl>& self);
@@ -78,6 +84,7 @@ class HttpClientTask::Impl
   void DoReadBodySome();
   void OnReadBodySome(boost::system::error_code ec);
   void DoCancel();
+  void CloseTransports();
   void Fail(HttpClientErrorStage error_stage, boost::system::error_code ec);
   void Succeed(HttpClientResponse response);
 
@@ -115,11 +122,13 @@ class HttpClientTask::Impl
 
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
+  bool raw_mode_{false};
+  std::unique_ptr<TcpStream> raw_tcp_stream_;
+  std::unique_ptr<SslStream> raw_ssl_stream_;
 
-  bool started_{false};
-  bool done_{false};
-  bool cancelled_{false};
-  bool failed_{false};
+  LifecycleState lifecycle_state_{LifecycleState::kIdle};
+  CompletionState completion_state_{CompletionState::kNone};
+  CancellationState cancellation_state_{CancellationState::kNone};
   std::size_t last_emitted_body_size_{0};
 
   std::optional<boost::system::error_code> create_error_;

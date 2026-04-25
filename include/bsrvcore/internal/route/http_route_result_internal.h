@@ -121,7 +121,8 @@ inline HttpRouteResultInternal ToInternalRouteResult(
     internal.parameters.emplace(detail::ToAllocatedString(key),
                                 detail::ToAllocatedString(value));
   }
-  internal.aspects = detail::ToAllocatedVector(std::move(public_result.aspects));
+  internal.aspects =
+      detail::ToAllocatedVector(std::move(public_result.aspects));
   internal.handler = public_result.handler;
   internal.max_body_size = public_result.max_body_size;
   internal.read_expiry = public_result.read_expiry;

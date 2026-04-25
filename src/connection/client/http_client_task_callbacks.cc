@@ -51,7 +51,7 @@ void HttpClientTask::Impl::EmitConnected(boost::system::error_code ec) {
   HttpClientResult result;
   result.ec = ec;
   result.stage = HttpClientStage::kConnected;
-  result.cancelled = cancelled_;
+  result.cancelled = cancellation_state_ == CancellationState::kRequested;
   result.error_stage = HttpClientErrorStage::kNone;
 
   auto cb = GetCallbackCopy(HttpClientStage::kConnected);
@@ -63,7 +63,7 @@ void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
   HttpClientResult result;
   result.ec = ec;
   result.stage = HttpClientStage::kHeader;
-  result.cancelled = cancelled_;
+  result.cancelled = cancellation_state_ == CancellationState::kRequested;
   result.error_stage = HttpClientErrorStage::kNone;
   result.header = header;
 
@@ -74,7 +74,7 @@ void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
 void HttpClientTask::Impl::EmitChunk(std::string chunk) {
   HttpClientResult result;
   result.stage = HttpClientStage::kChunk;
-  result.cancelled = cancelled_;
+  result.cancelled = cancellation_state_ == CancellationState::kRequested;
   result.error_stage = HttpClientErrorStage::kNone;
   result.chunk = std::move(chunk);
 

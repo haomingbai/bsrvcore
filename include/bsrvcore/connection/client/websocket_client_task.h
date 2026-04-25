@@ -37,6 +37,19 @@ class WebSocketClientTask
  public:
   using Executor = HttpClientTask::Executor;
   using HttpDoneCallback = HttpClientTask::Callback;
+  enum class LifecycleState {
+    kInit,
+    kStarting,
+    kResolving,
+    kConnecting,
+    kTlsHandshaking,
+    kWsHandshaking,
+    kOpen,
+    kClosing,
+    kClosed,
+  };
+  enum class StartupMode { kDial, kRawTcp, kRawTls };
+  enum class CloseReason { kNone, kUserCancel, kRemoteClose, kError };
 
   static std::shared_ptr<WebSocketClientTask> CreateHttp(
       Executor io_executor, std::string host, std::string port,
@@ -58,6 +71,25 @@ class WebSocketClientTask
   static std::shared_ptr<WebSocketClientTask> CreateFromUrl(
       Executor io_executor, SslContextPtr ssl_ctx, std::string url,
       HandlerPtr handler, HttpClientOptions options = {});
+
+  /**
+   * @brief Create WebSocket task from an already connected TCP stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<WebSocketClientTask> CreateHttpRaw(
+      Executor io_executor, TcpStream stream, std::string host,
+      std::string target, HandlerPtr handler, HttpClientOptions options = {});
+
+  /**
+   * @brief Create secure WebSocket task from an already connected and
+   * handshaked SSL stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<WebSocketClientTask> CreateHttpsRaw(
+      Executor io_executor, SslStream stream, std::string host,
+      std::string target, HandlerPtr handler, HttpClientOptions options = {});
 
   std::shared_ptr<WebSocketClientTask> OnHttpDone(HttpDoneCallback cb);
 
@@ -82,6 +114,7 @@ class WebSocketClientTask
  private:
   bool PrepareStart();
   bool CreateTransport();
+  bool CreateTransportFromRaw();
   void StartResolve();
   void OnResolveCompleted(boost::system::error_code ec,
                           TcpResolverResults results);
@@ -105,6 +138,10 @@ class WebSocketClientTask
   void EmitHttpDone(boost::system::error_code ec,
                     HttpResponseHeader header = {},
                     HttpClientResponse response = {});
+  void SetRawTcpStream(TcpStream stream);
+  void SetRawSslStream(SslStream stream);
+  [[nodiscard]] bool IsOpen() const noexcept;
+  [[nodiscard]] bool IsClosingOrClosed() const noexcept;
 
   Executor io_executor_;
   std::string host_;
@@ -117,13 +154,14 @@ class WebSocketClientTask
   std::unique_ptr<TcpResolver> resolver_;
   std::unique_ptr<WebSocketStream> ws_stream_;
   std::unique_ptr<SecureWebSocketStream> wss_stream_;
+  std::unique_ptr<TcpStream> raw_tcp_stream_;
+  std::unique_ptr<SslStream> raw_ssl_stream_;
   FlatBuffer ws_read_buffer_;
   std::weak_ptr<HttpClientSession> session_;
   HttpDoneCallback on_http_done_;
-  bool start_requested_{false};
-  bool opened_{false};
-  bool cancelled_{false};
-  bool close_notified_{false};
+  LifecycleState lifecycle_state_{LifecycleState::kInit};
+  StartupMode startup_mode_{StartupMode::kDial};
+  CloseReason close_reason_{CloseReason::kNone};
   std::optional<boost::system::error_code> create_error_;
   std::string create_error_message_;
 };

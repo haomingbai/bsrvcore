@@ -73,7 +73,8 @@ inline std::pair<std::string_view, std::string_view> SplitOnce(
   return {s.substr(0, pos), s.substr(pos + 1)};
 }
 
-inline CookieTokenViews SplitSetCookieTokens(std::string_view set_cookie_value) {
+inline CookieTokenViews SplitSetCookieTokens(
+    std::string_view set_cookie_value) {
   // Split by ';' and trim each token.
   CookieTokenViews tokens;
   std::size_t start = 0;

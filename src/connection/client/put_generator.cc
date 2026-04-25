@@ -61,7 +61,8 @@ std::error_code MakeDefaultSslContextError(
 }
 
 struct PutBuildState {
-  using AllocatedReadingStates = AllocatedVector<std::shared_ptr<FileReadingState>>;
+  using AllocatedReadingStates =
+      AllocatedVector<std::shared_ptr<FileReadingState>>;
 
   explicit PutBuildState(HttpClientTask::Executor executor_in)
       : executor(std::move(executor_in)) {}

@@ -89,7 +89,9 @@ void HttpSseClientTask::Impl::Cancel() {
                     [self = std::move(self)]() { RunPostedCancel(self); });
 }
 
-bool HttpSseClientTask::Impl::Failed() const noexcept { return failed_; }
+bool HttpSseClientTask::Impl::Failed() const noexcept {
+  return termination_state_ == TerminationState::kFailure;
+}
 
 boost::system::error_code HttpSseClientTask::Impl::ErrorCode() const noexcept {
   return error_code_;
@@ -103,6 +105,18 @@ void HttpSseClientTask::Impl::SetCreateError(
     boost::system::error_code ec, HttpSseClientErrorStage error_stage) {
   create_error_ = ec;
   create_error_stage_ = error_stage;
+}
+
+void HttpSseClientTask::Impl::SetRawTcpStream(TcpStream stream) {
+  raw_mode_ = true;
+  raw_ssl_stream_.reset();
+  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+}
+
+void HttpSseClientTask::Impl::SetRawSslStream(SslStream stream) {
+  raw_mode_ = true;
+  raw_tcp_stream_.reset();
+  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
 }
 
 void HttpSseClientTask::Impl::DispatchCallback(
@@ -129,17 +143,17 @@ void HttpSseClientTask::Impl::RunPostedCancel(
 }
 
 void HttpSseClientTask::Impl::DoStart() {
-  if (started_ || done_) {
+  if (lifecycle_state_ != LifecycleState::kIdle) {
     return;
   }
-  started_ = true;
+  lifecycle_state_ = LifecycleState::kStarting;
 
   if (create_error_) {
     FailStart(create_error_stage_, *create_error_);
     return;
   }
 
-  if (use_ssl_ && ssl_ctx_ == nullptr) {
+  if (use_ssl_ && !raw_mode_ && ssl_ctx_ == nullptr) {
     FailStart(HttpSseClientErrorStage::kCreate,
               make_error_code(boost::system::errc::invalid_argument));
     return;
@@ -152,6 +166,28 @@ void HttpSseClientTask::Impl::DoStart() {
     request_.set(http::field::accept, "text/event-stream");
   }
   request_.keep_alive(options_.keep_alive);
+
+  if (raw_mode_) {
+    if (use_ssl_) {
+      if (raw_ssl_stream_ == nullptr) {
+        FailStart(HttpSseClientErrorStage::kCreate,
+                  make_error_code(boost::system::errc::invalid_argument));
+        return;
+      }
+      ssl_stream_ = std::move(raw_ssl_stream_);
+      DoWriteRequest();
+      return;
+    }
+
+    if (raw_tcp_stream_ == nullptr) {
+      FailStart(HttpSseClientErrorStage::kCreate,
+                make_error_code(boost::system::errc::invalid_argument));
+      return;
+    }
+    tcp_stream_ = std::move(raw_tcp_stream_);
+    DoWriteRequest();
+    return;
+  }
 
   resolver_.async_resolve(
       host_, port_,
@@ -324,17 +360,17 @@ void HttpSseClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   result.stage = HttpSseClientStage::kStart;
   result.error_stage = HttpSseClientErrorStage::kNone;
   result.header = msg.base();
+  lifecycle_state_ = LifecycleState::kStreaming;
   Callback const callback = std::move(start_callback_);
   DispatchCallback(callback, std::move(result));
 }
 
 void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
                                         boost::system::error_code ec) {
-  if (done_) {
+  if (lifecycle_state_ == LifecycleState::kDone) {
     return;
   }
 
-  failed_ = true;
   error_stage_ = error_stage;
   error_code_ = ec;
 
@@ -343,20 +379,23 @@ void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
   result.error_stage = error_stage;
   result.ec = ec;
   result.cancelled =
-      cancelled_ || (ec == boost::asio::error::operation_aborted);
+      cancellation_state_ == CancellationState::kRequested ||
+      (ec == boost::asio::error::operation_aborted);
+  termination_state_ = result.cancelled ? TerminationState::kCancelled
+                                        : TerminationState::kFailure;
 
-  done_ = true;
+  lifecycle_state_ = LifecycleState::kDone;
 
   Callback const callback = std::move(start_callback_);
   DispatchCallback(callback, std::move(result));
 }
 
 void HttpSseClientTask::Impl::DoCancel() {
-  if (done_) {
+  if (lifecycle_state_ == LifecycleState::kDone) {
     return;
   }
 
-  cancelled_ = true;
+  cancellation_state_ = CancellationState::kRequested;
   resolver_.cancel();
 
   boost::system::error_code ignored;

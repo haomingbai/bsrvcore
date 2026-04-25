@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <future>
 #include <memory>
 #include <string>
@@ -53,6 +54,43 @@ TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
   EXPECT_EQ(result.stage, bsrvcore::HttpClientStage::kDone);
   EXPECT_EQ(result.response.result(), http::status::ok);
   EXPECT_EQ(result.response.body(), "pong");
+}
+
+TEST(HttpClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/raw",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody("raw-ok");
+                        });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  bsrvcore::IoContext ioc;
+  bsrvcore::TcpStream stream(ioc.get_executor());
+  boost::system::error_code connect_ec;
+  stream.socket().connect(
+      bsrvcore::TcpEndpoint(boost::asio::ip::make_address("127.0.0.1"), port),
+      connect_ec);
+  ASSERT_FALSE(connect_ec);
+
+  auto task = bsrvcore::HttpClientTask::CreateHttpRaw(
+      ioc.get_executor(), std::move(stream), "127.0.0.1", "/raw",
+      http::verb::get);
+
+  std::promise<bsrvcore::HttpClientResult> promise;
+  auto future = promise.get_future();
+  task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
+    promise.set_value(result);
+  });
+
+  task->Start();
+  ioc.run();
+
+  const auto result = future.get();
+  EXPECT_FALSE(result.ec);
+  EXPECT_EQ(result.response.result(), http::status::ok);
+  EXPECT_EQ(result.response.body(), "raw-ok");
 }
 
 TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {

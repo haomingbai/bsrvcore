@@ -96,10 +96,10 @@ void StartWebSocketHandshakeForStream(
 }  // namespace
 
 void WebSocketClientTask::Start() {
-  if (start_requested_ || cancelled_) {
+  if (lifecycle_state_ != LifecycleState::kInit) {
     return;
   }
-  start_requested_ = true;
+  lifecycle_state_ = LifecycleState::kStarting;
 
   if (create_error_) {
     FailAndClose(*create_error_, create_error_message_.empty()
@@ -111,6 +111,14 @@ void WebSocketClientTask::Start() {
   if (!PrepareStart()) {
     return;
   }
+  if (startup_mode_ != StartupMode::kDial) {
+    if (!CreateTransportFromRaw()) {
+      return;
+    }
+    StartWebSocketHandshake();
+    return;
+  }
+
   if (!CreateTransport()) {
     return;
   }
@@ -123,7 +131,7 @@ bool WebSocketClientTask::PrepareStart() {
     session->MaybeInjectCookies(request_, host_, target_, use_ssl_);
   }
 
-  if (use_ssl_ && ssl_ctx_ == nullptr) {
+  if (use_ssl_ && startup_mode_ == StartupMode::kDial && ssl_ctx_ == nullptr) {
     FailAndClose(make_error_code(boost::system::errc::invalid_argument),
                  "wss requires an SSL context");
     return false;
@@ -157,7 +165,41 @@ bool WebSocketClientTask::CreateTransport() {
   return true;
 }
 
+bool WebSocketClientTask::CreateTransportFromRaw() {
+  resolver_.reset();
+  ws_stream_.reset();
+  wss_stream_.reset();
+
+  if (startup_mode_ == StartupMode::kRawTls) {
+    if (raw_ssl_stream_ == nullptr) {
+      FailAndClose(make_error_code(boost::system::errc::invalid_argument),
+                   "wss raw factory requires a ready SSL stream");
+      return false;
+    }
+    wss_stream_ =
+        std::make_unique<SecureWebSocketStream>(std::move(*raw_ssl_stream_));
+    raw_ssl_stream_.reset();
+    return true;
+  }
+
+  if (startup_mode_ == StartupMode::kRawTcp) {
+    if (raw_tcp_stream_ == nullptr) {
+      FailAndClose(make_error_code(boost::system::errc::invalid_argument),
+                   "ws raw factory requires a ready TCP stream");
+      return false;
+    }
+    ws_stream_ = std::make_unique<WebSocketStream>(std::move(*raw_tcp_stream_));
+    raw_tcp_stream_.reset();
+    return true;
+  }
+
+  FailAndClose(make_error_code(boost::system::errc::invalid_argument),
+               "raw startup mode is not configured");
+  return false;
+}
+
 void WebSocketClientTask::StartResolve() {
+  lifecycle_state_ = LifecycleState::kResolving;
   auto self = shared_from_this();
   resolver_->async_resolve(host_, port_,
                            [self](boost::system::error_code ec,
@@ -168,7 +210,7 @@ void WebSocketClientTask::StartResolve() {
 
 void WebSocketClientTask::OnResolveCompleted(
     boost::system::error_code ec, tcp::resolver::results_type results) {
-  if (cancelled_) {
+  if (IsClosingOrClosed()) {
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
@@ -182,6 +224,7 @@ void WebSocketClientTask::OnResolveCompleted(
 
 void WebSocketClientTask::StartTcpConnect(
     const tcp::resolver::results_type& results) {
+  lifecycle_state_ = LifecycleState::kConnecting;
   auto self = shared_from_this();
   if (ws_stream_ != nullptr) {
     StartTcpConnectForStream(
@@ -205,7 +248,7 @@ void WebSocketClientTask::StartTcpConnect(
 }
 
 void WebSocketClientTask::OnTcpConnectCompleted(boost::system::error_code ec) {
-  if (cancelled_) {
+  if (IsClosingOrClosed()) {
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
@@ -224,10 +267,12 @@ void WebSocketClientTask::OnTcpConnectCompleted(boost::system::error_code ec) {
 
 void WebSocketClientTask::StartTlsHandshake() {
   if (wss_stream_ == nullptr) {
-    FailAndClose(make_error_code(boost::system::errc::not_connected),
+    FailAndClose(make_error_code(boost::system::errc::invalid_argument),
                  "tls handshake failed");
     return;
   }
+
+  lifecycle_state_ = LifecycleState::kTlsHandshaking;
 
   auto& tls_stream = wss_stream_->next_layer();
   if (SSL_set_tlsext_host_name(tls_stream.native_handle(), host_.c_str()) !=
@@ -258,7 +303,7 @@ void WebSocketClientTask::StartTlsHandshake() {
 
 void WebSocketClientTask::OnTlsHandshakeCompleted(
     boost::system::error_code ec) {
-  if (cancelled_) {
+  if (IsClosingOrClosed()) {
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
@@ -271,6 +316,7 @@ void WebSocketClientTask::OnTlsHandshakeCompleted(
 }
 
 void WebSocketClientTask::StartWebSocketHandshake() {
+  lifecycle_state_ = LifecycleState::kWsHandshaking;
   auto response_sp = AllocateShared<websocket::response_type>();
   auto self = shared_from_this();
 
@@ -300,7 +346,7 @@ void WebSocketClientTask::StartWebSocketHandshake() {
 void WebSocketClientTask::OnWebSocketHandshakeCompleted(
     boost::system::error_code ec,
     std::shared_ptr<websocket::response_type> response_sp) {
-  if (cancelled_) {
+  if (IsClosingOrClosed()) {
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
@@ -322,7 +368,7 @@ void WebSocketClientTask::OnWebSocketHandshakeCompleted(
     return;
   }
 
-  opened_ = true;
+  lifecycle_state_ = LifecycleState::kOpen;
   NotifyOpen();
   BeginReadLoop();
 }

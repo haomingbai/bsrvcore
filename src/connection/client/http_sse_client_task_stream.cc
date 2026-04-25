@@ -36,7 +36,7 @@ void HttpSseClientTask::Impl::Next(Callback cb) {
 
 void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
                                             Callback cb) {
-  if (!self->started_ || self->done_) {
+  if (self->lifecycle_state_ != LifecycleState::kStreaming) {
     HttpSseClientResult result;
     result.stage = HttpSseClientStage::kNext;
     result.error_stage = HttpSseClientErrorStage::kReadBody;
@@ -45,7 +45,7 @@ void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
     return;
   }
 
-  if (self->next_pending_) {
+  if (self->next_read_state_ == NextReadState::kPending) {
     HttpSseClientResult result;
     result.stage = HttpSseClientStage::kNext;
     result.error_stage = HttpSseClientErrorStage::kReadBody;
@@ -54,7 +54,7 @@ void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
     return;
   }
 
-  self->next_pending_ = true;
+  self->next_read_state_ = NextReadState::kPending;
   self->next_callback_ = std::move(cb);
   // Exactly one outstanding Next() maps to exactly one async_read_some() call.
   // This keeps the incremental parser contract simple for consumers.
@@ -90,11 +90,13 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
   result.stage = HttpSseClientStage::kNext;
 
   if (ec) {
-    if (cancelled_ || ec == boost::asio::error::operation_aborted) {
+    if (cancellation_state_ == CancellationState::kRequested ||
+        ec == boost::asio::error::operation_aborted) {
       result.cancelled = true;
       result.ec = ec;
-      next_pending_ = false;
-      done_ = true;
+      next_read_state_ = NextReadState::kIdle;
+      termination_state_ = TerminationState::kCancelled;
+      lifecycle_state_ = LifecycleState::kDone;
       Callback const callback = std::move(next_callback_);
       DispatchCallback(callback, std::move(result));
       return;
@@ -102,20 +104,21 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
 
     if (ec == http::error::end_of_stream || ec == boost::asio::error::eof) {
       result.eof = true;
-      next_pending_ = false;
-      done_ = true;
+      next_read_state_ = NextReadState::kIdle;
+      termination_state_ = TerminationState::kEof;
+      lifecycle_state_ = LifecycleState::kDone;
       Callback const callback = std::move(next_callback_);
       DispatchCallback(callback, std::move(result));
       return;
     }
 
-    failed_ = true;
     error_code_ = ec;
     error_stage_ = HttpSseClientErrorStage::kReadBody;
     result.error_stage = error_stage_;
     result.ec = ec;
-    next_pending_ = false;
-    done_ = true;
+    next_read_state_ = NextReadState::kIdle;
+    termination_state_ = TerminationState::kFailure;
+    lifecycle_state_ = LifecycleState::kDone;
     Callback const callback = std::move(next_callback_);
     DispatchCallback(callback, std::move(result));
     return;
@@ -132,10 +135,11 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
 
   if (parser_->is_done()) {
     result.eof = true;
-    done_ = true;
+    termination_state_ = TerminationState::kEof;
+    lifecycle_state_ = LifecycleState::kDone;
   }
 
-  next_pending_ = false;
+  next_read_state_ = NextReadState::kIdle;
   Callback const callback = std::move(next_callback_);
   DispatchCallback(callback, std::move(result));
 }

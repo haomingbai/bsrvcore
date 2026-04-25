@@ -101,6 +101,17 @@ For `wss://`, the default overload creates a shared client TLS context and
 loads system trust roots. If you need custom TLS settings, use the overload
 that takes `SslContextPtr`.
 
+For advanced transport ownership, WebSocket client also exposes raw factories:
+
+- `CreateHttpRaw(...)`
+- `CreateHttpsRaw(...)`
+
+Raw factories consume prebuilt streams and skip resolve/connect/TLS inside the
+task:
+
+- `CreateHttpRaw`: pass a connected `TcpStream`
+- `CreateHttpsRaw`: pass a connected + handshaked `SslStream`
+
 If you want cookie-managed creation, use `HttpClientSession` websocket
 factories (`CreateWebSocketHttp/CreateWebSocketHttps/CreateWebSocketFromUrl`).
 Session-bound tasks auto-inject matching cookies before handshake and

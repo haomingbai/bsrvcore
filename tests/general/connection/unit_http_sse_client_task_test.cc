@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio/executor_work_guard.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <functional>
 #include <future>
 #include <memory>
@@ -95,6 +96,55 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   ioc.run();
   EXPECT_NO_THROW(future.get());
   EXPECT_TRUE(*saw_next);
+}
+
+TEST(HttpSseClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/raw-events",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetField(http::field::content_type,
+                                         "text/event-stream; charset=utf-8");
+                          task->SetBody("data: raw\n\n");
+                        });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  bsrvcore::IoContext ioc;
+  bsrvcore::TcpStream stream(ioc.get_executor());
+  boost::system::error_code connect_ec;
+  stream.socket().connect(
+      bsrvcore::TcpEndpoint(boost::asio::ip::make_address("127.0.0.1"), port),
+      connect_ec);
+  ASSERT_FALSE(connect_ec);
+
+  auto client = bsrvcore::HttpSseClientTask::CreateHttpRaw(
+      ioc.get_executor(), std::move(stream), "127.0.0.1", "/raw-events");
+
+  std::promise<bsrvcore::HttpSseClientResult> start_promise;
+  auto start_future = start_promise.get_future();
+  std::promise<bsrvcore::HttpSseClientResult> next_promise;
+  auto next_future = next_promise.get_future();
+
+  client->Start([&](const bsrvcore::HttpSseClientResult& result) {
+    start_promise.set_value(result);
+    if (!result.ec && !result.cancelled) {
+      client->Next([&next_promise](const bsrvcore::HttpSseClientResult& next) {
+        next_promise.set_value(next);
+      });
+    } else {
+      next_promise.set_value(result);
+    }
+  });
+
+  ioc.run();
+
+  const auto start_result = start_future.get();
+  EXPECT_FALSE(start_result.ec);
+
+  const auto next_result = next_future.get();
+  EXPECT_FALSE(next_result.ec);
+  EXPECT_NE(next_result.chunk.find("data: raw"), std::string::npos);
 }
 
 TEST(HttpSseClientTaskTest, ParserParsesSamplePayload) {

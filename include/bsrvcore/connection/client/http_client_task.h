@@ -229,6 +229,35 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       const std::string& url, HttpVerb method, HttpClientOptions options = {});
 
+  /**
+   * @brief Create HTTP task from an already connected TCP stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<HttpClientTask> CreateHttpRaw(
+      Executor io_executor, TcpStream stream, std::string host,
+      std::string target, HttpVerb method, HttpClientOptions options = {});
+  /** @brief Create HTTP raw task with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateHttpRaw(
+      Executor io_executor, Executor callback_executor, TcpStream stream,
+      std::string host, std::string target, HttpVerb method,
+      HttpClientOptions options = {});
+
+  /**
+   * @brief Create HTTPS task from an already connected and handshaked SSL
+   * stream.
+   *
+   * The passed stream is moved into the task and consumed by Start().
+   */
+  static std::shared_ptr<HttpClientTask> CreateHttpsRaw(
+      Executor io_executor, SslStream stream, std::string host,
+      std::string target, HttpVerb method, HttpClientOptions options = {});
+  /** @brief Create HTTPS raw task with a dedicated callback executor. */
+  static std::shared_ptr<HttpClientTask> CreateHttpsRaw(
+      Executor io_executor, Executor callback_executor, SslStream stream,
+      std::string host, std::string target, HttpVerb method,
+      HttpClientOptions options = {});
+
   /** @brief Register connected-stage callback. */
   std::shared_ptr<HttpClientTask> OnConnected(Callback cb);
   /** @brief Register header-stage callback. */

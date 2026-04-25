@@ -215,6 +215,44 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
   return CreateTask(std::move(impl));
 }
 
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpRaw(
+    Executor io_executor, TcpStream stream, std::string host,
+    std::string target, http::verb method, HttpClientOptions options) {
+  return CreateHttpRaw(io_executor, io_executor, std::move(stream),
+                       std::move(host), std::move(target), method,
+                       std::move(options));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpRaw(
+    Executor io_executor, Executor callback_executor, TcpStream stream,
+    std::string host, std::string target, http::verb method,
+    HttpClientOptions options) {
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host), "",
+      std::move(target), method, std::move(options), false, nullptr);
+  impl->SetRawTcpStream(std::move(stream));
+  return CreateTask(std::move(impl));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpsRaw(
+    Executor io_executor, SslStream stream, std::string host,
+    std::string target, http::verb method, HttpClientOptions options) {
+  return CreateHttpsRaw(io_executor, io_executor, std::move(stream),
+                        std::move(host), std::move(target), method,
+                        std::move(options));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpsRaw(
+    Executor io_executor, Executor callback_executor, SslStream stream,
+    std::string host, std::string target, http::verb method,
+    HttpClientOptions options) {
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host), "",
+      std::move(target), method, std::move(options), true, nullptr);
+  impl->SetRawSslStream(std::move(stream));
+  return CreateTask(std::move(impl));
+}
+
 std::shared_ptr<HttpClientTask> HttpClientTask::OnConnected(Callback cb) {
   impl_->SetOnConnected(std::move(cb));
   return shared_from_this();

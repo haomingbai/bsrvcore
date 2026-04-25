@@ -170,6 +170,28 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
   return ws_task;
 }
 
+std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttpRaw(
+    Executor io_executor, TcpStream stream, std::string host,
+    std::string target, HandlerPtr handler, HttpClientOptions options) {
+  auto ws_task = AllocateShared<WebSocketClientTask>(
+      std::move(io_executor), std::move(host), "", std::move(target),
+      std::move(handler), std::move(options), false, nullptr);
+  ws_task->SetRawTcpStream(std::move(stream));
+  ConfigureUpgradeHeaders(ws_task->Request());
+  return ws_task;
+}
+
+std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttpsRaw(
+    Executor io_executor, SslStream stream, std::string host,
+    std::string target, HandlerPtr handler, HttpClientOptions options) {
+  auto ws_task = AllocateShared<WebSocketClientTask>(
+      std::move(io_executor), std::move(host), "", std::move(target),
+      std::move(handler), std::move(options), true, nullptr);
+  ws_task->SetRawSslStream(std::move(stream));
+  ConfigureUpgradeHeaders(ws_task->Request());
+  return ws_task;
+}
+
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::OnHttpDone(
     HttpDoneCallback cb) {
   on_http_done_ = std::move(cb);
@@ -208,6 +230,27 @@ void WebSocketClientTask::SetCreateError(boost::system::error_code ec,
                                          std::string message) {
   create_error_ = ec;
   create_error_message_ = std::move(message);
+}
+
+void WebSocketClientTask::SetRawTcpStream(TcpStream stream) {
+  startup_mode_ = StartupMode::kRawTcp;
+  raw_ssl_stream_.reset();
+  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+}
+
+void WebSocketClientTask::SetRawSslStream(SslStream stream) {
+  startup_mode_ = StartupMode::kRawTls;
+  raw_tcp_stream_.reset();
+  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+}
+
+bool WebSocketClientTask::IsOpen() const noexcept {
+  return lifecycle_state_ == LifecycleState::kOpen;
+}
+
+bool WebSocketClientTask::IsClosingOrClosed() const noexcept {
+  return lifecycle_state_ == LifecycleState::kClosing ||
+         lifecycle_state_ == LifecycleState::kClosed;
 }
 
 void WebSocketClientTask::EmitHttpDone(boost::system::error_code ec,

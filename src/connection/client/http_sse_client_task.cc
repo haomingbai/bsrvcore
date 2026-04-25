@@ -175,6 +175,40 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
   return CreateTask(std::move(impl));
 }
 
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttpRaw(
+    Executor io_executor, TcpStream stream, std::string host,
+    std::string target, HttpSseClientOptions options) {
+  return CreateHttpRaw(io_executor, io_executor, std::move(stream),
+                       std::move(host), std::move(target), std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttpRaw(
+    Executor io_executor, Executor callback_executor, TcpStream stream,
+    std::string host, std::string target, HttpSseClientOptions options) {
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host), "",
+      std::move(target), std::move(options), false, nullptr);
+  impl->SetRawTcpStream(std::move(stream));
+  return CreateTask(std::move(impl));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttpsRaw(
+    Executor io_executor, SslStream stream, std::string host,
+    std::string target, HttpSseClientOptions options) {
+  return CreateHttpsRaw(io_executor, io_executor, std::move(stream),
+                        std::move(host), std::move(target), std::move(options));
+}
+
+std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttpsRaw(
+    Executor io_executor, Executor callback_executor, SslStream stream,
+    std::string host, std::string target, HttpSseClientOptions options) {
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), std::move(host), "",
+      std::move(target), std::move(options), true, nullptr);
+  impl->SetRawSslStream(std::move(stream));
+  return CreateTask(std::move(impl));
+}
+
 HttpRequest& HttpSseClientTask::Request() noexcept { return impl_->Request(); }
 
 void HttpSseClientTask::Start(Callback cb) { impl_->Start(std::move(cb)); }

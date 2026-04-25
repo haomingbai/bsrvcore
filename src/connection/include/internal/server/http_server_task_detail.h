@@ -155,10 +155,10 @@ inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
 inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<StreamServerConnection> conn) {
-  return CreateTaskState(std::move(req),
-                         route_internal::ToInternalRouteResult(
-                             std::move(route_result)),
-                         std::move(conn));
+  return CreateTaskState(
+      std::move(req),
+      route_internal::ToInternalRouteResult(std::move(route_result)),
+      std::move(conn));
 }
 
 inline std::string_view TrimView(std::string_view sv) {

@@ -81,7 +81,10 @@ void HttpClientTask::Impl::Cancel() {
                     [self = std::move(self)]() { RunPostedCancel(self); });
 }
 
-bool HttpClientTask::Impl::Failed() const noexcept { return failed_; }
+bool HttpClientTask::Impl::Failed() const noexcept {
+  return completion_state_ == CompletionState::kFailure ||
+         completion_state_ == CompletionState::kCancelled;
+}
 
 boost::system::error_code HttpClientTask::Impl::ErrorCode() const noexcept {
   return error_code_;
@@ -97,6 +100,18 @@ void HttpClientTask::Impl::SetCreateError(boost::system::error_code ec,
   create_error_stage_ = error_stage;
 }
 
+void HttpClientTask::Impl::SetRawTcpStream(TcpStream stream) {
+  raw_mode_ = true;
+  raw_ssl_stream_.reset();
+  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+}
+
+void HttpClientTask::Impl::SetRawSslStream(SslStream stream) {
+  raw_mode_ = true;
+  raw_tcp_stream_.reset();
+  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+}
+
 void HttpClientTask::Impl::RunPostedStart(const std::shared_ptr<Impl>& self) {
   self->DoStart();
 }
@@ -106,17 +121,17 @@ void HttpClientTask::Impl::RunPostedCancel(const std::shared_ptr<Impl>& self) {
 }
 
 void HttpClientTask::Impl::DoStart() {
-  if (started_ || done_) {
+  if (lifecycle_state_ != LifecycleState::kIdle) {
     return;
   }
-  started_ = true;
+  lifecycle_state_ = LifecycleState::kRunning;
 
   if (create_error_) {
     Fail(create_error_stage_, *create_error_);
     return;
   }
 
-  if (use_ssl_ && ssl_ctx_ == nullptr) {
+  if (use_ssl_ && !raw_mode_ && ssl_ctx_ == nullptr) {
     Fail(HttpClientErrorStage::kCreate,
          make_error_code(boost::system::errc::invalid_argument));
     return;
@@ -145,6 +160,31 @@ void HttpClientTask::Impl::DoStart() {
   }
 
   request_.prepare_payload();
+
+  if (raw_mode_) {
+    if (use_ssl_) {
+      if (raw_ssl_stream_ == nullptr) {
+        Fail(HttpClientErrorStage::kCreate,
+             make_error_code(boost::system::errc::invalid_argument));
+        return;
+      }
+      ssl_stream_ = std::move(raw_ssl_stream_);
+      EmitConnected(boost::system::error_code{});
+      DoWriteRequest();
+      return;
+    }
+
+    if (raw_tcp_stream_ == nullptr) {
+      Fail(HttpClientErrorStage::kCreate,
+           make_error_code(boost::system::errc::invalid_argument));
+      return;
+    }
+    tcp_stream_ = std::move(raw_tcp_stream_);
+    EmitConnected(boost::system::error_code{});
+    DoWriteRequest();
+    return;
+  }
+
   resolver_.async_resolve(
       host_, port_,
       boost::asio::bind_executor(
@@ -421,11 +461,15 @@ void HttpClientTask::Impl::OnReadBodySome(boost::system::error_code ec) {
 }
 
 void HttpClientTask::Impl::DoCancel() {
-  if (done_) {
+  if (lifecycle_state_ == LifecycleState::kDone) {
     return;
   }
 
-  cancelled_ = true;
+  cancellation_state_ = CancellationState::kRequested;
+  CloseTransports();
+}
+
+void HttpClientTask::Impl::CloseTransports() {
   resolver_.cancel();
 
   boost::system::error_code ignored;
@@ -444,18 +488,20 @@ void HttpClientTask::Impl::DoCancel() {
 
 void HttpClientTask::Impl::Fail(HttpClientErrorStage error_stage,
                                 boost::system::error_code ec) {
-  if (done_) {
+  if (lifecycle_state_ == LifecycleState::kDone) {
     return;
   }
 
-  failed_ = true;
   error_stage_ = error_stage;
   error_code_ = ec;
 
   HttpClientResult stage_result;
   stage_result.ec = ec;
   stage_result.cancelled =
-      cancelled_ || (ec == boost::asio::error::operation_aborted);
+      cancellation_state_ == CancellationState::kRequested ||
+      (ec == boost::asio::error::operation_aborted);
+  completion_state_ = stage_result.cancelled ? CompletionState::kCancelled
+                                             : CompletionState::kFailure;
   stage_result.error_stage = error_stage;
   stage_result.stage = ErrorStageToCallbackStage(error_stage);
   EmitStageByResult(stage_result);
@@ -463,25 +509,27 @@ void HttpClientTask::Impl::Fail(HttpClientErrorStage error_stage,
   auto done_result = stage_result;
   done_result.stage = HttpClientStage::kDone;
   EmitDone(done_result);
-  done_ = true;
+  lifecycle_state_ = LifecycleState::kDone;
 }
 
 void HttpClientTask::Impl::Succeed(HttpClientResponse response) {
-  if (done_) {
+  if (lifecycle_state_ == LifecycleState::kDone) {
     return;
   }
 
   HttpClientResult done_result;
   done_result.stage = HttpClientStage::kDone;
   done_result.error_stage = HttpClientErrorStage::kNone;
-  done_result.cancelled = cancelled_;
+  done_result.cancelled =
+      cancellation_state_ == CancellationState::kRequested;
   done_result.response = std::move(response);
   done_result.header = done_result.response.base();
   EmitDone(done_result);
-  done_ = true;
+  completion_state_ = CompletionState::kSuccess;
+  lifecycle_state_ = LifecycleState::kDone;
 
   if (!options_.keep_alive) {
-    DoCancel();
+    CloseTransports();
   }
 }
 

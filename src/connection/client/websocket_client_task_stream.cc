@@ -44,16 +44,17 @@ void AbortTransport(Stream& stream) {
 }  // namespace
 
 void WebSocketClientTask::Cancel() {
-  if (cancelled_) {
+  if (IsClosingOrClosed()) {
     return;
   }
 
-  cancelled_ = true;
+  close_reason_ = CloseReason::kUserCancel;
+  lifecycle_state_ = LifecycleState::kClosing;
   if (resolver_) {
     resolver_->cancel();
   }
 
-  if (opened_) {
+  if (IsOpen()) {
     auto self = shared_from_this();
     if (ws_stream_ != nullptr) {
       StartWebSocketCloseForStream(
@@ -74,13 +75,21 @@ void WebSocketClientTask::Cancel() {
     if (wss_stream_ != nullptr) {
       AbortTransport(*wss_stream_);
     }
+    if (raw_tcp_stream_ != nullptr) {
+      AbortTransport(*raw_tcp_stream_);
+      raw_tcp_stream_.reset();
+    }
+    if (raw_ssl_stream_ != nullptr) {
+      AbortTransport(*raw_ssl_stream_);
+      raw_ssl_stream_.reset();
+    }
   }
 
   NotifyCloseOnce(boost::system::error_code{});
 }
 
 bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
-  if (!opened_ || cancelled_) {
+  if (!IsOpen()) {
     return false;
   }
 
@@ -114,7 +123,7 @@ bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
 
 bool WebSocketClientTask::WriteControl(WebSocketControlKind kind,
                                        std::string payload) {
-  if (!opened_ || cancelled_) {
+  if (!IsOpen()) {
     return false;
   }
 
@@ -188,18 +197,22 @@ bool WebSocketClientTask::WriteCloseControl() {
 }
 
 void WebSocketClientTask::NotifyCloseOnce(boost::system::error_code ec) {
-  if (close_notified_) {
+  if (lifecycle_state_ == LifecycleState::kClosed) {
     return;
   }
 
-  close_notified_ = true;
-  opened_ = false;
+  lifecycle_state_ = LifecycleState::kClosed;
   NotifyClose(ec);
 }
 
 void WebSocketClientTask::FailAndClose(boost::system::error_code ec,
                                        std::string message) {
-  opened_ = false;
+  if (close_reason_ == CloseReason::kNone) {
+    close_reason_ = CloseReason::kError;
+  }
+  if (lifecycle_state_ != LifecycleState::kClosed) {
+    lifecycle_state_ = LifecycleState::kClosing;
+  }
   if (ec) {
     NotifyError(ec, std::move(message));
   }
@@ -207,7 +220,7 @@ void WebSocketClientTask::FailAndClose(boost::system::error_code ec,
 }
 
 void WebSocketClientTask::BeginReadLoop() {
-  if (!opened_ || cancelled_) {
+  if (!IsOpen()) {
     return;
   }
 
@@ -217,14 +230,14 @@ void WebSocketClientTask::BeginReadLoop() {
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
-          if (self->cancelled_) {
+          if (self->IsClosingOrClosed()) {
             self->NotifyCloseOnce(boost::system::error_code{});
             return;
           }
           if (ec) {
             if (ec == websocket::error::closed) {
-              self->opened_ = false;
-              self->cancelled_ = true;
+              self->close_reason_ = CloseReason::kRemoteClose;
+              self->lifecycle_state_ = LifecycleState::kClosing;
               self->NotifyCloseOnce(boost::system::error_code{});
               return;
             }
@@ -247,14 +260,14 @@ void WebSocketClientTask::BeginReadLoop() {
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
-          if (self->cancelled_) {
+          if (self->IsClosingOrClosed()) {
             self->NotifyCloseOnce(boost::system::error_code{});
             return;
           }
           if (ec) {
             if (ec == websocket::error::closed) {
-              self->opened_ = false;
-              self->cancelled_ = true;
+              self->close_reason_ = CloseReason::kRemoteClose;
+              self->lifecycle_state_ = LifecycleState::kClosing;
               self->NotifyCloseOnce(boost::system::error_code{});
               return;
             }

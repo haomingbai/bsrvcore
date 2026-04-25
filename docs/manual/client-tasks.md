@@ -70,6 +70,35 @@ auto task = bsrvcore::HttpClientTask::CreateHttp(
   bsrvcore::HttpVerb::get);
 ```
 
+### Raw stream factories
+
+For advanced transport control, `HttpClientTask` also provides raw factories:
+
+- `CreateHttpRaw(...)`
+- `CreateHttpsRaw(...)`
+
+These factories take an already-ready stream and skip DNS/connect/TLS setup in
+the task:
+
+- HTTP raw expects a connected `TcpStream`
+- HTTPS raw expects a connected + handshaked `SslStream`
+
+Example:
+
+```cpp
+bsrvcore::IoContext ioc;
+bsrvcore::TcpStream stream(ioc.get_executor());
+
+// ... connect stream.socket() yourself ...
+
+auto task = bsrvcore::HttpClientTask::CreateHttpRaw(
+  ioc.get_executor(),
+  std::move(stream),
+  "127.0.0.1",
+  "/ping",
+  bsrvcore::HttpVerb::get);
+```
+
 JSON helpers:
 
 - `task->SetJson(value)` serializes the request body and sets `Content-Type: application/json`
@@ -185,6 +214,16 @@ bsrvcore uses a pull loop:
 - Only one `Next()` can run at a time.
 - `Next()` returns `result.chunk`: the new bytes since your last `Next()`.
 - Normal stream end is `result.eof=true`.
+
+Raw factories are also available for SSE:
+
+- `CreateHttpRaw(...)`
+- `CreateHttpsRaw(...)`
+
+The same readiness rules apply:
+
+- HTTP raw: connected `TcpStream`
+- HTTPS raw: connected + handshaked `SslStream`
 
 Example with `SseEventParser`:
 
