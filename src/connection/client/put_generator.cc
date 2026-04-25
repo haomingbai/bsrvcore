@@ -18,7 +18,6 @@
 #include <string>
 #include <system_error>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/async_waiter.h"
@@ -62,6 +61,8 @@ std::error_code MakeDefaultSslContextError(
 }
 
 struct PutBuildState {
+  using AllocatedReadingStates = AllocatedVector<std::shared_ptr<FileReadingState>>;
+
   explicit PutBuildState(HttpClientTask::Executor executor_in)
       : executor(std::move(executor_in)) {}
 
@@ -83,7 +84,7 @@ struct PutBuildState {
     DispatchReadyCallback(executor, std::move(callback), ec, std::move(task));
   }
 
-  void BuildTask(std::vector<std::shared_ptr<FileReadingState>> states) {
+  void BuildTask(AllocatedReadingStates states) {
     if (states.size() != 1 || !states.front()) {
       Complete(std::make_error_code(std::errc::io_error), nullptr);
       return;
@@ -274,15 +275,15 @@ bool PutGenerator::AsyncCreateTask(ReadyCallback callback) const {
 
   auto waiter =
       AsyncSameTypeWaiter<std::shared_ptr<FileReadingState>>::Create(1);
-  waiter->OnReady(
+  waiter->OnReadyAllocated(
       [build_state](
-          std::vector<std::shared_ptr<FileReadingState>> states) mutable {
+          AllocatedVector<std::shared_ptr<FileReadingState>> states) mutable {
         PostOrRun(build_state->executor,
                   [build_state, states = std::move(states)]() mutable {
                     build_state->BuildTask(std::move(states));
                   });
       });
-  auto callbacks = waiter->MakeCallbacks();
+  auto callbacks = waiter->MakeCallbacksAllocated();
   if (callbacks.empty() ||
       !reader_->AsyncReadFromDisk(std::move(callbacks[0]))) {
     build_state->Complete(

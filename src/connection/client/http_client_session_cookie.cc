@@ -29,7 +29,6 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_session.h"
@@ -38,6 +37,8 @@
 namespace bsrvcore {
 
 namespace {
+
+using CookieTokenViews = AllocatedVector<std::string_view>;
 
 inline std::string_view TrimView(std::string_view sv) {
   constexpr std::string_view ws = " \t\r\n";
@@ -72,10 +73,9 @@ inline std::pair<std::string_view, std::string_view> SplitOnce(
   return {s.substr(0, pos), s.substr(pos + 1)};
 }
 
-inline std::vector<std::string_view> SplitSetCookieTokens(
-    std::string_view set_cookie_value) {
+inline CookieTokenViews SplitSetCookieTokens(std::string_view set_cookie_value) {
   // Split by ';' and trim each token.
-  std::vector<std::string_view> tokens;
+  CookieTokenViews tokens;
   std::size_t start = 0;
   while (start < set_cookie_value.size()) {
     auto semi = set_cookie_value.find(';', start);
@@ -279,7 +279,8 @@ std::string HttpClientSession::BuildCookieHeaderLocked(std::string_view host,
     std::size_t idx;
     std::size_t path_len;
   };
-  std::vector<Candidate> candidates;
+  using CandidateList = AllocatedVector<Candidate>;
+  CandidateList candidates;
   candidates.reserve(cookies_.size());
 
   for (std::size_t i = 0; i < cookies_.size(); ++i) {
@@ -341,8 +342,7 @@ void HttpClientSession::UpsertFromSetCookieLocked(
     return;
   }
 
-  const std::vector<std::string_view> tokens =
-      SplitSetCookieTokens(set_cookie_value);
+  const CookieTokenViews tokens = SplitSetCookieTokens(set_cookie_value);
   if (tokens.empty() || tokens[0].empty()) {
     return;
   }

@@ -15,9 +15,12 @@
 
 #include <string>
 #include <string_view>
-#include <vector>
+
+#include "bsrvcore/allocator/allocator.h"
 
 namespace bsrvcore::route_internal::detail {
+
+using SegmentViewList = AllocatedVector<std::string_view>;
 
 inline std::string_view StripQuery(std::string_view target) noexcept {
   return target.substr(0, target.find('?'));
@@ -34,9 +37,8 @@ inline std::string_view ExtractParamName(std::string_view segment) noexcept {
   return segment.substr(1, segment.size() - 2);
 }
 
-inline std::vector<std::string_view> SplitTargetSegments(
-    std::string_view target) {
-  std::vector<std::string_view> segments;
+inline SegmentViewList SplitTargetSegments(std::string_view target) {
+  SegmentViewList segments;
   std::string_view url = StripQuery(target);
 
   while (!url.empty()) {

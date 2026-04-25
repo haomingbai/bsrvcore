@@ -223,7 +223,7 @@ std::shared_ptr<HttpPreServerTask> HttpPreServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<StreamServerConnection> conn) {
   return Create(std::move(req),
-                route_internal::ToInternalRouteResult(route_result),
+                route_internal::ToInternalRouteResult(std::move(route_result)),
                 std::move(conn));
 }
 
@@ -336,7 +336,7 @@ std::shared_ptr<HttpServerTask> HttpServerTask::Create(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<StreamServerConnection> conn) {
   return Create(std::move(req),
-                route_internal::ToInternalRouteResult(route_result),
+                route_internal::ToInternalRouteResult(std::move(route_result)),
                 std::move(conn));
 }
 

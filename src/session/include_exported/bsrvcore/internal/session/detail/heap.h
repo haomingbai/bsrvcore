@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
@@ -190,7 +191,7 @@ class Heap : CopyableMovable<Heap<T>> {
   Heap() : container_(1) {}
 
  private:
-  std::vector<T> container_;
+  AllocatedVector<T> container_;
   C comp_;
 };
 }  // namespace bsrvcore

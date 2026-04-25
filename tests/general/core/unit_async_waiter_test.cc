@@ -68,6 +68,25 @@ TEST(AsyncWaiterTest, SameTypeWaiterSupportsLateRegistration) {
   EXPECT_EQ(values[1], "beta");
 }
 
+TEST(AsyncWaiterTest, SameTypeWaiterSupportsAllocatedInterfaces) {
+  auto waiter = bsrvcore::AsyncSameTypeWaiter<std::string>::Create(2);
+  std::promise<bsrvcore::AllocatedVector<std::string>> promise;
+  auto future = promise.get_future();
+  waiter->OnReadyAllocated(
+      [&promise](bsrvcore::AllocatedVector<std::string> values) mutable {
+        promise.set_value(std::move(values));
+      });
+
+  auto callbacks = waiter->MakeCallbacksAllocated();
+  callbacks[0]("left");
+  callbacks[1]("right");
+
+  auto values = future.get();
+  ASSERT_EQ(values.size(), 2u);
+  EXPECT_EQ(values[0], "left");
+  EXPECT_EQ(values[1], "right");
+}
+
 TEST(AsyncWaiterTest, SameTypeVoidWaiterCompletesAfterAllCallbacks) {
   auto waiter = bsrvcore::AsyncSameTypeWaiter<void>::Create(3);
   auto callbacks = waiter->MakeCallbacks();
@@ -80,6 +99,20 @@ TEST(AsyncWaiterTest, SameTypeVoidWaiterCompletesAfterAllCallbacks) {
   callbacks[0]();
   callbacks[1]();
   callbacks[2]();
+
+  EXPECT_NO_THROW(future.get());
+}
+
+TEST(AsyncWaiterTest, SameTypeVoidWaiterSupportsAllocatedCallbacks) {
+  auto waiter = bsrvcore::AsyncSameTypeWaiter<void>::Create(2);
+  auto callbacks = waiter->MakeCallbacksAllocated();
+
+  std::promise<void> promise;
+  auto future = promise.get_future();
+  waiter->OnReady([&promise]() { promise.set_value(); });
+
+  callbacks[0]();
+  callbacks[1]();
 
   EXPECT_NO_THROW(future.get());
 }

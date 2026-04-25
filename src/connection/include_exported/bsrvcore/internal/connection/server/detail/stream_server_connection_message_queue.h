@@ -324,7 +324,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
   }
 
   // ---- members ----
-  std::deque<std::variant<BodyMessage, HeaderMessage>> queue_;
+  AllocatedDeque<std::variant<BodyMessage, HeaderMessage>> queue_;
   std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
   bool is_writing_{false};
 

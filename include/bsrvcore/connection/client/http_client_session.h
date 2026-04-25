@@ -22,8 +22,8 @@
 #include <mutex>
 #include <string>
 #include <string_view>
-#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
 #include "bsrvcore/core/trait.h"
@@ -170,6 +170,7 @@ class HttpClientSession
 
  private:
   struct Cookie;
+  using CookieStorage = AllocatedVector<Cookie>;
 
   HttpClientSession() = default;
 
@@ -191,7 +192,7 @@ class HttpClientSession
 
   // Cookie jar (thread-safe via mutex_).
   mutable std::mutex mutex_;
-  mutable std::vector<Cookie> cookies_;
+  mutable CookieStorage cookies_;
 };
 
 }  // namespace bsrvcore

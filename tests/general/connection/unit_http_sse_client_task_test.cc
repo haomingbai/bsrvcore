@@ -108,6 +108,17 @@ TEST(HttpSseClientTaskTest, ParserParsesSamplePayload) {
   EXPECT_EQ(events[1].data, "two");
 }
 
+TEST(HttpSseClientTaskTest, ParserAllocatedFeedParsesSamplePayload) {
+  bsrvcore::SseEventParser parser;
+  auto events = parser.FeedAllocated("data: one\n\n");
+  auto events2 = parser.FeedAllocated("data: two\n\n");
+  events.insert(events.end(), events2.begin(), events2.end());
+
+  ASSERT_EQ(events.size(), 2u);
+  EXPECT_EQ(events[0].data, "one");
+  EXPECT_EQ(events[1].data, "two");
+}
+
 TEST(HttpSseClientTaskTest, StartCallbackUsesConfiguredCallbackExecutor) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events-callback",

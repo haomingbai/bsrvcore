@@ -237,4 +237,10 @@ For WebSocket task APIs, upgrade semantics, and stage-1 limitations, see
 - `examples/client-tasks/http_request.cc`
 - `examples/client-tasks/sse_events.cc`
 
+## Performance note
+
+For compatibility, `SseEventParser::Feed(...)` returns `std::vector<SseEvent>`.
+For performance-sensitive paths, prefer `SseEventParser::FeedAllocated(...)`
+to consume allocator-backed event containers directly.
+
 Next: [Examples](examples.md)

@@ -15,7 +15,6 @@
 #include <string>
 #include <string_view>
 #include <system_error>
-#include <vector>
 
 namespace bsrvcore {
 
@@ -30,13 +29,18 @@ inline std::string_view TrimLeadingSingleSpace(std::string_view sv) {
 
 }  // namespace
 
-std::vector<SseEvent> SseEventParser::Feed(std::string_view chunk) {
+SseEventParser::CompatEventList SseEventParser::Feed(std::string_view chunk) {
+  return detail::ToStdVector(FeedAllocated(chunk));
+}
+
+SseEventParser::AllocatedEventList SseEventParser::FeedAllocated(
+    std::string_view chunk) {
   // The transport may split data arbitrarily; we keep a pending buffer so that
   // incomplete lines at the end of the chunk can be completed by the next
   // Feed().
   pending_.append(chunk.data(), chunk.size());
 
-  std::vector<SseEvent> events;
+  AllocatedEventList events;
   std::size_t line_start = 0;
 
   while (line_start < pending_.size()) {
@@ -71,7 +75,7 @@ void SseEventParser::Reset() {
 }
 
 void SseEventParser::ConsumeLine(std::string_view line,
-                                 std::vector<SseEvent>& out) {
+                                 AllocatedEventList& out) {
   if (line.empty()) {
     // A blank line terminates an event. Only emit when we have seen at least
     // one field.

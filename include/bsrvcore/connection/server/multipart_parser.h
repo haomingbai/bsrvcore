@@ -21,8 +21,8 @@
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/file/file_writer.h"
@@ -80,13 +80,14 @@ class MultipartParser : public std::enable_shared_from_this<MultipartParser>,
     bool is_file{false};
     std::shared_ptr<FileWriter> writer;
   };
+  using PartStorage = AllocatedVector<PartData>;
 
   MultipartParser(PrivateTag, const HttpRequest& request,
                   IoExecutor work_executor, IoExecutor callback_executor);
 
   void Parse(const HttpRequest& request);
 
-  std::vector<PartData> parts_;
+  PartStorage parts_;
   IoExecutor work_executor_;
   IoExecutor callback_executor_;
 };

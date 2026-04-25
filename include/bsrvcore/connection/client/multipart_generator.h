@@ -17,8 +17,8 @@
 #include <functional>
 #include <memory>
 #include <string>
-#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/file/file_reader.h"
@@ -98,6 +98,7 @@ class MultipartGenerator
 
  private:
   struct PrivateTag {};
+  using PartStorage = AllocatedVector<PartSpec>;
 
   MultipartGenerator(PrivateTag, HttpClientTask::Executor executor,
                      std::string host, std::string port, std::string target,
@@ -109,7 +110,7 @@ class MultipartGenerator
   std::string port_;
   std::string target_;
   HttpClientOptions options_;
-  std::vector<PartSpec> parts_;
+  PartStorage parts_;
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
   std::error_code create_error_;

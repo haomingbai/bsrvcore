@@ -58,6 +58,10 @@ enum class WebSocketUpgradeState {
 // custom deleters in http_server_task_lifecycle.cc advance the lifecycle by
 // constructing the next task object on top of this same state.
 struct HttpTaskSharedState {
+  using PerfCookieMap = AllocatedStdStringMap<std::string>;
+  using PerfSetCookieList = AllocatedVector<ServerSetCookie>;
+  using CompatPathParameterMap = std::unordered_map<std::string, std::string>;
+
   HttpTaskSharedState(HttpRequest in_req,
                       route_internal::HttpRouteResultInternal in_route_result,
                       std::shared_ptr<StreamServerConnection> in_conn,
@@ -74,9 +78,9 @@ struct HttpTaskSharedState {
 
   HttpRequest req;
   HttpResponse resp;
-  std::unordered_map<std::string, std::string> cookies;
+  PerfCookieMap cookies;
   std::optional<std::string> sessionid;
-  std::vector<ServerSetCookie> set_cookies;
+  PerfSetCookieList set_cookies;
   // The connection pointer is cleared when the response is finalized or the
   // stream is closed. Subsequent task callbacks treat nullptr as "request is no
   // longer schedulable".
@@ -85,8 +89,7 @@ struct HttpTaskSharedState {
   mutable std::once_flag route_result_compat_once;
   mutable std::string route_result_compat_current_location;
   mutable std::string route_result_compat_template;
-  mutable std::unordered_map<std::string, std::string>
-      route_result_compat_parameters;
+  mutable CompatPathParameterMap route_result_compat_parameters;
   HttpServer* srv;
   std::atomic_bool keep_alive;
   std::atomic<HttpTaskConnectionLifecycleMode> connection_mode;
@@ -153,7 +156,8 @@ inline std::shared_ptr<HttpTaskSharedState> CreateTaskState(
     HttpRequest req, HttpRouteResult route_result,
     std::shared_ptr<StreamServerConnection> conn) {
   return CreateTaskState(std::move(req),
-                         route_internal::ToInternalRouteResult(route_result),
+                         route_internal::ToInternalRouteResult(
+                             std::move(route_result)),
                          std::move(conn));
 }
 
@@ -198,7 +202,7 @@ inline std::string ToLowerString(std::string_view sv) {
   return out;
 }
 
-inline std::vector<std::string_view> SplitCookieHeaderUsingSplit(
+inline AllocatedVector<std::string_view> SplitCookieHeaderUsingSplit(
     std::string_view header) {
   namespace ranges = std::ranges;
   namespace views = std::views;

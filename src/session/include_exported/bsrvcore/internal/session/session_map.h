@@ -25,6 +25,7 @@
 #include <unordered_map>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/session/detail/heap.h"
@@ -145,7 +146,7 @@ class SessionMap : NonCopyableNonMovable<SessionMap> {
   void ThoroughClean();  ///< Comprehensive cleanup and memory reclaim
 
   std::mutex mtx_;  ///< Mutex for thread safety
-  std::unordered_map<std::string, session_internal::SessionContextEntry>
+  AllocatedStdStringMap<session_internal::SessionContextEntry>
       map_;  ///< Session storage
   Heap<session_internal::SessionKeyHeapEntry>
       pqueue_;          ///< Priority queue for expiration

@@ -19,7 +19,6 @@
 #include <string>
 #include <system_error>
 #include <utility>
-#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/async_waiter.h"
@@ -93,6 +92,7 @@ inline std::string DefaultFilename(const std::shared_ptr<FileReader>& reader) {
 
 struct MultipartBuildState {
   using PartSpec = MultipartGenerator::PartSpec;
+  using AllocatedPartSpecs = AllocatedVector<PartSpec>;
 
   explicit MultipartBuildState(HttpClientTask::Executor executor_in)
       : executor(std::move(executor_in)) {}
@@ -102,7 +102,7 @@ struct MultipartBuildState {
   std::string port;
   std::string target;
   HttpClientOptions options;
-  std::vector<PartSpec> parts;
+  AllocatedPartSpecs parts;
   bool use_ssl{false};
   SslContextPtr ssl_ctx;
   MultipartGenerator::ReadyCallback callback;
@@ -115,7 +115,7 @@ struct MultipartBuildState {
     DispatchReadyCallback(executor, std::move(callback), ec, std::move(task));
   }
 
-  void BuildTask(std::vector<std::shared_ptr<FileReadingState>> states) {
+  void BuildTask(AllocatedVector<std::shared_ptr<FileReadingState>> states) {
     std::string boundary = BuildBoundary();
     std::string body;
 
@@ -357,22 +357,25 @@ bool MultipartGenerator::AsyncCreateTask(ReadyCallback callback) const {
 
   if (file_part_count_ == 0) {
     PostOrRun(build_state->executor,
-              [build_state]() mutable { build_state->BuildTask({}); });
+              [build_state]() mutable {
+                build_state->BuildTask(
+                    AllocatedVector<std::shared_ptr<FileReadingState>>{});
+              });
     return true;
   }
 
   auto waiter = AsyncSameTypeWaiter<std::shared_ptr<FileReadingState>>::Create(
       file_part_count_);
-  waiter->OnReady(
+  waiter->OnReadyAllocated(
       [build_state](
-          std::vector<std::shared_ptr<FileReadingState>> states) mutable {
+          AllocatedVector<std::shared_ptr<FileReadingState>> states) mutable {
         PostOrRun(build_state->executor,
                   [build_state, states = std::move(states)]() mutable {
                     build_state->BuildTask(std::move(states));
                   });
       });
 
-  auto callbacks = waiter->MakeCallbacks();
+  auto callbacks = waiter->MakeCallbacksAllocated();
   std::size_t callback_index = 0;
   for (const auto& part : parts_) {
     if (!part.is_file) {

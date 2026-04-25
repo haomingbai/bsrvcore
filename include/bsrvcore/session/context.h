@@ -20,8 +20,8 @@
 #include <memory>
 #include <shared_mutex>
 #include <string>
-#include <unordered_map>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
@@ -103,9 +103,10 @@ class Context : public NonCopyableNonMovable<Context> {
   Context() = default;
 
  private:
+  using AttributeMap = AllocatedStdStringMap<std::shared_ptr<Attribute>>;
+
   std::shared_mutex mtx_;  ///< Read-write lock for thread safety
-  std::unordered_map<std::string, std::shared_ptr<Attribute>>
-      map_;  ///< Attribute storage
+  AttributeMap map_;       ///< Attribute storage
 };
 }  // namespace bsrvcore
 

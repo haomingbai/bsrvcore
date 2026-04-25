@@ -169,9 +169,33 @@ AllocatedVector<T> ToAllocatedVector(const std::vector<T, Alloc>& values) {
   return {values.begin(), values.end()};
 }
 
+template <typename T, typename Alloc>
+AllocatedVector<T> ToAllocatedVector(std::vector<T, Alloc>&& values) {
+  if constexpr (std::is_same_v<Alloc, Allocator<T>>) {
+    return AllocatedVector<T>(std::move(values));
+  } else {
+    AllocatedVector<T> out;
+    out.reserve(values.size());
+    for (auto& value : values) {
+      out.emplace_back(std::move(value));
+    }
+    return out;
+  }
+}
+
 template <typename T>
 std::vector<T> ToStdVector(const AllocatedVector<T>& values) {
   return {values.begin(), values.end()};
+}
+
+template <typename T>
+std::vector<T> ToStdVector(AllocatedVector<T>&& values) {
+  std::vector<T> out;
+  out.reserve(values.size());
+  for (auto& value : values) {
+    out.emplace_back(std::move(value));
+  }
+  return out;
 }
 
 template <typename T, typename Alloc>
@@ -179,9 +203,31 @@ AllocatedDeque<T> ToAllocatedDeque(const std::deque<T, Alloc>& values) {
   return {values.begin(), values.end()};
 }
 
+template <typename T, typename Alloc>
+AllocatedDeque<T> ToAllocatedDeque(std::deque<T, Alloc>&& values) {
+  if constexpr (std::is_same_v<Alloc, Allocator<T>>) {
+    return AllocatedDeque<T>(std::move(values));
+  } else {
+    AllocatedDeque<T> out;
+    for (auto& value : values) {
+      out.emplace_back(std::move(value));
+    }
+    return out;
+  }
+}
+
 template <typename T>
 std::deque<T> ToStdDeque(const AllocatedDeque<T>& values) {
   return {values.begin(), values.end()};
+}
+
+template <typename T>
+std::deque<T> ToStdDeque(AllocatedDeque<T>&& values) {
+  std::deque<T> out;
+  for (auto& value : values) {
+    out.emplace_back(std::move(value));
+  }
+  return out;
 }
 
 template <typename K, typename V, typename Hash, typename KeyEqual,
@@ -192,6 +238,19 @@ AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
   out.reserve(values.size());
   for (const auto& [key, value] : values) {
     out.emplace(key, value);
+  }
+  return out;
+}
+
+template <typename K, typename V, typename Hash, typename KeyEqual,
+          typename Alloc>
+AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
+    std::unordered_map<K, V, Hash, KeyEqual, Alloc>&& values) {
+  AllocatedUnorderedMap<K, V, Hash, KeyEqual> out;
+  out.reserve(values.size());
+  while (!values.empty()) {
+    auto node = values.extract(values.begin());
+    out.emplace(std::move(node.key()), std::move(node.mapped()));
   }
   return out;
 }
@@ -207,12 +266,30 @@ std::unordered_map<K, V, Hash, KeyEqual> ToStdUnorderedMap(
   return out;
 }
 
+template <typename K, typename V, typename Hash, typename KeyEqual>
+std::unordered_map<K, V, Hash, KeyEqual> ToStdUnorderedMap(
+    AllocatedUnorderedMap<K, V, Hash, KeyEqual>&& values) {
+  std::unordered_map<K, V, Hash, KeyEqual> out;
+  out.reserve(values.size());
+  while (!values.empty()) {
+    auto node = values.extract(values.begin());
+    out.emplace(std::move(node.key()), std::move(node.mapped()));
+  }
+  return out;
+}
+
 }  // namespace detail
 
 /** @brief Allocator-backed string map with heterogeneous lookup support. */
 using AllocatedStringMap =
     AllocatedUnorderedMap<AllocatedString, AllocatedString,
                           detail::TransparentStringHash,
+                          detail::TransparentStringEqual>;
+
+/** @brief Allocator-backed std::string-key map with heterogeneous lookup. */
+template <typename V>
+using AllocatedStdStringMap =
+    AllocatedUnorderedMap<std::string, V, detail::TransparentStringHash,
                           detail::TransparentStringEqual>;
 
 /**

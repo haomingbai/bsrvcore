@@ -63,6 +63,27 @@ inline HttpRouteResult ToPublicRouteResult(
 }
 
 /**
+ * @brief Move-convert internal allocator-backed route result to public result.
+ */
+inline HttpRouteResult ToPublicRouteResult(HttpRouteResultInternal&& internal) {
+  HttpRouteResult public_result;
+  public_result.current_location =
+      detail::ToStdString(internal.current_location);
+  public_result.route_template = detail::ToStdString(internal.route_template);
+  public_result.parameters.reserve(internal.parameters.size());
+  for (auto& [key, value] : internal.parameters) {
+    public_result.parameters.emplace(detail::ToStdString(key),
+                                     detail::ToStdString(value));
+  }
+  public_result.aspects = detail::ToStdVector(std::move(internal.aspects));
+  public_result.handler = internal.handler;
+  public_result.max_body_size = internal.max_body_size;
+  public_result.read_expiry = internal.read_expiry;
+  public_result.write_expiry = internal.write_expiry;
+  return public_result;
+}
+
+/**
  * @brief Convert public route result to internal allocator-backed result.
  */
 inline HttpRouteResultInternal ToInternalRouteResult(
@@ -78,6 +99,29 @@ inline HttpRouteResultInternal ToInternalRouteResult(
                                 detail::ToAllocatedString(value));
   }
   internal.aspects = detail::ToAllocatedVector(public_result.aspects);
+  internal.handler = public_result.handler;
+  internal.max_body_size = public_result.max_body_size;
+  internal.read_expiry = public_result.read_expiry;
+  internal.write_expiry = public_result.write_expiry;
+  return internal;
+}
+
+/**
+ * @brief Move-convert public route result to allocator-backed internal result.
+ */
+inline HttpRouteResultInternal ToInternalRouteResult(
+    HttpRouteResult&& public_result) {
+  HttpRouteResultInternal internal;
+  internal.current_location =
+      detail::ToAllocatedString(public_result.current_location);
+  internal.route_template =
+      detail::ToAllocatedString(public_result.route_template);
+  internal.parameters.reserve(public_result.parameters.size());
+  for (auto& [key, value] : public_result.parameters) {
+    internal.parameters.emplace(detail::ToAllocatedString(key),
+                                detail::ToAllocatedString(value));
+  }
+  internal.aspects = detail::ToAllocatedVector(std::move(public_result.aspects));
   internal.handler = public_result.handler;
   internal.max_body_size = public_result.max_body_size;
   internal.read_expiry = public_result.read_expiry;

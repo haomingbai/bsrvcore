@@ -22,13 +22,15 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <vector>
+
+#include "bsrvcore/allocator/allocator.h"
 
 namespace bsrvcore::connection_internal {
 
 namespace {
 
 namespace fs = std::filesystem;
+using VerifyPathList = AllocatedVector<AllocatedString>;
 
 boost::system::error_code MakeSslError() {
   const auto ssl_error = ::ERR_get_error();
@@ -88,8 +90,8 @@ bool TryLoadVerifyDir(SslContext& ssl_ctx, std::string_view path,
   return false;
 }
 
-std::vector<std::string> CollectVerifyFiles() {
-  std::vector<std::string> files;
+VerifyPathList CollectVerifyFiles() {
+  VerifyPathList files;
   if (const char* ssl_cert_file = std::getenv("SSL_CERT_FILE");
       ssl_cert_file != nullptr && *ssl_cert_file != '\0') {
     files.emplace_back(ssl_cert_file);
@@ -105,8 +107,8 @@ std::vector<std::string> CollectVerifyFiles() {
   return files;
 }
 
-std::vector<std::string> CollectVerifyDirs() {
-  std::vector<std::string> dirs;
+VerifyPathList CollectVerifyDirs() {
+  VerifyPathList dirs;
   if (const char* ssl_cert_dir = std::getenv("SSL_CERT_DIR");
       ssl_cert_dir != nullptr && *ssl_cert_dir != '\0') {
     dirs.emplace_back(ssl_cert_dir);

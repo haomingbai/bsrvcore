@@ -240,8 +240,20 @@ class AsyncSameTypeWaiter
     : public std::enable_shared_from_this<AsyncSameTypeWaiter<T>>,
       public NonCopyableNonMovable<AsyncSameTypeWaiter<T>> {
  public:
+  /** @brief Backward-compatible collected value list (`std::vector`). */
+  using CompatValueList = std::vector<T>;
+  /** @brief Allocator-backed collected value list. */
+  using AllocatedValueList = AllocatedVector<T>;
+  /** @brief Backward-compatible callback receiving slot-ordered values. */
+  using CompatCallback = std::function<void(CompatValueList)>;
   /** @brief Callback type receiving all collected values in slot order. */
-  using Callback = std::function<void(std::vector<T>)>;
+  using Callback = CompatCallback;
+  /** @brief Allocator-backed callback type for hot-path callers. */
+  using AllocatedCallback = std::function<void(AllocatedValueList)>;
+  /** @brief Backward-compatible callback list type. */
+  using CompatFulfillCallbacks = std::vector<std::function<void(T)>>;
+  /** @brief Allocator-backed callback list type. */
+  using AllocatedFulfillCallbacks = AllocatedVector<std::function<void(T)>>;
 
   /** @brief Create a shared waiter instance. */
   [[nodiscard]] static std::shared_ptr<AsyncSameTypeWaiter> Create(
@@ -255,6 +267,18 @@ class AsyncSameTypeWaiter
 
   /** @brief Register the final callback for the collected values. */
   void OnReady(Callback callback) {
+    if (!callback) {
+      OnReadyAllocated(AllocatedCallback{});
+      return;
+    }
+    OnReadyAllocated([callback = std::move(callback)](
+                         AllocatedVector<T> values) mutable {
+      callback(detail::ToStdVector(std::move(values)));
+    });
+  }
+
+  /** @brief Register allocator-backed callback to avoid compatibility copy. */
+  void OnReadyAllocated(AllocatedCallback callback) {
     ReadyCompletion completion;
     {
       std::lock_guard<std::mutex> lock(mutex_);
@@ -290,9 +314,18 @@ class AsyncSameTypeWaiter
   }
 
   /** @brief Create one callback per runtime slot for fan-out async flows. */
-  [[nodiscard]] std::vector<std::function<void(T)>> MakeCallbacks() {
+  [[nodiscard]] CompatFulfillCallbacks MakeCallbacks() {
+    return detail::ToStdVector(MakeCallbacksAllocated());
+  }
+
+  /**
+   * @brief Create allocator-backed callbacks for runtime slots.
+   *
+   * Avoids compatibility conversion for high-throughput flows.
+   */
+  [[nodiscard]] AllocatedFulfillCallbacks MakeCallbacksAllocated() {
     auto self = this->shared_from_this();
-    std::vector<std::function<void(T)>> callbacks;
+    AllocatedFulfillCallbacks callbacks;
     callbacks.reserve(slot_ready_.size());
     for (std::size_t i = 0; i < slot_ready_.size(); ++i) {
       callbacks.push_back(std::function<void(T)>{
@@ -304,7 +337,8 @@ class AsyncSameTypeWaiter
 
  private:
   struct PrivateTag {};
-  using ReadyCompletion = std::optional<std::pair<Callback, std::vector<T>>>;
+  using ReadyCompletion =
+      std::optional<std::pair<AllocatedCallback, AllocatedValueList>>;
 
   explicit AsyncSameTypeWaiter(PrivateTag, std::size_t wait_count)
       : remaining_(wait_count),
@@ -317,7 +351,7 @@ class AsyncSameTypeWaiter
     }
 
     fired_ = true;
-    std::vector<T> ready_values;
+    AllocatedValueList ready_values;
     ready_values.reserve(values_.size());
     for (auto& item : values_) {
       ready_values.push_back(std::move(*item));
@@ -335,9 +369,9 @@ class AsyncSameTypeWaiter
   std::mutex mutex_;
   bool fired_{false};
   std::size_t remaining_{0};
-  std::vector<bool> slot_ready_;
-  std::vector<std::optional<T>> values_;
-  Callback callback_;
+  AllocatedVector<bool> slot_ready_;
+  AllocatedVector<std::optional<T>> values_;
+  AllocatedCallback callback_;
 };
 
 template <>
@@ -350,6 +384,10 @@ class AsyncSameTypeWaiter<void>
  public:
   /** @brief Callback type invoked when all slots complete. */
   using Callback = std::function<void()>;
+  /** @brief Backward-compatible callback list type. */
+  using CompatFulfillCallbacks = std::vector<std::function<void()>>;
+  /** @brief Allocator-backed callback list type. */
+  using AllocatedFulfillCallbacks = AllocatedVector<std::function<void()>>;
 
   /** @brief Create a shared waiter instance. */
   [[nodiscard]] static std::shared_ptr<AsyncSameTypeWaiter> Create(
@@ -397,9 +435,18 @@ class AsyncSameTypeWaiter<void>
   }
 
   /** @brief Create one callback per runtime slot for fan-out async flows. */
-  [[nodiscard]] std::vector<std::function<void()>> MakeCallbacks() {
+  [[nodiscard]] CompatFulfillCallbacks MakeCallbacks() {
+    return detail::ToStdVector(MakeCallbacksAllocated());
+  }
+
+  /**
+   * @brief Create allocator-backed callbacks for runtime slots.
+   *
+   * Avoids compatibility conversion for high-throughput flows.
+   */
+  [[nodiscard]] AllocatedFulfillCallbacks MakeCallbacksAllocated() {
     auto self = this->shared_from_this();
-    std::vector<std::function<void()>> callbacks;
+    AllocatedFulfillCallbacks callbacks;
     callbacks.reserve(slot_ready_.size());
     for (std::size_t i = 0; i < slot_ready_.size(); ++i) {
       callbacks.push_back(std::function<void()>{
@@ -434,7 +481,7 @@ class AsyncSameTypeWaiter<void>
   std::mutex mutex_;
   bool fired_{false};
   std::size_t remaining_{0};
-  std::vector<bool> slot_ready_;
+  AllocatedVector<bool> slot_ready_;
   Callback callback_;
 };
 

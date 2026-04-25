@@ -18,6 +18,7 @@
 #include <string_view>
 #include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
@@ -45,12 +46,24 @@ struct SseEvent : public CopyableMovable<SseEvent> {
  */
 class SseEventParser : public NonCopyableNonMovable<SseEventParser> {
  public:
+  /** @brief Backward-compatible event list type (`std::vector`). */
+  using CompatEventList = std::vector<SseEvent>;
+  /** @brief Allocator-backed event list type for hot-path callers. */
+  using AllocatedEventList = AllocatedVector<SseEvent>;
+
   /**
-   * @brief Feed raw bytes and collect parsed SSE events.
+   * @brief Feed raw bytes and collect parsed SSE events (compatibility API).
    * @param chunk Raw bytes from transport.
    * @return Zero or more parsed events.
    */
-  std::vector<SseEvent> Feed(std::string_view chunk);
+  CompatEventList Feed(std::string_view chunk);
+
+  /**
+   * @brief Feed raw bytes and collect allocator-backed SSE events.
+   * @param chunk Raw bytes from transport.
+   * @return Zero or more parsed events.
+   */
+  AllocatedEventList FeedAllocated(std::string_view chunk);
 
   /**
    * @brief Reset internal parser state.
@@ -58,7 +71,7 @@ class SseEventParser : public NonCopyableNonMovable<SseEventParser> {
   void Reset();
 
  private:
-  void ConsumeLine(std::string_view line, std::vector<SseEvent>& out);
+  void ConsumeLine(std::string_view line, AllocatedEventList& out);
 
   std::string pending_;
   SseEvent current_{};

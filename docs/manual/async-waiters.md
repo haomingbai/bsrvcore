@@ -68,6 +68,19 @@ callbacks[1]("b");
 callbacks[2]("c");
 ```
 
+High-performance paths can avoid compatibility copies:
+
+```cpp
+waiter->OnReadyAllocated([](bsrvcore::AllocatedVector<std::string> values) {
+  // allocator-backed vector
+});
+
+auto callbacks = waiter->MakeCallbacksAllocated();
+callbacks[0]("a");
+callbacks[1]("b");
+callbacks[2]("c");
+```
+
 ## Void specialization
 
 Use `AsyncSameTypeWaiter<void>` when you only care that N tasks finished:
@@ -83,6 +96,14 @@ callbacks[0]();
 callbacks[1]();
 ```
 
+For the same fast path, use:
+
+```cpp
+auto callbacks = waiter->MakeCallbacksAllocated();
+callbacks[0]();
+callbacks[1]();
+```
+
 ## Practical rule
 
 Waiters are a good fit for:
@@ -90,5 +111,16 @@ Waiters are a good fit for:
 - reading multiple files before building one request
 - collecting several async metadata probes
 - converging a small fixed or runtime-sized fan-out
+
+## Performance note
+
+For performance-sensitive paths, prefer the allocator-backed interfaces:
+
+- `AsyncSameTypeWaiter<T>::OnReadyAllocated(...)`
+- `AsyncSameTypeWaiter<T>::MakeCallbacksAllocated()`
+- `AsyncSameTypeWaiter<void>::MakeCallbacksAllocated()`
+
+The compatibility APIs (`OnReady` / `MakeCallbacks`) are still stable and
+recommended when allocator details are not needed.
 
 Next: [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md)
