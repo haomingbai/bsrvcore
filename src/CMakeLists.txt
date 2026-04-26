@@ -35,7 +35,7 @@ if(MSVC)
   )
   add_link_options("$<$<CONFIG:Debug>:/DEBUG>")
 else()
-  add_compile_options(-Wall -Wextra -Wpedantic -Werror) # GCC/Clang
+  add_compile_options(-Wall -Wextra -Wpedantic -Werror -Wnon-virtual-dtor) # GCC/Clang
 
   # Release: -O3；RelWithDebInfo: -O2
   add_compile_options(

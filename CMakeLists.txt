@@ -31,15 +31,12 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
-# Add Wall, Wextra, Werror flags on non-MSVC.
-# Apple: -Werror only (CI already fails on unused-private-field via clang).
-# Linux: -Wall -Wextra -Werror for stricter warnings.
+# Basic -Wall only at project level.
+# Strict warnings (-Wextra -Werror -Wnon-virtual-dtor) are set in
+# src/CMakeLists.txt for bsrvcore's own code only, so third-party
+# dependencies (GoogleTest, yaml-cpp, mimalloc) are not affected.
 if(NOT MSVC)
-  if(APPLE)
-    add_compile_options(-Wall -Werror)
-  else()
-    add_compile_options(-Wall -Wextra -Werror)
-  endif()
+  add_compile_options(-Wall)
 endif()
 
 # Generate compile_commands.json to help LSP server
