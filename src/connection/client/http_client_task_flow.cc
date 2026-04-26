@@ -1,3 +1,4 @@
+
 /**
  * @file http_client_task_flow.cc
  * @brief Async transport flow for HttpClientTask::Impl.
@@ -28,13 +29,19 @@
 #include <string>
 #include <utility>
 
-#include "bsrvcore/connection/client/http_client_session.h"
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
+#include "bsrvcore/connection/client/stream_slot.h"
 #include "impl/http_client_task_impl.h"
 
 namespace bsrvcore {
 
 namespace http = http_client_detail::http;
+
+// ============================================================================
+// Construction
+// ============================================================================
 
 HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
                            HttpClientTask::Executor callback_executor,
@@ -46,7 +53,6 @@ HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
     : io_executor_(std::move(io_executor)),
       callback_executor_(std::move(callback_executor)),
       strand_(io_executor_),
-      resolver_(io_executor_),
       host_(std::move(host)),
       port_(std::move(port)),
       target_(std::move(target)),
@@ -56,27 +62,18 @@ HttpClientTask::Impl::Impl(HttpClientTask::Executor io_executor,
   request_.method(method);
   request_.target(target_);
   request_.version(11);
-  request_.set(http::field::host, host_);
-  if (!options_.user_agent.empty()) {
-    request_.set(http::field::user_agent, options_.user_agent);
-  }
-  request_.keep_alive(options_.keep_alive);
 }
 
 HttpClientRequest& HttpClientTask::Impl::Request() noexcept { return request_; }
 
 void HttpClientTask::Impl::Start() {
   auto self = shared_from_this();
-  // The outer post only transfers control onto the strand. The posted helper
-  // then owns the rest of the request pipeline.
   boost::asio::post(strand_,
                     [self = std::move(self)]() { RunPostedStart(self); });
 }
 
 void HttpClientTask::Impl::Cancel() {
   auto self = shared_from_this();
-  // Cancellation follows the same explicit hop so shutdown cannot race with
-  // other strand-owned state transitions.
   boost::asio::post(strand_,
                     [self = std::move(self)]() { RunPostedCancel(self); });
 }
@@ -101,16 +98,16 @@ void HttpClientTask::Impl::SetCreateError(boost::system::error_code ec,
 }
 
 void HttpClientTask::Impl::SetRawTcpStream(TcpStream stream) {
-  raw_mode_ = true;
-  raw_ssl_stream_.reset();
-  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+  tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
 }
 
 void HttpClientTask::Impl::SetRawSslStream(SslStream stream) {
-  raw_mode_ = true;
-  raw_tcp_stream_.reset();
-  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+  ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
 }
+
+// ============================================================================
+// Startup: DoStart → DoAcquire → OnAcquireComplete
+// ============================================================================
 
 void HttpClientTask::Impl::RunPostedStart(const std::shared_ptr<Impl>& self) {
   self->DoStart();
@@ -131,136 +128,57 @@ void HttpClientTask::Impl::DoStart() {
     return;
   }
 
-  if (use_ssl_ && !raw_mode_ && ssl_ctx_ == nullptr) {
+  if (use_ssl_ && ssl_ctx_ == nullptr && !tcp_stream_) {
     Fail(HttpClientErrorStage::kCreate,
          make_error_code(boost::system::errc::invalid_argument));
     return;
   }
 
-  if (request_.find(http::field::host) == request_.end()) {
-    request_.set(http::field::host, host_);
-  }
-  if (request_.find(http::field::user_agent) == request_.end() &&
-      !options_.user_agent.empty()) {
-    request_.set(http::field::user_agent, options_.user_agent);
-  }
-  request_.keep_alive(options_.keep_alive);
-
-  {
-    std::weak_ptr<HttpClientSession> weak;
-    {
-      std::scoped_lock const lock(callback_mutex_);
-      weak = session_;
-    }
-    if (auto session = weak.lock()) {
-      // Session-level cookies are injected after callers finish mutating the
-      // request but before prepare_payload() computes final framing headers.
-      session->MaybeInjectCookies(request_, host_, target_, use_ssl_);
-    }
-  }
-
-  request_.prepare_payload();
-
-  if (raw_mode_) {
-    if (use_ssl_) {
-      if (raw_ssl_stream_ == nullptr) {
-        Fail(HttpClientErrorStage::kCreate,
-             make_error_code(boost::system::errc::invalid_argument));
-        return;
-      }
-      ssl_stream_ = std::move(raw_ssl_stream_);
-      EmitConnected(boost::system::error_code{});
-      DoWriteRequest();
-      return;
-    }
-
-    if (raw_tcp_stream_ == nullptr) {
-      Fail(HttpClientErrorStage::kCreate,
-           make_error_code(boost::system::errc::invalid_argument));
-      return;
-    }
-    tcp_stream_ = std::move(raw_tcp_stream_);
-    EmitConnected(boost::system::error_code{});
-    DoWriteRequest();
+  if (assembler_) {
+    DoAcquire();
     return;
   }
 
-  resolver_.async_resolve(
-      host_, port_,
+  // Raw mode: stream already provided, proceed directly.
+  EmitConnected(boost::system::error_code{});
+  DoWriteRequest();
+}
+
+void HttpClientTask::Impl::DoAcquire() {
+  const std::string scheme = use_ssl_ ? "https" : "http";
+  auto result =
+      assembler_->Assemble(request_, options_, scheme, host_, port_, ssl_ctx_);
+  request_ = std::move(result.request);
+  connection_key_ = result.connection_key;
+  use_ssl_ = (connection_key_.scheme == "https");
+  host_ = connection_key_.host;
+  port_ = connection_key_.port;
+  ssl_ctx_ = connection_key_.ssl_ctx;
+  target_ = std::string(request_.target());
+
+  builder_->Acquire(
+      connection_key_, io_executor_,
       boost::asio::bind_executor(
-          strand_,
-          [self = shared_from_this()](boost::system::error_code ec,
-                                      tcp::resolver::results_type results) {
-            self->OnResolve(ec, std::move(results));
+          strand_, [self = shared_from_this()](boost::system::error_code ec,
+                                               StreamSlot slot) {
+            self->OnAcquireComplete(ec, std::move(slot));
           }));
 }
 
-void HttpClientTask::Impl::OnResolve(
-    boost::system::error_code ec, const tcp::resolver::results_type& results) {
-  if (ec) {
-    Fail(HttpClientErrorStage::kResolve, ec);
-    return;
-  }
-
-  if (use_ssl_) {
-    // The SSL and plain TCP branches intentionally stay structurally parallel
-    // so stage-specific timeout/error reporting remains easy to audit.
-    ssl_stream_ = std::make_unique<SslStream>(io_executor_, *ssl_ctx_);
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.connect_timeout);
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .async_connect(results,
-                       boost::asio::bind_executor(
-                           strand_, [self = shared_from_this()](
-                                        boost::system::error_code conn_ec,
-                                        const tcp::endpoint&) {
-                             self->OnConnect(conn_ec);
-                           }));
-    return;
-  }
-
-  tcp_stream_ = std::make_unique<TcpStream>(io_executor_);
-  tcp_stream_->expires_after(options_.connect_timeout);
-  tcp_stream_->async_connect(
-      results,
-      boost::asio::bind_executor(
-          strand_, [self = shared_from_this()](
-                       boost::system::error_code conn_ec,
-                       const tcp::endpoint&) { self->OnConnect(conn_ec); }));
-}
-
-void HttpClientTask::Impl::OnConnect(boost::system::error_code ec) {
+void HttpClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
+                                             StreamSlot slot) {
   if (ec) {
     Fail(HttpClientErrorStage::kConnect, ec);
     return;
   }
 
-  if (use_ssl_) {
-    if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
-        1) {
-      boost::system::error_code const sni_ec{
-          static_cast<int>(::ERR_get_error()),
-          boost::asio::error::get_ssl_category()};
-      Fail(HttpClientErrorStage::kTlsHandshake, sni_ec);
-      return;
-    }
-
-    if (options_.verify_peer) {
-      ssl_stream_->set_verify_mode(boost::asio::ssl::verify_peer);
-      ssl_stream_->set_verify_callback(
-          boost::asio::ssl::host_name_verification(host_));
-    } else {
-      ssl_stream_->set_verify_mode(boost::asio::ssl::verify_none);
-    }
-
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.tls_handshake_timeout);
-    ssl_stream_->async_handshake(
-        boost::asio::ssl::stream_base::client,
-        boost::asio::bind_executor(
-            strand_, [self = shared_from_this()](boost::system::error_code ec) {
-              self->OnHandshake(ec);
-            }));
+  if (slot.ssl_stream) {
+    ssl_stream_ = std::move(slot.ssl_stream);
+  } else if (slot.tcp_stream) {
+    tcp_stream_ = std::move(slot.tcp_stream);
+  } else {
+    Fail(HttpClientErrorStage::kConnect,
+         make_error_code(boost::system::errc::invalid_argument));
     return;
   }
 
@@ -268,18 +186,9 @@ void HttpClientTask::Impl::OnConnect(boost::system::error_code ec) {
   DoWriteRequest();
 }
 
-void HttpClientTask::Impl::OnHandshake(boost::system::error_code ec) {
-  if (ec) {
-    Fail(HttpClientErrorStage::kTlsHandshake, ec);
-    return;
-  }
-
-  // Once transport setup completes, the rest of the flow is identical to the
-  // plain HTTP path: emit the stage transition, then write the prepared
-  // request.
-  EmitConnected(boost::system::error_code{});
-  DoWriteRequest();
-}
+// ============================================================================
+// Write request
+// ============================================================================
 
 void HttpClientTask::Impl::DoWriteRequest() {
   if (use_ssl_) {
@@ -337,25 +246,14 @@ void HttpClientTask::Impl::OnWriteRequest(boost::system::error_code ec) {
           }));
 }
 
+// ============================================================================
+// Read response
+// ============================================================================
+
 void HttpClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   if (ec) {
     Fail(HttpClientErrorStage::kReadHeader, ec);
     return;
-  }
-
-  {
-    std::weak_ptr<HttpClientSession> weak;
-    {
-      std::scoped_lock const lock(callback_mutex_);
-      weak = session_;
-    }
-    if (auto session = weak.lock()) {
-      const auto& base = parser_->get().base();
-      auto range = base.equal_range(HttpField::set_cookie);
-      for (auto it = range.first; it != range.second; ++it) {
-        session->SyncSetCookie(host_, target_, it->value());
-      }
-    }
   }
 
   HttpResponseHeader header;
@@ -364,6 +262,11 @@ void HttpClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
   header.result(msg.result());
   for (const auto& f : msg.base()) {
     header.set(f.name_string(), f.value());
+  }
+
+  // Notify assembler for cookie sync or other header processing.
+  if (assembler_) {
+    assembler_->OnResponseHeader(header, host_, target_);
   }
 
   EmitHeader(header, boost::system::error_code{});
@@ -401,13 +304,13 @@ void HttpClientTask::Impl::DoReadBodyAll() {
 }
 
 void HttpClientTask::Impl::OnReadBodyAll(boost::system::error_code ec) {
-  if (ec) {
+  if (ec && ec != http::error::end_of_stream &&
+      ec != http::error::partial_message) {
     Fail(HttpClientErrorStage::kReadBody, ec);
     return;
   }
 
-  auto response = parser_->release();
-  Succeed(std::move(response));
+  Succeed(parser_->release());
 }
 
 void HttpClientTask::Impl::DoReadBodySome() {
@@ -435,30 +338,30 @@ void HttpClientTask::Impl::DoReadBodySome() {
 }
 
 void HttpClientTask::Impl::OnReadBodySome(boost::system::error_code ec) {
-  if (ec) {
-    if (ec == http_client_detail::http::error::need_buffer &&
-        parser_->is_done()) {
-      ec = {};
-    } else {
-      Fail(HttpClientErrorStage::kReadBody, ec);
-      return;
-    }
+  if (ec && ec != http::error::end_of_stream &&
+      ec != http::error::partial_message) {
+    Fail(HttpClientErrorStage::kReadBody, ec);
+    return;
   }
 
   const auto& body = parser_->get().body();
   if (body.size() > last_emitted_body_size_) {
-    EmitChunk(body.substr(last_emitted_body_size_));
+    EmitChunk(std::string(body.data() + last_emitted_body_size_,
+                          body.size() - last_emitted_body_size_));
     last_emitted_body_size_ = body.size();
   }
 
   if (parser_->is_done()) {
-    auto response = parser_->release();
-    Succeed(std::move(response));
+    Succeed(parser_->release());
     return;
   }
 
   DoReadBodySome();
 }
+
+// ============================================================================
+// Cancel / Close
+// ============================================================================
 
 void HttpClientTask::Impl::DoCancel() {
   if (lifecycle_state_ == LifecycleState::kDone) {
@@ -470,8 +373,6 @@ void HttpClientTask::Impl::DoCancel() {
 }
 
 void HttpClientTask::Impl::CloseTransports() {
-  resolver_.cancel();
-
   boost::system::error_code ignored;
   if (tcp_stream_) {
     tcp_stream_->socket().cancel(ignored);
@@ -485,6 +386,10 @@ void HttpClientTask::Impl::CloseTransports() {
     socket.close(ignored);
   }
 }
+
+// ============================================================================
+// Completion
+// ============================================================================
 
 void HttpClientTask::Impl::Fail(HttpClientErrorStage error_stage,
                                 boost::system::error_code ec) {
@@ -510,6 +415,16 @@ void HttpClientTask::Impl::Fail(HttpClientErrorStage error_stage,
   done_result.stage = HttpClientStage::kDone;
   EmitDone(done_result);
   lifecycle_state_ = LifecycleState::kDone;
+
+  // Return stream to builder on failure (slot may still be reusable).
+  if (done_hook_) {
+    StreamSlot slot;
+    slot.key = connection_key_;
+    slot.tcp_stream = std::move(tcp_stream_);
+    slot.ssl_stream = std::move(ssl_stream_);
+    slot.http_version = 11;
+    done_hook_(std::move(slot));
+  }
 }
 
 void HttpClientTask::Impl::Succeed(HttpClientResponse response) {
@@ -517,20 +432,124 @@ void HttpClientTask::Impl::Succeed(HttpClientResponse response) {
     return;
   }
 
-  HttpClientResult done_result;
-  done_result.stage = HttpClientStage::kDone;
-  done_result.error_stage = HttpClientErrorStage::kNone;
-  done_result.cancelled =
-      cancellation_state_ == CancellationState::kRequested;
-  done_result.response = std::move(response);
-  done_result.header = done_result.response.base();
-  EmitDone(done_result);
   completion_state_ = CompletionState::kSuccess;
+
+  HttpClientResult result;
+  result.ec = {};
+  result.cancelled = false;
+  result.stage = HttpClientStage::kDone;
+  result.response = std::move(response);
+  EmitDone(result);
   lifecycle_state_ = LifecycleState::kDone;
 
-  if (!options_.keep_alive) {
-    CloseTransports();
+  // Return stream to builder.
+  if (done_hook_) {
+    StreamSlot slot;
+    slot.key = connection_key_;
+    slot.tcp_stream = std::move(tcp_stream_);
+    slot.ssl_stream = std::move(ssl_stream_);
+    slot.http_version = 11;
+    done_hook_(std::move(slot));
   }
+}
+
+// ============================================================================
+// Callback emission
+// ============================================================================
+
+void HttpClientTask::Impl::EmitConnected(boost::system::error_code ec) {
+  auto cb = GetCallbackCopy(HttpClientStage::kConnected);
+  if (!cb) return;
+  HttpClientResult result;
+  result.ec = ec;
+  result.stage = HttpClientStage::kConnected;
+  DispatchCallback(std::move(cb), std::move(result));
+}
+
+void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
+                                      boost::system::error_code ec) {
+  auto cb = GetCallbackCopy(HttpClientStage::kHeader);
+  if (!cb) return;
+  HttpClientResult result;
+  result.ec = ec;
+  result.stage = HttpClientStage::kHeader;
+  result.header = header;
+  DispatchCallback(std::move(cb), std::move(result));
+}
+
+void HttpClientTask::Impl::EmitChunk(std::string chunk) {
+  auto cb = GetCallbackCopy(HttpClientStage::kChunk);
+  if (!cb) return;
+  HttpClientResult result;
+  result.stage = HttpClientStage::kChunk;
+  result.chunk = std::move(chunk);
+  DispatchCallback(std::move(cb), std::move(result));
+}
+
+void HttpClientTask::Impl::EmitDone(const HttpClientResult& result) {
+  auto cb = GetDoneCallbackCopy();
+  if (!cb) return;
+  DispatchCallback(std::move(cb), result);
+}
+
+void HttpClientTask::Impl::EmitStageByResult(const HttpClientResult& result) {
+  auto cb = GetCallbackCopy(result.stage);
+  if (!cb) return;
+  DispatchCallback(std::move(cb), result);
+}
+
+bool HttpClientTask::Impl::HasChunkCallback() const {
+  std::scoped_lock const lock(callback_mutex_);
+  return static_cast<bool>(on_chunk_);
+}
+
+HttpClientTask::Impl::Callback HttpClientTask::Impl::GetCallbackCopy(
+    HttpClientStage stage) const {
+  std::scoped_lock const lock(callback_mutex_);
+  switch (stage) {
+    case HttpClientStage::kConnected:
+      return on_connected_;
+    case HttpClientStage::kHeader:
+      return on_header_;
+    case HttpClientStage::kChunk:
+      return on_chunk_;
+    case HttpClientStage::kDone:
+      return on_done_;
+  }
+  return nullptr;
+}
+
+HttpClientTask::Impl::Callback HttpClientTask::Impl::GetDoneCallbackCopy()
+    const {
+  std::scoped_lock const lock(callback_mutex_);
+  return on_done_;
+}
+
+void HttpClientTask::Impl::DispatchCallback(Callback cb,
+                                            HttpClientResult result) const {
+  boost::asio::post(callback_executor_,
+                    [cb = std::move(cb), result = std::move(result)]() mutable {
+                      cb(std::move(result));
+                    });
+}
+
+HttpClientStage HttpClientTask::Impl::ErrorStageToCallbackStage(
+    HttpClientErrorStage error_stage) {
+  switch (error_stage) {
+    case HttpClientErrorStage::kCreate:
+    case HttpClientErrorStage::kResolve:
+    case HttpClientErrorStage::kConnect:
+    case HttpClientErrorStage::kTlsHandshake:
+      return HttpClientStage::kConnected;
+    case HttpClientErrorStage::kWriteRequest:
+    case HttpClientErrorStage::kReadHeader:
+      return HttpClientStage::kHeader;
+    case HttpClientErrorStage::kReadBody:
+      return HttpClientStage::kChunk;
+    case HttpClientErrorStage::kNone:
+      return HttpClientStage::kDone;
+  }
+  return HttpClientStage::kDone;
 }
 
 }  // namespace bsrvcore

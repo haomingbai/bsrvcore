@@ -28,6 +28,13 @@
 
 #include "bsrvcore/connection/client/http_client_task.h"
 
+// Forward declarations for assembled mode.
+namespace bsrvcore {
+class RequestAssembler;
+class StreamBuilder;
+struct ConnectionKey;
+}  // namespace bsrvcore
+
 namespace bsrvcore {
 
 namespace http_client_detail {
@@ -51,7 +58,6 @@ class HttpClientTask::Impl
        bool use_ssl, SslContextPtr ssl_ctx = {});
 
   HttpClientRequest& Request() noexcept;
-  void SetSession(std::weak_ptr<HttpClientSession> session);
   void SetOnConnected(Callback cb);
   void SetOnHeader(Callback cb);
   void SetOnChunk(Callback cb);
@@ -67,15 +73,23 @@ class HttpClientTask::Impl
   void SetRawTcpStream(TcpStream stream);
   void SetRawSslStream(SslStream stream);
 
+  /** @brief Set assembler and builder for assembled mode. */
+  void SetAssembler(std::shared_ptr<RequestAssembler> assembler,
+                    std::shared_ptr<StreamBuilder> builder);
+
+  /** @brief Internal hook: called when task completes, receives StreamSlot for
+   * Return. */
+  using DoneHook = std::function<void(StreamSlot)>;
+
+  void SetDoneHook(DoneHook hook);
+
  private:
   static void RunPostedStart(const std::shared_ptr<Impl>& self);
   static void RunPostedCancel(const std::shared_ptr<Impl>& self);
 
   void DoStart();
-  void OnResolve(boost::system::error_code ec,
-                 const tcp::resolver::results_type& results);
-  void OnConnect(boost::system::error_code ec);
-  void OnHandshake(boost::system::error_code ec);
+  void DoAcquire();
+  void OnAcquireComplete(boost::system::error_code ec, StreamSlot slot);
   void DoWriteRequest();
   void OnWriteRequest(boost::system::error_code ec);
   void OnReadHeader(boost::system::error_code ec);
@@ -104,7 +118,6 @@ class HttpClientTask::Impl
   HttpClientTask::Executor io_executor_;
   HttpClientTask::Executor callback_executor_;
   boost::asio::strand<HttpClientTask::Executor> strand_;
-  tcp::resolver resolver_;
 
   std::unique_ptr<TcpStream> tcp_stream_;
   std::unique_ptr<SslStream> ssl_stream_;
@@ -122,9 +135,6 @@ class HttpClientTask::Impl
 
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
-  bool raw_mode_{false};
-  std::unique_ptr<TcpStream> raw_tcp_stream_;
-  std::unique_ptr<SslStream> raw_ssl_stream_;
 
   LifecycleState lifecycle_state_{LifecycleState::kIdle};
   CompletionState completion_state_{CompletionState::kNone};
@@ -143,7 +153,13 @@ class HttpClientTask::Impl
   Callback on_chunk_;
   Callback on_done_;
 
-  std::weak_ptr<HttpClientSession> session_;
+  // Assembler + builder (nullptr for raw mode).
+  std::shared_ptr<RequestAssembler> assembler_;
+  std::shared_ptr<StreamBuilder> builder_;
+  ConnectionKey connection_key_;
+
+  // Internal hooks.
+  DoneHook done_hook_;
 };
 
 }  // namespace bsrvcore

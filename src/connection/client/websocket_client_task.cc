@@ -18,6 +18,8 @@
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "impl/default_client_ssl_context.h"
 
 namespace bsrvcore {
@@ -74,11 +76,17 @@ bool ParseWebSocketUrl(const std::string& url, bool* out_ssl, std::string* host,
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttp(
     Executor io_executor, std::string host, std::string port,
     std::string target, HandlerPtr handler, HttpClientOptions options) {
+  // Create assembler BEFORE moving host/port into the task.
+  auto assembler = AllocateShared<DefaultRequestAssembler>("http", host, port);
+  auto builder = DirectStreamBuilder::Create();
+
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), false,
       nullptr);
   ConfigureUpgradeHeaders(ws_task->Request());
+  ws_task->SetAssembler(assembler, builder);
+
   return ws_task;
 }
 
@@ -87,6 +95,12 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
     std::string target, HandlerPtr handler, HttpClientOptions options) {
   const auto& ssl_state =
       connection_internal::GetDefaultClientSslContextState();
+
+  // Create assembler BEFORE moving host/port into the task.
+  auto assembler = AllocateShared<DefaultRequestAssembler>(
+      "https", host, port, ssl_state.ssl_ctx);
+  auto builder = DirectStreamBuilder::Create();
+
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), true,
@@ -98,6 +112,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
                                 : ssl_state.error_message);
   }
   ConfigureUpgradeHeaders(ws_task->Request());
+  ws_task->SetAssembler(assembler, builder);
+
   return ws_task;
 }
 
@@ -105,11 +121,18 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
     Executor io_executor, SslContextPtr ssl_ctx, std::string host,
     std::string port, std::string target, HandlerPtr handler,
     HttpClientOptions options) {
+  // Create assembler BEFORE moving host/port/ssl_ctx into the task.
+  auto assembler = AllocateShared<DefaultRequestAssembler>(
+      "https", host, port, ssl_ctx);
+  auto builder = DirectStreamBuilder::Create();
+
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), true,
       std::move(ssl_ctx));
   ConfigureUpgradeHeaders(ws_task->Request());
+  ws_task->SetAssembler(assembler, builder);
+
   return ws_task;
 }
 
@@ -130,6 +153,11 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
         connection_internal::GetDefaultClientSslContextState();
     ssl_ctx = ssl_state.ssl_ctx;
     if (ssl_state.ec) {
+      // Create assembler BEFORE moving host/port into the task.
+      auto assembler = AllocateShared<DefaultRequestAssembler>(
+          "https", host, port, ssl_ctx);
+      auto builder = DirectStreamBuilder::Create();
+
       auto ws_task = AllocateShared<WebSocketClientTask>(
           std::move(io_executor), std::move(host), std::move(port),
           std::move(target), std::move(handler), std::move(options), true,
@@ -139,15 +167,24 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
                                   ? "failed to initialize system SSL context"
                                   : ssl_state.error_message);
       ConfigureUpgradeHeaders(ws_task->Request());
+      ws_task->SetAssembler(assembler, builder);
+
       return ws_task;
     }
   }
+
+  // Create assembler BEFORE moving host/port/ssl_ctx into the task.
+  auto assembler = AllocateShared<DefaultRequestAssembler>(
+      use_ssl ? "https" : "http", host, port, ssl_ctx);
+  auto builder = DirectStreamBuilder::Create();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), use_ssl,
       std::move(ssl_ctx));
   ConfigureUpgradeHeaders(ws_task->Request());
+  ws_task->SetAssembler(assembler, builder);
+
   return ws_task;
 }
 
@@ -162,11 +199,21 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
     return nullptr;
   }
 
+  auto effective_ssl_ctx = use_ssl ? std::move(ssl_ctx) : SslContextPtr{};
+
+  // Create assembler BEFORE moving host/port into the task.
+  // Copy ssl_ctx for assembler since we need it for the task too.
+  auto assembler = AllocateShared<DefaultRequestAssembler>(
+      use_ssl ? "https" : "http", host, port, effective_ssl_ctx);
+  auto builder = DirectStreamBuilder::Create();
+
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options), use_ssl,
-      use_ssl ? std::move(ssl_ctx) : SslContextPtr{});
+      effective_ssl_ctx);
   ConfigureUpgradeHeaders(ws_task->Request());
+  ws_task->SetAssembler(assembler, builder);
+
   return ws_task;
 }
 
@@ -176,8 +223,10 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttpRaw(
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), "", std::move(target),
       std::move(handler), std::move(options), false, nullptr);
-  ws_task->SetRawTcpStream(std::move(stream));
+  // Raw mode: create WebSocket stream directly from the connected TCP stream.
+  ws_task->CreateWebSocketStream(std::move(stream));
   ConfigureUpgradeHeaders(ws_task->Request());
+  // Raw mode: no assembler/builder attached.
   return ws_task;
 }
 
@@ -187,8 +236,10 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttpsRaw(
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), "", std::move(target),
       std::move(handler), std::move(options), true, nullptr);
-  ws_task->SetRawSslStream(std::move(stream));
+  // Raw mode: create WebSocket stream directly from the connected SSL stream.
+  ws_task->CreateSecureWebSocketStream(std::move(stream));
   ConfigureUpgradeHeaders(ws_task->Request());
+  // Raw mode: no assembler/builder attached.
   return ws_task;
 }
 
@@ -200,9 +251,11 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::OnHttpDone(
 
 HttpClientRequest& WebSocketClientTask::Request() noexcept { return request_; }
 
-void WebSocketClientTask::AttachSession(
-    std::weak_ptr<HttpClientSession> session) {
-  session_ = std::move(session);
+void WebSocketClientTask::SetAssembler(
+    std::shared_ptr<RequestAssembler> assembler,
+    std::shared_ptr<StreamBuilder> builder) {
+  assembler_ = std::move(assembler);
+  builder_ = std::move(builder);
 }
 
 WebSocketClientTask::~WebSocketClientTask() = default;
@@ -230,18 +283,6 @@ void WebSocketClientTask::SetCreateError(boost::system::error_code ec,
                                          std::string message) {
   create_error_ = ec;
   create_error_message_ = std::move(message);
-}
-
-void WebSocketClientTask::SetRawTcpStream(TcpStream stream) {
-  startup_mode_ = StartupMode::kRawTcp;
-  raw_ssl_stream_.reset();
-  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
-}
-
-void WebSocketClientTask::SetRawSslStream(SslStream stream) {
-  startup_mode_ = StartupMode::kRawTls;
-  raw_tcp_stream_.reset();
-  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
 }
 
 bool WebSocketClientTask::IsOpen() const noexcept {

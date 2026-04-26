@@ -1,3 +1,4 @@
+
 /**
  * @file http_client_task_callbacks.cc
  * @brief Callback plumbing for HttpClientTask::Impl.
@@ -8,24 +9,16 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <boost/asio/post.hpp>
-#include <boost/system/error_code.hpp>
 #include <memory>
 #include <mutex>
-#include <string>
 #include <utility>
 
 #include "bsrvcore/connection/client/http_client_task.h"
-#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "impl/http_client_task_impl.h"
 
 namespace bsrvcore {
-
-void HttpClientTask::Impl::SetSession(
-    std::weak_ptr<HttpClientSession> session) {
-  std::scoped_lock const lock(callback_mutex_);
-  session_ = std::move(session);
-}
 
 void HttpClientTask::Impl::SetOnConnected(Callback cb) {
   std::scoped_lock const lock(callback_mutex_);
@@ -47,106 +40,15 @@ void HttpClientTask::Impl::SetOnDone(Callback cb) {
   on_done_ = std::move(cb);
 }
 
-void HttpClientTask::Impl::EmitConnected(boost::system::error_code ec) {
-  HttpClientResult result;
-  result.ec = ec;
-  result.stage = HttpClientStage::kConnected;
-  result.cancelled = cancellation_state_ == CancellationState::kRequested;
-  result.error_stage = HttpClientErrorStage::kNone;
-
-  auto cb = GetCallbackCopy(HttpClientStage::kConnected);
-  DispatchCallback(std::move(cb), std::move(result));
+void HttpClientTask::Impl::SetAssembler(
+    std::shared_ptr<RequestAssembler> assembler,
+    std::shared_ptr<StreamBuilder> builder) {
+  assembler_ = std::move(assembler);
+  builder_ = std::move(builder);
 }
 
-void HttpClientTask::Impl::EmitHeader(const HttpResponseHeader& header,
-                                      boost::system::error_code ec) {
-  HttpClientResult result;
-  result.ec = ec;
-  result.stage = HttpClientStage::kHeader;
-  result.cancelled = cancellation_state_ == CancellationState::kRequested;
-  result.error_stage = HttpClientErrorStage::kNone;
-  result.header = header;
-
-  auto cb = GetCallbackCopy(HttpClientStage::kHeader);
-  DispatchCallback(std::move(cb), std::move(result));
-}
-
-void HttpClientTask::Impl::EmitChunk(std::string chunk) {
-  HttpClientResult result;
-  result.stage = HttpClientStage::kChunk;
-  result.cancelled = cancellation_state_ == CancellationState::kRequested;
-  result.error_stage = HttpClientErrorStage::kNone;
-  result.chunk = std::move(chunk);
-
-  auto cb = GetCallbackCopy(HttpClientStage::kChunk);
-  DispatchCallback(std::move(cb), std::move(result));
-}
-
-void HttpClientTask::Impl::EmitDone(const HttpClientResult& result) {
-  auto cb = GetDoneCallbackCopy();
-  DispatchCallback(std::move(cb), result);
-}
-
-void HttpClientTask::Impl::EmitStageByResult(const HttpClientResult& result) {
-  auto cb = GetCallbackCopy(result.stage);
-  DispatchCallback(std::move(cb), result);
-}
-
-bool HttpClientTask::Impl::HasChunkCallback() const {
-  std::scoped_lock const lock(callback_mutex_);
-  return static_cast<bool>(on_chunk_);
-}
-
-HttpClientTask::Impl::Callback HttpClientTask::Impl::GetCallbackCopy(
-    HttpClientStage stage) const {
-  std::scoped_lock const lock(callback_mutex_);
-  switch (stage) {
-    case HttpClientStage::kConnected:
-      return on_connected_;
-    case HttpClientStage::kHeader:
-      return on_header_;
-    case HttpClientStage::kChunk:
-      return on_chunk_;
-    case HttpClientStage::kDone:
-      return on_done_;
-  }
-  return {};
-}
-
-HttpClientTask::Impl::Callback HttpClientTask::Impl::GetDoneCallbackCopy()
-    const {
-  std::scoped_lock const lock(callback_mutex_);
-  return on_done_;
-}
-
-void HttpClientTask::Impl::DispatchCallback(Callback cb,
-                                            HttpClientResult result) const {
-  if (!cb) {
-    return;
-  }
-
-  boost::asio::post(callback_executor_,
-                    [cb = std::move(cb), result = std::move(result)]() mutable {
-                      cb(result);
-                    });
-}
-
-HttpClientStage HttpClientTask::Impl::ErrorStageToCallbackStage(
-    HttpClientErrorStage error_stage) {
-  switch (error_stage) {
-    case HttpClientErrorStage::kReadHeader:
-      return HttpClientStage::kHeader;
-    case HttpClientErrorStage::kReadBody:
-      return HttpClientStage::kChunk;
-    case HttpClientErrorStage::kNone:
-    case HttpClientErrorStage::kCreate:
-    case HttpClientErrorStage::kResolve:
-    case HttpClientErrorStage::kConnect:
-    case HttpClientErrorStage::kTlsHandshake:
-    case HttpClientErrorStage::kWriteRequest:
-    default:
-      return HttpClientStage::kConnected;
-  }
+void HttpClientTask::Impl::SetDoneHook(DoneHook hook) {
+  done_hook_ = std::move(hook);
 }
 
 }  // namespace bsrvcore

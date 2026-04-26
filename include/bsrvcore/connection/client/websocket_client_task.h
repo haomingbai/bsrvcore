@@ -25,8 +25,15 @@
 #include <string>
 
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
 #include "bsrvcore/core/trait.h"
+
+// Forward declarations for assembled mode.
+namespace bsrvcore {
+class RequestAssembler;
+class StreamBuilder;
+}  // namespace bsrvcore
 
 namespace bsrvcore {
 
@@ -40,15 +47,12 @@ class WebSocketClientTask
   enum class LifecycleState {
     kInit,
     kStarting,
-    kResolving,
-    kConnecting,
-    kTlsHandshaking,
+    kAcquiring,
     kWsHandshaking,
     kOpen,
     kClosing,
     kClosed,
   };
-  enum class StartupMode { kDial, kRawTcp, kRawTls };
   enum class CloseReason { kNone, kUserCancel, kRemoteClose, kError };
 
   static std::shared_ptr<WebSocketClientTask> CreateHttp(
@@ -94,7 +98,6 @@ class WebSocketClientTask
   std::shared_ptr<WebSocketClientTask> OnHttpDone(HttpDoneCallback cb);
 
   HttpClientRequest& Request() noexcept;
-  void AttachSession(std::weak_ptr<HttpClientSession> session);
 
   void Start() override;
   void Cancel() override;
@@ -111,35 +114,43 @@ class WebSocketClientTask
                                bool use_ssl = false,
                                SslContextPtr ssl_ctx = {});
 
+  friend class HttpClientSession;
+
  private:
-  bool PrepareStart();
-  bool CreateTransport();
-  bool CreateTransportFromRaw();
-  void StartResolve();
-  void OnResolveCompleted(boost::system::error_code ec,
-                          TcpResolverResults results);
-  void StartTcpConnect(const TcpResolverResults& results);
-  void OnTcpConnectCompleted(boost::system::error_code ec);
-  void StartTlsHandshake();
-  void OnTlsHandshakeCompleted(boost::system::error_code ec);
+  void DoStart();
+  void DoAcquire();
+  void OnAcquireComplete(boost::system::error_code ec, StreamSlot slot);
+  void CreateWebSocketStream(TcpStream stream);
+  void CreateSecureWebSocketStream(SslStream stream);
   void StartWebSocketHandshake();
   void OnWebSocketHandshakeCompleted(
       boost::system::error_code ec,
       std::shared_ptr<WebSocketResponse> response);
-  void SyncHandshakeSetCookies(const WebSocketResponse& response);
   void SetCreateError(boost::system::error_code ec, std::string message);
+
+  /** @brief Set assembler and builder for assembled mode. */
+  void SetAssembler(std::shared_ptr<RequestAssembler> assembler,
+                    std::shared_ptr<StreamBuilder> builder);
 
   bool WritePingControl(std::string payload);
   bool WritePongControl(std::string payload);
   bool WriteCloseControl();
   void BeginReadLoop();
+  /**
+   * @brief Handle read completion for both ws and wss streams.
+   *
+   * Call chain: BeginReadLoop → async_read → OnWebSocketRead
+   *
+   * Processes close frames, errors, and dispatches received messages.
+   * Re-enters BeginReadLoop on success.
+   */
+  void OnWebSocketRead(boost::system::error_code ec, bool binary,
+                       std::string payload);
   void NotifyCloseOnce(boost::system::error_code ec);
   void FailAndClose(boost::system::error_code ec, std::string message);
   void EmitHttpDone(boost::system::error_code ec,
                     HttpResponseHeader header = {},
                     HttpClientResponse response = {});
-  void SetRawTcpStream(TcpStream stream);
-  void SetRawSslStream(SslStream stream);
   [[nodiscard]] bool IsOpen() const noexcept;
   [[nodiscard]] bool IsClosingOrClosed() const noexcept;
 
@@ -151,19 +162,19 @@ class WebSocketClientTask
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
   HttpClientRequest request_;
-  std::unique_ptr<TcpResolver> resolver_;
   std::unique_ptr<WebSocketStream> ws_stream_;
   std::unique_ptr<SecureWebSocketStream> wss_stream_;
-  std::unique_ptr<TcpStream> raw_tcp_stream_;
-  std::unique_ptr<SslStream> raw_ssl_stream_;
   FlatBuffer ws_read_buffer_;
-  std::weak_ptr<HttpClientSession> session_;
   HttpDoneCallback on_http_done_;
   LifecycleState lifecycle_state_{LifecycleState::kInit};
-  StartupMode startup_mode_{StartupMode::kDial};
   CloseReason close_reason_{CloseReason::kNone};
   std::optional<boost::system::error_code> create_error_;
   std::string create_error_message_;
+
+  // Assembler + builder (nullptr for raw mode).
+  std::shared_ptr<RequestAssembler> assembler_;
+  std::shared_ptr<StreamBuilder> builder_;
+  ConnectionKey connection_key_;
 };
 
 }  // namespace bsrvcore

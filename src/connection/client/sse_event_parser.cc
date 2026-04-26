@@ -76,14 +76,11 @@ void SseEventParser::Reset() {
 
 void SseEventParser::ConsumeLine(std::string_view line,
                                  AllocatedEventList& out) {
+  // Call chain: FeedAllocated → ConsumeLine
+  //   → EmitEventIfReady (blank line → flush current event)
+  //   → ApplySseField    (field:value → update current event)
   if (line.empty()) {
-    // A blank line terminates an event. Only emit when we have seen at least
-    // one field.
-    if (has_field_) {
-      out.push_back(current_);
-      current_ = SseEvent{};
-      has_field_ = false;
-    }
+    EmitEventIfReady(out);
     return;
   }
 
@@ -101,6 +98,21 @@ void SseEventParser::ConsumeLine(std::string_view line,
     value = TrimLeadingSingleSpace(line.substr(colon + 1));
   }
 
+  ApplySseField(field, value);
+}
+
+void SseEventParser::EmitEventIfReady(AllocatedEventList& out) {
+  // A blank line terminates an event. Only emit when we have seen at least
+  // one field.
+  if (has_field_) {
+    out.push_back(current_);
+    current_ = SseEvent{};
+    has_field_ = false;
+  }
+}
+
+void SseEventParser::ApplySseField(std::string_view field,
+                                   std::string_view value) {
   if (field == "data") {
     // Multiple data lines are concatenated with '\n'.
     if (!current_.data.empty()) {

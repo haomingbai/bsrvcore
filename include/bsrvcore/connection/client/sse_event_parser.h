@@ -71,7 +71,20 @@ class SseEventParser : public NonCopyableNonMovable<SseEventParser> {
   void Reset();
 
  private:
+  /**
+   * @brief Process one complete SSE line.
+   *
+   * Call chain: FeedAllocated → ConsumeLine
+   *   → EmitEventIfReady (blank line → flush current event)
+   *   → ApplySseField    (field:value → update current event)
+   */
   void ConsumeLine(std::string_view line, AllocatedEventList& out);
+
+  /** @brief Flush current event to output if any field was seen. */
+  void EmitEventIfReady(AllocatedEventList& out);
+
+  /** @brief Update current event based on parsed field name and value. */
+  void ApplySseField(std::string_view field, std::string_view value);
 
   std::string pending_;
   SseEvent current_{};

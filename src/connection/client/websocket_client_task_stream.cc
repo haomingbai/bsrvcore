@@ -50,9 +50,6 @@ void WebSocketClientTask::Cancel() {
 
   close_reason_ = CloseReason::kUserCancel;
   lifecycle_state_ = LifecycleState::kClosing;
-  if (resolver_) {
-    resolver_->cancel();
-  }
 
   if (IsOpen()) {
     auto self = shared_from_this();
@@ -74,14 +71,6 @@ void WebSocketClientTask::Cancel() {
     }
     if (wss_stream_ != nullptr) {
       AbortTransport(*wss_stream_);
-    }
-    if (raw_tcp_stream_ != nullptr) {
-      AbortTransport(*raw_tcp_stream_);
-      raw_tcp_stream_.reset();
-    }
-    if (raw_ssl_stream_ != nullptr) {
-      AbortTransport(*raw_ssl_stream_);
-      raw_ssl_stream_.reset();
     }
   }
 
@@ -220,6 +209,10 @@ void WebSocketClientTask::FailAndClose(boost::system::error_code ec,
 }
 
 void WebSocketClientTask::BeginReadLoop() {
+  // Call chain: OnHandshakeComplete → BeginReadLoop
+  //   → ws_stream_/wss_stream_.async_read → OnWebSocketRead
+  //
+  // Both ws and wss branches share the same completion handler.
   if (!IsOpen()) {
     return;
   }
@@ -230,28 +223,10 @@ void WebSocketClientTask::BeginReadLoop() {
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
-          if (self->IsClosingOrClosed()) {
-            self->NotifyCloseOnce(boost::system::error_code{});
-            return;
-          }
-          if (ec) {
-            if (ec == websocket::error::closed) {
-              self->close_reason_ = CloseReason::kRemoteClose;
-              self->lifecycle_state_ = LifecycleState::kClosing;
-              self->NotifyCloseOnce(boost::system::error_code{});
-              return;
-            }
-            self->FailAndClose(ec, "websocket client read failed");
-            return;
-          }
-
-          WebSocketMessage message;
-          message.binary = stream->got_binary();
-          message.payload =
+          std::string payload =
               boost::beast::buffers_to_string(self->ws_read_buffer_.data());
           self->ws_read_buffer_.consume(self->ws_read_buffer_.size());
-          self->NotifyReadMessage(std::move(message));
-          self->BeginReadLoop();
+          self->OnWebSocketRead(ec, stream->got_binary(), std::move(payload));
         });
     return;
   }
@@ -260,30 +235,38 @@ void WebSocketClientTask::BeginReadLoop() {
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
-          if (self->IsClosingOrClosed()) {
-            self->NotifyCloseOnce(boost::system::error_code{});
-            return;
-          }
-          if (ec) {
-            if (ec == websocket::error::closed) {
-              self->close_reason_ = CloseReason::kRemoteClose;
-              self->lifecycle_state_ = LifecycleState::kClosing;
-              self->NotifyCloseOnce(boost::system::error_code{});
-              return;
-            }
-            self->FailAndClose(ec, "websocket client read failed");
-            return;
-          }
-
-          WebSocketMessage message;
-          message.binary = stream->got_binary();
-          message.payload =
+          std::string payload =
               boost::beast::buffers_to_string(self->ws_read_buffer_.data());
           self->ws_read_buffer_.consume(self->ws_read_buffer_.size());
-          self->NotifyReadMessage(std::move(message));
-          self->BeginReadLoop();
+          self->OnWebSocketRead(ec, stream->got_binary(), std::move(payload));
         });
   }
+}
+
+void WebSocketClientTask::OnWebSocketRead(boost::system::error_code ec,
+                                          bool binary, std::string payload) {
+  // Handle close frame or error.
+  if (IsClosingOrClosed()) {
+    NotifyCloseOnce(boost::system::error_code{});
+    return;
+  }
+  if (ec) {
+    if (ec == websocket::error::closed) {
+      close_reason_ = CloseReason::kRemoteClose;
+      lifecycle_state_ = LifecycleState::kClosing;
+      NotifyCloseOnce(boost::system::error_code{});
+      return;
+    }
+    FailAndClose(ec, "websocket client read failed");
+    return;
+  }
+
+  // Dispatch received message and continue reading.
+  WebSocketMessage message;
+  message.binary = binary;
+  message.payload = std::move(payload);
+  NotifyReadMessage(std::move(message));
+  BeginReadLoop();
 }
 
 }  // namespace bsrvcore

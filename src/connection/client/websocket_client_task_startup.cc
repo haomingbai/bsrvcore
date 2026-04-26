@@ -28,7 +28,8 @@
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
-#include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
 
 namespace bsrvcore {
@@ -76,16 +77,6 @@ void ConfigureClientHandshake(Stream& stream, const HttpClientRequest& request,
 }
 
 template <typename Stream, typename Handler>
-void StartTcpConnectForStream(Stream& stream,
-                              const tcp::resolver::results_type& results,
-                              std::chrono::milliseconds timeout,
-                              Handler&& handler) {
-  auto& lowest = boost::beast::get_lowest_layer(stream);
-  lowest.expires_after(timeout);
-  lowest.async_connect(results, std::forward<Handler>(handler));
-}
-
-template <typename Stream, typename Handler>
 void StartWebSocketHandshakeForStream(
     Stream& stream, std::shared_ptr<websocket::response_type> response,
     const std::string& host, const std::string& target, Handler&& handler) {
@@ -108,211 +99,91 @@ void WebSocketClientTask::Start() {
     return;
   }
 
-  if (!PrepareStart()) {
-    return;
-  }
-  if (startup_mode_ != StartupMode::kDial) {
-    if (!CreateTransportFromRaw()) {
+  DoStart();
+}
+
+void WebSocketClientTask::DoStart() {
+  // Raw mode: WebSocket stream already created via CreateHttpRaw/CreateHttpsRaw.
+  if (!assembler_) {
+    if (!ws_stream_ && !wss_stream_) {
+      FailAndClose(make_error_code(boost::system::errc::invalid_argument),
+                   "raw mode requires a pre-connected stream");
       return;
     }
     StartWebSocketHandshake();
     return;
   }
 
-  if (!CreateTransport()) {
-    return;
-  }
-
-  StartResolve();
-}
-
-bool WebSocketClientTask::PrepareStart() {
-  if (auto session = session_.lock()) {
-    session->MaybeInjectCookies(request_, host_, target_, use_ssl_);
-  }
-
-  if (use_ssl_ && startup_mode_ == StartupMode::kDial && ssl_ctx_ == nullptr) {
+  // Assembled mode: validate SSL context, then acquire stream.
+  if (use_ssl_ && ssl_ctx_ == nullptr) {
     FailAndClose(make_error_code(boost::system::errc::invalid_argument),
                  "wss requires an SSL context");
-    return false;
+    return;
   }
 
-  if (request_.find(http::field::host) == request_.end()) {
-    request_.set(http::field::host, host_);
-  }
-  if (request_.find(http::field::user_agent) == request_.end() &&
-      !options_.user_agent.empty()) {
-    request_.set(http::field::user_agent, options_.user_agent);
-  }
-  request_.target(target_);
-  request_.method(http::verb::get);
-
-  return true;
+  DoAcquire();
 }
 
-bool WebSocketClientTask::CreateTransport() {
-  resolver_ = std::make_unique<tcp::resolver>(io_executor_);
-  ws_stream_.reset();
-  wss_stream_.reset();
+void WebSocketClientTask::DoAcquire() {
+  // Call chain: DoStart → DoAcquire → assembler_.Assemble
+  //   → builder_.Acquire → OnAcquireComplete
+  //
+  // Assembler prepares the request (headers, cookies).
+  // Builder resolves DNS, connects TCP, and optionally handshakes TLS.
+  lifecycle_state_ = LifecycleState::kAcquiring;
 
-  if (use_ssl_) {
-    wss_stream_ =
-        std::make_unique<SecureWebSocketStream>(io_executor_, *ssl_ctx_);
-    return true;
-  }
+  auto result = assembler_->Assemble(request_, options_,
+                                     use_ssl_ ? "https" : "http", host_,
+                                     port_, ssl_ctx_);
+  request_ = std::move(result.request);
+  connection_key_ = result.connection_key;
 
-  ws_stream_ = std::make_unique<WebSocketStream>(io_executor_);
-  return true;
-}
-
-bool WebSocketClientTask::CreateTransportFromRaw() {
-  resolver_.reset();
-  ws_stream_.reset();
-  wss_stream_.reset();
-
-  if (startup_mode_ == StartupMode::kRawTls) {
-    if (raw_ssl_stream_ == nullptr) {
-      FailAndClose(make_error_code(boost::system::errc::invalid_argument),
-                   "wss raw factory requires a ready SSL stream");
-      return false;
-    }
-    wss_stream_ =
-        std::make_unique<SecureWebSocketStream>(std::move(*raw_ssl_stream_));
-    raw_ssl_stream_.reset();
-    return true;
-  }
-
-  if (startup_mode_ == StartupMode::kRawTcp) {
-    if (raw_tcp_stream_ == nullptr) {
-      FailAndClose(make_error_code(boost::system::errc::invalid_argument),
-                   "ws raw factory requires a ready TCP stream");
-      return false;
-    }
-    ws_stream_ = std::make_unique<WebSocketStream>(std::move(*raw_tcp_stream_));
-    raw_tcp_stream_.reset();
-    return true;
-  }
-
-  FailAndClose(make_error_code(boost::system::errc::invalid_argument),
-               "raw startup mode is not configured");
-  return false;
-}
-
-void WebSocketClientTask::StartResolve() {
-  lifecycle_state_ = LifecycleState::kResolving;
   auto self = shared_from_this();
-  resolver_->async_resolve(host_, port_,
-                           [self](boost::system::error_code ec,
-                                  tcp::resolver::results_type results) {
-                             self->OnResolveCompleted(ec, std::move(results));
-                           });
+  builder_->Acquire(
+      connection_key_, io_executor_,
+      [self](boost::system::error_code ec, StreamSlot slot) {
+        self->OnAcquireComplete(ec, std::move(slot));
+      });
 }
 
-void WebSocketClientTask::OnResolveCompleted(
-    boost::system::error_code ec, tcp::resolver::results_type results) {
+void WebSocketClientTask::OnAcquireComplete(boost::system::error_code ec,
+                                            StreamSlot slot) {
   if (IsClosingOrClosed()) {
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
+
   if (ec) {
-    FailAndClose(ec, "resolve failed");
+    // Classify the error based on the error code.
+    const bool is_ssl_error =
+        ec.category() == boost::asio::error::get_ssl_category();
+    const std::string message =
+        is_ssl_error ? "tls handshake failed" : "connection acquire failed";
+    FailAndClose(ec, message);
     return;
   }
 
-  StartTcpConnect(results);
-}
-
-void WebSocketClientTask::StartTcpConnect(
-    const tcp::resolver::results_type& results) {
-  lifecycle_state_ = LifecycleState::kConnecting;
-  auto self = shared_from_this();
-  if (ws_stream_ != nullptr) {
-    StartTcpConnectForStream(
-        *ws_stream_, results, options_.connect_timeout,
-        [self](boost::system::error_code ec, const tcp::endpoint&) {
-          self->OnTcpConnectCompleted(ec);
-        });
-    return;
-  }
-  if (wss_stream_ != nullptr) {
-    StartTcpConnectForStream(
-        *wss_stream_, results, options_.connect_timeout,
-        [self](boost::system::error_code ec, const tcp::endpoint&) {
-          self->OnTcpConnectCompleted(ec);
-        });
-    return;
-  }
-
-  FailAndClose(make_error_code(boost::system::errc::not_connected),
-               "connect failed");
-}
-
-void WebSocketClientTask::OnTcpConnectCompleted(boost::system::error_code ec) {
-  if (IsClosingOrClosed()) {
-    NotifyCloseOnce(boost::system::error_code{});
-    return;
-  }
-  if (ec) {
-    FailAndClose(ec, "connect failed");
-    return;
-  }
-
-  if (use_ssl_) {
-    StartTlsHandshake();
-    return;
-  }
-
-  StartWebSocketHandshake();
-}
-
-void WebSocketClientTask::StartTlsHandshake() {
-  if (wss_stream_ == nullptr) {
-    FailAndClose(make_error_code(boost::system::errc::invalid_argument),
-                 "tls handshake failed");
-    return;
-  }
-
-  lifecycle_state_ = LifecycleState::kTlsHandshaking;
-
-  auto& tls_stream = wss_stream_->next_layer();
-  if (SSL_set_tlsext_host_name(tls_stream.native_handle(), host_.c_str()) !=
-      1) {
-    boost::system::error_code const sni_ec{
-        static_cast<int>(::ERR_get_error()),
-        boost::asio::error::get_ssl_category()};
-    FailAndClose(sni_ec, "tls handshake failed");
-    return;
-  }
-
-  if (options_.verify_peer) {
-    tls_stream.set_verify_mode(boost::asio::ssl::verify_peer);
-    tls_stream.set_verify_callback(
-        boost::asio::ssl::host_name_verification(host_));
+  // Create WebSocket stream on top of the acquired transport.
+  if (slot.ssl_stream) {
+    CreateSecureWebSocketStream(std::move(*slot.ssl_stream));
+  } else if (slot.tcp_stream) {
+    CreateWebSocketStream(std::move(*slot.tcp_stream));
   } else {
-    tls_stream.set_verify_mode(boost::asio::ssl::verify_none);
-  }
-
-  boost::beast::get_lowest_layer(*wss_stream_)
-      .expires_after(options_.tls_handshake_timeout);
-  auto self = shared_from_this();
-  tls_stream.async_handshake(boost::asio::ssl::stream_base::client,
-                             [self](boost::system::error_code ec) {
-                               self->OnTlsHandshakeCompleted(ec);
-                             });
-}
-
-void WebSocketClientTask::OnTlsHandshakeCompleted(
-    boost::system::error_code ec) {
-  if (IsClosingOrClosed()) {
-    NotifyCloseOnce(boost::system::error_code{});
-    return;
-  }
-  if (ec) {
-    FailAndClose(ec, "tls handshake failed");
+    FailAndClose(make_error_code(boost::system::errc::not_connected),
+                 "acquire returned empty slot");
     return;
   }
 
   StartWebSocketHandshake();
+}
+
+void WebSocketClientTask::CreateWebSocketStream(TcpStream stream) {
+  ws_stream_ = std::make_unique<WebSocketStream>(std::move(stream));
+}
+
+void WebSocketClientTask::CreateSecureWebSocketStream(SslStream stream) {
+  wss_stream_ =
+      std::make_unique<SecureWebSocketStream>(std::move(stream));
 }
 
 void WebSocketClientTask::StartWebSocketHandshake() {
@@ -360,7 +231,11 @@ void WebSocketClientTask::OnWebSocketHandshakeCompleted(
   }
   HttpResponseHeader header = response.base();
 
-  SyncHandshakeSetCookies(*response_sp);
+  // Sync cookies from handshake response via assembler (if assembled mode).
+  if (assembler_) {
+    assembler_->OnResponseHeader(header, host_, target_);
+  }
+
   EmitHttpDone(ec, header, response);
 
   if (ec) {
@@ -371,20 +246,6 @@ void WebSocketClientTask::OnWebSocketHandshakeCompleted(
   lifecycle_state_ = LifecycleState::kOpen;
   NotifyOpen();
   BeginReadLoop();
-}
-
-void WebSocketClientTask::SyncHandshakeSetCookies(
-    const websocket::response_type& response) {
-  auto session = session_.lock();
-  if (!session) {
-    return;
-  }
-
-  for (const auto& field : response) {
-    if (field.name() == http::field::set_cookie) {
-      session->SyncSetCookie(host_, target_, field.value());
-    }
-  }
 }
 
 }  // namespace bsrvcore

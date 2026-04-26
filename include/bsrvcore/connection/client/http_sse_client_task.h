@@ -222,10 +222,6 @@ class HttpSseClientTask
  private:
   class Impl;
 
-  static std::shared_ptr<Impl> CreateDefaultHttpsImpl(
-      Executor io_executor, Executor callback_executor, std::string host,
-      std::string port, std::string target, HttpSseClientOptions options);
-
   explicit HttpSseClientTask(std::shared_ptr<Impl> impl);
   static std::shared_ptr<HttpSseClientTask> CreateTask(
       std::shared_ptr<Impl> impl);

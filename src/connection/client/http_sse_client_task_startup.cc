@@ -29,6 +29,8 @@
 #include <string>
 #include <utility>
 
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "impl/http_sse_client_task_impl.h"
 
 namespace bsrvcore {
@@ -54,7 +56,6 @@ HttpSseClientTask::Impl::Impl(HttpSseClientTask::Executor io_executor,
     : io_executor_(std::move(io_executor)),
       callback_executor_(std::move(callback_executor)),
       strand_(io_executor_),
-      resolver_(io_executor_),
       host_(std::move(host)),
       port_(std::move(port)),
       target_(std::move(target)),
@@ -108,15 +109,20 @@ void HttpSseClientTask::Impl::SetCreateError(
 }
 
 void HttpSseClientTask::Impl::SetRawTcpStream(TcpStream stream) {
-  raw_mode_ = true;
-  raw_ssl_stream_.reset();
-  raw_tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+  // Raw mode: directly assign to working stream, no assembler/builder needed.
+  tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
 }
 
 void HttpSseClientTask::Impl::SetRawSslStream(SslStream stream) {
-  raw_mode_ = true;
-  raw_tcp_stream_.reset();
-  raw_ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+  // Raw mode: directly assign to working stream, no assembler/builder needed.
+  ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+}
+
+void HttpSseClientTask::Impl::SetAssembler(
+    std::shared_ptr<RequestAssembler> assembler,
+    std::shared_ptr<StreamBuilder> builder) {
+  assembler_ = std::move(assembler);
+  builder_ = std::move(builder);
 }
 
 void HttpSseClientTask::Impl::DispatchCallback(
@@ -153,125 +159,66 @@ void HttpSseClientTask::Impl::DoStart() {
     return;
   }
 
-  if (use_ssl_ && !raw_mode_ && ssl_ctx_ == nullptr) {
+  // Raw mode: streams already assigned via SetRawTcpStream/SetRawSslStream.
+  if (!assembler_) {
+    if ((use_ssl_ && !ssl_stream_) || (!use_ssl_ && !tcp_stream_)) {
+      FailStart(HttpSseClientErrorStage::kCreate,
+                make_error_code(boost::system::errc::invalid_argument));
+      return;
+    }
+    DoWriteRequest();
+    return;
+  }
+
+  // Assembled mode: validate SSL context, then acquire stream.
+  if (use_ssl_ && ssl_ctx_ == nullptr) {
     FailStart(HttpSseClientErrorStage::kCreate,
               make_error_code(boost::system::errc::invalid_argument));
     return;
   }
 
-  if (request_.find(http::field::host) == request_.end()) {
-    request_.set(http::field::host, host_);
-  }
-  if (request_.find(http::field::accept) == request_.end()) {
-    request_.set(http::field::accept, "text/event-stream");
-  }
-  request_.keep_alive(options_.keep_alive);
+  DoAcquire();
+}
 
-  if (raw_mode_) {
-    if (use_ssl_) {
-      if (raw_ssl_stream_ == nullptr) {
-        FailStart(HttpSseClientErrorStage::kCreate,
-                  make_error_code(boost::system::errc::invalid_argument));
-        return;
-      }
-      ssl_stream_ = std::move(raw_ssl_stream_);
-      DoWriteRequest();
-      return;
-    }
+void HttpSseClientTask::Impl::DoAcquire() {
+  // Call chain: DoStart → DoAcquire → assembler_.Assemble
+  //   → builder_.Acquire → OnAcquireComplete
+  //
+  // Assembler prepares the request (headers, cookies, payload).
+  // Builder resolves DNS, connects TCP, and optionally handshakes TLS.
+  auto result = assembler_->Assemble(request_, options_,
+                                     use_ssl_ ? "https" : "http", host_, port_,
+                                     ssl_ctx_);
+  request_ = std::move(result.request);
+  connection_key_ = result.connection_key;
 
-    if (raw_tcp_stream_ == nullptr) {
-      FailStart(HttpSseClientErrorStage::kCreate,
-                make_error_code(boost::system::errc::invalid_argument));
-      return;
-    }
-    tcp_stream_ = std::move(raw_tcp_stream_);
-    DoWriteRequest();
-    return;
-  }
-
-  resolver_.async_resolve(
-      host_, port_,
+  auto self = shared_from_this();
+  builder_->Acquire(
+      connection_key_, io_executor_,
       boost::asio::bind_executor(
-          strand_,
-          [self = shared_from_this()](boost::system::error_code ec,
-                                      tcp::resolver::results_type results) {
-            self->OnResolve(ec, std::move(results));
+          strand_, [self](boost::system::error_code ec, StreamSlot slot) {
+            self->OnAcquireComplete(ec, std::move(slot));
           }));
 }
 
-void HttpSseClientTask::Impl::OnResolve(
-    boost::system::error_code ec, const tcp::resolver::results_type& results) {
+void HttpSseClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
+                                                StreamSlot slot) {
   if (ec) {
-    FailStart(HttpSseClientErrorStage::kResolve, ec);
+    HttpSseClientErrorStage stage =
+        use_ssl_ ? HttpSseClientErrorStage::kTlsHandshake
+                 : HttpSseClientErrorStage::kConnect;
+    FailStart(stage, ec);
     return;
   }
 
-  if (use_ssl_) {
-    ssl_stream_ = std::make_unique<SslStream>(io_executor_, *ssl_ctx_);
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.connect_timeout);
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .async_connect(results,
-                       boost::asio::bind_executor(
-                           strand_, [self = shared_from_this()](
-                                        boost::system::error_code conn_ec,
-                                        const tcp::endpoint&) {
-                             self->OnConnect(conn_ec);
-                           }));
-    return;
-  }
-
-  tcp_stream_ = std::make_unique<TcpStream>(io_executor_);
-  tcp_stream_->expires_after(options_.connect_timeout);
-  tcp_stream_->async_connect(
-      results,
-      boost::asio::bind_executor(
-          strand_, [self = shared_from_this()](
-                       boost::system::error_code conn_ec,
-                       const tcp::endpoint&) { self->OnConnect(conn_ec); }));
-}
-
-void HttpSseClientTask::Impl::OnConnect(boost::system::error_code ec) {
-  if (ec) {
-    FailStart(HttpSseClientErrorStage::kConnect, ec);
-    return;
-  }
-
-  if (use_ssl_) {
-    if (SSL_set_tlsext_host_name(ssl_stream_->native_handle(), host_.c_str()) !=
-        1) {
-      boost::system::error_code const sni_ec{
-          static_cast<int>(::ERR_get_error()),
-          boost::asio::error::get_ssl_category()};
-      FailStart(HttpSseClientErrorStage::kTlsHandshake, sni_ec);
-      return;
-    }
-
-    if (options_.verify_peer) {
-      ssl_stream_->set_verify_mode(boost::asio::ssl::verify_peer);
-      ssl_stream_->set_verify_callback(
-          boost::asio::ssl::host_name_verification(host_));
-    } else {
-      ssl_stream_->set_verify_mode(boost::asio::ssl::verify_none);
-    }
-
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.tls_handshake_timeout);
-    ssl_stream_->async_handshake(
-        boost::asio::ssl::stream_base::client,
-        boost::asio::bind_executor(
-            strand_, [self = shared_from_this()](boost::system::error_code ec) {
-              self->OnHandshake(ec);
-            }));
-    return;
-  }
-
-  DoWriteRequest();
-}
-
-void HttpSseClientTask::Impl::OnHandshake(boost::system::error_code ec) {
-  if (ec) {
-    FailStart(HttpSseClientErrorStage::kTlsHandshake, ec);
+  // Move the acquired stream into the working stream member.
+  if (slot.ssl_stream) {
+    ssl_stream_ = std::make_unique<SslStream>(std::move(*slot.ssl_stream));
+  } else if (slot.tcp_stream) {
+    tcp_stream_ = std::make_unique<TcpStream>(std::move(*slot.tcp_stream));
+  } else {
+    FailStart(HttpSseClientErrorStage::kConnect,
+              make_error_code(boost::system::errc::not_connected));
     return;
   }
 
@@ -356,6 +303,11 @@ void HttpSseClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
     return;
   }
 
+  // Sync cookies from response header via assembler (if assembled mode).
+  if (assembler_) {
+    assembler_->OnResponseHeader(msg.base(), host_, target_);
+  }
+
   HttpSseClientResult result;
   result.stage = HttpSseClientStage::kStart;
   result.error_stage = HttpSseClientErrorStage::kNone;
@@ -378,9 +330,8 @@ void HttpSseClientTask::Impl::FailStart(HttpSseClientErrorStage error_stage,
   result.stage = HttpSseClientStage::kStart;
   result.error_stage = error_stage;
   result.ec = ec;
-  result.cancelled =
-      cancellation_state_ == CancellationState::kRequested ||
-      (ec == boost::asio::error::operation_aborted);
+  result.cancelled = cancellation_state_ == CancellationState::kRequested ||
+                     (ec == boost::asio::error::operation_aborted);
   termination_state_ = result.cancelled ? TerminationState::kCancelled
                                         : TerminationState::kFailure;
 
@@ -396,7 +347,6 @@ void HttpSseClientTask::Impl::DoCancel() {
   }
 
   cancellation_state_ = CancellationState::kRequested;
-  resolver_.cancel();
 
   boost::system::error_code ignored;
   if (tcp_stream_) {

@@ -30,6 +30,7 @@
 namespace bsrvcore {
 
 class HttpClientSession;
+class SessionRequestAssembler;
 
 /**
  * @brief Alias of request message type used by HttpClientTask.
@@ -166,6 +167,8 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
   /** @brief Callback type used by all stages. */
   using Callback = std::function<void(const HttpClientResult&)>;
 
+  friend class HttpClientSession;
+
   /**
    * @brief Create plain HTTP task from host/port/target.
    */
@@ -285,15 +288,6 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
   void SetJson(JsonValue&& value);
 
   /**
-   * @brief Attach a client session to this task.
-   *
-   * This is an optional API mainly intended for HttpClientSession factories.
-   * Tasks created via the original static Create* factories remain lightweight
-   * and session-free unless explicitly attached.
-   */
-  void AttachSession(std::weak_ptr<HttpClientSession> session);
-
-  /**
    * @brief Start asynchronous execution.
    */
   void Start();
@@ -321,6 +315,21 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
 
   explicit HttpClientTask(std::shared_ptr<Impl> impl);
   static std::shared_ptr<HttpClientTask> CreateTask(std::shared_ptr<Impl> impl);
+
+  /** @brief Internal helper: create an assembled-mode task. */
+  static std::shared_ptr<HttpClientTask> CreateAssembledTask(
+      Executor io_executor, Executor callback_executor, std::string scheme,
+      std::string host, std::string port, std::string target, HttpVerb method,
+      HttpClientOptions options, SslContextPtr ssl_ctx,
+      boost::system::error_code create_ec = {});
+
+  /** @brief Internal helper: create a session-backed assembled task. */
+  static std::shared_ptr<HttpClientTask> CreateSessionTask(
+      std::shared_ptr<SessionRequestAssembler> assembler, Executor io_executor,
+      Executor callback_executor, std::string scheme, std::string host,
+      std::string port, std::string target, HttpVerb method,
+      HttpClientOptions options, SslContextPtr ssl_ctx,
+      boost::system::error_code create_ec = {});
 
   std::shared_ptr<Impl> impl_;
 };

@@ -86,44 +86,36 @@ void HttpSseClientTask::Impl::DoReadNextChunk() {
 }
 
 void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
+  // Call chain: DoReadNextChunk → async_read_some → OnReadNextChunk
+  //   → TerminateSseRead (on error/EOF/done)
+  //   → dispatch chunk delta (on success with more data)
   HttpSseClientResult result;
   result.stage = HttpSseClientStage::kNext;
 
   if (ec) {
+    // Error path: classify the error and terminate.
     if (cancellation_state_ == CancellationState::kRequested ||
         ec == boost::asio::error::operation_aborted) {
       result.cancelled = true;
       result.ec = ec;
-      next_read_state_ = NextReadState::kIdle;
       termination_state_ = TerminationState::kCancelled;
-      lifecycle_state_ = LifecycleState::kDone;
-      Callback const callback = std::move(next_callback_);
-      DispatchCallback(callback, std::move(result));
-      return;
-    }
-
-    if (ec == http::error::end_of_stream || ec == boost::asio::error::eof) {
+    } else if (ec == http::error::end_of_stream ||
+               ec == boost::asio::error::eof) {
       result.eof = true;
-      next_read_state_ = NextReadState::kIdle;
       termination_state_ = TerminationState::kEof;
-      lifecycle_state_ = LifecycleState::kDone;
-      Callback const callback = std::move(next_callback_);
-      DispatchCallback(callback, std::move(result));
-      return;
+    } else {
+      error_code_ = ec;
+      error_stage_ = HttpSseClientErrorStage::kReadBody;
+      result.error_stage = error_stage_;
+      result.ec = ec;
+      termination_state_ = TerminationState::kFailure;
     }
-
-    error_code_ = ec;
-    error_stage_ = HttpSseClientErrorStage::kReadBody;
-    result.error_stage = error_stage_;
-    result.ec = ec;
-    next_read_state_ = NextReadState::kIdle;
-    termination_state_ = TerminationState::kFailure;
     lifecycle_state_ = LifecycleState::kDone;
-    Callback const callback = std::move(next_callback_);
-    DispatchCallback(callback, std::move(result));
+    TerminateSseRead(std::move(result));
     return;
   }
 
+  // Success path: extract the newly appended body suffix.
   const auto& body = parser_->get().body();
   if (body.size() > last_emitted_body_size_) {
     // Beast's parser body is cumulative. Expose only the newly appended suffix
@@ -137,8 +129,18 @@ void HttpSseClientTask::Impl::OnReadNextChunk(boost::system::error_code ec) {
     result.eof = true;
     termination_state_ = TerminationState::kEof;
     lifecycle_state_ = LifecycleState::kDone;
+    TerminateSseRead(std::move(result));
+    return;
   }
 
+  // More data expected — dispatch chunk and reset read state.
+  next_read_state_ = NextReadState::kIdle;
+  Callback const callback = std::move(next_callback_);
+  DispatchCallback(callback, std::move(result));
+}
+
+void HttpSseClientTask::Impl::TerminateSseRead(HttpSseClientResult result) {
+  // Finalize: reset read state and dispatch the terminal result.
   next_read_state_ = NextReadState::kIdle;
   Callback const callback = std::move(next_callback_);
   DispatchCallback(callback, std::move(result));

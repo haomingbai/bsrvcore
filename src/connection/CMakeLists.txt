@@ -11,7 +11,8 @@ add_library(bsrvcore_connection_obj OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_task_flow.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_task_callbacks.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_session.cc
-  ${CMAKE_CURRENT_SOURCE_DIR}/client/http_client_session_cookie.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/client/stream_builder.cc
+  ${CMAKE_CURRENT_SOURCE_DIR}/client/request_assembler.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task_startup.cc
   ${CMAKE_CURRENT_SOURCE_DIR}/client/http_sse_client_task_stream.cc

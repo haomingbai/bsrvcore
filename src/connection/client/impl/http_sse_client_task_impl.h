@@ -26,6 +26,13 @@
 #include <string>
 
 #include "bsrvcore/connection/client/http_sse_client_task.h"
+#include "bsrvcore/connection/client/stream_slot.h"
+
+// Forward declarations for assembled mode.
+namespace bsrvcore {
+class RequestAssembler;
+class StreamBuilder;
+}  // namespace bsrvcore
 
 namespace bsrvcore {
 
@@ -60,6 +67,11 @@ class HttpSseClientTask::Impl
                       HttpSseClientErrorStage error_stage);
   void SetRawTcpStream(TcpStream stream);
   void SetRawSslStream(SslStream stream);
+
+  /** @brief Set assembler and builder for assembled mode. */
+  void SetAssembler(std::shared_ptr<RequestAssembler> assembler,
+                    std::shared_ptr<StreamBuilder> builder);
+
   void DispatchCallback(Callback cb, HttpSseClientResult result) const;
 
  private:
@@ -68,15 +80,21 @@ class HttpSseClientTask::Impl
   static void RunPostedCancel(const std::shared_ptr<Impl>& self);
 
   void DoStart();
-  void OnResolve(boost::system::error_code ec,
-                 const tcp::resolver::results_type& results);
-  void OnConnect(boost::system::error_code ec);
-  void OnHandshake(boost::system::error_code ec);
+  void DoAcquire();
+  void OnAcquireComplete(boost::system::error_code ec, StreamSlot slot);
   void DoWriteRequest();
   void OnWriteRequest(boost::system::error_code ec);
   void OnReadHeader(boost::system::error_code ec);
   void DoReadNextChunk();
   void OnReadNextChunk(boost::system::error_code ec);
+  /**
+   * @brief Terminate SSE read with a final result and dispatch callback.
+   *
+   * Call chain: OnReadNextChunk → TerminateSseRead
+   *
+   * Handles all terminal states: cancellation, EOF, failure, and success.
+   */
+  void TerminateSseRead(HttpSseClientResult result);
   void FailStart(HttpSseClientErrorStage error_stage,
                  boost::system::error_code ec);
   void DoCancel();
@@ -84,7 +102,6 @@ class HttpSseClientTask::Impl
   HttpSseClientTask::Executor io_executor_;
   HttpSseClientTask::Executor callback_executor_;
   boost::asio::strand<HttpSseClientTask::Executor> strand_;
-  tcp::resolver resolver_;
 
   std::unique_ptr<TcpStream> tcp_stream_;
   std::unique_ptr<SslStream> ssl_stream_;
@@ -102,9 +119,6 @@ class HttpSseClientTask::Impl
 
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
-  bool raw_mode_{false};
-  std::unique_ptr<TcpStream> raw_tcp_stream_;
-  std::unique_ptr<SslStream> raw_ssl_stream_;
 
   LifecycleState lifecycle_state_{LifecycleState::kIdle};
   TerminationState termination_state_{TerminationState::kNone};
@@ -120,8 +134,13 @@ class HttpSseClientTask::Impl
 
   Callback start_callback_;
   Callback next_callback_;
+
+  // Assembler + builder (nullptr for raw mode).
+  std::shared_ptr<RequestAssembler> assembler_;
+  std::shared_ptr<StreamBuilder> builder_;
+  ConnectionKey connection_key_;
 };
 
 }  // namespace bsrvcore
 
-#endif
+#endif  // BSRVCORE_CONNECTION_CLIENT_IMPL_HTTP_SSE_CLIENT_TASK_IMPL_H_

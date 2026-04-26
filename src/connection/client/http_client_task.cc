@@ -20,6 +20,8 @@
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_client_task_impl.h"
 #include "impl/http_url_parser.h"
@@ -71,6 +73,46 @@ HttpClientTask::HttpClientTask(std::shared_ptr<Impl> impl)
 
 HttpClientTask::~HttpClientTask() = default;
 
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateAssembledTask(
+    Executor io_executor, Executor callback_executor, std::string scheme,
+    std::string host, std::string port, std::string target, http::verb method,
+    HttpClientOptions options, SslContextPtr ssl_ctx,
+    boost::system::error_code create_ec) {
+  auto assembler =
+      std::make_shared<DefaultRequestAssembler>(scheme, host, port, ssl_ctx);
+  auto builder = DirectStreamBuilder::Create();
+  assembler->SetStreamBuilder(builder);
+
+  const bool use_ssl = (scheme == "https");
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), host, port,
+      std::move(target), method, std::move(options), use_ssl, ssl_ctx);
+  impl->SetAssembler(assembler, builder);
+  if (create_ec) {
+    impl->SetCreateError(create_ec, HttpClientErrorStage::kCreate);
+  }
+  return CreateTask(std::move(impl));
+}
+
+std::shared_ptr<HttpClientTask> HttpClientTask::CreateSessionTask(
+    std::shared_ptr<SessionRequestAssembler> assembler, Executor io_executor,
+    Executor callback_executor, std::string scheme, std::string host,
+    std::string port, std::string target, http::verb method,
+    HttpClientOptions options, SslContextPtr ssl_ctx,
+    boost::system::error_code create_ec) {
+  auto builder = DirectStreamBuilder::Create();
+
+  const bool use_ssl = (scheme == "https");
+  auto impl = AllocateShared<Impl>(
+      std::move(io_executor), std::move(callback_executor), host, port, target,
+      method, std::move(options), use_ssl, ssl_ctx);
+  impl->SetAssembler(assembler, builder);
+  if (create_ec) {
+    impl->SetCreateError(create_ec, HttpClientErrorStage::kCreate);
+  }
+  return CreateTask(std::move(impl));
+}
+
 std::shared_ptr<HttpClientTask::Impl> HttpClientTask::CreateDefaultHttpsImpl(
     Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, http::verb method,
@@ -99,6 +141,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateTask(
   }
 }
 
+// ---- Non-Raw factories: assembled mode ----
+
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
     Executor io_executor, std::string host, std::string port,
     std::string target, http::verb method, HttpClientOptions options) {
@@ -110,11 +154,10 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttp(
     Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
-  auto impl =
-      AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
-                           std::move(host), std::move(port), std::move(target),
-                           method, std::move(options), false, nullptr);
-  return CreateTask(std::move(impl));
+  return HttpClientTask::CreateAssembledTask(
+      std::move(io_executor), std::move(callback_executor), "http",
+      std::move(host), std::move(port), std::move(target), method,
+      std::move(options), nullptr);
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
@@ -128,10 +171,12 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
     Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
-  auto impl = CreateDefaultHttpsImpl(
-      std::move(io_executor), std::move(callback_executor), std::move(host),
-      std::move(port), std::move(target), method, std::move(options));
-  return CreateTask(std::move(impl));
+  const auto& ssl_state =
+      connection_internal::GetDefaultClientSslContextState();
+  return HttpClientTask::CreateAssembledTask(
+      std::move(io_executor), std::move(callback_executor), "https",
+      std::move(host), std::move(port), std::move(target), method,
+      std::move(options), ssl_state.ssl_ctx, ssl_state.ec);
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
@@ -147,11 +192,10 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttps(
     Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
     std::string host, std::string port, std::string target, http::verb method,
     HttpClientOptions options) {
-  auto impl = AllocateShared<Impl>(
-      std::move(io_executor), std::move(callback_executor), std::move(host),
-      std::move(port), std::move(target), method, std::move(options), true,
-      std::move(ssl_ctx));
-  return CreateTask(std::move(impl));
+  return HttpClientTask::CreateAssembledTask(
+      std::move(io_executor), std::move(callback_executor), "https",
+      std::move(host), std::move(port), std::move(target), method,
+      std::move(options), std::move(ssl_ctx));
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
@@ -175,16 +219,19 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
   }
 
   if (parsed->https) {
-    auto impl = CreateDefaultHttpsImpl(
-        std::move(io_executor), std::move(callback_executor), parsed->host,
-        parsed->port, parsed->target, method, std::move(options));
-    return CreateTask(std::move(impl));
+    const auto& ssl_state =
+        connection_internal::GetDefaultClientSslContextState();
+    return HttpClientTask::CreateAssembledTask(
+        std::move(io_executor), std::move(callback_executor), "https",
+        std::move(parsed->host), std::move(parsed->port),
+        std::move(parsed->target), method, std::move(options),
+        ssl_state.ssl_ctx, ssl_state.ec);
   }
 
-  auto impl = AllocateShared<Impl>(
-      std::move(io_executor), std::move(callback_executor), parsed->host,
-      parsed->port, parsed->target, method, std::move(options), false, nullptr);
-  return CreateTask(std::move(impl));
+  return HttpClientTask::CreateAssembledTask(
+      std::move(io_executor), std::move(callback_executor), "http",
+      std::move(parsed->host), std::move(parsed->port),
+      std::move(parsed->target), method, std::move(options), nullptr);
 }
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
@@ -208,12 +255,14 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateFromUrl(
   }
 
   auto effective_ssl_ctx = parsed->https ? std::move(ssl_ctx) : SslContextPtr{};
-  auto impl = AllocateShared<Impl>(
-      std::move(io_executor), std::move(callback_executor), parsed->host,
-      parsed->port, parsed->target, method, std::move(options), parsed->https,
-      std::move(effective_ssl_ctx));
-  return CreateTask(std::move(impl));
+  return HttpClientTask::CreateAssembledTask(
+      std::move(io_executor), std::move(callback_executor),
+      parsed->https ? "https" : "http", std::move(parsed->host),
+      std::move(parsed->port), std::move(parsed->target), method,
+      std::move(options), std::move(effective_ssl_ctx));
 }
+
+// ---- Raw factories: unchanged ----
 
 std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpRaw(
     Executor io_executor, TcpStream stream, std::string host,
@@ -252,6 +301,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateHttpsRaw(
   impl->SetRawSslStream(std::move(stream));
   return CreateTask(std::move(impl));
 }
+
+// ---- Callback registration ----
 
 std::shared_ptr<HttpClientTask> HttpClientTask::OnConnected(Callback cb) {
   impl_->SetOnConnected(std::move(cb));
@@ -301,10 +352,6 @@ void HttpClientTask::SetJson(const JsonValue& value) {
 
 void HttpClientTask::SetJson(JsonValue&& value) {
   SetJson(static_cast<const JsonValue&>(value));
-}
-
-void HttpClientTask::AttachSession(std::weak_ptr<HttpClientSession> session) {
-  impl_->SetSession(std::move(session));
 }
 
 void HttpClientTask::Start() { impl_->Start(); }
