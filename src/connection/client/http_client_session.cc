@@ -174,7 +174,8 @@ std::shared_ptr<HttpClientTask> HttpClientSession::CreateFromUrl(
       std::move(options), std::move(effective_ssl_ctx));
 }
 
-// ---- WebSocket factories (use session as assembler for cookie management) ----
+// ---- WebSocket factories (use session as assembler for cookie management)
+// ----
 
 std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttp(
     HttpClientTask::Executor io_executor, std::string host, std::string port,

@@ -103,7 +103,8 @@ void WebSocketClientTask::Start() {
 }
 
 void WebSocketClientTask::DoStart() {
-  // Raw mode: WebSocket stream already created via CreateHttpRaw/CreateHttpsRaw.
+  // Raw mode: WebSocket stream already created via
+  // CreateHttpRaw/CreateHttpsRaw.
   if (!assembler_) {
     if (!ws_stream_ && !wss_stream_) {
       FailAndClose(make_error_code(boost::system::errc::invalid_argument),
@@ -132,18 +133,16 @@ void WebSocketClientTask::DoAcquire() {
   // Builder resolves DNS, connects TCP, and optionally handshakes TLS.
   lifecycle_state_ = LifecycleState::kAcquiring;
 
-  auto result = assembler_->Assemble(request_, options_,
-                                     use_ssl_ ? "https" : "http", host_,
-                                     port_, ssl_ctx_);
+  auto result = assembler_->Assemble(
+      request_, options_, use_ssl_ ? "https" : "http", host_, port_, ssl_ctx_);
   request_ = std::move(result.request);
   connection_key_ = result.connection_key;
 
   auto self = shared_from_this();
-  builder_->Acquire(
-      connection_key_, io_executor_,
-      [self](boost::system::error_code ec, StreamSlot slot) {
-        self->OnAcquireComplete(ec, std::move(slot));
-      });
+  builder_->Acquire(connection_key_, io_executor_,
+                    [self](boost::system::error_code ec, StreamSlot slot) {
+                      self->OnAcquireComplete(ec, std::move(slot));
+                    });
 }
 
 void WebSocketClientTask::OnAcquireComplete(boost::system::error_code ec,
@@ -182,8 +181,7 @@ void WebSocketClientTask::CreateWebSocketStream(TcpStream stream) {
 }
 
 void WebSocketClientTask::CreateSecureWebSocketStream(SslStream stream) {
-  wss_stream_ =
-      std::make_unique<SecureWebSocketStream>(std::move(stream));
+  wss_stream_ = std::make_unique<SecureWebSocketStream>(std::move(stream));
 }
 
 void WebSocketClientTask::StartWebSocketHandshake() {

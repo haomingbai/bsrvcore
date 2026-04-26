@@ -186,9 +186,8 @@ void HttpSseClientTask::Impl::DoAcquire() {
   //
   // Assembler prepares the request (headers, cookies, payload).
   // Builder resolves DNS, connects TCP, and optionally handshakes TLS.
-  auto result = assembler_->Assemble(request_, options_,
-                                     use_ssl_ ? "https" : "http", host_, port_,
-                                     ssl_ctx_);
+  auto result = assembler_->Assemble(
+      request_, options_, use_ssl_ ? "https" : "http", host_, port_, ssl_ctx_);
   request_ = std::move(result.request);
   connection_key_ = result.connection_key;
 
@@ -204,9 +203,9 @@ void HttpSseClientTask::Impl::DoAcquire() {
 void HttpSseClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
                                                 StreamSlot slot) {
   if (ec) {
-    HttpSseClientErrorStage stage =
-        use_ssl_ ? HttpSseClientErrorStage::kTlsHandshake
-                 : HttpSseClientErrorStage::kConnect;
+    HttpSseClientErrorStage stage = use_ssl_
+                                        ? HttpSseClientErrorStage::kTlsHandshake
+                                        : HttpSseClientErrorStage::kConnect;
     FailStart(stage, ec);
     return;
   }

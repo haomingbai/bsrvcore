@@ -84,14 +84,14 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
       connection_internal::GetDefaultClientSslContextState();
 
   // Create assembler BEFORE moving host/port into the impl.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      "https", host, port, ssl_state.ssl_ctx);
+  auto assembler = AllocateShared<DefaultRequestAssembler>("https", host, port,
+                                                           ssl_state.ssl_ctx);
   auto builder = DirectStreamBuilder::Create();
 
-  auto impl = AllocateShared<Impl>(
-      std::move(io_executor), std::move(callback_executor), std::move(host),
-      std::move(port), std::move(target), std::move(options), true,
-      ssl_state.ssl_ctx);
+  auto impl =
+      AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
+                           std::move(host), std::move(port), std::move(target),
+                           std::move(options), true, ssl_state.ssl_ctx);
   if (ssl_state.ec) {
     impl->SetCreateError(ssl_state.ec, HttpSseClientErrorStage::kCreate);
   }
@@ -113,8 +113,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
     std::string host, std::string port, std::string target,
     HttpSseClientOptions options) {
   // Create assembler BEFORE moving host/port/ssl_ctx into the impl.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      "https", host, port, ssl_ctx);
+  auto assembler =
+      AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
   auto builder = DirectStreamBuilder::Create();
 
   auto impl =
@@ -168,8 +168,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
       std::move(io_executor), std::move(callback_executor), parsed->host,
       parsed->port, parsed->target, std::move(options), false, nullptr);
 
-  auto assembler =
-      AllocateShared<DefaultRequestAssembler>("http", parsed->host, parsed->port);
+  auto assembler = AllocateShared<DefaultRequestAssembler>("http", parsed->host,
+                                                           parsed->port);
   auto builder = DirectStreamBuilder::Create();
   impl->SetAssembler(assembler, builder);
 

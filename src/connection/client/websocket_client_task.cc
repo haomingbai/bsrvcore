@@ -97,8 +97,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
       connection_internal::GetDefaultClientSslContextState();
 
   // Create assembler BEFORE moving host/port into the task.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      "https", host, port, ssl_state.ssl_ctx);
+  auto assembler = AllocateShared<DefaultRequestAssembler>("https", host, port,
+                                                           ssl_state.ssl_ctx);
   auto builder = DirectStreamBuilder::Create();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
@@ -122,8 +122,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
     std::string port, std::string target, HandlerPtr handler,
     HttpClientOptions options) {
   // Create assembler BEFORE moving host/port/ssl_ctx into the task.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      "https", host, port, ssl_ctx);
+  auto assembler =
+      AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
   auto builder = DirectStreamBuilder::Create();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
@@ -154,8 +154,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
     ssl_ctx = ssl_state.ssl_ctx;
     if (ssl_state.ec) {
       // Create assembler BEFORE moving host/port into the task.
-      auto assembler = AllocateShared<DefaultRequestAssembler>(
-          "https", host, port, ssl_ctx);
+      auto assembler =
+          AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
       auto builder = DirectStreamBuilder::Create();
 
       auto ws_task = AllocateShared<WebSocketClientTask>(
