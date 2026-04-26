@@ -123,6 +123,20 @@ class StreamSlot {
   bool upstream_closed{false};
   std::size_t requests_served{0};
   std::optional<std::chrono::steady_clock::time_point> idle_deadline;
+
+  /**
+   * @brief SSL context for deferred TLS handshake (WebSocket WSS).
+   *
+   * When a WebSocketStreamBuilder returns a TcpStream for WSS, this field
+   * carries the SSL context so that WebSocketClientTask can perform the
+   * TLS handshake after wrapping the stream in websocket::stream<SslStream>.
+   */
+  SslContextPtr deferred_ssl_ctx;
+
+  /**
+   * @brief Whether to verify TLS peer for deferred handshake (WebSocket WSS).
+   */
+  bool deferred_verify_peer{true};
 };
 
 }  // namespace bsrvcore

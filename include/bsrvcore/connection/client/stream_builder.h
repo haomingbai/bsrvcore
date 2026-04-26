@@ -82,18 +82,47 @@ class DirectStreamBuilder : public StreamBuilder {
 };
 
 /**
+ * @brief Base class for StreamBuilder decorators.
+ *
+ * Subclasses wrap an inner StreamBuilder and can intercept/modify
+ * Acquire() and Return() calls. This enables composable connection
+ * strategies like pooling, proxying, or WebSocket-specific TLS handling.
+ *
+ * Default behavior: forward all calls to inner_.
+ */
+class StreamBuilderDecorator : public StreamBuilder {
+ public:
+  void Acquire(ConnectionKey key, IoContextExecutor executor,
+               AcquireCallback cb) override;
+  void Return(StreamSlot slot) override;
+
+ protected:
+  explicit StreamBuilderDecorator(std::shared_ptr<StreamBuilder> inner);
+
+  std::shared_ptr<StreamBuilder> inner_;
+};
+
+/**
  * @brief Connection-pooled builder: caches idle StreamSlots keyed by
  * ConnectionKey.
  *
- * Acquire() first scans the pool for a compatible reusable slot; on miss
- * it falls back to creating a new connection. Return() inserts the slot
- * back into the pool if reusable, otherwise closes it.
+ * Wraps an inner StreamBuilder (typically DirectStreamBuilder) for
+ * creating new connections on pool misses. Acquire() first scans the
+ * pool for a compatible reusable slot; on miss it delegates to inner_.
+ * Return() inserts the slot back into the pool if reusable, otherwise
+ * delegates to inner_ (which closes the connection).
  */
-class PooledStreamBuilder : public StreamBuilder {
+class PooledStreamBuilder : public StreamBuilderDecorator {
  public:
-  /** @brief Create a PooledStreamBuilder with an optional per-slot idle
-   * duration. */
+  /**
+   * @brief Create a PooledStreamBuilder wrapping the given inner builder.
+   *
+   * @param inner Inner builder used for creating new connections on pool miss.
+   * @param idle_timeout Maximum idle duration before a pooled slot is
+   * discarded.
+   */
   static std::shared_ptr<PooledStreamBuilder> Create(
+      std::shared_ptr<StreamBuilder> inner,
       std::chrono::steady_clock::duration idle_timeout =
           std::chrono::seconds(60));
 
@@ -102,8 +131,8 @@ class PooledStreamBuilder : public StreamBuilder {
   void Return(StreamSlot slot) override;
 
  private:
-  explicit PooledStreamBuilder(
-      std::chrono::steady_clock::duration idle_timeout);
+  PooledStreamBuilder(std::shared_ptr<StreamBuilder> inner,
+                      std::chrono::steady_clock::duration idle_timeout);
 
   std::chrono::steady_clock::duration idle_timeout_;
   std::mutex mutex_;
@@ -111,6 +140,47 @@ class PooledStreamBuilder : public StreamBuilder {
   using PoolMap =
       AllocatedUnorderedMap<ConnectionKey, PoolDeque, ConnectionKeyHash>;
   PoolMap pool_;
+};
+
+/**
+ * @brief WebSocket-specific builder that defers TLS handshake for WSS.
+ *
+ * Beast's websocket::stream<SslStream> expects the TLS handshake to happen
+ * AFTER the WebSocket wrapper is constructed (via
+ * next_layer().async_handshake). DirectStreamBuilder completes the TLS
+ * handshake before returning the stream, which breaks Beast's internal state
+ * machine.
+ *
+ * WebSocketStreamBuilder solves this by:
+ * - For WS (non-SSL): forwarding to the inner builder (plain TCP).
+ * - For WSS (SSL): resolving DNS + connecting TCP, but NOT performing the
+ *   TLS handshake. Returns a TcpStream with deferred_ssl_ctx and
+ *   deferred_verify_peer set in the StreamSlot. WebSocketClientTask then
+ *   wraps the TcpStream in websocket::stream<SslStream> and performs the
+ *   handshake itself.
+ */
+class WebSocketStreamBuilder : public StreamBuilderDecorator {
+ public:
+  /**
+   * @brief Create a WebSocketStreamBuilder.
+   *
+   * @param inner Inner builder for WS (non-SSL) connections.
+   * @param ssl_ctx SSL context for WSS connections.
+   * @param verify_peer Whether to verify TLS peer for WSS.
+   */
+  static std::shared_ptr<WebSocketStreamBuilder> Create(
+      std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
+      bool verify_peer = true);
+
+  void Acquire(ConnectionKey key, IoContextExecutor executor,
+               AcquireCallback cb) override;
+
+ private:
+  WebSocketStreamBuilder(std::shared_ptr<StreamBuilder> inner,
+                         SslContextPtr ssl_ctx, bool verify_peer);
+
+  SslContextPtr ssl_ctx_;
+  bool verify_peer_;
 };
 
 }  // namespace bsrvcore

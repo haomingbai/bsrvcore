@@ -211,9 +211,8 @@ static_assert(
 static_assert(
     std::is_base_of_v<bsrvcore::NonCopyableNonMovable<bsrvcore::HttpClientTask>,
                       bsrvcore::HttpClientTask>);
-static_assert(
-    std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::HttpSseClientOptions>,
-                      bsrvcore::HttpSseClientOptions>);
+static_assert(std::is_base_of_v<bsrvcore::HttpClientOptions,
+                                bsrvcore::HttpSseClientOptions>);
 static_assert(
     std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::HttpSseClientResult>,
                       bsrvcore::HttpSseClientResult>);

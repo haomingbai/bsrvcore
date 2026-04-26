@@ -48,6 +48,7 @@ class WebSocketClientTask
     kInit,
     kStarting,
     kAcquiring,
+    kTlsHandshaking,
     kWsHandshaking,
     kOpen,
     kClosing,
@@ -122,6 +123,22 @@ class WebSocketClientTask
   void OnAcquireComplete(boost::system::error_code ec, StreamSlot slot);
   void CreateWebSocketStream(TcpStream stream);
   void CreateSecureWebSocketStream(SslStream stream);
+  /**
+   * @brief Perform deferred TLS handshake for WSS connections.
+   *
+   * Call chain: OnAcquireComplete → DoDeferredTlsHandshake
+   *   → ssl_stream.async_handshake → OnDeferredTlsHandshakeComplete
+   *   → CreateSecureWebSocketStream → StartWebSocketHandshake
+   *
+   * Beast's websocket::stream<SslStream> expects the TLS handshake to
+   * happen after the WebSocket wrapper is constructed. This method wraps
+   * the acquired TcpStream in an SslStream, sets SNI and verify mode,
+   * then performs the handshake before creating the WebSocket wrapper.
+   */
+  void DoDeferredTlsHandshake(TcpStream tcp_stream, SslContextPtr ssl_ctx,
+                              bool verify_peer);
+  void OnDeferredTlsHandshakeComplete(boost::system::error_code ec,
+                                      SslStream ssl_stream);
   void StartWebSocketHandshake();
   void OnWebSocketHandshakeCompleted(
       boost::system::error_code ec,
@@ -131,6 +148,9 @@ class WebSocketClientTask
   /** @brief Set assembler and builder for assembled mode. */
   void SetAssembler(std::shared_ptr<RequestAssembler> assembler,
                     std::shared_ptr<StreamBuilder> builder);
+
+  /** @brief Replace only the assembler, keeping the existing builder. */
+  void SetAssemblerOnly(std::shared_ptr<RequestAssembler> assembler);
 
   bool WritePingControl(std::string payload);
   bool WritePongControl(std::string payload);

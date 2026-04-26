@@ -22,33 +22,24 @@
 #include <memory>
 #include <string>
 
-#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/core/trait.h"
 
 namespace bsrvcore {
 
 /**
  * @brief Runtime options for a single SSE connection.
+ *
+ * Inherits from HttpClientOptions so that RequestAssembler::Assemble()
+ * (which takes const HttpClientOptions&) can accept HttpSseClientOptions.
+ * SSE-specific defaults are applied in the constructor.
  */
-struct HttpSseClientOptions : public CopyableMovable<HttpSseClientOptions> {
-  /** @brief DNS resolve timeout. */
-  std::chrono::milliseconds resolve_timeout{2000};
-  /** @brief TCP connect timeout. */
-  std::chrono::milliseconds connect_timeout{2000};
-  /** @brief TLS handshake timeout for HTTPS SSE endpoints. */
-  std::chrono::milliseconds tls_handshake_timeout{2000};
-  /** @brief Request write timeout. */
-  std::chrono::milliseconds write_timeout{2000};
-  /** @brief Header read timeout for initial response. */
-  std::chrono::milliseconds read_header_timeout{2000};
-  /** @brief Timeout for each Next() read operation. */
-  std::chrono::milliseconds read_body_timeout{10000};
-  /** @brief Enable TLS peer and host verification. */
-  bool verify_peer{true};
-  /** @brief Keep-alive preference for the SSE request. */
-  bool keep_alive{true};
-  /** @brief Optional User-Agent header value. */
-  std::string user_agent;
+struct HttpSseClientOptions : public HttpClientOptions {
+  HttpSseClientOptions() {
+    // SSE-specific defaults that differ from HttpClientOptions.
+    read_body_timeout = std::chrono::milliseconds{10000};
+    keep_alive = true;
+  }
 };
 
 /**

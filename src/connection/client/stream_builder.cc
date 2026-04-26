@@ -199,11 +199,13 @@ void DirectStreamBuilder::Return(StreamSlot slot) {
 // ---- PooledStreamBuilder ----
 
 std::shared_ptr<PooledStreamBuilder> PooledStreamBuilder::Create(
+    std::shared_ptr<StreamBuilder> inner,
     std::chrono::steady_clock::duration idle_timeout) {
   void* raw =
       Allocate(sizeof(PooledStreamBuilder), alignof(PooledStreamBuilder));
   try {
-    auto* builder = new (raw) PooledStreamBuilder(idle_timeout);
+    auto* builder =
+        new (raw) PooledStreamBuilder(std::move(inner), idle_timeout);
     return {builder, [](PooledStreamBuilder* ptr) { DestroyDeallocate(ptr); }};
   } catch (...) {
     Deallocate(raw, sizeof(PooledStreamBuilder), alignof(PooledStreamBuilder));
@@ -212,8 +214,9 @@ std::shared_ptr<PooledStreamBuilder> PooledStreamBuilder::Create(
 }
 
 PooledStreamBuilder::PooledStreamBuilder(
+    std::shared_ptr<StreamBuilder> inner,
     std::chrono::steady_clock::duration idle_timeout)
-    : idle_timeout_(idle_timeout) {}
+    : StreamBuilderDecorator(std::move(inner)), idle_timeout_(idle_timeout) {}
 
 void PooledStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
                                   AcquireCallback cb) {
@@ -236,26 +239,14 @@ void PooledStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
     }
   }
 
-  // Pool miss — create a fresh connection.
-  auto direct = DirectStreamBuilder::Create();
-  direct->Acquire(std::move(key), executor, std::move(cb));
+  // Pool miss — delegate to inner builder for a fresh connection.
+  inner_->Acquire(std::move(key), executor, std::move(cb));
 }
 
 void PooledStreamBuilder::Return(StreamSlot slot) {
   if (!slot.IsReusable()) {
-    boost::system::error_code ignored;
-    if (slot.ssl_stream) {
-      auto& socket = boost::beast::get_lowest_layer(*slot.ssl_stream).socket();
-      socket.cancel(ignored);
-      socket.shutdown(Tcp::socket::shutdown_both, ignored);
-      socket.close(ignored);
-    }
-    if (slot.tcp_stream) {
-      auto& socket = slot.tcp_stream->socket();
-      socket.cancel(ignored);
-      socket.shutdown(Tcp::socket::shutdown_both, ignored);
-      socket.close(ignored);
-    }
+    // Delegate to inner builder (which closes the connection).
+    inner_->Return(std::move(slot));
     return;
   }
 
@@ -263,6 +254,124 @@ void PooledStreamBuilder::Return(StreamSlot slot) {
 
   std::scoped_lock const lock(mutex_);
   pool_[slot.key].push_back(std::move(slot));
+}
+
+// ---- StreamBuilderDecorator ----
+
+StreamBuilderDecorator::StreamBuilderDecorator(
+    std::shared_ptr<StreamBuilder> inner)
+    : inner_(std::move(inner)) {}
+
+void StreamBuilderDecorator::Acquire(ConnectionKey key,
+                                     IoContextExecutor executor,
+                                     AcquireCallback cb) {
+  inner_->Acquire(std::move(key), std::move(executor), std::move(cb));
+}
+
+void StreamBuilderDecorator::Return(StreamSlot slot) {
+  inner_->Return(std::move(slot));
+}
+
+// ---- WebSocketStreamBuilder ----
+
+namespace {
+
+/**
+ * Call chain for WebSocketStreamBuilder::Acquire (WSS path):
+ *
+ *   Acquire
+ *     → resolver.async_resolve
+ *       → OnWebSocketResolve (lambda)
+ *         → DoWebSocketTcpConnect
+ *           → tcp_stream.async_connect
+ *             → OnWebSocketTcpConnect (lambda) → cb(slot)
+ */
+
+/** @brief Connect plain TCP for deferred WSS and produce a StreamSlot. */
+void DoWebSocketTcpConnect(ConnectionKey key, IoContextExecutor executor,
+                           const TcpResolverResults& results,
+                           StreamBuilder::AcquireCallback cb) {
+  auto tcp_stream = std::make_unique<TcpStream>(executor);
+  tcp_stream->expires_after(std::chrono::seconds(2));
+
+  tcp_stream->async_connect(
+      results, [key = std::move(key), tcp_stream = std::move(tcp_stream),
+                cb = std::move(cb)](boost::system::error_code ec,
+                                    const TcpEndpoint&) mutable {
+        if (ec) {
+          cb(ec, StreamSlot{});
+          return;
+        }
+
+        // Return TcpStream with deferred SSL info.
+        // WebSocketClientTask will wrap this in websocket::stream<SslStream>
+        // and perform the TLS handshake itself.
+        StreamSlot slot;
+        slot.key = key;
+        slot.tcp_stream = std::move(tcp_stream);
+        slot.deferred_ssl_ctx = key.ssl_ctx;
+        slot.deferred_verify_peer = key.verify_peer;
+        slot.sni_hostname = key.host;
+        slot.http_version = 11;
+        cb({}, std::move(slot));
+      });
+}
+
+}  // namespace
+
+std::shared_ptr<WebSocketStreamBuilder> WebSocketStreamBuilder::Create(
+    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
+    bool verify_peer) {
+  void* raw =
+      Allocate(sizeof(WebSocketStreamBuilder), alignof(WebSocketStreamBuilder));
+  try {
+    auto* builder = new (raw) WebSocketStreamBuilder(
+        std::move(inner), std::move(ssl_ctx), verify_peer);
+    return {builder,
+            [](WebSocketStreamBuilder* ptr) { DestroyDeallocate(ptr); }};
+  } catch (...) {
+    Deallocate(raw, sizeof(WebSocketStreamBuilder),
+               alignof(WebSocketStreamBuilder));
+    throw;
+  }
+}
+
+WebSocketStreamBuilder::WebSocketStreamBuilder(
+    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
+    bool verify_peer)
+    : StreamBuilderDecorator(std::move(inner)),
+      ssl_ctx_(std::move(ssl_ctx)),
+      verify_peer_(verify_peer) {}
+
+void WebSocketStreamBuilder::Acquire(ConnectionKey key,
+                                     IoContextExecutor executor,
+                                     AcquireCallback cb) {
+  // For non-SSL WebSocket, forward to inner builder (plain TCP).
+  if (key.ssl_ctx == nullptr) {
+    inner_->Acquire(std::move(key), std::move(executor), std::move(cb));
+    return;
+  }
+
+  // For WSS: resolve DNS + connect TCP only, defer TLS handshake.
+  // Beast's websocket::stream<SslStream> expects handshake after wrapping.
+  auto resolver = std::make_shared<TcpResolver>(executor);
+
+  const std::string resolve_host = key.host;
+  const std::string resolve_port = key.port;
+
+  resolver->async_resolve(
+      resolve_host, resolve_port,
+      [this_shared = shared_from_this(), key = std::move(key),
+       executor = std::move(executor), cb = std::move(cb),
+       resolver](boost::system::error_code ec,
+                 const TcpResolverResults& results) mutable {
+        if (ec) {
+          cb(ec, StreamSlot{});
+          return;
+        }
+        DoWebSocketTcpConnect(std::move(key), std::move(executor), results,
+                              std::move(cb));
+      });
 }
 
 }  // namespace bsrvcore

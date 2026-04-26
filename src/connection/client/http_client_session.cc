@@ -200,7 +200,11 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
       std::move(io_executor), std::move(host), std::move(port),
       std::move(target), std::move(handler), std::move(options));
   if (task) {
-    auto builder = DirectStreamBuilder::Create();
+    // Replace with session's assembler and a WebSocketStreamBuilder for WSS.
+    const auto& ssl_state =
+        connection_internal::GetDefaultClientSslContextState();
+    auto builder = WebSocketStreamBuilder::Create(
+        DirectStreamBuilder::Create(), ssl_state.ssl_ctx, options.verify_peer);
     task->SetAssembler(shared_from_this(), builder);
   }
   return task;
@@ -211,11 +215,12 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
     std::string host, std::string port, std::string target,
     WebSocketClientTask::HandlerPtr handler, HttpClientOptions options) {
   auto task = WebSocketClientTask::CreateHttps(
-      std::move(io_executor), std::move(ssl_ctx), std::move(host),
-      std::move(port), std::move(target), std::move(handler),
-      std::move(options));
+      std::move(io_executor), ssl_ctx, std::move(host), std::move(port),
+      std::move(target), std::move(handler), std::move(options));
   if (task) {
-    auto builder = DirectStreamBuilder::Create();
+    // Replace with session's assembler and a WebSocketStreamBuilder for WSS.
+    auto builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
+                                                  ssl_ctx, options.verify_peer);
     task->SetAssembler(shared_from_this(), builder);
   }
   return task;
@@ -228,8 +233,9 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
       std::move(io_executor), std::move(url), std::move(handler),
       std::move(options));
   if (task) {
-    auto builder = DirectStreamBuilder::Create();
-    task->SetAssembler(shared_from_this(), builder);
+    // Replace only the assembler (session for cookie management).
+    // The builder (WebSocketStreamBuilder for WSS) is already set correctly.
+    task->SetAssemblerOnly(shared_from_this());
   }
   return task;
 }
@@ -242,8 +248,9 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketFromUrl(
       std::move(io_executor), std::move(ssl_ctx), std::move(url),
       std::move(handler), std::move(options));
   if (task) {
-    auto builder = DirectStreamBuilder::Create();
-    task->SetAssembler(shared_from_this(), builder);
+    // Replace only the assembler (session for cookie management).
+    // The builder (WebSocketStreamBuilder for WSS) is already set correctly.
+    task->SetAssemblerOnly(shared_from_this());
   }
   return task;
 }
