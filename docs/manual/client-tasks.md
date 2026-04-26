@@ -3,6 +3,7 @@
 This chapter maps to:
 
 - `include/bsrvcore/connection/client/http_client_task.h`
+- `include/bsrvcore/connection/client/http_client_session.h`
 - `include/bsrvcore/connection/client/put_generator.h`
 - `include/bsrvcore/connection/client/multipart_generator.h`
 - `include/bsrvcore/connection/client/http_sse_client_task.h`
@@ -258,6 +259,156 @@ task->Start([&pull_next](const bsrvcore::HttpSseClientResult& r) {
 
 ioc.run();
 ```
+
+## HttpClientSession
+
+`HttpClientSession` is a factory object that creates `HttpClientTask` (and
+`WebSocketClientTask`) instances that all share one **cookie jar**.
+
+Use a session when:
+
+- you need cookies to persist across multiple requests to the same host, or
+- you want a single object to issue requests to several different hosts while
+  keeping their cookies separated automatically.
+
+Create a session with `HttpClientSession::Create()`, then call its factory
+methods instead of `HttpClientTask::Create*`:
+
+```cpp
+bsrvcore::IoContext ioc;
+
+auto session = bsrvcore::HttpClientSession::Create();
+
+// First request — server may set a cookie.
+auto t1 = session->CreateFromUrl(
+    ioc.get_executor(),
+    "http://example.com/login",
+    bsrvcore::HttpVerb::post);
+
+t1->SetJson(login_body);
+t1->OnDone([&session, &ioc](const bsrvcore::HttpClientResult& r) {
+    if (r.ec || r.cancelled) { return; }
+
+    // Second request — the session automatically injects the cookie.
+    auto t2 = session->CreateFromUrl(
+        ioc.get_executor(),
+        "http://example.com/api/data",
+        bsrvcore::HttpVerb::get);
+
+    t2->OnDone([](const bsrvcore::HttpClientResult& r2) {
+        // r2.response contains the data
+    });
+    t2->Start();
+});
+
+t1->Start();
+ioc.run();
+```
+
+The session also exposes `CreateHttp`, `CreateHttps`, and the corresponding
+WebSocket factories — all with the same signatures as the static `HttpClientTask`
+factories.
+
+### Cookie jar management
+
+The cookie jar is in-memory only and is not saved to disk. It is cleared when
+the `HttpClientSession` object is destroyed. You can manage it directly:
+
+```cpp
+session->ClearCookies();           // remove all stored cookies
+std::size_t n = session->CookieCount();  // count after expired cleanup
+```
+
+## Proxy support
+
+Route requests through an HTTP or HTTPS proxy by setting
+`HttpClientOptions::proxy` before creating the task.
+
+```cpp
+bsrvcore::HttpClientOptions opts;
+opts.proxy.host = "proxy.corp.example";
+opts.proxy.port = "3128";
+opts.proxy.auth = "Basic dXNlcjpwYXNz";  // base64(user:pass), optional
+
+auto task = bsrvcore::HttpClientTask::CreateFromUrl(
+    ioc.get_executor(),
+    "https://api.example.com/data",
+    bsrvcore::HttpVerb::get,
+    opts);
+```
+
+`auth` is the raw `Proxy-Authorization` header value. Leave it empty if the
+proxy does not require authentication.
+
+Behaviour by scheme:
+
+- **HTTP target** — the request target is rewritten to absolute-form
+  (`http://api.example.com/data`) and sent to the proxy server directly.
+- **HTTPS target** — a `CONNECT` tunnel is established to the proxy, then TLS
+  is negotiated through the tunnel to the real server.
+
+Proxy configuration also works with `HttpClientSession`:
+
+```cpp
+auto t = session->CreateFromUrl(
+    ioc.get_executor(),
+    "https://api.example.com/data",
+    bsrvcore::HttpVerb::get,
+    opts);   // same opts with proxy set
+```
+
+## Connection management
+
+### Default: one connection per task
+
+When you create a task through the static `HttpClientTask::Create*` factories,
+each task opens its own TCP (or TLS) connection, uses it, and closes it when
+done. This is the `DirectStreamBuilder` mode.
+
+The same applies to tasks created through `HttpClientSession`: each task opens
+its own connection. The session shares the cookie jar, not the connections.
+
+### Connection pooling with PooledStreamBuilder
+
+`PooledStreamBuilder` caches idle connections keyed by host + port + scheme so
+that consecutive requests to the same endpoint reuse the same TCP/TLS session
+instead of reconnecting.
+
+You do not need to construct a `PooledStreamBuilder` manually for typical use
+cases. It is the mechanism available if you build a custom task pipeline. Idle
+connections are evicted after a configurable timeout (default: 60 seconds).
+
+## Customisation hooks
+
+Every `HttpClientTask` runs through a three-phase pipeline:
+
+```mermaid
+flowchart LR
+    Start([Start])
+
+    subgraph P1["Phase 1 — Assembler (sync)"]
+        A["Inject headers\nDerive ConnectionKey"]
+    end
+
+    subgraph P2["Phase 2 — Builder (async)"]
+        B["DNS → TCP connect\n→ optional TLS\n→ StreamSlot"]
+    end
+
+    subgraph P3["Phase 3 — Task (async)"]
+        C["WriteRequest\nReadHeader\nReadBody\n→ kDone callback"]
+    end
+
+    Start --> P1 -->|ConnectionKey| P2 -->|StreamSlot| P3
+```
+
+The supported customisation points for application code are:
+
+- **Proxy** — set `HttpClientOptions::proxy` to route through a proxy server.
+- **Session** — use `HttpClientSession` to share a cookie jar across requests.
+
+Advanced injection of custom `RequestAssembler` or `StreamBuilder`
+implementations is possible via internal `CreateAssembledTask` overloads, but
+these are not part of the public API surface and may change between releases.
 
 ## Cancellation
 

@@ -25,7 +25,7 @@ Read in this order:
 10. [Sessions, context, cookies](sessions-context-cookies.md) — Goal: store per-request and per-session data.
 11. [Logging](logging.md) — Goal: plug in your logger and log from handlers.
 12. [Async waiters](async-waiters.md) — Goal: converge several independent callbacks into one final callback.
-13. [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md) — Goal: call other services (HTTP), consume SSE, or build upload requests from files.
+13. [Client tasks (HTTP/HTTPS + SSE)](client-tasks.md) — Goal: call other services (HTTP), consume SSE, build upload requests from files, use sessions with cookie jars, route through a proxy, or understand connection management.
 14. [WebSocket tasks](websocket-tasks.md) — Goal: understand current WebSocket task lifecycle and first-stage limits.
 15. [Examples](examples.md) — Goal: run the sample programs.
 16. [Testing](testing.md) — Goal: build and run tests locally and in CI.

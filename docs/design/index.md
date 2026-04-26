@@ -14,6 +14,7 @@ changes safely.
 4. [Threading and executors](threading-and-executors.md)
 5. [Routing and sessions](routing-and-sessions.md)
 6. [WebSocket lifecycle](websocket-lifecycle.md)
+7. [HTTP client pipeline](client-pipeline.md)
 
 ## Scope
 
