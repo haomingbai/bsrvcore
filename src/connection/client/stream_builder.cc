@@ -452,10 +452,9 @@ void DoProxyConnect(ConnectionKey original_key,
               }
               const auto space2 = resp.find(' ', space1 + 1);
               const std::string status_str =
-                  resp.substr(space1 + 1,
-                              space2 == std::string::npos
-                                  ? std::string::npos
-                                  : space2 - space1 - 1);
+                  resp.substr(space1 + 1, space2 == std::string::npos
+                                              ? std::string::npos
+                                              : space2 - space1 - 1);
               const int status = std::stoi(status_str);
               if (status != 200) {
                 cb(make_error_code(boost::system::errc::connection_refused),
@@ -474,8 +473,8 @@ void DoProxyConnect(ConnectionKey original_key,
 void DoProxyTlsHandshake(ConnectionKey original_key,
                          std::shared_ptr<TcpStream> tcp_stream,
                          StreamBuilder::AcquireCallback cb) {
-  auto ssl_stream = std::make_shared<SslStream>(
-      std::move(*tcp_stream), *original_key.proxy_ssl_ctx);
+  auto ssl_stream = std::make_shared<SslStream>(std::move(*tcp_stream),
+                                                *original_key.proxy_ssl_ctx);
 
   // SNI hostname = original target host.
   if (SSL_set_tlsext_host_name(ssl_stream->native_handle(),
@@ -498,22 +497,24 @@ void DoProxyTlsHandshake(ConnectionKey original_key,
   boost::beast::get_lowest_layer(*ssl_stream)
       .expires_after(std::chrono::seconds(5));
 
-  (*ssl_stream).async_handshake(
-      boost::asio::ssl::stream_base::client,
-      [original_key = std::move(original_key), ssl_stream,
-       cb = std::move(cb)](boost::system::error_code ec) mutable {
-        if (ec) {
-          cb(ec, StreamSlot{});
-          return;
-        }
+  (*ssl_stream)
+      .async_handshake(
+          boost::asio::ssl::stream_base::client,
+          [original_key = std::move(original_key), ssl_stream,
+           cb = std::move(cb)](boost::system::error_code ec) mutable {
+            if (ec) {
+              cb(ec, StreamSlot{});
+              return;
+            }
 
-        StreamSlot slot;
-        slot.key = original_key;
-        slot.ssl_stream = std::make_unique<SslStream>(std::move(*ssl_stream));
-        slot.sni_hostname = original_key.host;
-        slot.http_version = 11;
-        cb({}, std::move(slot));
-      });
+            StreamSlot slot;
+            slot.key = original_key;
+            slot.ssl_stream =
+                std::make_unique<SslStream>(std::move(*ssl_stream));
+            slot.sni_hostname = original_key.host;
+            slot.http_version = 11;
+            cb({}, std::move(slot));
+          });
 }
 
 /** @brief Handle TCP connection to proxy server. */
@@ -538,8 +539,7 @@ void OnProxyTcpAcquired(ConnectionKey original_key,
 
 std::shared_ptr<ProxyStreamBuilder> ProxyStreamBuilder::Create(
     std::shared_ptr<StreamBuilder> inner) {
-  void* raw =
-      Allocate(sizeof(ProxyStreamBuilder), alignof(ProxyStreamBuilder));
+  void* raw = Allocate(sizeof(ProxyStreamBuilder), alignof(ProxyStreamBuilder));
   try {
     auto* builder = new (raw) ProxyStreamBuilder(std::move(inner));
     return {builder, [](ProxyStreamBuilder* ptr) { DestroyDeallocate(ptr); }};
@@ -575,9 +575,8 @@ void ProxyStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
   proxy_key.verify_peer = false;  // No TLS to proxy.
 
   inner_->Acquire(std::move(proxy_key), std::move(executor),
-                  [original_key = std::move(original_key),
-                   cb = std::move(cb)](boost::system::error_code ec,
-                                       StreamSlot slot) mutable {
+                  [original_key = std::move(original_key), cb = std::move(cb)](
+                      boost::system::error_code ec, StreamSlot slot) mutable {
                     OnProxyTcpAcquired(std::move(original_key), std::move(cb),
                                        ec, std::move(slot));
                   });

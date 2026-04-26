@@ -99,7 +99,7 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
   // Create assembler BEFORE moving host/port into the task.
   std::shared_ptr<RequestAssembler> assembler =
       AllocateShared<DefaultRequestAssembler>("https", host, port,
-                                               ssl_state.ssl_ctx);
+                                              ssl_state.ssl_ctx);
 
   // Choose builder based on proxy configuration.
   // Proxy path: ProxyStreamBuilder does CONNECT+TLS, returns ready SslStream.
@@ -110,9 +110,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
         std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
     builder = ProxyStreamBuilder::Create(DirectStreamBuilder::Create());
   } else {
-    builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
-                                             ssl_state.ssl_ctx,
-                                             options.verify_peer);
+    builder = WebSocketStreamBuilder::Create(
+        DirectStreamBuilder::Create(), ssl_state.ssl_ctx, options.verify_peer);
   }
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
