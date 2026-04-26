@@ -40,7 +40,7 @@ class StreamBuilder : public std::enable_shared_from_this<StreamBuilder>,
   using AcquireCallback =
       std::function<void(boost::system::error_code, StreamSlot)>;
 
-  ~StreamBuilder() = default;
+  virtual ~StreamBuilder() = default;
 
   /**
    * @brief Asynchronously acquire a stream matching the given key.
@@ -181,6 +181,39 @@ class WebSocketStreamBuilder : public StreamBuilderDecorator {
 
   SslContextPtr ssl_ctx_;
   bool verify_peer_;
+};
+
+/**
+ * @brief HTTPS proxy builder: establishes CONNECT tunnel + TLS.
+ *
+ * For HTTPS connections through a proxy, the flow is:
+ *   1. Connect to proxy via plain TCP (inner builder, ssl_ctx=nullptr)
+ *   2. Send CONNECT target_host:target_port
+ *   3. Read CONNECT response (expect 200 Connection Established)
+ *   4. Perform TLS handshake on the tunnel (SNI = target_host)
+ *   5. Return the handshaked SslStream
+ *
+ * For HTTP proxy or non-proxy connections, delegates to inner builder.
+ *
+ * The proxy host/port are taken from ConnectionKey.proxy_host/proxy_port
+ * (set by ProxyRequestAssembler). The actual target host/port are in
+ * ConnectionKey.host/port.
+ */
+class ProxyStreamBuilder : public StreamBuilderDecorator {
+ public:
+  /**
+   * @brief Create a ProxyStreamBuilder.
+   *
+   * @param inner Inner builder for non-proxy and HTTP proxy connections.
+   */
+  static std::shared_ptr<ProxyStreamBuilder> Create(
+      std::shared_ptr<StreamBuilder> inner);
+
+  void Acquire(ConnectionKey key, IoContextExecutor executor,
+               AcquireCallback cb) override;
+
+ private:
+  explicit ProxyStreamBuilder(std::shared_ptr<StreamBuilder> inner);
 };
 
 }  // namespace bsrvcore

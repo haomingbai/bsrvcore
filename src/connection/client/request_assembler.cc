@@ -558,4 +558,65 @@ void SessionRequestAssembler::UpsertCookieLocked(Cookie incoming) {
   cookies_.push_back(std::move(incoming));
 }
 
+// ---- ProxyRequestAssembler ----
+
+ProxyRequestAssembler::ProxyRequestAssembler(
+    std::shared_ptr<RequestAssembler> inner, ProxyConfig proxy)
+    : inner_(std::move(inner)), proxy_(std::move(proxy)) {}
+
+RequestAssembler::AssemblyResult ProxyRequestAssembler::Assemble(
+    HttpClientRequest request, const HttpClientOptions& options,
+    std::string_view scheme, std::string_view host, std::string_view port,
+    SslContextPtr ssl_ctx) {
+  // Delegate to inner assembler first.
+  auto result = inner_->Assemble(request, options, scheme, host, port, ssl_ctx);
+
+  if (!proxy_.enabled()) {
+    return result;
+  }
+
+  const bool is_https = (result.connection_key.scheme == "https");
+
+  if (!is_https) {
+    // HTTP proxy: rewrite target to absolute-form.
+    // E.g. GET /path → GET http://target:port/path
+    const std::string original_target(result.request.target());
+    const std::string original_host(result.connection_key.host);
+    const std::string original_port(result.connection_key.port);
+
+    std::string absolute_url = "http://" + original_host;
+    if (original_port != "80") {
+      absolute_url += ":" + original_port;
+    }
+    absolute_url += original_target;
+    result.request.target(absolute_url);
+  }
+
+  // Both HTTP and HTTPS proxy: ConnectionKey points to the proxy server.
+  // For HTTPS, ssl_ctx is cleared so ProxyStreamBuilder does CONNECT first.
+  result.connection_key.proxy_host = proxy_.host;
+  result.connection_key.proxy_port = proxy_.port;
+
+  if (is_https) {
+    // HTTPS proxy: connection goes to proxy in plain TCP first,
+    // then CONNECT tunnel, then TLS. ProxyStreamBuilder handles this.
+    // Preserve the original SSL context for TLS handshake on the tunnel.
+    result.connection_key.proxy_ssl_ctx = result.connection_key.ssl_ctx;
+    result.connection_key.ssl_ctx = nullptr;
+  }
+
+  // Inject Proxy-Authorization header if configured.
+  if (!proxy_.auth.empty()) {
+    result.request.set(http::field::proxy_authorization, proxy_.auth);
+  }
+
+  return result;
+}
+
+void ProxyRequestAssembler::OnResponseHeader(const HttpResponseHeader& header,
+                                             std::string_view host,
+                                             std::string_view target) {
+  inner_->OnResponseHeader(header, host, target);
+}
+
 }  // namespace bsrvcore

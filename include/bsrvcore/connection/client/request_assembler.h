@@ -51,7 +51,7 @@ class RequestAssembler : public NonCopyableNonMovable<RequestAssembler> {
     ConnectionKey connection_key;
   };
 
-  ~RequestAssembler() = default;
+  virtual ~RequestAssembler() = default;
 
   /**
    * @brief Assemble a request with the given connection identity.
@@ -107,6 +107,8 @@ class DefaultRequestAssembler : public RequestAssembler {
    */
   DefaultRequestAssembler(std::string scheme, std::string host,
                           std::string port, SslContextPtr ssl_ctx = {});
+
+  ~DefaultRequestAssembler() override = default;
 
   AssemblyResult Assemble(HttpClientRequest request,
                           const HttpClientOptions& options,
@@ -271,6 +273,49 @@ class SessionRequestAssembler : public RequestAssembler {
 
   mutable std::mutex mutex_;
   mutable CookieStorage cookies_;
+};
+
+/**
+ * @brief Decorator that routes requests through an HTTP/HTTPS proxy.
+ *
+ * Wraps an inner RequestAssembler and modifies the assembly result:
+ *
+ * - **HTTP proxy**: Rewrites the request target to absolute-form
+ *   (e.g. "http://target/path") and sets ConnectionKey to the proxy
+ *   server. The proxy forwards the request to the actual target.
+ *
+ * - **HTTPS proxy**: Keeps the target as-is but sets ConnectionKey to
+ *   the proxy server with ssl_ctx=nullptr. ProxyStreamBuilder then
+ *   establishes a CONNECT tunnel and performs TLS through it.
+ *
+ * If the proxy is not enabled (proxy.host is empty), the inner
+ * assembler's result is returned unchanged.
+ */
+class ProxyRequestAssembler : public RequestAssembler {
+ public:
+  /**
+   * @brief Construct with an inner assembler and proxy configuration.
+   *
+   * @param inner Inner assembler to delegate to.
+   * @param proxy Proxy configuration (host, port, auth).
+   */
+  ProxyRequestAssembler(std::shared_ptr<RequestAssembler> inner,
+                        ProxyConfig proxy);
+
+  ~ProxyRequestAssembler() override = default;
+
+  AssemblyResult Assemble(HttpClientRequest request,
+                          const HttpClientOptions& options,
+                          std::string_view scheme, std::string_view host,
+                          std::string_view port,
+                          SslContextPtr ssl_ctx) override;
+
+  void OnResponseHeader(const HttpResponseHeader& header, std::string_view host,
+                        std::string_view target) override;
+
+ private:
+  std::shared_ptr<RequestAssembler> inner_;
+  ProxyConfig proxy_;
 };
 
 }  // namespace bsrvcore

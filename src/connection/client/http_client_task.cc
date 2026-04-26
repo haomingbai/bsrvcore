@@ -78,9 +78,18 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateAssembledTask(
     std::string host, std::string port, std::string target, http::verb method,
     HttpClientOptions options, SslContextPtr ssl_ctx,
     boost::system::error_code create_ec) {
-  auto assembler =
+  // Create base assembler and builder.
+  std::shared_ptr<RequestAssembler> assembler =
       std::make_shared<DefaultRequestAssembler>(scheme, host, port, ssl_ctx);
-  auto builder = DirectStreamBuilder::Create();
+  std::shared_ptr<StreamBuilder> builder = DirectStreamBuilder::Create();
+
+  // If proxy is configured, wrap assembler and builder.
+  if (options.proxy.enabled()) {
+    assembler =
+        std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
+    builder = ProxyStreamBuilder::Create(builder);
+  }
+
   assembler->SetStreamBuilder(builder);
 
   const bool use_ssl = (scheme == "https");

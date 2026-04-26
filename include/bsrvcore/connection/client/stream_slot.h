@@ -42,11 +42,28 @@ struct ConnectionKey {
   SslContextPtr ssl_ctx;
   /** @brief Whether to verify TLS peer certificate. */
   bool verify_peer{true};
+  /** @brief Proxy server host (empty = no proxy). */
+  std::string proxy_host;
+  /** @brief Proxy server port (empty = no proxy). */
+  std::string proxy_port;
+  /**
+   * @brief Original SSL context for HTTPS proxy CONNECT tunnel TLS.
+   *
+   * When ProxyRequestAssembler clears ssl_ctx (so the inner builder
+   * connects to the proxy via plain TCP), this field preserves the
+   * original SSL context so ProxyStreamBuilder can perform TLS
+   * handshake on the CONNECT tunnel.
+   */
+  SslContextPtr proxy_ssl_ctx;
+
+  /** @brief Whether this connection goes through a proxy. */
+  [[nodiscard]] bool has_proxy() const noexcept { return !proxy_host.empty(); }
 
   /** @brief Equality comparison for unordered container lookup. */
   bool operator==(const ConnectionKey& other) const noexcept {
     return scheme == other.scheme && host == other.host && port == other.port &&
-           ssl_ctx == other.ssl_ctx && verify_peer == other.verify_peer;
+           ssl_ctx == other.ssl_ctx && verify_peer == other.verify_peer &&
+           proxy_host == other.proxy_host && proxy_port == other.proxy_port;
   }
 };
 
@@ -65,6 +82,8 @@ struct ConnectionKeyHash {
     combine(std::hash<std::string>{}(k.port));
     combine(std::hash<const void*>{}(k.ssl_ctx.get()));
     combine(std::hash<bool>{}(k.verify_peer));
+    combine(std::hash<std::string>{}(k.proxy_host));
+    combine(std::hash<std::string>{}(k.proxy_port));
     return h;
   }
 };

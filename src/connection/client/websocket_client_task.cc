@@ -97,11 +97,23 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
       connection_internal::GetDefaultClientSslContextState();
 
   // Create assembler BEFORE moving host/port into the task.
-  auto assembler = AllocateShared<DefaultRequestAssembler>("https", host, port,
-                                                           ssl_state.ssl_ctx);
-  // Use WebSocketStreamBuilder for WSS (deferred TLS handshake).
-  auto builder = WebSocketStreamBuilder::Create(
-      DirectStreamBuilder::Create(), ssl_state.ssl_ctx, options.verify_peer);
+  std::shared_ptr<RequestAssembler> assembler =
+      AllocateShared<DefaultRequestAssembler>("https", host, port,
+                                               ssl_state.ssl_ctx);
+
+  // Choose builder based on proxy configuration.
+  // Proxy path: ProxyStreamBuilder does CONNECT+TLS, returns ready SslStream.
+  // Non-proxy path: WebSocketStreamBuilder defers TLS for Beast compatibility.
+  std::shared_ptr<StreamBuilder> builder;
+  if (options.proxy.enabled()) {
+    assembler =
+        std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
+    builder = ProxyStreamBuilder::Create(DirectStreamBuilder::Create());
+  } else {
+    builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
+                                             ssl_state.ssl_ctx,
+                                             options.verify_peer);
+  }
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),

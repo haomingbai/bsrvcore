@@ -43,6 +43,30 @@ using HttpClientRequest = HttpRequest;
 using HttpClientResponse = HttpResponse;
 
 /**
+ * @brief HTTP/HTTPS proxy configuration.
+ *
+ * When enabled (host is non-empty), requests are routed through the
+ * specified proxy server. For HTTP, the request target is rewritten to
+ * absolute-form. For HTTPS, a CONNECT tunnel is established.
+ */
+struct ProxyConfig {
+  /** @brief Proxy server hostname or IP. Empty means no proxy. */
+  std::string host;
+  /** @brief Proxy server port string (e.g. "8080"). */
+  std::string port;
+  /**
+   * @brief Proxy-Authorization header value.
+   *
+   * E.g. "Basic dXNlcjpwYXNz" for base64(user:pass).
+   * Empty means no authentication.
+   */
+  std::string auth;
+
+  /** @brief Whether proxy is configured. */
+  [[nodiscard]] bool enabled() const noexcept { return !host.empty(); }
+};
+
+/**
  * @brief Runtime options for a single HTTP/HTTPS client request.
  */
 struct HttpClientOptions : public CopyableMovable<HttpClientOptions> {
@@ -67,6 +91,8 @@ struct HttpClientOptions : public CopyableMovable<HttpClientOptions> {
   bool keep_alive{false};
   /** @brief Optional User-Agent header value. */
   std::string user_agent;
+  /** @brief Optional HTTP/HTTPS proxy configuration. */
+  ProxyConfig proxy;
 };
 
 /**

@@ -14,12 +14,15 @@
 #include <openssl/ssl.h>
 
 #include <boost/asio/bind_executor.hpp>
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/asio/read_until.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
 #include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
+#include <boost/asio/write.hpp>
 #include <boost/beast/core/stream_traits.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
@@ -372,6 +375,212 @@ void WebSocketStreamBuilder::Acquire(ConnectionKey key,
         DoWebSocketTcpConnect(std::move(key), std::move(executor), results,
                               std::move(cb));
       });
+}
+
+// ---- ProxyStreamBuilder ----
+
+namespace {
+
+/**
+ * Call chain for ProxyStreamBuilder::Acquire (HTTPS proxy path):
+ *
+ *   Acquire
+ *     → inner_.Acquire (connect to proxy via TCP)
+ *       → OnProxyTcpAcquired
+ *         → DoProxyConnect (send CONNECT request)
+ *           → async_write → OnProxyConnectWritten
+ *             → async_read → OnProxyConnectResponse
+ *               → DoProxyTlsHandshake
+ *                 → ssl_stream.async_handshake → OnProxyTlsHandshake
+ *                   → cb(slot)
+ */
+
+// Forward declaration: DoProxyTlsHandshake is called from DoProxyConnect's
+// lambda but defined after it.
+void DoProxyTlsHandshake(ConnectionKey original_key,
+                         std::shared_ptr<TcpStream> tcp_stream,
+                         StreamBuilder::AcquireCallback cb);
+
+/** @brief Send CONNECT request and read response on the proxy TCP stream. */
+void DoProxyConnect(ConnectionKey original_key,
+                    std::shared_ptr<TcpStream> tcp_stream,
+                    StreamBuilder::AcquireCallback cb) {
+  // Build CONNECT request.
+  const std::string connect_target =
+      original_key.host + ":" + original_key.port;
+  std::string connect_req = "CONNECT " + connect_target + " HTTP/1.1\r\n" +
+                            "Host: " + connect_target + "\r\n" +
+                            "Proxy-Connection: Keep-Alive\r\n";
+  if (!original_key.proxy_ssl_ctx) {
+    // Should not happen, but guard against it.
+    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    return;
+  }
+  connect_req += "\r\n";
+
+  auto buffer = std::make_shared<std::string>();
+  tcp_stream->expires_after(std::chrono::seconds(5));
+
+  boost::asio::async_write(
+      *tcp_stream, boost::asio::buffer(connect_req),
+      [tcp_stream, buffer, original_key = std::move(original_key),
+       cb = std::move(cb)](boost::system::error_code ec, std::size_t) mutable {
+        if (ec) {
+          cb(ec, StreamSlot{});
+          return;
+        }
+
+        // Read CONNECT response.
+        tcp_stream->expires_after(std::chrono::seconds(5));
+        boost::asio::async_read_until(
+            *tcp_stream, boost::asio::dynamic_buffer(*buffer), "\r\n\r\n",
+            [tcp_stream, buffer, original_key = std::move(original_key),
+             cb = std::move(cb)](boost::system::error_code ec,
+                                 std::size_t) mutable {
+              if (ec) {
+                cb(ec, StreamSlot{});
+                return;
+              }
+
+              // Parse status code from "HTTP/1.x STATUS ..."
+              const std::string& resp = *buffer;
+              const auto space1 = resp.find(' ');
+              if (space1 == std::string::npos || space1 + 1 >= resp.size()) {
+                cb(make_error_code(boost::system::errc::protocol_error),
+                   StreamSlot{});
+                return;
+              }
+              const auto space2 = resp.find(' ', space1 + 1);
+              const std::string status_str =
+                  resp.substr(space1 + 1,
+                              space2 == std::string::npos
+                                  ? std::string::npos
+                                  : space2 - space1 - 1);
+              const int status = std::stoi(status_str);
+              if (status != 200) {
+                cb(make_error_code(boost::system::errc::connection_refused),
+                   StreamSlot{});
+                return;
+              }
+
+              // CONNECT succeeded — perform TLS handshake on the tunnel.
+              DoProxyTlsHandshake(std::move(original_key),
+                                  std::move(tcp_stream), std::move(cb));
+            });
+      });
+}
+
+/** @brief Perform TLS handshake on the CONNECT tunnel. */
+void DoProxyTlsHandshake(ConnectionKey original_key,
+                         std::shared_ptr<TcpStream> tcp_stream,
+                         StreamBuilder::AcquireCallback cb) {
+  auto ssl_stream = std::make_shared<SslStream>(
+      std::move(*tcp_stream), *original_key.proxy_ssl_ctx);
+
+  // SNI hostname = original target host.
+  if (SSL_set_tlsext_host_name(ssl_stream->native_handle(),
+                               original_key.host.c_str()) != 1) {
+    cb(boost::system::error_code{static_cast<int>(::ERR_get_error()),
+                                 boost::asio::error::get_ssl_category()},
+       StreamSlot{});
+    return;
+  }
+
+  // Peer verification.
+  if (original_key.verify_peer) {
+    ssl_stream->set_verify_mode(boost::asio::ssl::verify_peer);
+    ssl_stream->set_verify_callback(
+        boost::asio::ssl::host_name_verification(original_key.host));
+  } else {
+    ssl_stream->set_verify_mode(boost::asio::ssl::verify_none);
+  }
+
+  boost::beast::get_lowest_layer(*ssl_stream)
+      .expires_after(std::chrono::seconds(5));
+
+  (*ssl_stream).async_handshake(
+      boost::asio::ssl::stream_base::client,
+      [original_key = std::move(original_key), ssl_stream,
+       cb = std::move(cb)](boost::system::error_code ec) mutable {
+        if (ec) {
+          cb(ec, StreamSlot{});
+          return;
+        }
+
+        StreamSlot slot;
+        slot.key = original_key;
+        slot.ssl_stream = std::make_unique<SslStream>(std::move(*ssl_stream));
+        slot.sni_hostname = original_key.host;
+        slot.http_version = 11;
+        cb({}, std::move(slot));
+      });
+}
+
+/** @brief Handle TCP connection to proxy server. */
+void OnProxyTcpAcquired(ConnectionKey original_key,
+                        StreamBuilder::AcquireCallback cb,
+                        boost::system::error_code ec, StreamSlot slot) {
+  if (ec) {
+    cb(ec, StreamSlot{});
+    return;
+  }
+
+  if (!slot.tcp_stream) {
+    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    return;
+  }
+
+  auto tcp_ptr = std::make_shared<TcpStream>(std::move(*slot.tcp_stream));
+  DoProxyConnect(std::move(original_key), std::move(tcp_ptr), std::move(cb));
+}
+
+}  // namespace
+
+std::shared_ptr<ProxyStreamBuilder> ProxyStreamBuilder::Create(
+    std::shared_ptr<StreamBuilder> inner) {
+  void* raw =
+      Allocate(sizeof(ProxyStreamBuilder), alignof(ProxyStreamBuilder));
+  try {
+    auto* builder = new (raw) ProxyStreamBuilder(std::move(inner));
+    return {builder, [](ProxyStreamBuilder* ptr) { DestroyDeallocate(ptr); }};
+  } catch (...) {
+    Deallocate(raw, sizeof(ProxyStreamBuilder), alignof(ProxyStreamBuilder));
+    throw;
+  }
+}
+
+ProxyStreamBuilder::ProxyStreamBuilder(std::shared_ptr<StreamBuilder> inner)
+    : StreamBuilderDecorator(std::move(inner)) {}
+
+void ProxyStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
+                                 AcquireCallback cb) {
+  // Non-proxy or HTTP proxy: delegate to inner builder.
+  // HTTP proxy only needs request target rewriting (done by
+  // ProxyRequestAssembler); the TCP connection goes directly to the proxy.
+  if (!key.has_proxy() || key.scheme != "https") {
+    inner_->Acquire(std::move(key), std::move(executor), std::move(cb));
+    return;
+  }
+
+  // HTTPS proxy: connect to proxy via TCP, then CONNECT tunnel, then TLS.
+  // Save original target info before modifying the key for proxy connection.
+  ConnectionKey original_key = key;
+
+  // Create a key that points to the proxy server (plain TCP, no SSL).
+  ConnectionKey proxy_key;
+  proxy_key.scheme = "http";  // Plain TCP to proxy.
+  proxy_key.host = key.proxy_host;
+  proxy_key.port = key.proxy_port;
+  proxy_key.ssl_ctx = nullptr;
+  proxy_key.verify_peer = false;  // No TLS to proxy.
+
+  inner_->Acquire(std::move(proxy_key), std::move(executor),
+                  [original_key = std::move(original_key),
+                   cb = std::move(cb)](boost::system::error_code ec,
+                                       StreamSlot slot) mutable {
+                    OnProxyTcpAcquired(std::move(original_key), std::move(cb),
+                                       ec, std::move(slot));
+                  });
 }
 
 }  // namespace bsrvcore
