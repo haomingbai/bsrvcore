@@ -323,13 +323,12 @@ void DoWebSocketTcpConnect(ConnectionKey key, IoContextExecutor executor,
 }  // namespace
 
 std::shared_ptr<WebSocketStreamBuilder> WebSocketStreamBuilder::Create(
-    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
-    bool verify_peer) {
+    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx) {
   void* raw =
       Allocate(sizeof(WebSocketStreamBuilder), alignof(WebSocketStreamBuilder));
   try {
-    auto* builder = new (raw) WebSocketStreamBuilder(
-        std::move(inner), std::move(ssl_ctx), verify_peer);
+    auto* builder =
+        new (raw) WebSocketStreamBuilder(std::move(inner), std::move(ssl_ctx));
     return {builder,
             [](WebSocketStreamBuilder* ptr) { DestroyDeallocate(ptr); }};
   } catch (...) {
@@ -340,11 +339,8 @@ std::shared_ptr<WebSocketStreamBuilder> WebSocketStreamBuilder::Create(
 }
 
 WebSocketStreamBuilder::WebSocketStreamBuilder(
-    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
-    bool verify_peer)
-    : StreamBuilderDecorator(std::move(inner)),
-      ssl_ctx_(std::move(ssl_ctx)),
-      verify_peer_(verify_peer) {}
+    std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx)
+    : StreamBuilderDecorator(std::move(inner)), ssl_ctx_(std::move(ssl_ctx)) {}
 
 void WebSocketStreamBuilder::Acquire(ConnectionKey key,
                                      IoContextExecutor executor,

@@ -149,7 +149,7 @@ TEST(StressKeepAliveRouteParamTest,
       [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
         task->SetField("X-Stress-Aspect", "1");
       },
-      [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {});
+      [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& /*task*/) {});
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
       [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {

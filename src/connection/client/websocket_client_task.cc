@@ -110,8 +110,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
         std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
     builder = ProxyStreamBuilder::Create(DirectStreamBuilder::Create());
   } else {
-    builder = WebSocketStreamBuilder::Create(
-        DirectStreamBuilder::Create(), ssl_state.ssl_ctx, options.verify_peer);
+    builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
+                                             ssl_state.ssl_ctx);
   }
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
@@ -138,8 +138,8 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
   auto assembler =
       AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
   // Use WebSocketStreamBuilder for WSS (deferred TLS handshake).
-  auto builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
-                                                ssl_ctx, options.verify_peer);
+  auto builder =
+      WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(), ssl_ctx);
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -172,7 +172,7 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
       auto assembler =
           AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
       auto builder = WebSocketStreamBuilder::Create(
-          DirectStreamBuilder::Create(), ssl_ctx, options.verify_peer);
+          DirectStreamBuilder::Create(), ssl_ctx);
 
       auto ws_task = AllocateShared<WebSocketClientTask>(
           std::move(io_executor), std::move(host), std::move(port),
@@ -194,10 +194,9 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
       use_ssl ? "https" : "http", host, port, ssl_ctx);
   // Use WebSocketStreamBuilder for WSS, DirectStreamBuilder for WS.
   auto builder =
-      use_ssl
-          ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
-                DirectStreamBuilder::Create(), ssl_ctx, options.verify_peer))
-          : DirectStreamBuilder::Create();
+      use_ssl ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
+                    DirectStreamBuilder::Create(), ssl_ctx))
+              : DirectStreamBuilder::Create();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -229,8 +228,7 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
   // Use WebSocketStreamBuilder for WSS, DirectStreamBuilder for WS.
   auto builder =
       use_ssl ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
-                    DirectStreamBuilder::Create(), effective_ssl_ctx,
-                    options.verify_peer))
+                    DirectStreamBuilder::Create(), effective_ssl_ctx))
               : DirectStreamBuilder::Create();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(

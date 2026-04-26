@@ -15,8 +15,8 @@ class DummyHandler : public bsrvcore::HttpRequestHandler {
  public:
   explicit DummyHandler(std::string name) : name_(std::move(name)) {}
 
-  void Service(const std::shared_ptr<bsrvcore::HttpServerTask>& task) override {
-  }
+  void Service(
+      const std::shared_ptr<bsrvcore::HttpServerTask>& /*task*/) override {}
 
   const std::string& Name() const { return name_; }
 
@@ -29,9 +29,9 @@ class DummyAspect : public bsrvcore::HttpRequestAspectHandler {
   explicit DummyAspect(std::string name) : name_(std::move(name)) {}
 
   void PreService(
-      const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) override {}
+      const std::shared_ptr<bsrvcore::HttpPreServerTask>& /*task*/) override {}
   void PostService(
-      const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) override {}
+      const std::shared_ptr<bsrvcore::HttpPostServerTask>& /*task*/) override {}
 
   const std::string& Name() const { return name_; }
 
@@ -78,11 +78,11 @@ TEST(BluePrintTest, ReuseableBluePrintClonesOnEachMount) {
   blue_print
       .AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {})
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& /*task*/) {})
       ->AddTerminalAspect(
           bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
-          [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {},
-          [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {})
+          [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& /*task*/) {},
+          [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& /*task*/) {})
       ->SetWriteExpiry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}", 4321);
 
   server.AddBluePrint("/v1", blue_print)->AddBluePrint("/v2", blue_print);

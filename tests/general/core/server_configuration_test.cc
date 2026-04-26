@@ -46,7 +46,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   class MyRouteHandler : public HttpRequestHandler {
    public:
     MyRouteHandler() = default;
-    void Service(const std::shared_ptr<HttpServerTask>& task) override {
+    void Service(const std::shared_ptr<HttpServerTask>& /*task*/) override {
       return;
     }
   };

@@ -166,21 +166,18 @@ class WebSocketStreamBuilder : public StreamBuilderDecorator {
    *
    * @param inner Inner builder for WS (non-SSL) connections.
    * @param ssl_ctx SSL context for WSS connections.
-   * @param verify_peer Whether to verify TLS peer for WSS.
    */
   static std::shared_ptr<WebSocketStreamBuilder> Create(
-      std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx,
-      bool verify_peer = true);
+      std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx);
 
   void Acquire(ConnectionKey key, IoContextExecutor executor,
                AcquireCallback cb) override;
 
  private:
   WebSocketStreamBuilder(std::shared_ptr<StreamBuilder> inner,
-                         SslContextPtr ssl_ctx, bool verify_peer);
+                         SslContextPtr ssl_ctx);
 
   SslContextPtr ssl_ctx_;
-  bool verify_peer_;
 };
 
 /**

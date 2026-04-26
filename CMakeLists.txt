@@ -31,9 +31,15 @@ if(NOT DEFINED CMAKE_CXX_STANDARD)
   set(CMAKE_CXX_EXTENSIONS OFF)
 endif()
 
-# Add Wall flag.
+# Add Wall, Wextra, Werror flags on non-MSVC.
+# Apple: -Werror only (CI already fails on unused-private-field via clang).
+# Linux: -Wall -Wextra -Werror for stricter warnings.
 if(NOT MSVC)
-  add_compile_options(-Wall)
+  if(APPLE)
+    add_compile_options(-Wall -Werror)
+  else()
+    add_compile_options(-Wall -Wextra -Werror)
+  endif()
 endif()
 
 # Generate compile_commands.json to help LSP server
