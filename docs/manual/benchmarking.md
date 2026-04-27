@@ -30,35 +30,50 @@ because those selectors map to multiple scenario definitions.
 
 ## Single-Host Workflow
 
-Run a local sweep:
+Run a local sweep with defaults:
 
 ```bash
 bash scripts/benchmark.sh run
 ```
 
-Common overrides:
+Common overrides for quick iteration:
 
 ```bash
+# Fast smoke test with specific concurrency values
 bash scripts/benchmark.sh run \
-  --build-dir build-release \
   --scenario mainline \
-  --sweep-depth quick
+  --sweep-depth quick \
+  --coarse-concurrency-values "8,16,32,64,96,128" \
+  --coarse-only
+
+# Standard sweep with custom build directory
+bash scripts/benchmark.sh run \
+  --build-dir build-bench \
+  --scenario mainline \
+  --sweep-depth standard
 ```
 
 `run` does all of the following:
 
-- builds `bsrvcore_http_benchmark`
-- resolves a usable `wrk` binary
-- detects or creates a Python environment with `matplotlib`
-- sweeps benchmark pressure cells
-- writes a formatted JSON report
-- generates charts
+- builds `bsrvcore_http_benchmark` (with bundled wrk)
+- resolves a usable `wrk` binary (prefers the bundled one)
+- detects or creates a Python environment with required modules
+- sweeps benchmark pressure cells (coarse + optional fine refinement)
+- writes a consolidated JSON report
+- generates charts (capacity overview, per-connection throughput,
+  peak neighborhood, thread sensitivity, loadgen sensitivity)
 - writes a concise package summary under a gitignored run directory,
-  defaulting to `.artifacts/benchmark-results/<UTC timestamp>/package/`
+  defaulting to `.artifacts/benchmark-results/<UTC timestamp>/`
 
 `mainline` is a selector intended for the coarse/fine winner search. It
 currently resolves to `http_get_static` and excludes the parameterized body
 matrix scenarios.
+
+Use `--coarse-only` to skip the fine-grained refinement sweep — this is
+useful for quick iteration or when you only need a rough capacity curve.
+Use `--coarse-concurrency-values` with a comma-separated list to control
+exactly which concurrency levels are tested, instead of the default
+multiples (1×, 2×, 4×, 8× of the pressure thread count).
 
 ## Direct Probe Workflow
 
@@ -109,50 +124,113 @@ for low-concurrency points when needed.
 
 ## Dual-Host Workflow
 
+### Prerequisites
+
+Both hosts must have:
+
+- The bsrvcore source tree at the same (or specified) path
+- C++ build toolchain (GCC/Clang, cmake ≥ 3.20)
+- Python 3 with venv support
+- OpenSSL and Boost development headers
+
+The load-generator host additionally needs passwordless SSH access to the
+server host, configured via `~/.ssh/config` or explicit SSH options.
+
+### SSH-Orchestrated Split Roles (recommended)
+
+`ssh-run` is the simplest dual-host mode. It builds the benchmark binary on
+both hosts, starts the server on the remote, runs the sweep locally, and
+packages results, all in one command.
+
+Use an SSH config alias (preferred):
+
+```bash
+# ~/.ssh/config on the load-generator host:
+# Host myserver
+#   HostName 10.0.0.5
+#   User myuser
+#   Port 22
+
+bash scripts/benchmark.sh ssh-run \
+  --scenario http_get_static \
+  --ssh-target myserver \
+  --ssh-remote-root /home/myuser/bsrvcore \
+  --sweep-depth quick \
+  --coarse-concurrency-values "8,16,32,64,128"
+```
+
+Or use an explicit `user@host`:
+
+```bash
+bash scripts/benchmark.sh ssh-run \
+  --scenario http_get_static \
+  --ssh-target myuser@10.0.0.5 \
+  --ssh-remote-root /home/myuser/bsrvcore \
+  --sweep-depth standard
+```
+
+Key SSH options:
+
+| Option | Default | Purpose |
+|---|---|---|
+| `--ssh-target` | (required) | SSH destination (`user@host` or config alias) |
+| `--ssh-remote-root` | same as local `$ROOT_DIR` | Path to bsrvcore on the server host |
+| `--ssh-port` | (from config) | Override SSH port |
+| `--ssh-key` | (from config) | Override SSH identity file |
+| `--server-host` | resolved via `ssh -G` | Override the IP/hostname the client uses to reach the server |
+
+`ssh-run` resolves `--server-host` automatically from your SSH config when
+using a config alias. It calls `ssh -G <target>` to read the resolved
+`hostname` directive. If you override `--server-host`, that value is used
+directly.
+
 ### Manual Split Roles
+
+When `ssh-run` is not suitable (e.g. the server runs in a container with a
+custom entrypoint), you can split the roles manually.
 
 Start the benchmark server on the service host:
 
 ```bash
+# On the server host:
+cd /path/to/bsrvcore
 bash scripts/benchmark.sh server \
   --scenario http_get_static \
   --listen-host 0.0.0.0 \
   --listen-port 18080 \
-  --server-io-threads 5 \
-  --server-worker-threads 10
+  --server-io-threads 10 \
+  --server-worker-threads 20
 ```
 
 Run the benchmark client on the load-generator host:
 
 ```bash
+# On the load-generator host:
 bash scripts/benchmark.sh client \
   --scenario http_get_static \
-  --server-url http://service-host:18080 \
-  --server-io-threads 5 \
-  --server-worker-threads 10 \
+  --server-url http://10.0.0.5:18080 \
+  --server-io-threads 10 \
+  --server-worker-threads 20 \
   --sweep-depth quick
 ```
 
 In manual `client` mode, `--server-io-threads` and
-`--server-worker-threads` are required so the exported result set still carries
-the server configuration that was actually benchmarked.
+`--server-worker-threads` are required so the exported result set carries
+the real server configuration.
 
-### SSH-Orchestrated Split Roles
-
-If passwordless SSH is available, the client host can build and start the
-remote benchmark server automatically:
+You can also run a single-point probe against a remote server without a
+full sweep:
 
 ```bash
-bash scripts/benchmark.sh ssh-run \
+bash scripts/benchmark.sh probe \
   --scenario http_get_static \
-  --ssh-target user@service-host \
-  --ssh-remote-root /path/to/bsrvcore \
-  --server-host service-host \
-  --sweep-depth quick
+  --mode client \
+  --server-url http://10.0.0.5:18080 \
+  --server-io-threads 10 \
+  --server-worker-threads 20 \
+  --client-concurrency 64 \
+  --build-dir build-bench
 ```
-
-`ssh-run` is implemented as a thin wrapper around the same `server` and
-`client` roles.
 
 ## Sweep Strategy
 
@@ -241,12 +319,84 @@ CLI tools where available, including:
 
 Python plotting environment selection order:
 
-1. active `VIRTUAL_ENV` if it already has `matplotlib`
-2. repository-local `${BSRVCORE_BENCH_VENV:-.venv-benchmark}`
-3. auto-create that local venv and install `matplotlib`
-4. system `python3` if it already has `matplotlib`
+1. active `VIRTUAL_ENV` if it already has the required modules
+2. repository-local `${BSRVCORE_BENCH_VENV:-.artifacts/.venv-benchmark}`
+3. auto-create that local venv and install dependencies from
+   `scripts/requirements-bench.txt` (matplotlib, numpy, paramiko)
+4. system `python3` if it already has the required modules
 
 If none of these work, the script fails explicitly.
+
+The first successful venv creation may take a moment because of the `pip
+install` step. Subsequent runs reuse the same venv.
+
+## Troubleshooting
+
+**SSH hangs during `ssh-run`**: This is a known issue with certain
+combinations of `cd` and `nohup` over SSH. The benchmark script uses
+absolute paths on the remote side to avoid this. If you encounter SSH
+hangs with custom scripts, avoid `cd <dir> && nohup ... &` and use
+absolute paths instead.
+
+**Port already in use**: If port 18080 is occupied, use `--listen-port` to
+pick a different port. The `ssh-run` flow starts a fresh server per
+thread-group, so it always needs the configured port to be free on the
+remote host.
+
+**`ensure_bench_python` failures**: If the Python venv setup fails, check
+that `python3 -m venv` works on your system. On minimal installations you
+may need to install `python3-venv` (Debian/Ubuntu) or equivalent.
+
+**Server doesn't respond**: Ensure the remote firewall allows the listen
+port. On Ubuntu, check with `sudo ufw status`. The benchmark server
+listens on `0.0.0.0` by default.
+
+**Benchmark binary returns HTTP 502 to plain curl**: The benchmark server
+expects the specific request patterns that the benchmark client sends via
+wrk. It is not a general-purpose HTTP server — use the `probe` or
+`client` commands for testing.
+
+## Quick Reference
+
+Common task patterns:
+
+```bash
+# Smoke test (fastest: 1 concurrency, 1 cell, local only)
+bash scripts/benchmark.sh probe \
+  --scenario http_get_static \
+  --client-concurrency 8
+
+# Local sweep with explicit concurrency values, skip refinement
+bash scripts/benchmark.sh run \
+  --scenario mainline \
+  --sweep-depth quick \
+  --coarse-concurrency-values "8,16,32,64,128" \
+  --coarse-only
+
+# Full dual-host sweep via SSH
+bash scripts/benchmark.sh ssh-run \
+  --scenario http_get_static \
+  --ssh-target myserver \
+  --ssh-remote-root /home/myuser/bsrvcore \
+  --sweep-depth standard \
+  --coarse-concurrency-values "8,16,32,64,96,128,192,256"
+
+# Remote server + local client (manual split)
+bash scripts/benchmark.sh client \
+  --scenario http_get_static \
+  --server-url http://10.0.0.5:18080 \
+  --server-io-threads 10 \
+  --server-worker-threads 20 \
+  --sweep-depth standard
+
+# Body size sweep (requires a prior mainline run)
+bash scripts/benchmark.sh body-run \
+  --source-json .artifacts/benchmark-results/<run>/benchmark-report.json \
+  --body-phase post-matrix \
+  --body-size-start 0 \
+  --body-size-stop 131072 \
+  --body-size-step 8192
+```
 
 ## Notes
 
@@ -255,3 +405,9 @@ If none of these work, the script fails explicitly.
 - The complete performance analysis should be written manually from the
   generated JSON and images, especially when you need to explain saturation,
   decline regions, or bottleneck causes.
+- The script sets `BSRVCORE_BUILD_DIR` to `build-bench` by default (separate
+  from the standard `build-release` directory) to keep benchmark binaries
+  isolated. Use `--build-dir` to override.
+- When using `ssh-run`, the remote source tree path (`--ssh-remote-root`)
+  must point to a copy of the same bsrvcore source. The script builds on
+  both ends, so it is OK if the remote was not previously compiled.

@@ -17,9 +17,10 @@ cpu_count() {
 
 CPU_COUNT="$(cpu_count)"
 BUILD_DIR="${BSRVCORE_BENCH_BUILD_DIR:-build-bench}"
-VENV_DIR="${BSRVCORE_BENCH_VENV:-.venv-benchmark}"
+VENV_DIR="${BSRVCORE_BENCH_VENV:-.artifacts/.venv-benchmark}"
 OUTPUT_DIR="${BSRVCORE_BENCH_OUTPUT_DIR:-}"
 RUN_ID="${BSRVCORE_BENCH_RUN_ID:-$(date -u +%Y%m%d-%H%M%SZ)}"
+BENCH_REQUIREMENTS_FILE="${BSRVCORE_BENCH_REQUIREMENTS_FILE:-${ROOT_DIR}/scripts/requirements-bench.txt}"
 PACKAGE_DIR=""
 TMP_DIR=""
 PREFIX="${BSRVCORE_BENCH_TAG:-benchmark-report}"
@@ -56,8 +57,15 @@ PARALLELISM="${BSRVCORE_BUILD_PARALLEL:-${CPU_COUNT}}"
 WRK_BIN=""
 BENCH_BIN="${ROOT_DIR}/${BUILD_DIR}/benchmarks/bsrvcore_http_benchmark"
 BUNDLED_WRK_BIN="${ROOT_DIR}/${BUILD_DIR}/_deps/bsrvcore_benchmark_wrk/src/bsrvcore_benchmark_wrk/wrk"
+BENCH_PYTHON=""
 PLOT_PYTHON=""
 RUN_CELL_INDEX=0
+COARSE_CONCURRENCY_VALUES="${BSRVCORE_BENCH_COARSE_CONCURRENCY_VALUES:-}"
+CONCURRENCY_GRANULARITY="${BSRVCORE_BENCH_CONCURRENCY_GRANULARITY:-1}"
+REFINE_CONCURRENCY_GRANULARITY="${BSRVCORE_BENCH_REFINE_CONCURRENCY_GRANULARITY:-1}"
+REFINE_DECLINE_THRESHOLD_RATIO="${BSRVCORE_BENCH_REFINE_DECLINE_THRESHOLD_RATIO:-0.90}"
+REFINE_DECLINE_MIN_POINTS="${BSRVCORE_BENCH_REFINE_DECLINE_MIN_POINTS:-2}"
+REFINE_MAX_CONCURRENCY_MULTIPLIER="${BSRVCORE_BENCH_REFINE_MAX_CONCURRENCY_MULTIPLIER:-2.0}"
 SOURCE_JSON=""
 NEIGHBOR_COUNT=5
 BODY_PHASE="get-response"
@@ -69,7 +77,11 @@ BODY_MAX_BYTES=$((1024 * 1024))
 BODY_STOP_BEST_STABLE_CONCURRENCY=8
 BODY_REQUEST_SIZES=""
 BODY_RESPONSE_SIZES=""
-BODY_CONCURRENCY_VALUES="1,2,4,8,16,32,48,64,96,128,160,192,256,320"
+BODY_CONCURRENCY_VALUES=""
+BODY_CONCURRENCY_GRANULARITY="${BSRVCORE_BENCH_BODY_CONCURRENCY_GRANULARITY:-8}"
+BODY_THROUGHPUT_THRESHOLD_RATIO="${BSRVCORE_BENCH_BODY_THROUGHPUT_THRESHOLD_RATIO:-0.80}"
+BODY_MIN_CONCURRENCY="${BSRVCORE_BENCH_BODY_MIN_CONCURRENCY:-1}"
+BODY_MAX_CONCURRENCY="${BSRVCORE_BENCH_BODY_MAX_CONCURRENCY:-640}"
 COARSE_ONLY=0
 
 usage() {
@@ -99,6 +111,12 @@ Common options:
   --fine-cooldown-ms <n>
   --fine-repetitions <n>
   --coarse-only
+  --coarse-concurrency-values <csv>
+  --concurrency-granularity <n>
+  --refine-concurrency-granularity <n>
+  --refine-decline-threshold-ratio <float>
+  --refine-decline-min-points <n>
+  --refine-max-concurrency-multiplier <float>
 
 Probe/body options:
   --mode <local|client>
@@ -117,6 +135,10 @@ Probe/body options:
   --body-request-sizes <csv>
   --body-response-sizes <csv>
   --body-concurrency-values <csv>
+  --body-concurrency-granularity <n>
+  --body-throughput-threshold-ratio <float>
+  --body-min-concurrency <n>
+  --body-max-concurrency <n>
 
 Server/client options:
   --listen-host <ip>
@@ -132,6 +154,12 @@ SSH options:
   --ssh-key <path>
   --ssh-remote-root <path>
   --server-host <host>
+
+Examples:
+  bash scripts/benchmark.sh run --scenario mainline --sweep-depth standard
+  bash scripts/benchmark.sh run --scenario mainline --coarse-concurrency-values "8,16,32,64,96,128"
+  bash scripts/benchmark.sh body-run --source-json .artifacts/benchmark-results/<run>/benchmark-report.json --body-phase post-matrix
+  bash scripts/benchmark.sh ssh-run --scenario mainline --ssh-target server
 EOF
 }
 
@@ -252,6 +280,30 @@ while [[ $# -gt 0 ]]; do
       COARSE_ONLY=1
       shift 1
       ;;
+    --coarse-concurrency-values)
+      COARSE_CONCURRENCY_VALUES="$2"
+      shift 2
+      ;;
+    --concurrency-granularity)
+      CONCURRENCY_GRANULARITY="$2"
+      shift 2
+      ;;
+    --refine-concurrency-granularity)
+      REFINE_CONCURRENCY_GRANULARITY="$2"
+      shift 2
+      ;;
+    --refine-decline-threshold-ratio)
+      REFINE_DECLINE_THRESHOLD_RATIO="$2"
+      shift 2
+      ;;
+    --refine-decline-min-points)
+      REFINE_DECLINE_MIN_POINTS="$2"
+      shift 2
+      ;;
+    --refine-max-concurrency-multiplier)
+      REFINE_MAX_CONCURRENCY_MULTIPLIER="$2"
+      shift 2
+      ;;
     --server-env-json)
       SERVER_ENV_JSON="$2"
       shift 2
@@ -302,6 +354,22 @@ while [[ $# -gt 0 ]]; do
       ;;
     --body-concurrency-values)
       BODY_CONCURRENCY_VALUES="$2"
+      shift 2
+      ;;
+    --body-concurrency-granularity)
+      BODY_CONCURRENCY_GRANULARITY="$2"
+      shift 2
+      ;;
+    --body-throughput-threshold-ratio)
+      BODY_THROUGHPUT_THRESHOLD_RATIO="$2"
+      shift 2
+      ;;
+    --body-min-concurrency)
+      BODY_MIN_CONCURRENCY="$2"
+      shift 2
+      ;;
+    --body-max-concurrency)
+      BODY_MAX_CONCURRENCY="$2"
       shift 2
       ;;
     --ssh-target)
@@ -483,52 +551,99 @@ resolve_wrk_bin() {
   exit 1
 }
 
-python_can_import_matplotlib() {
+venv_dir_abs() {
+  if [[ "${VENV_DIR}" == /* ]]; then
+    printf '%s\n' "${VENV_DIR}"
+  else
+    printf '%s\n' "${ROOT_DIR}/${VENV_DIR}"
+  fi
+}
+
+python_can_import_modules() {
   local python_bin="$1"
-  "${python_bin}" - <<'PY' >/dev/null 2>&1
+  local required_modules_csv="$2"
+  "${python_bin}" - "${required_modules_csv}" <<'PY' >/dev/null 2>&1
 import importlib.util
 import sys
-sys.exit(0 if importlib.util.find_spec("matplotlib") else 1)
+
+required = [module.strip() for module in sys.argv[1].split(',') if module.strip()]
+for module in required:
+    if importlib.util.find_spec(module) is None:
+        sys.exit(1)
+sys.exit(0)
 PY
 }
 
-ensure_plot_python() {
+install_bench_dependencies() {
+  local python_bin="$1"
+  "${python_bin}" -m pip install --upgrade pip >/dev/null
+  if [[ -f "${BENCH_REQUIREMENTS_FILE}" ]]; then
+    "${python_bin}" -m pip install -r "${BENCH_REQUIREMENTS_FILE}" >/dev/null
+  else
+    "${python_bin}" -m pip install matplotlib numpy paramiko >/dev/null
+  fi
+}
+
+ensure_bench_python() {
+  local required_modules="matplotlib,numpy,paramiko"
+  if [[ -n "${BENCH_PYTHON}" ]] && python_can_import_modules "${BENCH_PYTHON}" "${required_modules}"; then
+    PLOT_PYTHON="${BENCH_PYTHON}"
+    return
+  fi
+
   if [[ -n "${VIRTUAL_ENV:-}" && -x "${VIRTUAL_ENV}/bin/python" ]] && \
-     python_can_import_matplotlib "${VIRTUAL_ENV}/bin/python"; then
-    PLOT_PYTHON="${VIRTUAL_ENV}/bin/python"
+     python_can_import_modules "${VIRTUAL_ENV}/bin/python" "${required_modules}"; then
+    BENCH_PYTHON="${VIRTUAL_ENV}/bin/python"
+    PLOT_PYTHON="${BENCH_PYTHON}"
     return
   fi
 
-  if [[ -x "${ROOT_DIR}/${VENV_DIR}/bin/python" ]] && \
-     python_can_import_matplotlib "${ROOT_DIR}/${VENV_DIR}/bin/python"; then
-    PLOT_PYTHON="${ROOT_DIR}/${VENV_DIR}/bin/python"
+  local venv_abs
+  venv_abs="$(venv_dir_abs)"
+  if [[ -x "${venv_abs}/bin/python" ]] && \
+     python_can_import_modules "${venv_abs}/bin/python" "${required_modules}"; then
+    BENCH_PYTHON="${venv_abs}/bin/python"
+    PLOT_PYTHON="${BENCH_PYTHON}"
     return
   fi
 
-  if command -v python3 >/dev/null 2>&1; then
-    if python3 -m venv --help >/dev/null 2>&1; then
-      if [[ ! -d "${ROOT_DIR}/${VENV_DIR}" ]]; then
-        python3 -m venv "${ROOT_DIR}/${VENV_DIR}"
-      fi
-      "${ROOT_DIR}/${VENV_DIR}/bin/python" -m pip install --upgrade pip >/dev/null
-      "${ROOT_DIR}/${VENV_DIR}/bin/python" -m pip install matplotlib >/dev/null
-      PLOT_PYTHON="${ROOT_DIR}/${VENV_DIR}/bin/python"
-      return
-    fi
-    if python_can_import_matplotlib "$(command -v python3)"; then
-      PLOT_PYTHON="$(command -v python3)"
-      return
-    fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "python3 is required for benchmark tooling" >&2
+    exit 1
   fi
 
-  echo "Unable to find a Python environment with matplotlib" >&2
+  if ! python3 -m venv --help >/dev/null 2>&1; then
+    echo "python3 venv module is required for benchmark tooling" >&2
+    exit 1
+  fi
+
+  if [[ ! -d "${venv_abs}" ]]; then
+    python3 -m venv "${venv_abs}"
+  fi
+
+  install_bench_dependencies "${venv_abs}/bin/python"
+
+  if python_can_import_modules "${venv_abs}/bin/python" "${required_modules}"; then
+    BENCH_PYTHON="${venv_abs}/bin/python"
+    PLOT_PYTHON="${BENCH_PYTHON}"
+    return
+  fi
+
+  if python_can_import_modules "$(command -v python3)" "${required_modules}"; then
+    BENCH_PYTHON="$(command -v python3)"
+    PLOT_PYTHON="${BENCH_PYTHON}"
+    return
+  fi
+
+  echo "Unable to prepare Python environment with required benchmark modules" >&2
   exit 1
 }
 
 collect_env_json() {
   local role="$1"
   local output="$2"
-  python3 "${ROOT_DIR}/scripts/benchmark_collect_env.py" --role "${role}" --output "${output}"
+  ensure_bench_python
+  "${BENCH_PYTHON}" "${ROOT_DIR}/scripts/benchmark_collect_env.py" --role "${role}" --output "${output}"
 }
 
 prepare_outputs() {
@@ -584,6 +699,58 @@ client_shapes_for_depth() {
   fi
 }
 
+normalize_granularity() {
+  local granularity="$1"
+  if [[ -z "${granularity}" ]]; then
+    echo 1
+    return
+  fi
+  if (( granularity < 1 )); then
+    echo 1
+  else
+    echo "${granularity}"
+  fi
+}
+
+round_up_to_granularity() {
+  local value="$1"
+  local granularity
+  granularity="$(normalize_granularity "$2")"
+  if (( value <= 1 )); then
+    echo 1
+    return
+  fi
+  local rounded=$(( ((value + granularity - 1) / granularity) * granularity ))
+  echo "${rounded}"
+}
+
+coarse_concurrency_candidates() {
+  local pressure_threads="$1"
+  local granularity
+  granularity="$(normalize_granularity "${CONCURRENCY_GRANULARITY}")"
+
+  local -a values=()
+  if [[ -n "${COARSE_CONCURRENCY_VALUES}" ]]; then
+    while IFS=',' read -ra tokens; do
+      local token
+      for token in "${tokens[@]}"; do
+        token="${token//[[:space:]]/}"
+        [[ -z "${token}" ]] && continue
+        values+=("$(round_up_to_granularity "$(max1 "${token}")" "${granularity}")")
+      done
+    done <<< "${COARSE_CONCURRENCY_VALUES}"
+  else
+    values+=(
+      "$(round_up_to_granularity "$(max1 "${pressure_threads}")" "${granularity}")"
+      "$(round_up_to_granularity "$(max1 $(( pressure_threads * 2 )))" "${granularity}")"
+      "$(round_up_to_granularity "$(max1 $(( pressure_threads * 4 )))" "${granularity}")"
+      "$(round_up_to_granularity "$(max1 $(( pressure_threads * 8 )))" "${granularity}")"
+    )
+  fi
+
+  dedupe_numbers "${values[@]}"
+}
+
 emit_local_matrix() {
   local matrix_file="$1"
   local -A seen=()
@@ -594,11 +761,7 @@ emit_local_matrix() {
       pressure_threads="${io_threads}"
     fi
     local conc_values=()
-    mapfile -t conc_values < <(dedupe_numbers \
-      "$(max1 "${pressure_threads}")" \
-      "$(max1 $(( pressure_threads * 2 )))" \
-      "$(max1 $(( pressure_threads * 4 )))" \
-      "$(max1 $(( pressure_threads * 8 )))")
+    mapfile -t conc_values < <(coarse_concurrency_candidates "${pressure_threads}")
     while read -r client_processes wrk_threads; do
       [[ -z "${client_processes}" ]] && continue
       local conc
@@ -635,11 +798,7 @@ emit_client_matrix() {
     if (( io_threads > pressure_threads )); then
       pressure_threads="${io_threads}"
     fi
-    mapfile -t conc_values < <(dedupe_numbers \
-      "$(max1 "${pressure_threads}")" \
-      "$(max1 $(( pressure_threads * 2 )))" \
-      "$(max1 $(( pressure_threads * 4 )))" \
-      "$(max1 $(( pressure_threads * 8 )))")
+    mapfile -t conc_values < <(coarse_concurrency_candidates "${pressure_threads}")
   fi
 
   if [[ -n "${CLIENT_ONLY_PROCESSES}" && -n "${CLIENT_ONLY_WRK_THREADS}" ]]; then
@@ -720,8 +879,9 @@ build_interim_json() {
   local command_line="$3"
   local coarse_json="${TMP_DIR}/coarse.json"
   local coarse_summary="${TMP_DIR}/coarse-summary.md"
+  ensure_bench_python
   local -a package_cmd=(
-    python3 "${ROOT_DIR}/scripts/benchmark_package.py"
+    "${BENCH_PYTHON}" "${ROOT_DIR}/scripts/benchmark_package.py"
     --input-dir "${TMP_DIR}/cells"
     --output-json "${coarse_json}"
     --summary-md "${coarse_summary}"
@@ -747,9 +907,14 @@ emit_refined_matrix() {
   local coarse_json="${TMP_DIR}/coarse.json"
   local refine_matrix="${TMP_DIR}/refine.tsv"
   local refine_only="${TMP_DIR}/refine-only.tsv"
-  python3 "${ROOT_DIR}/scripts/benchmark_refine.py" \
+  ensure_bench_python
+  "${BENCH_PYTHON}" "${ROOT_DIR}/scripts/benchmark_refine.py" \
     --json "${coarse_json}" \
     --sweep-depth "${SWEEP_DEPTH}" \
+    --granularity "${REFINE_CONCURRENCY_GRANULARITY}" \
+    --decline-threshold-ratio "${REFINE_DECLINE_THRESHOLD_RATIO}" \
+    --decline-min-points "${REFINE_DECLINE_MIN_POINTS}" \
+    --max-concurrency-multiplier "${REFINE_MAX_CONCURRENCY_MULTIPLIER}" \
     --output-tsv "${refine_matrix}"
   awk 'NR==FNR { seen[$0] = 1; next } !seen[$0]' \
     "${TMP_DIR}/matrix.tsv" "${refine_matrix}" > "${refine_only}"
@@ -795,8 +960,9 @@ package_results() {
   local topology="$2"
   local command_line="$3"
   local package_summary="${PACKAGE_DIR}/summary.md"
+  ensure_bench_python
   local -a package_cmd=(
-    python3 "${ROOT_DIR}/scripts/benchmark_package.py"
+    "${BENCH_PYTHON}" "${ROOT_DIR}/scripts/benchmark_package.py"
     --input-dir "${TMP_DIR}/cells"
     --output-json "${OUTPUT_DIR}/${PREFIX}.json"
     --summary-md "${package_summary}"
@@ -817,7 +983,7 @@ package_results() {
   fi
   "${package_cmd[@]}"
 
-  ensure_plot_python
+  ensure_bench_python
   local plots_manifest="${TMP_DIR}/generated-plots.txt"
   "${PLOT_PYTHON}" "${ROOT_DIR}/scripts/benchmark_plot.py" \
     --json "${OUTPUT_DIR}/${PREFIX}.json" \
@@ -833,10 +999,12 @@ package_results() {
 prepare_command() {
   build_benchmark
   resolve_wrk_bin
-  ensure_plot_python
+  ensure_bench_python
   printf 'benchmark binary: %s\n' "${BENCH_BIN}"
   printf 'wrk binary: %s\n' "${WRK_BIN}"
+  printf 'bench python: %s\n' "${BENCH_PYTHON}"
   printf 'plot python: %s\n' "${PLOT_PYTHON}"
+  printf 'requirements: %s\n' "${BENCH_REQUIREMENTS_FILE}"
   printf 'output dir: %s\n' "${OUTPUT_DIR}"
 }
 
@@ -880,13 +1048,18 @@ emit_body_matrix() {
     echo "body-run requires --source-json pointing to a consolidated benchmark JSON" >&2
     exit 1
   fi
+  ensure_bench_python
   local -a cmd=(
-    python3 "${ROOT_DIR}/scripts/benchmark_body_matrix.py"
+    "${BENCH_PYTHON}" "${ROOT_DIR}/scripts/benchmark_body_matrix.py"
     --json "${SOURCE_JSON}"
     --output-tsv "${matrix_file}"
     --phase "${BODY_PHASE}"
     --neighbor-count "${NEIGHBOR_COUNT}"
     --concurrency-values "${BODY_CONCURRENCY_VALUES}"
+    --concurrency-granularity "${BODY_CONCURRENCY_GRANULARITY}"
+    --throughput-threshold-ratio "${BODY_THROUGHPUT_THRESHOLD_RATIO}"
+    --min-concurrency "${BODY_MIN_CONCURRENCY}"
+    --max-concurrency "${BODY_MAX_CONCURRENCY}"
     --body-start-bytes "${BODY_SIZE_START}"
     --body-stop-bytes "${BODY_SIZE_STOP}"
     --body-step-bytes "${BODY_SIZE_STEP}"
@@ -1089,10 +1262,33 @@ ssh_args() {
   printf '%q ' "${args[@]}"
 }
 
+resolve_ssh_server_host() {
+  local target="$1"
+  shift || true
+  local -a ssh_extra=("$@")
+
+  if [[ -n "${SSH_SERVER_HOST}" ]]; then
+    echo "${SSH_SERVER_HOST}"
+    return
+  fi
+
+  local configured_host
+  configured_host="$(ssh "${ssh_extra[@]}" -G "${target}" 2>/dev/null | awk '$1 == "hostname" { print $2; exit }')"
+  if [[ -n "${configured_host}" ]]; then
+    echo "${configured_host}"
+    return
+  fi
+
+  local fallback="${target##*@}"
+  fallback="${fallback%%:*}"
+  echo "${fallback}"
+}
+
 wait_for_tcp() {
   local host="$1"
   local port="$2"
-  python3 - "$host" "$port" <<'PY'
+  ensure_bench_python
+  "${BENCH_PYTHON}" - "$host" "$port" <<'PY'
 import socket
 import sys
 import time
@@ -1128,21 +1324,18 @@ ssh_run_command() {
   prepare_outputs
   collect_env_json client "${TMP_DIR}/client-env.json"
 
-  local server_host="${SSH_SERVER_HOST}"
-  if [[ -z "${server_host}" ]]; then
-    server_host="${SSH_TARGET##*@}"
-    server_host="${server_host%%:*}"
-  fi
-
   local ssh_extra=()
   [[ -n "${SSH_PORT}" ]] && ssh_extra+=(-p "${SSH_PORT}")
   [[ -n "${SSH_KEY}" ]] && ssh_extra+=(-i "${SSH_KEY}")
 
-  ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
-    "cd '${SSH_REMOTE_ROOT}' && BSRVCORE_BUILD_DIR='${BUILD_DIR}' BSRVCORE_BUILD_TYPE=Release BSRVCORE_BUILD_TESTS=OFF BSRVCORE_BUILD_EXAMPLES=OFF BSRVCORE_BUILD_BENCHMARKS=ON BSRVCORE_BUILD_TOOLS=OFF BSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON BSRVCORE_BUILD_PARALLEL='${PARALLELISM}' bash scripts/build.sh bsrvcore_http_benchmark"
+  local server_host
+  server_host="$(resolve_ssh_server_host "${SSH_TARGET}" "${ssh_extra[@]}")"
 
   ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
-    "cd '${SSH_REMOTE_ROOT}' && python3 scripts/benchmark_collect_env.py --role server --output /tmp/bsrvcore-benchmark-server-env.json && cat /tmp/bsrvcore-benchmark-server-env.json" \
+    "BSRVCORE_BUILD_DIR='${BUILD_DIR}' BSRVCORE_BUILD_TYPE=Release BSRVCORE_BUILD_TESTS=OFF BSRVCORE_BUILD_EXAMPLES=OFF BSRVCORE_BUILD_BENCHMARKS=ON BSRVCORE_BUILD_TOOLS=OFF BSRVCORE_BENCHMARK_BUILD_BUNDLED_WRK=ON BSRVCORE_BUILD_PARALLEL='${PARALLELISM}' bash '${SSH_REMOTE_ROOT}/scripts/build.sh' bsrvcore_http_benchmark"
+
+  ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
+    "python3 '${SSH_REMOTE_ROOT}/scripts/benchmark_collect_env.py' --role server --output /tmp/bsrvcore-benchmark-server-env.json && cat /tmp/bsrvcore-benchmark-server-env.json" \
     > "${TMP_DIR}/server-env.json"
   SERVER_ENV_JSON="${TMP_DIR}/server-env.json"
 
@@ -1160,7 +1353,7 @@ ssh_run_command() {
       local remote_pid
       remote_pid="$(
         ssh "${ssh_extra[@]}" "${SSH_TARGET}" \
-          "cd '${SSH_REMOTE_ROOT}' && nohup bash scripts/benchmark.sh server --scenario '${SCENARIO}' --build-dir '${BUILD_DIR}' --listen-host '${LISTEN_HOST}' --listen-port '${LISTEN_PORT}' --server-io-threads '${io_threads}' --server-worker-threads '${worker_threads}' > '${SSH_LOG_PATH}' 2>&1 & echo \$!"
+          "nohup bash '${SSH_REMOTE_ROOT}/scripts/benchmark.sh' server --scenario '${SCENARIO}' --build-dir '${BUILD_DIR}' --listen-host '${LISTEN_HOST}' --listen-port '${LISTEN_PORT}' --server-io-threads '${io_threads}' --server-worker-threads '${worker_threads}' < /dev/null > '${SSH_LOG_PATH}' 2>&1 & echo \$!"
       )"
       wait_for_tcp "${server_host}" "${LISTEN_PORT}"
       SERVER_URL="http://${server_host}:${LISTEN_PORT}"

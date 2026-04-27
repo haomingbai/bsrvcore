@@ -18,7 +18,11 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     parser.add_argument("--neighbor-count", type=int, default=5)
-    parser.add_argument("--concurrency-values", default="1,2,4,8,16,32,48,64,96,128,160,192,256,320")
+    parser.add_argument("--concurrency-values", default="")
+    parser.add_argument("--concurrency-granularity", type=int, default=8)
+    parser.add_argument("--throughput-threshold-ratio", type=float, default=0.80)
+    parser.add_argument("--min-concurrency", type=int, default=1)
+    parser.add_argument("--max-concurrency", type=int, default=640)
     parser.add_argument("--body-start-bytes", type=int, default=0)
     parser.add_argument("--body-stop-bytes", type=int, default=128 * 1024)
     parser.add_argument("--body-step-bytes", type=int, default=8 * 1024)
@@ -59,6 +63,20 @@ def parse_csv_numbers(raw: str) -> list[int]:
             continue
         values.add(max(0, int(token)))
     return sorted(values)
+
+
+def normalize_granularity(granularity: int) -> int:
+    return max(1, int(granularity))
+
+
+def round_to_granularity(value: int, granularity: int) -> int:
+    granularity = normalize_granularity(granularity)
+    value = max(1, int(value))
+    return ((value + granularity - 1) // granularity) * granularity
+
+
+def dedupe_sorted(values: list[int]) -> list[int]:
+    return sorted({int(value) for value in values if int(value) > 0})
 
 
 def range_sizes(start: int, stop: int, step: int, max_bytes: int) -> list[int]:
@@ -112,6 +130,110 @@ def select_thread_groups(data: dict, neighbor_count: int) -> tuple[dict, list[tu
     return winner, groups, winner_proc, winner_wrk
 
 
+def best_cells_by_concurrency(cells: list[dict]) -> dict[int, dict]:
+    grouped: dict[int, list[dict]] = {}
+    for cell in cells:
+        conc = int(cell["client_concurrency"])
+        grouped.setdefault(conc, []).append(cell)
+
+    selected: dict[int, dict] = {}
+    for conc, bucket in grouped.items():
+        selected[conc] = min(bucket, key=winner_sort_key)
+    return selected
+
+
+def derive_concurrency_values(
+    args: argparse.Namespace,
+    data: dict,
+    winner: dict,
+    thread_groups: list[tuple[int, int]],
+) -> list[int]:
+    granularity = normalize_granularity(args.concurrency_granularity)
+    min_conc = max(1, int(args.min_concurrency))
+    max_conc = max(min_conc, int(args.max_concurrency))
+
+    explicit = parse_csv_numbers(args.concurrency_values)
+    if explicit:
+        return dedupe_sorted(
+            [
+                round_to_granularity(value, granularity)
+                for value in explicit
+                if min_conc <= value <= max_conc
+            ]
+        )
+
+    winner_scenario = str(winner["scenario"])
+    winner_method = str(winner.get("http_method", "GET"))
+    group_set = set(thread_groups)
+
+    candidates = [
+        cell
+        for cell in data.get("cells", [])
+        if str(cell.get("scenario")) == winner_scenario
+        and (int(cell.get("server_io_threads", 0)), int(cell.get("server_worker_threads", 0))) in group_set
+        and int(cell.get("request_body_bytes", 0)) == 0
+        and int(cell.get("response_body_bytes", 0)) == 0
+        and str(cell.get("http_method", "GET")) == winner_method
+    ]
+    if not candidates:
+        candidates = [
+            cell
+            for cell in data.get("cells", [])
+            if str(cell.get("scenario")) == winner_scenario
+            and int(cell.get("request_body_bytes", 0)) == 0
+            and int(cell.get("response_body_bytes", 0)) == 0
+        ]
+
+    best_by_conc = best_cells_by_concurrency(candidates)
+    if not best_by_conc:
+        fallback = [1, 2, 4, 8, 16, 32, 64, 96, 128, 160, 192, 256, 320]
+        return dedupe_sorted(
+            [
+                round_to_granularity(value, granularity)
+                for value in fallback
+                if min_conc <= value <= max_conc
+            ]
+        )
+
+    ordered = sorted(best_by_conc.items(), key=lambda item: item[0])
+    peak_conc, peak_cell = max(
+        ordered,
+        key=lambda item: metric_mean(item[1], "rps"),
+    )
+    peak_rps = metric_mean(peak_cell, "rps")
+    threshold_ratio = max(0.05, min(0.99, float(args.throughput_threshold_ratio)))
+    threshold_rps = peak_rps * threshold_ratio
+
+    decline_conc = None
+    for conc, cell in ordered:
+        if conc <= peak_conc:
+            continue
+        if metric_mean(cell, "rps") <= threshold_rps:
+            decline_conc = conc
+            break
+
+    if decline_conc is None:
+        decline_conc = ordered[-1][0]
+
+    upper = min(max_conc, max(decline_conc, peak_conc + granularity * 2))
+    lower = max(min_conc, min(ordered[0][0], peak_conc))
+    lower = round_to_granularity(lower, granularity)
+
+    values = list(range(lower, upper + granularity, granularity))
+    for conc, _ in ordered:
+        if min_conc <= conc <= upper:
+            values.append(conc)
+    values.extend([peak_conc, decline_conc])
+
+    return dedupe_sorted(
+        [
+            round_to_granularity(value, granularity)
+            for value in values
+            if min_conc <= value <= max_conc
+        ]
+    )
+
+
 def append_row(
     rows: list[str],
     scenario_name: str,
@@ -163,9 +285,9 @@ def main() -> None:
     winner, thread_groups, winner_proc, winner_wrk = select_thread_groups(
         data, args.neighbor_count
     )
-    concurrencies = parse_csv_numbers(args.concurrency_values)
+    concurrencies = derive_concurrency_values(args, data, winner, thread_groups)
     if not concurrencies:
-        raise SystemExit("no concurrency values were provided")
+        raise SystemExit("no concurrency values were derived")
 
     request_sizes = effective_sizes(
         args.request_sizes,
@@ -232,7 +354,8 @@ def main() -> None:
 
     print(
         f"winner={winner['pressure']} groups={thread_groups} "
-        f"winner_proc={winner_proc} winner_wrk={winner_wrk} rows={len(rows)}"
+        f"winner_proc={winner_proc} winner_wrk={winner_wrk} "
+        f"concurrency={concurrencies} rows={len(rows)}"
     )
 
 
