@@ -25,7 +25,6 @@
 #include <cstddef>
 #include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <ranges>
 #include <shared_mutex>
@@ -70,6 +69,17 @@ struct HttpTaskSharedState {
 
         conn(std::move(in_conn)),
         route_result(std::move(in_route_result)),
+        route_result_compat_current_location(
+            detail::ToStdString(route_result.current_location)),
+        route_result_compat_template(
+            detail::ToStdString(route_result.route_template)),
+        route_result_compat_parameters([this] {
+          CompatPathParameterMap m;
+          m.reserve(route_result.parameters.size());
+          for (const auto& [k, v] : route_result.parameters)
+            m.emplace(detail::ToStdString(k), detail::ToStdString(v));
+          return m;
+        }()),
         srv(conn.load() ? conn.load()->GetServer() : nullptr),
         keep_alive(true),
         connection_mode(HttpTaskConnectionLifecycleMode::kAutomatic),
@@ -86,10 +96,9 @@ struct HttpTaskSharedState {
   // longer schedulable".
   AtomicSharedPtr<StreamServerConnection> conn;
   route_internal::HttpRouteResultInternal route_result;
-  mutable std::once_flag route_result_compat_once;
-  mutable std::string route_result_compat_current_location;
-  mutable std::string route_result_compat_template;
-  mutable CompatPathParameterMap route_result_compat_parameters;
+  std::string route_result_compat_current_location;
+  std::string route_result_compat_template;
+  CompatPathParameterMap route_result_compat_parameters;
   HttpServer* srv;
   std::atomic_bool keep_alive;
   std::atomic<HttpTaskConnectionLifecycleMode> connection_mode;
