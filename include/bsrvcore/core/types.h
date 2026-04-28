@@ -28,6 +28,9 @@
 #include <boost/json.hpp>
 #include <boost/system/error_code.hpp>
 #include <memory>
+#ifdef _LIBCPP_VERSION
+#include <mutex>
+#endif
 
 namespace bsrvcore {
 
@@ -56,9 +59,46 @@ using TcpResolverResults = TcpResolver::results_type;
 using SslContext = boost::asio::ssl::context;
 /** @brief Shared SSL context handle used by public APIs. */
 using SslContextPtr = std::shared_ptr<SslContext>;
+#ifdef _LIBCPP_VERSION
+/** @brief Atomic shared pointer used for lock-free snapshot publication.
+ *
+ *  libc++ does not yet provide std::atomic<std::shared_ptr<T>> (P0718R2), so a
+ *  mutex-protected stand-in is used instead.  The public store/load API is
+ *  identical to the std::atomic specialisation. */
+template <typename T>
+class AtomicSharedPtr {
+ public:
+  AtomicSharedPtr() noexcept = default;
+
+  explicit AtomicSharedPtr(std::shared_ptr<T> ptr) noexcept
+      : ptr_(std::move(ptr)) {}
+
+  AtomicSharedPtr(const AtomicSharedPtr&) = delete;
+  AtomicSharedPtr& operator=(const AtomicSharedPtr&) = delete;
+  AtomicSharedPtr(AtomicSharedPtr&&) = delete;
+  AtomicSharedPtr& operator=(AtomicSharedPtr&&) = delete;
+
+  void store(std::shared_ptr<T> desired,
+             std::memory_order = std::memory_order_seq_cst) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    ptr_ = std::move(desired);
+  }
+
+  std::shared_ptr<T> load(
+      std::memory_order = std::memory_order_seq_cst) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return ptr_;
+  }
+
+ private:
+  mutable std::mutex mutex_;
+  std::shared_ptr<T> ptr_;
+};
+#else
 /** @brief Atomic shared pointer alias used for lock-free snapshot publication. */
 template <typename T>
 using AtomicSharedPtr = std::atomic<std::shared_ptr<T>>;
+#endif
 /** @brief Steady timer alias used by connection/runtime timeouts. */
 using SteadyTimer = boost::asio::steady_timer;
 /** @brief Beast flat buffer alias used by HTTP and WebSocket parsing. */
