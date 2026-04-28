@@ -130,22 +130,12 @@ void RequestAssembler::OnResponseHeader(const HttpResponseHeader& /*header*/,
 
 // ---- DefaultRequestAssembler ----
 
-DefaultRequestAssembler::DefaultRequestAssembler(std::string scheme,
-                                                 std::string host,
-                                                 std::string port,
-                                                 SslContextPtr ssl_ctx)
-    : scheme_(std::move(scheme)),
-      host_(std::move(host)),
-      port_(std::move(port)),
-      ssl_ctx_(std::move(ssl_ctx)) {}
-
 RequestAssembler::AssemblyResult DefaultRequestAssembler::Assemble(
     HttpClientRequest request, const HttpClientOptions& options,
-    std::string_view /*scheme*/, std::string_view /*host*/,
-    std::string_view /*port*/, SslContextPtr /*ssl_ctx*/) {
-  // DefaultRequestAssembler ignores passed-in identity and uses its own.
+    std::string_view scheme, std::string_view host, std::string_view port,
+    SslContextPtr ssl_ctx) {
   if (request.find(http::field::host) == request.end()) {
-    request.set(http::field::host, host_);
+    request.set(http::field::host, std::string(host));
   }
   if (request.find(http::field::user_agent) == request.end() &&
       !options.user_agent.empty()) {
@@ -154,10 +144,10 @@ RequestAssembler::AssemblyResult DefaultRequestAssembler::Assemble(
   request.keep_alive(options.keep_alive);
 
   ConnectionKey key;
-  key.scheme = scheme_;
-  key.host = host_;
-  key.port = port_;
-  key.ssl_ctx = ssl_ctx_;
+  key.scheme = std::string(scheme);
+  key.host = std::string(host);
+  key.port = std::string(port);
+  key.ssl_ctx = ssl_ctx;
   key.verify_peer = options.verify_peer;
 
   request.prepare_payload();

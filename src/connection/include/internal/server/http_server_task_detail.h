@@ -38,7 +38,7 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
-#include "bsrvcore/core/atomic_shared_ptr.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/connection/server/stream_server_connection.h"
 #include "bsrvcore/internal/route/http_route_result_internal.h"
 

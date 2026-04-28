@@ -22,6 +22,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
+#include "impl/default_client_assembler_builder.h"
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_client_task_impl.h"
 #include "impl/http_url_parser.h"
@@ -78,18 +79,8 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateAssembledTask(
     std::string host, std::string port, std::string target, http::verb method,
     HttpClientOptions options, SslContextPtr ssl_ctx,
     boost::system::error_code create_ec) {
-  // Create base assembler and builder.
-  std::shared_ptr<RequestAssembler> assembler =
-      std::make_shared<DefaultRequestAssembler>(scheme, host, port, ssl_ctx);
-  std::shared_ptr<StreamBuilder> builder = DirectStreamBuilder::Create();
-
-  // If proxy is configured, wrap assembler and builder.
-  if (options.proxy.enabled()) {
-    assembler =
-        std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
-    builder = ProxyStreamBuilder::Create(builder);
-  }
-
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
   assembler->SetStreamBuilder(builder);
 
   const bool use_ssl = (scheme == "https");
@@ -109,7 +100,7 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateSessionTask(
     std::string port, std::string target, http::verb method,
     HttpClientOptions options, SslContextPtr ssl_ctx,
     boost::system::error_code create_ec) {
-  auto builder = DirectStreamBuilder::Create();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
 
   const bool use_ssl = (scheme == "https");
   auto impl = AllocateShared<Impl>(

@@ -43,8 +43,8 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
-#include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/core/service_provider.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"

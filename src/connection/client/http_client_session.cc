@@ -22,6 +22,7 @@
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "impl/default_client_assembler_builder.h"
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_url_parser.h"
 
@@ -186,7 +187,7 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttp(
       std::move(target), std::move(handler), std::move(options));
   if (task) {
     // Replace default assembler with session's SessionRequestAssembler.
-    auto builder = DirectStreamBuilder::Create();
+    auto builder = connection_internal::GetDefaultDirectStreamBuilder();
     task->SetAssembler(shared_from_this(), builder);
   }
   return task;
@@ -203,7 +204,7 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
     // Replace with session's assembler and a WebSocketStreamBuilder for WSS.
     const auto& ssl_state =
         connection_internal::GetDefaultClientSslContextState();
-    auto builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
+    auto builder = WebSocketStreamBuilder::Create(connection_internal::GetDefaultDirectStreamBuilder(),
                                                   ssl_state.ssl_ctx);
     task->SetAssembler(shared_from_this(), builder);
   }
@@ -220,7 +221,7 @@ std::shared_ptr<WebSocketClientTask> HttpClientSession::CreateWebSocketHttps(
   if (task) {
     // Replace with session's assembler and a WebSocketStreamBuilder for WSS.
     auto builder =
-        WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(), ssl_ctx);
+        WebSocketStreamBuilder::Create(connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx);
     task->SetAssembler(shared_from_this(), builder);
   }
   return task;

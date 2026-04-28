@@ -22,7 +22,6 @@
 #include "bsrvcore/connection/server/multipart_parser.h"
 #include "bsrvcore/connection/server/put_processor.h"
 #include "bsrvcore/core/async_waiter.h"
-#include "bsrvcore/core/atomic_shared_ptr.h"
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
@@ -144,9 +143,7 @@ static_assert(
 static_assert(
     std::is_base_of_v<bsrvcore::CopyableMovable<bsrvcore::bsrvrun::String>,
                       bsrvcore::bsrvrun::String>);
-static_assert(std::is_base_of_v<
-              bsrvcore::NonCopyableNonMovable<bsrvcore::AtomicSharedPtr<int>>,
-              bsrvcore::AtomicSharedPtr<int>>);
+
 static_assert(std::is_base_of_v<bsrvcore::MovableOnly<bsrvcore::BluePrint>,
                                 bsrvcore::BluePrint>);
 static_assert(

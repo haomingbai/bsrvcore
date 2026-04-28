@@ -19,6 +19,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
+#include "impl/default_client_assembler_builder.h"
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_sse_client_task_impl.h"
 #include "impl/http_url_parser.h"
@@ -59,8 +60,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttp(
     Executor io_executor, Executor callback_executor, std::string host,
     std::string port, std::string target, HttpSseClientOptions options) {
   // Create assembler BEFORE moving host/port into the impl.
-  auto assembler = AllocateShared<DefaultRequestAssembler>("http", host, port);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
 
   auto impl = AllocateShared<Impl>(
       std::move(io_executor), std::move(callback_executor), std::move(host),
@@ -84,9 +85,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
       connection_internal::GetDefaultClientSslContextState();
 
   // Create assembler BEFORE moving host/port into the impl.
-  auto assembler = AllocateShared<DefaultRequestAssembler>("https", host, port,
-                                                           ssl_state.ssl_ctx);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
 
   auto impl =
       AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
@@ -113,9 +113,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateHttps(
     std::string host, std::string port, std::string target,
     HttpSseClientOptions options) {
   // Create assembler BEFORE moving host/port/ssl_ctx into the impl.
-  auto assembler =
-      AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
 
   auto impl =
       AllocateShared<Impl>(std::move(io_executor), std::move(callback_executor),
@@ -156,9 +155,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
       impl->SetCreateError(ssl_state.ec, HttpSseClientErrorStage::kCreate);
     }
 
-    auto assembler = AllocateShared<DefaultRequestAssembler>(
-        "https", parsed->host, parsed->port, ssl_state.ssl_ctx);
-    auto builder = DirectStreamBuilder::Create();
+    auto assembler = connection_internal::GetDefaultRequestAssembler();
+    auto builder = connection_internal::GetDefaultDirectStreamBuilder();
     impl->SetAssembler(assembler, builder);
 
     return CreateTask(std::move(impl));
@@ -168,9 +166,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
       std::move(io_executor), std::move(callback_executor), parsed->host,
       parsed->port, parsed->target, std::move(options), false, nullptr);
 
-  auto assembler = AllocateShared<DefaultRequestAssembler>("http", parsed->host,
-                                                           parsed->port);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
   impl->SetAssembler(assembler, builder);
 
   return CreateTask(std::move(impl));
@@ -202,11 +199,8 @@ std::shared_ptr<HttpSseClientTask> HttpSseClientTask::CreateFromUrl(
       parsed->port, parsed->target, std::move(options), parsed->https,
       effective_ssl_ctx);
 
-  // Assembled mode: attach DefaultRequestAssembler + DirectStreamBuilder.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      parsed->https ? "https" : "http", parsed->host, parsed->port,
-      effective_ssl_ctx);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
   impl->SetAssembler(assembler, builder);
 
   return CreateTask(std::move(impl));

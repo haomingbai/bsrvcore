@@ -20,6 +20,7 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
+#include "impl/default_client_assembler_builder.h"
 #include "impl/default_client_ssl_context.h"
 
 namespace bsrvcore {
@@ -76,9 +77,8 @@ bool ParseWebSocketUrl(const std::string& url, bool* out_ssl, std::string* host,
 std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttp(
     Executor io_executor, std::string host, std::string port,
     std::string target, HandlerPtr handler, HttpClientOptions options) {
-  // Create assembler BEFORE moving host/port into the task.
-  auto assembler = AllocateShared<DefaultRequestAssembler>("http", host, port);
-  auto builder = DirectStreamBuilder::Create();
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = connection_internal::GetDefaultDirectStreamBuilder();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -96,23 +96,9 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
   const auto& ssl_state =
       connection_internal::GetDefaultClientSslContextState();
 
-  // Create assembler BEFORE moving host/port into the task.
-  std::shared_ptr<RequestAssembler> assembler =
-      AllocateShared<DefaultRequestAssembler>("https", host, port,
-                                              ssl_state.ssl_ctx);
-
-  // Choose builder based on proxy configuration.
-  // Proxy path: ProxyStreamBuilder does CONNECT+TLS, returns ready SslStream.
-  // Non-proxy path: WebSocketStreamBuilder defers TLS for Beast compatibility.
-  std::shared_ptr<StreamBuilder> builder;
-  if (options.proxy.enabled()) {
-    assembler =
-        std::make_shared<ProxyRequestAssembler>(assembler, options.proxy);
-    builder = ProxyStreamBuilder::Create(DirectStreamBuilder::Create());
-  } else {
-    builder = WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(),
-                                             ssl_state.ssl_ctx);
-  }
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = WebSocketStreamBuilder::Create(
+      connection_internal::GetDefaultDirectStreamBuilder(), ssl_state.ssl_ctx);
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -134,12 +120,9 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateHttps(
     Executor io_executor, SslContextPtr ssl_ctx, std::string host,
     std::string port, std::string target, HandlerPtr handler,
     HttpClientOptions options) {
-  // Create assembler BEFORE moving host/port/ssl_ctx into the task.
-  auto assembler =
-      AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
-  // Use WebSocketStreamBuilder for WSS (deferred TLS handshake).
-  auto builder =
-      WebSocketStreamBuilder::Create(DirectStreamBuilder::Create(), ssl_ctx);
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
+  auto builder = WebSocketStreamBuilder::Create(
+      connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx);
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -168,11 +151,9 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
         connection_internal::GetDefaultClientSslContextState();
     ssl_ctx = ssl_state.ssl_ctx;
     if (ssl_state.ec) {
-      // Create assembler BEFORE moving host/port into the task.
-      auto assembler =
-          AllocateShared<DefaultRequestAssembler>("https", host, port, ssl_ctx);
+      auto assembler = connection_internal::GetDefaultRequestAssembler();
       auto builder = WebSocketStreamBuilder::Create(
-          DirectStreamBuilder::Create(), ssl_ctx);
+          connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx);
 
       auto ws_task = AllocateShared<WebSocketClientTask>(
           std::move(io_executor), std::move(host), std::move(port),
@@ -189,14 +170,11 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
     }
   }
 
-  // Create assembler BEFORE moving host/port/ssl_ctx into the task.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      use_ssl ? "https" : "http", host, port, ssl_ctx);
-  // Use WebSocketStreamBuilder for WSS, DirectStreamBuilder for WS.
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
   auto builder =
       use_ssl ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
-                    DirectStreamBuilder::Create(), ssl_ctx))
-              : DirectStreamBuilder::Create();
+                    connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx))
+              : connection_internal::GetDefaultDirectStreamBuilder();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),
@@ -221,15 +199,12 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
 
   auto effective_ssl_ctx = use_ssl ? std::move(ssl_ctx) : SslContextPtr{};
 
-  // Create assembler BEFORE moving host/port into the task.
-  // Copy ssl_ctx for assembler since we need it for the task too.
-  auto assembler = AllocateShared<DefaultRequestAssembler>(
-      use_ssl ? "https" : "http", host, port, effective_ssl_ctx);
-  // Use WebSocketStreamBuilder for WSS, DirectStreamBuilder for WS.
+  auto assembler = connection_internal::GetDefaultRequestAssembler();
   auto builder =
       use_ssl ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
-                    DirectStreamBuilder::Create(), effective_ssl_ctx))
-              : DirectStreamBuilder::Create();
+                    connection_internal::GetDefaultDirectStreamBuilder(),
+                    effective_ssl_ctx))
+              : connection_internal::GetDefaultDirectStreamBuilder();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),

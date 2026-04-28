@@ -90,24 +90,14 @@ class RequestAssembler : public NonCopyableNonMovable<RequestAssembler> {
 };
 
 /**
- * @brief Simple assembler with fixed connection identity.
+ * @brief Stateless default assembler.
  *
  * Sets standard request headers and derives ConnectionKey from the
- * provider-supplied scheme/host/port/ssl_ctx at construction time.
+ * parameters passed to Assemble().
  */
 class DefaultRequestAssembler : public RequestAssembler {
  public:
-  /**
-   * @brief Construct with connection identity.
-   *
-   * @param scheme "http" or "https"
-   * @param host Target hostname
-   * @param port Target port string
-   * @param ssl_ctx SSL context (nullptr for http)
-   */
-  DefaultRequestAssembler(std::string scheme, std::string host,
-                          std::string port, SslContextPtr ssl_ctx = {});
-
+  DefaultRequestAssembler() = default;
   ~DefaultRequestAssembler() override = default;
 
   AssemblyResult Assemble(HttpClientRequest request,
@@ -115,12 +105,6 @@ class DefaultRequestAssembler : public RequestAssembler {
                           std::string_view scheme, std::string_view host,
                           std::string_view port,
                           SslContextPtr ssl_ctx) override;
-
- protected:
-  std::string scheme_;
-  std::string host_;
-  std::string port_;
-  SslContextPtr ssl_ctx_;
 };
 
 /**
