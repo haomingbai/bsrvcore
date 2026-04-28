@@ -232,7 +232,8 @@ void PooledStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
         auto slot = std::move(dq.front());
         dq.pop_front();
         if (slot.IsCompatible(key) && slot.IsReusable()) {
-          return cb({}, std::move(slot));
+          cb({}, std::move(slot));
+          return;
         }
         // Stale or incompatible — discard (destroyed on scope exit).
       }
