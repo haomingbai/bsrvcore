@@ -24,6 +24,7 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
+#include <atomic>
 #include <boost/json.hpp>
 #include <boost/system/error_code.hpp>
 #include <memory>
@@ -55,6 +56,9 @@ using TcpResolverResults = TcpResolver::results_type;
 using SslContext = boost::asio::ssl::context;
 /** @brief Shared SSL context handle used by public APIs. */
 using SslContextPtr = std::shared_ptr<SslContext>;
+/** @brief Atomic shared pointer alias used for lock-free snapshot publication. */
+template <typename T>
+using AtomicSharedPtr = std::atomic<std::shared_ptr<T>>;
 /** @brief Steady timer alias used by connection/runtime timeouts. */
 using SteadyTimer = boost::asio::steady_timer;
 /** @brief Beast flat buffer alias used by HTTP and WebSocket parsing. */
