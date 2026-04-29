@@ -115,13 +115,6 @@ void WebSocketClientTask::DoStart() {
     return;
   }
 
-  // Assembled mode: validate SSL context, then acquire stream.
-  if (use_ssl_ && ssl_ctx_ == nullptr) {
-    FailAndClose(make_error_code(boost::system::errc::invalid_argument),
-                 "wss requires an SSL context");
-    return;
-  }
-
   DoAcquire();
 }
 

@@ -170,13 +170,6 @@ void HttpSseClientTask::Impl::DoStart() {
     return;
   }
 
-  // Assembled mode: validate SSL context, then acquire stream.
-  if (use_ssl_ && ssl_ctx_ == nullptr) {
-    FailStart(HttpSseClientErrorStage::kCreate,
-              make_error_code(boost::system::errc::invalid_argument));
-    return;
-  }
-
   DoAcquire();
 }
 
@@ -203,7 +196,9 @@ void HttpSseClientTask::Impl::DoAcquire() {
 void HttpSseClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
                                                 StreamSlot slot) {
   if (ec) {
-    HttpSseClientErrorStage stage = use_ssl_
+    const bool is_ssl_error =
+        ec.category() == boost::asio::error::get_ssl_category();
+    HttpSseClientErrorStage stage = is_ssl_error
                                         ? HttpSseClientErrorStage::kTlsHandshake
                                         : HttpSseClientErrorStage::kConnect;
     FailStart(stage, ec);

@@ -84,6 +84,25 @@ TEST(WebSocketClientTaskTest, ExplicitWssFactoryAcceptsSharedSslContext) {
   EXPECT_EQ(task->Request().method(), http::verb::get);
 }
 
+TEST(WebSocketClientTaskTest,
+     ExplicitWssFactoryWithoutSslContextFailsInBuilderPhase) {
+  bsrvcore::IoContext ioc;
+  auto state = std::make_shared<ClientHandlerState>();
+  auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
+      ioc.get_executor(), bsrvcore::SslContextPtr{}, "wss://127.0.0.1:8443/ws",
+      std::make_unique<ClientHandler>(state));
+
+  ASSERT_NE(task, nullptr);
+  task->Start();
+  ioc.run();
+
+  EXPECT_EQ(state->open_count, 0);
+  EXPECT_EQ(state->error_count, 1);
+  EXPECT_EQ(state->close_count, 1);
+  EXPECT_NE(state->last_error.find("connection acquire failed"),
+            std::string::npos);
+}
+
 TEST(WebSocketClientTaskTest, OnHttpDoneSetterSupportsChaining) {
   bsrvcore::IoContext ioc;
   auto task = bsrvcore::WebSocketClientTask::CreateHttp(

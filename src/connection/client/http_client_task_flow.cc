@@ -128,18 +128,18 @@ void HttpClientTask::Impl::DoStart() {
     return;
   }
 
-  if (use_ssl_ && ssl_ctx_ == nullptr && !tcp_stream_) {
-    Fail(HttpClientErrorStage::kCreate,
-         make_error_code(boost::system::errc::invalid_argument));
-    return;
-  }
-
   if (assembler_) {
     DoAcquire();
     return;
   }
 
-  // Raw mode: stream already provided, proceed directly.
+  // Raw mode: stream already provided, validate it before proceeding.
+  if ((use_ssl_ && !ssl_stream_) || (!use_ssl_ && !tcp_stream_)) {
+    Fail(HttpClientErrorStage::kCreate,
+         make_error_code(boost::system::errc::invalid_argument));
+    return;
+  }
+
   EmitConnected(boost::system::error_code{});
   DoWriteRequest();
 }

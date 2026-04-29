@@ -154,6 +154,11 @@ std::shared_ptr<DirectStreamBuilder> DirectStreamBuilder::Create() {
 
 void DirectStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
                                   AcquireCallback cb) {
+  if (key.scheme == "https" && key.ssl_ctx == nullptr) {
+    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    return;
+  }
+
   // Share resolver across the async chain.
   auto resolver = std::make_shared<TcpResolver>(executor);
 
@@ -346,6 +351,11 @@ WebSocketStreamBuilder::WebSocketStreamBuilder(
 void WebSocketStreamBuilder::Acquire(ConnectionKey key,
                                      IoContextExecutor executor,
                                      AcquireCallback cb) {
+  if (key.scheme == "https" && key.ssl_ctx == nullptr) {
+    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    return;
+  }
+
   // For non-SSL WebSocket, forward to inner builder (plain TCP).
   if (key.ssl_ctx == nullptr) {
     inner_->Acquire(std::move(key), std::move(executor), std::move(cb));
@@ -551,6 +561,12 @@ ProxyStreamBuilder::ProxyStreamBuilder(std::shared_ptr<StreamBuilder> inner)
 
 void ProxyStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
                                  AcquireCallback cb) {
+  if (key.scheme == "https" && key.has_proxy() &&
+      key.proxy_ssl_ctx == nullptr) {
+    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    return;
+  }
+
   // Non-proxy or HTTP proxy: delegate to inner builder.
   // HTTP proxy only needs request target rewriting (done by
   // ProxyRequestAssembler); the TCP connection goes directly to the proxy.

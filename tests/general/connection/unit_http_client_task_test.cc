@@ -95,6 +95,50 @@ TEST(HttpClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
   EXPECT_EQ(result.response.body(), "raw-ok");
 }
 
+TEST(HttpClientTaskTest,
+     HttpsRawFactoryValidatesProvidedSslStreamInsteadOfSslCtx) {
+  bsrvcore::IoContext ioc;
+  bsrvcore::SslContext ssl_ctx(bsrvcore::SslContext::tls_client);
+  bsrvcore::SslStream stream(ioc.get_executor(), ssl_ctx);
+
+  auto task = bsrvcore::HttpClientTask::CreateHttpsRaw(
+      ioc.get_executor(), std::move(stream), "127.0.0.1", "/raw-https",
+      http::verb::get);
+
+  std::promise<bsrvcore::HttpClientResult> promise;
+  auto future = promise.get_future();
+  task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
+    promise.set_value(result);
+  });
+
+  task->Start();
+  ioc.run();
+
+  const auto result = future.get();
+  EXPECT_TRUE(result.ec);
+  EXPECT_NE(result.error_stage, bsrvcore::HttpClientErrorStage::kCreate);
+}
+
+TEST(HttpClientTaskTest, HttpsFactoryWithoutSslContextFailsInBuilderPhase) {
+  bsrvcore::IoContext ioc;
+  auto task = bsrvcore::HttpClientTask::CreateHttps(
+      ioc.get_executor(), bsrvcore::SslContextPtr{}, "127.0.0.1", "443", "/",
+      http::verb::get);
+
+  std::promise<bsrvcore::HttpClientResult> promise;
+  auto future = promise.get_future();
+  task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
+    promise.set_value(result);
+  });
+
+  task->Start();
+  ioc.run();
+
+  const auto result = future.get();
+  EXPECT_EQ(result.ec, make_error_code(boost::system::errc::invalid_argument));
+  EXPECT_EQ(result.error_stage, bsrvcore::HttpClientErrorStage::kConnect);
+}
+
 TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/assembled",

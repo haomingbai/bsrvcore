@@ -108,7 +108,9 @@ builder_->Acquire(connection_key_, executor, callback)
 
 The callback receives a `StreamSlot` on completion. The builder is
 responsible for everything between the `ConnectionKey` and a ready-to-use
-stream: DNS resolution, TCP connect, and optional TLS handshake.
+stream: DNS resolution, TCP connect, optional TLS handshake, and validation of
+transport-specific connection requirements encoded in the `ConnectionKey`
+(for example, HTTPS/WSS requests that require a TLS context).
 
 ```mermaid
 flowchart TD
@@ -291,6 +293,9 @@ In raw mode:
 - `CreateHttpRaw(...)` consumes a connected `TcpStream`.
 - `CreateHttpsRaw(...)` consumes a connected + handshaked `SslStream`.
 - Phase 3 then proceeds identically to assembled mode.
+- Task startup validates the presence of the expected raw stream. It does not
+  re-validate builder-owned TLS context policy; assembled-mode context
+  validation belongs to Phase 2 builders.
 
 Internally, raw mode is represented by an `HttpClientTask::Impl` with no
 assembler/builder attached and a pre-populated working stream.

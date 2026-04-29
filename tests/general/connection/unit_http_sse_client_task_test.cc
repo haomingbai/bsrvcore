@@ -147,6 +147,24 @@ TEST(HttpSseClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
   EXPECT_NE(next_result.chunk.find("data: raw"), std::string::npos);
 }
 
+TEST(HttpSseClientTaskTest, HttpsFactoryWithoutSslContextFailsInBuilderPhase) {
+  bsrvcore::IoContext ioc;
+  auto client = bsrvcore::HttpSseClientTask::CreateHttps(
+      ioc.get_executor(), bsrvcore::SslContextPtr{}, "127.0.0.1", "443", "/");
+
+  std::promise<bsrvcore::HttpSseClientResult> promise;
+  auto future = promise.get_future();
+  client->Start([&promise](const bsrvcore::HttpSseClientResult& result) {
+    promise.set_value(result);
+  });
+
+  ioc.run();
+
+  const auto result = future.get();
+  EXPECT_EQ(result.ec, make_error_code(boost::system::errc::invalid_argument));
+  EXPECT_EQ(result.error_stage, bsrvcore::HttpSseClientErrorStage::kConnect);
+}
+
 TEST(HttpSseClientTaskTest, ParserParsesSamplePayload) {
   bsrvcore::SseEventParser parser;
   auto events = parser.Feed("data: one\n\n");
