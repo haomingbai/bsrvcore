@@ -9,6 +9,8 @@
 #include <vector>
 
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_builder.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/types.h"
@@ -91,6 +93,72 @@ TEST(HttpClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
   EXPECT_FALSE(result.ec);
   EXPECT_EQ(result.response.result(), http::status::ok);
   EXPECT_EQ(result.response.body(), "raw-ok");
+}
+
+TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
+  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/assembled",
+                        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                          task->SetBody("assembled-ok");
+                        });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  bsrvcore::IoContext ioc;
+  bsrvcore::HttpClientOptions options;
+
+  auto assembler = std::make_shared<bsrvcore::DefaultRequestAssembler>();
+  auto builder = bsrvcore::DirectStreamBuilder::Create();
+
+  bsrvcore::HttpClientRequest request;
+  request.method(http::verb::get);
+  request.target("/assembled");
+  request.version(11);
+
+  auto assembled =
+      assembler->Assemble(std::move(request), options, "http", "127.0.0.1",
+                          std::to_string(port), nullptr);
+
+  std::shared_ptr<bsrvcore::HttpClientTask> task;
+  std::promise<bsrvcore::HttpClientResult> promise;
+  auto future = promise.get_future();
+
+  builder->Acquire(
+      assembled.connection_key, ioc.get_executor(),
+      [&](boost::system::error_code ec, bsrvcore::StreamSlot slot) mutable {
+        if (ec) {
+          bsrvcore::HttpClientResult result;
+          result.ec = ec;
+          promise.set_value(std::move(result));
+          return;
+        }
+
+        if (!slot.tcp_stream) {
+          bsrvcore::HttpClientResult result;
+          result.ec = make_error_code(boost::system::errc::not_connected);
+          promise.set_value(std::move(result));
+          return;
+        }
+
+        task = bsrvcore::HttpClientTask::CreateHttpRaw(
+            ioc.get_executor(), std::move(*slot.tcp_stream),
+            assembled.connection_key.host,
+            std::string(assembled.request.target()), assembled.request.method(),
+            options);
+        task->Request() = std::move(assembled.request);
+        task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
+          promise.set_value(result);
+        });
+        task->Start();
+      });
+
+  ioc.run();
+
+  const auto result = future.get();
+  EXPECT_FALSE(result.ec);
+  EXPECT_EQ(result.response.result(), http::status::ok);
+  EXPECT_EQ(result.response.body(), "assembled-ok");
 }
 
 TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {

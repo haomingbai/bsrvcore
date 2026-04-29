@@ -21,8 +21,12 @@ sequence:
 Each phase is represented by an abstract base class with several concrete
 implementations. The phases are composed through dependency injection at
 task-creation time, allowing different combinations for plain HTTP, HTTPS,
-HTTP proxy, CONNECT-tunnel HTTPS proxy, and WebSocket connections without
-conditional branches inside the execution core.
+CONNECT-tunnel HTTPS proxy, session-aware requests, and WebSocket
+connections without conditional branches inside the execution core.
+
+For the public API surface, the simple `Create*` factories wire the default
+direct path. Advanced callers can also execute Phase 1 and Phase 2
+explicitly, then hand the resulting stream to a Raw factory for Phase 3.
 
 ### Pipeline at a glance
 
@@ -192,16 +196,15 @@ rest of the pipeline is untouched.
 
 ### Composition matrix
 
-The table below shows how the factory layer composes assemblers and builders
-for each use case:
+The table below shows the main compositions used by the built-in direct
+factories and by explicit advanced wiring:
 
 | Scenario | Assembler | Builder stack (outer → inner) |
 |---|---|---|
 | Plain HTTP | `DefaultRequestAssembler` | `DirectStreamBuilder` |
 | HTTPS | `DefaultRequestAssembler` | `DirectStreamBuilder` (ssl_ctx set) |
-| HTTP proxy | `ProxyRequestAssembler` → `Default` | `DirectStreamBuilder` (proxy host) |
-| HTTPS proxy (CONNECT) | `ProxyRequestAssembler` → `Default` | `ProxyStreamBuilder` → `Direct` |
 | Session-aware HTTP/S | `SessionRequestAssembler` | `DirectStreamBuilder` |
+| Explicit HTTPS proxy (CONNECT) | `ProxyRequestAssembler` → `Default` | `ProxyStreamBuilder` → `Direct` |
 | WebSocket (WS/WSS) | `DefaultRequestAssembler` | `WebSocketStreamBuilder` → `Direct` |
 
 Arrows indicate decorator wrapping: `ProxyRequestAssembler` delegates to its
@@ -231,9 +234,10 @@ below it. Because pooling is a separate axis from proxy and WebSocket,
 any combination — pooled+proxy, pooled+direct, non-pooled+WebSocket — is
 achieved without changes to any participating class.
 
-Factory functions in `http_client_task.cc` encode the correct combination
-for each factory variant, keeping that wiring decision out of the task class
-itself.
+The default direct combinations are wired by the public `Create*` factories in
+`http_client_task.cc`. Explicit proxy/custom transport combinations are
+assembled by callers and then handed to `CreateHttpRaw(...)` or
+`CreateHttpsRaw(...)` for Phase 3 execution.
 
 ## State Machine
 
@@ -277,19 +281,19 @@ at the next safe checkpoint, then emits `kDone` with a cancellation reason.
 
 ## Raw Mode
 
-For callers that supply a pre-connected stream (e.g., upgraded WebSocket
-connections, unit tests), the pipeline provides a **raw mode** bypass. In raw
-mode:
+Raw factories are the Phase 3 entry point for callers that already own a
+ready stream. That includes unit tests, advanced transport composition, and
+cases where Phase 1 + Phase 2 are performed explicitly outside the task.
 
-- Phase 1 (Assembler) still runs — headers are still injected and the
-  `ConnectionKey` is computed (though it is unused).
-- Phase 2 (Builder) is skipped entirely. The pre-supplied `StreamSlot` is
-  passed directly to `OnAcquireComplete`.
-- Phase 3 proceeds identically.
+In raw mode:
 
-Raw mode is activated through an overloaded constructor that accepts a
-`StreamSlot` directly. The builder member is left null; `DoAcquire()` detects
-the null builder and branches to the raw path.
+- Phase 1 and Phase 2 have already happened outside `HttpClientTask`.
+- `CreateHttpRaw(...)` consumes a connected `TcpStream`.
+- `CreateHttpsRaw(...)` consumes a connected + handshaked `SslStream`.
+- Phase 3 then proceeds identically to assembled mode.
+
+Internally, raw mode is represented by an `HttpClientTask::Impl` with no
+assembler/builder attached and a pre-populated working stream.
 
 ## Connection Pooling and Stream Return
 

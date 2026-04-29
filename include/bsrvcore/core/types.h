@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_CORE_TYPES_H_
 #define BSRVCORE_CORE_TYPES_H_
 
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
@@ -24,7 +25,6 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/ssl.hpp>
 #include <boost/beast/websocket.hpp>
-#include <atomic>
 #include <boost/json.hpp>
 #include <boost/system/error_code.hpp>
 #include <memory>
@@ -84,8 +84,7 @@ class AtomicSharedPtr {
     ptr_ = std::move(desired);
   }
 
-  std::shared_ptr<T> load(
-      std::memory_order = std::memory_order_seq_cst) const {
+  std::shared_ptr<T> load(std::memory_order = std::memory_order_seq_cst) const {
     std::lock_guard<std::mutex> lock(mutex_);
     return ptr_;
   }
@@ -95,9 +94,10 @@ class AtomicSharedPtr {
   std::shared_ptr<T> ptr_;
 };
 #else
-/** @brief Atomic shared pointer alias used for lock-free snapshot publication. */
+/** @brief Atomic shared pointer alias used for lock-free snapshot publication.
+ */
 template <typename T>
-using AtomicSharedPtr = std::atomic<std::shared_ptr<T>>;
+using AtomicSharedPtr = std::atomic<std::shared_ptr<T> >;
 #endif
 /** @brief Steady timer alias used by connection/runtime timeouts. */
 using SteadyTimer = boost::asio::steady_timer;

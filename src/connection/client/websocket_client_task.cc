@@ -172,9 +172,10 @@ std::shared_ptr<WebSocketClientTask> WebSocketClientTask::CreateFromUrl(
 
   auto assembler = connection_internal::GetDefaultRequestAssembler();
   auto builder =
-      use_ssl ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
-                    connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx))
-              : connection_internal::GetDefaultDirectStreamBuilder();
+      use_ssl
+          ? std::shared_ptr<StreamBuilder>(WebSocketStreamBuilder::Create(
+                connection_internal::GetDefaultDirectStreamBuilder(), ssl_ctx))
+          : connection_internal::GetDefaultDirectStreamBuilder();
 
   auto ws_task = AllocateShared<WebSocketClientTask>(
       std::move(io_executor), std::move(host), std::move(port),

@@ -7,7 +7,9 @@ This chapter maps to:
 - `include/bsrvcore/connection/client/put_generator.h`
 - `include/bsrvcore/connection/client/multipart_generator.h`
 - `include/bsrvcore/connection/client/http_sse_client_task.h`
+- `include/bsrvcore/connection/client/request_assembler.h`
 - `include/bsrvcore/connection/client/sse_event_parser.h`
+- `include/bsrvcore/connection/client/stream_builder.h`
 
 ## HttpClientTask
 
@@ -321,41 +323,72 @@ std::size_t n = session->CookieCount();  // count after expired cleanup
 
 ## Proxy support
 
-Route requests through an HTTP or HTTPS proxy by setting
-`HttpClientOptions::proxy` before creating the task.
+The simple `CreateHttp` / `CreateHttps` / `CreateFromUrl` factories are still
+supported and remain the recommended path for ordinary direct connections.
+
+Proxy routing is now documented as an **explicit three-phase pipeline**:
+
+1. `RequestAssembler::Assemble(...)` prepares the final request and derives the
+   `ConnectionKey`.
+2. `StreamBuilder::Acquire(...)` resolves/connects/builds the transport.
+3. `CreateHttpRaw(...)` or `CreateHttpsRaw(...)` consumes that ready stream and
+   runs the task execution phase.
+
+For HTTPS over an HTTP proxy, the public building blocks are:
+
+- `ProxyRequestAssembler`
+- `ProxyStreamBuilder`
+- `HttpClientTask::CreateHttpsRaw(...)`
+
+Minimal shape:
 
 ```cpp
 bsrvcore::HttpClientOptions opts;
-opts.proxy.host = "proxy.corp.example";
-opts.proxy.port = "3128";
-opts.proxy.auth = "Basic dXNlcjpwYXNz";  // base64(user:pass), optional
+bsrvcore::ProxyConfig proxy;
+proxy.host = "proxy.corp.example";
+proxy.port = "3128";
 
-auto task = bsrvcore::HttpClientTask::CreateFromUrl(
+auto ssl_ctx =
+    std::make_shared<bsrvcore::SslContext>(bsrvcore::SslContext::tls_client);
+ssl_ctx->set_default_verify_paths();
+
+auto assembler = std::make_shared<bsrvcore::ProxyRequestAssembler>(
+    std::make_shared<bsrvcore::DefaultRequestAssembler>(),
+    proxy);
+auto builder = bsrvcore::ProxyStreamBuilder::Create(
+    bsrvcore::DirectStreamBuilder::Create());
+
+bsrvcore::HttpClientRequest request;
+request.method(bsrvcore::HttpVerb::get);
+request.target("/");
+request.version(11);
+
+auto assembled = assembler->Assemble(
+    std::move(request), opts, "https", "api.example.com", "443", ssl_ctx);
+
+builder->Acquire(
+    assembled.connection_key,
     ioc.get_executor(),
-    "https://api.example.com/data",
-    bsrvcore::HttpVerb::get,
-    opts);
+    [&](boost::system::error_code ec, bsrvcore::StreamSlot slot) {
+      if (ec || !slot.ssl_stream) {
+        return;
+      }
+
+      auto task = bsrvcore::HttpClientTask::CreateHttpsRaw(
+          ioc.get_executor(),
+          std::move(*slot.ssl_stream),
+          assembled.connection_key.host,
+          std::string(assembled.request.target()),
+          assembled.request.method(),
+          opts);
+      task->Request() = std::move(assembled.request);
+      task->Start();
+    });
 ```
 
-`auth` is the raw `Proxy-Authorization` header value. Leave it empty if the
-proxy does not require authentication.
-
-Behaviour by scheme:
-
-- **HTTP target** — the request target is rewritten to absolute-form
-  (`http://api.example.com/data`) and sent to the proxy server directly.
-- **HTTPS target** — a `CONNECT` tunnel is established to the proxy, then TLS
-  is negotiated through the tunnel to the real server.
-
-Proxy configuration also works with `HttpClientSession`:
-
-```cpp
-auto t = session->CreateFromUrl(
-    ioc.get_executor(),
-    "https://api.example.com/data",
-    bsrvcore::HttpVerb::get,
-    opts);   // same opts with proxy set
-```
+The key idea is that **Raw factories are the public Phase 3 stream consumers**.
+They are not legacy-only escape hatches; they are the intended handoff point
+when you assemble transport yourself.
 
 ## Connection management
 
@@ -403,12 +436,11 @@ flowchart LR
 
 The supported customisation points for application code are:
 
-- **Proxy** — set `HttpClientOptions::proxy` to route through a proxy server.
 - **Session** — use `HttpClientSession` to share a cookie jar across requests.
-
-Advanced injection of custom `RequestAssembler` or `StreamBuilder`
-implementations is possible via internal `CreateAssembledTask` overloads, but
-these are not part of the public API surface and may change between releases.
+- **Explicit pipeline** — compose `RequestAssembler` + `StreamBuilder`, then
+  hand the acquired stream to `CreateHttpRaw(...)` / `CreateHttpsRaw(...)`.
+- **Proxy** — use `ProxyRequestAssembler` and `ProxyStreamBuilder` inside that
+  explicit pipeline when transport routing must go through a proxy.
 
 ## Cancellation
 
@@ -425,6 +457,7 @@ For WebSocket task APIs, upgrade semantics, and stage-1 limitations, see
 ## Example sources
 
 - `examples/client-tasks/http_request.cc`
+- `examples/client-tasks/http_proxy_request.cc`
 - `examples/client-tasks/sse_events.cc`
 
 ## Performance note

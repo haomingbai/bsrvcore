@@ -43,11 +43,12 @@ using HttpClientRequest = HttpRequest;
 using HttpClientResponse = HttpResponse;
 
 /**
- * @brief HTTP/HTTPS proxy configuration.
+ * @brief HTTP/HTTPS proxy configuration for explicit client pipeline wiring.
  *
- * When enabled (host is non-empty), requests are routed through the
- * specified proxy server. For HTTP, the request target is rewritten to
- * absolute-form. For HTTPS, a CONNECT tunnel is established.
+ * This type is consumed by `ProxyRequestAssembler` when applications build a
+ * custom three-phase client pipeline. It is not part of
+ * `HttpClientOptions`, so the simple `Create*` factories always represent
+ * direct connections.
  */
 struct ProxyConfig {
   /** @brief Proxy server hostname or IP. Empty means no proxy. */
@@ -91,8 +92,6 @@ struct HttpClientOptions : public CopyableMovable<HttpClientOptions> {
   bool keep_alive{false};
   /** @brief Optional User-Agent header value. */
   std::string user_agent;
-  /** @brief Optional HTTP/HTTPS proxy configuration. */
-  ProxyConfig proxy;
 };
 
 /**

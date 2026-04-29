@@ -1,12 +1,12 @@
 /**
  * @file http_proxy_request.cc
- * @brief HTTPS request through an HTTP proxy using ProxyConfig.
+ * @brief HTTPS request through an HTTP proxy using the explicit 3-phase
+ * client pipeline.
  *
  * Demonstrates:
- * - configuring an HTTP/HTTPS proxy via HttpClientOptions::proxy
- * - ProxyRequestAssembler rewriting request targets for HTTP proxy
- * - ProxyStreamBuilder establishing CONNECT tunnel + TLS for HTTPS proxy
- * - automatic proxy detection in HttpClientTask factory functions
+ * - Phase 1: `ProxyRequestAssembler` assembling request + `ConnectionKey`
+ * - Phase 2: `ProxyStreamBuilder` establishing CONNECT tunnel + TLS
+ * - Phase 3: `HttpClientTask::CreateHttpsRaw(...)` consuming the ready stream
  *
  * Usage:
  *   Requires a local HTTP proxy listening on 127.0.0.1:7890
@@ -16,12 +16,15 @@
  */
 
 #include <bsrvcore/connection/client/http_client_task.h>
+#include <bsrvcore/connection/client/request_assembler.h>
+#include <bsrvcore/connection/client/stream_builder.h>
 
 #include <boost/asio/io_context.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/system/error_code.hpp>
 #include <chrono>
-#include <future>
 #include <iostream>
+#include <memory>
 #include <string>
 
 int main() {
@@ -38,37 +41,80 @@ int main() {
   options.read_body_timeout = std::chrono::seconds(5);
   options.user_agent = "bsrvcore-example-proxy";
 
-  // Configure proxy: all requests go through 127.0.0.1:7890.
-  // For HTTPS targets, ProxyStreamBuilder establishes a CONNECT tunnel
-  // and performs TLS handshake through the proxy.
-  options.proxy.host = "127.0.0.1";
-  options.proxy.port = "7890";
-  // options.proxy.auth = "Basic dXNlcjpwYXNz";  // Uncomment if proxy
-  // requires auth.
+  bsrvcore::ProxyConfig proxy;
+  proxy.host = "127.0.0.1";
+  proxy.port = "7890";
 
-  // Create an HTTPS task. The factory automatically detects proxy
-  // configuration and wraps the assembler/builder with proxy support.
-  auto task = bsrvcore::HttpClientTask::CreateHttps(
-      ioc.get_executor(), "www.google.com", "443", "/", http::verb::get,
-      options);
-
-  std::promise<bsrvcore::HttpClientResult> promise;
-  auto future = promise.get_future();
-
-  task->OnDone([&promise](const bsrvcore::HttpClientResult& result) {
-    promise.set_value(result);
-  });
-
-  task->Start();
-  ioc.run();
-
-  auto result = future.get();
-  if (result.ec) {
-    std::cerr << "Proxy request failed: " << result.ec.message() << '\n';
+  auto ssl_ctx =
+      std::make_shared<bsrvcore::SslContext>(bsrvcore::SslContext::tls_client);
+  boost::system::error_code verify_paths_ec;
+  ssl_ctx->set_default_verify_paths(verify_paths_ec);
+  if (verify_paths_ec) {
+    std::cerr << "Failed to load system trust roots: "
+              << verify_paths_ec.message() << '\n';
     return 1;
   }
 
-  std::cout << "Status: " << result.response.result_int() << '\n';
-  std::cout << "Body size: " << result.response.body().size() << '\n';
-  return 0;
+  auto base_assembler = std::make_shared<bsrvcore::DefaultRequestAssembler>();
+  auto assembler = std::make_shared<bsrvcore::ProxyRequestAssembler>(
+      base_assembler, std::move(proxy));
+  auto direct_builder = bsrvcore::DirectStreamBuilder::Create();
+  auto builder = bsrvcore::ProxyStreamBuilder::Create(direct_builder);
+
+  bsrvcore::HttpClientRequest request;
+  request.method(http::verb::get);
+  request.target("/");
+  request.version(11);
+
+  auto assembled = assembler->Assemble(std::move(request), options, "https",
+                                       "www.google.com", "443", ssl_ctx);
+
+  std::shared_ptr<bsrvcore::HttpClientTask> task;
+  int exit_code = 1;
+  bool finished = false;
+
+  builder->Acquire(
+      assembled.connection_key, ioc.get_executor(),
+      [&](boost::system::error_code ec, bsrvcore::StreamSlot slot) mutable {
+        if (ec) {
+          std::cerr << "Stream acquisition failed: " << ec.message() << '\n';
+          finished = true;
+          return;
+        }
+
+        if (!slot.ssl_stream) {
+          std::cerr << "Expected a TLS stream from proxy builder\n";
+          finished = true;
+          return;
+        }
+
+        task = bsrvcore::HttpClientTask::CreateHttpsRaw(
+            ioc.get_executor(), std::move(*slot.ssl_stream),
+            assembled.connection_key.host,
+            std::string(assembled.request.target()), assembled.request.method(),
+            options);
+        task->Request() = std::move(assembled.request);
+        task->OnDone([&](const bsrvcore::HttpClientResult& result) {
+          finished = true;
+          if (result.ec) {
+            std::cerr << "Proxy request failed: " << result.ec.message()
+                      << '\n';
+            exit_code = 1;
+            return;
+          }
+
+          std::cout << "Status: " << result.response.result_int() << '\n';
+          std::cout << "Body size: " << result.response.body().size() << '\n';
+          exit_code = 0;
+        });
+        task->Start();
+      });
+
+  ioc.run();
+
+  if (!finished) {
+    std::cerr << "Proxy example finished without producing a terminal result\n";
+    return 1;
+  }
+  return exit_code;
 }
