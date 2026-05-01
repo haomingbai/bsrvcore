@@ -27,6 +27,7 @@
 #include <string>
 
 #include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/stream_slot.h"
 
 // Forward declarations for assembled mode.
 namespace bsrvcore {
@@ -119,8 +120,7 @@ class HttpClientTask::Impl
   HttpClientTask::Executor callback_executor_;
   boost::asio::strand<HttpClientTask::Executor> strand_;
 
-  std::unique_ptr<TcpStream> tcp_stream_;
-  std::unique_ptr<SslStream> ssl_stream_;
+  ClientStream stream_;
 
   FlatBuffer buffer_;
   std::optional<http_client_detail::http::response_parser<

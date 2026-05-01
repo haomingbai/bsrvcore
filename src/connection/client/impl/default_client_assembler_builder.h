@@ -16,6 +16,7 @@
 
 #include <memory>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
 
@@ -23,7 +24,7 @@ namespace bsrvcore {
 namespace connection_internal {
 
 inline std::shared_ptr<DefaultRequestAssembler> GetDefaultRequestAssembler() {
-  static auto instance = std::make_shared<DefaultRequestAssembler>();
+  static auto instance = AllocateShared<DefaultRequestAssembler>();
   return instance;
 }
 

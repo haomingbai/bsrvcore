@@ -98,11 +98,11 @@ void HttpClientTask::Impl::SetCreateError(boost::system::error_code ec,
 }
 
 void HttpClientTask::Impl::SetRawTcpStream(TcpStream stream) {
-  tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+  stream_.EmplaceTcp(std::move(stream));
 }
 
 void HttpClientTask::Impl::SetRawSslStream(SslStream stream) {
-  ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+  stream_.EmplaceSsl(std::move(stream));
 }
 
 // ============================================================================
@@ -134,7 +134,7 @@ void HttpClientTask::Impl::DoStart() {
   }
 
   // Raw mode: stream already provided, validate it before proceeding.
-  if ((use_ssl_ && !ssl_stream_) || (!use_ssl_ && !tcp_stream_)) {
+  if ((use_ssl_ && !stream_.IsSsl()) || (!use_ssl_ && !stream_.IsTcp())) {
     Fail(HttpClientErrorStage::kCreate,
          make_error_code(boost::system::errc::invalid_argument));
     return;
@@ -172,16 +172,13 @@ void HttpClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
     return;
   }
 
-  if (slot.ssl_stream) {
-    ssl_stream_ = std::move(slot.ssl_stream);
-  } else if (slot.tcp_stream) {
-    tcp_stream_ = std::move(slot.tcp_stream);
-  } else {
+  if (!slot.Stream().HasStream()) {
     Fail(HttpClientErrorStage::kConnect,
          make_error_code(boost::system::errc::invalid_argument));
     return;
   }
 
+  stream_ = std::move(slot.Stream());
   EmitConnected(boost::system::error_code{});
   DoWriteRequest();
 }
@@ -191,11 +188,12 @@ void HttpClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
 // ============================================================================
 
 void HttpClientTask::Impl::DoWriteRequest() {
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.write_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.write_timeout);
     http::async_write(
-        *ssl_stream_, request_,
+        stream, request_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -204,9 +202,10 @@ void HttpClientTask::Impl::DoWriteRequest() {
     return;
   }
 
-  tcp_stream_->expires_after(options_.write_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.write_timeout);
   http::async_write(
-      *tcp_stream_, request_,
+      stream, request_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {
@@ -223,11 +222,12 @@ void HttpClientTask::Impl::OnWriteRequest(boost::system::error_code ec) {
   parser_.emplace();
   parser_->body_limit(options_.max_response_body_bytes);
 
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.read_header_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.read_header_timeout);
     http::async_read_header(
-        *ssl_stream_, buffer_, *parser_,
+        stream, buffer_, *parser_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -236,9 +236,10 @@ void HttpClientTask::Impl::OnWriteRequest(boost::system::error_code ec) {
     return;
   }
 
-  tcp_stream_->expires_after(options_.read_header_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.read_header_timeout);
   http::async_read_header(
-      *tcp_stream_, buffer_, *parser_,
+      stream, buffer_, *parser_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {
@@ -281,11 +282,12 @@ void HttpClientTask::Impl::OnReadHeader(boost::system::error_code ec) {
 }
 
 void HttpClientTask::Impl::DoReadBodyAll() {
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.read_body_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.read_body_timeout);
     http::async_read(
-        *ssl_stream_, buffer_, *parser_,
+        stream, buffer_, *parser_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -294,8 +296,9 @@ void HttpClientTask::Impl::DoReadBodyAll() {
     return;
   }
 
-  tcp_stream_->expires_after(options_.read_body_timeout);
-  http::async_read(*tcp_stream_, buffer_, *parser_,
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.read_body_timeout);
+  http::async_read(stream, buffer_, *parser_,
                    boost::asio::bind_executor(
                        strand_, [self = shared_from_this()](
                                     boost::system::error_code ec, std::size_t) {
@@ -314,11 +317,12 @@ void HttpClientTask::Impl::OnReadBodyAll(boost::system::error_code ec) {
 }
 
 void HttpClientTask::Impl::DoReadBodySome() {
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.read_body_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.read_body_timeout);
     http::async_read_some(
-        *ssl_stream_, buffer_, *parser_,
+        stream, buffer_, *parser_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -327,9 +331,10 @@ void HttpClientTask::Impl::DoReadBodySome() {
     return;
   }
 
-  tcp_stream_->expires_after(options_.read_body_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.read_body_timeout);
   http::async_read_some(
-      *tcp_stream_, buffer_, *parser_,
+      stream, buffer_, *parser_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {
@@ -372,20 +377,7 @@ void HttpClientTask::Impl::DoCancel() {
   CloseTransports();
 }
 
-void HttpClientTask::Impl::CloseTransports() {
-  boost::system::error_code ignored;
-  if (tcp_stream_) {
-    tcp_stream_->socket().cancel(ignored);
-    tcp_stream_->socket().shutdown(tcp::socket::shutdown_both, ignored);
-    tcp_stream_->socket().close(ignored);
-  }
-  if (ssl_stream_) {
-    auto& socket = boost::beast::get_lowest_layer(*ssl_stream_).socket();
-    socket.cancel(ignored);
-    socket.shutdown(tcp::socket::shutdown_both, ignored);
-    socket.close(ignored);
-  }
-}
+void HttpClientTask::Impl::CloseTransports() { stream_.Close(); }
 
 // ============================================================================
 // Completion
@@ -420,9 +412,9 @@ void HttpClientTask::Impl::Fail(HttpClientErrorStage error_stage,
   if (done_hook_) {
     StreamSlot slot;
     slot.key = connection_key_;
-    slot.tcp_stream = std::move(tcp_stream_);
-    slot.ssl_stream = std::move(ssl_stream_);
+    slot.SetStream(std::move(stream_));
     slot.http_version = 11;
+    slot.upstream_closed = true;
     done_hook_(std::move(slot));
   }
 }
@@ -433,6 +425,7 @@ void HttpClientTask::Impl::Succeed(HttpClientResponse response) {
   }
 
   completion_state_ = CompletionState::kSuccess;
+  const bool keep_alive = response.keep_alive();
 
   HttpClientResult result;
   result.ec = {};
@@ -446,9 +439,9 @@ void HttpClientTask::Impl::Succeed(HttpClientResponse response) {
   if (done_hook_) {
     StreamSlot slot;
     slot.key = connection_key_;
-    slot.tcp_stream = std::move(tcp_stream_);
-    slot.ssl_stream = std::move(ssl_stream_);
+    slot.SetStream(std::move(stream_));
     slot.http_version = 11;
+    slot.upstream_closed = !keep_alive;
     done_hook_(std::move(slot));
   }
 }

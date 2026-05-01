@@ -2,6 +2,7 @@
 
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <future>
 #include <memory>
 #include <string>
@@ -24,6 +25,35 @@ using bsrvcore::test::ServerGuard;
 using bsrvcore::test::StartServerWithRoutes;
 
 }  // namespace
+
+TEST(ClientStreamTest, TracksEmptyTcpSslAndMoveStates) {
+  bsrvcore::IoContext ioc;
+  bsrvcore::ClientStream stream;
+
+  EXPECT_TRUE(stream.Empty());
+  EXPECT_FALSE(stream.HasStream());
+
+  stream.EmplaceTcp(ioc.get_executor());
+  EXPECT_FALSE(stream.Empty());
+  EXPECT_TRUE(stream.HasStream());
+  EXPECT_TRUE(stream.IsTcp());
+  EXPECT_FALSE(stream.IsSsl());
+  static_cast<void>(stream.Tcp());
+
+  stream.Reset();
+  EXPECT_TRUE(stream.Empty());
+
+  bsrvcore::SslContext ssl_ctx(bsrvcore::SslContext::tls_client);
+  stream.EmplaceSsl(ioc.get_executor(), ssl_ctx);
+  EXPECT_TRUE(stream.IsSsl());
+  EXPECT_FALSE(stream.IsTcp());
+  static_cast<void>(stream.Ssl());
+
+  bsrvcore::ClientStream moved = std::move(stream);
+  EXPECT_TRUE(moved.IsSsl());
+  moved.Reset();
+  EXPECT_TRUE(moved.Empty());
+}
 
 TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
   auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
@@ -178,7 +208,7 @@ TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
           return;
         }
 
-        if (!slot.tcp_stream) {
+        if (!slot.HasTcpStream()) {
           bsrvcore::HttpClientResult result;
           result.ec = make_error_code(boost::system::errc::not_connected);
           promise.set_value(std::move(result));
@@ -186,7 +216,7 @@ TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
         }
 
         task = bsrvcore::HttpClientTask::CreateHttpRaw(
-            ioc.get_executor(), std::move(*slot.tcp_stream),
+            ioc.get_executor(), std::move(slot.TcpStreamRef()),
             assembled.connection_key.host,
             std::string(assembled.request.target()), assembled.request.method(),
             options);

@@ -106,7 +106,7 @@ void WebSocketClientTask::DoStart() {
   // Raw mode: WebSocket stream already created via
   // CreateHttpRaw/CreateHttpsRaw.
   if (!assembler_) {
-    if (!ws_stream_ && !wss_stream_) {
+    if (!websocket_stream_.HasStream()) {
       FailAndClose(make_error_code(boost::system::errc::invalid_argument),
                    "raw mode requires a pre-connected stream");
       return;
@@ -156,20 +156,21 @@ void WebSocketClientTask::OnAcquireComplete(boost::system::error_code ec,
   }
 
   // Create WebSocket stream on top of the acquired transport.
-  if (slot.ssl_stream) {
+  if (slot.HasSslStream()) {
     // Pre-handshaked SSL stream (e.g. from Raw mode).
-    CreateSecureWebSocketStream(std::move(*slot.ssl_stream));
+    CreateSecureWebSocketStream(std::move(slot.SslStreamRef()));
     StartWebSocketHandshake();
-  } else if (slot.tcp_stream && slot.deferred_ssl_ctx) {
+  } else if (slot.HasTcpStream() && slot.deferred_ssl_ctx) {
     // Deferred TLS handshake path for WSS.
-    // WebSocketStreamBuilder returned a TcpStream; we now wrap it in
-    // SslStream, perform TLS handshake, then create the WebSocket wrapper.
-    DoDeferredTlsHandshake(std::move(*slot.tcp_stream),
+    // WebSocketStreamBuilder returned a connected TcpStream plus TLS metadata;
+    // this task owns the temporary TLS stream until it can be promoted into the
+    // final SecureWebSocketStream.
+    DoDeferredTlsHandshake(std::move(slot.TcpStreamRef()),
                            std::move(slot.deferred_ssl_ctx),
                            slot.deferred_verify_peer);
-  } else if (slot.tcp_stream) {
+  } else if (slot.HasTcpStream()) {
     // Plain WebSocket (WS).
-    CreateWebSocketStream(std::move(*slot.tcp_stream));
+    CreateWebSocketStream(std::move(slot.TcpStreamRef()));
     StartWebSocketHandshake();
   } else {
     FailAndClose(make_error_code(boost::system::errc::not_connected),
@@ -178,11 +179,11 @@ void WebSocketClientTask::OnAcquireComplete(boost::system::error_code ec,
 }
 
 void WebSocketClientTask::CreateWebSocketStream(TcpStream stream) {
-  ws_stream_ = std::make_unique<WebSocketStream>(std::move(stream));
+  websocket_stream_.EmplaceWs(std::move(stream));
 }
 
 void WebSocketClientTask::CreateSecureWebSocketStream(SslStream stream) {
-  wss_stream_ = std::make_unique<SecureWebSocketStream>(std::move(stream));
+  websocket_stream_.EmplaceWss(std::move(stream));
 }
 
 void WebSocketClientTask::DoDeferredTlsHandshake(TcpStream tcp_stream,
@@ -192,13 +193,14 @@ void WebSocketClientTask::DoDeferredTlsHandshake(TcpStream tcp_stream,
   //   → ssl_stream.async_handshake → OnDeferredTlsHandshakeComplete
   //   → CreateSecureWebSocketStream → StartWebSocketHandshake
   //
-  // Beast's websocket::stream<SslStream> expects TLS handshake to happen
-  // on the next_layer() AFTER the WebSocket wrapper is constructed.
-  // We create the SslStream from the connected TcpStream, set SNI and
-  // verify mode, then perform the handshake.
+  // pending_transport_ is the inline replacement for the previous
+  // shared_ptr<SslStream> temporary. It exists only while async_handshake()
+  // owns the TLS operation; the handshaked stream is moved into
+  // websocket_stream_ on success.
   lifecycle_state_ = LifecycleState::kTlsHandshaking;
 
-  auto ssl_stream = SslStream(std::move(tcp_stream), *ssl_ctx);
+  pending_transport_.EmplaceSsl(std::move(tcp_stream), *ssl_ctx);
+  auto& ssl_stream = pending_transport_.Ssl();
 
   // SNI hostname.
   if (SSL_set_tlsext_host_name(ssl_stream.native_handle(), host_.c_str()) !=
@@ -222,30 +224,32 @@ void WebSocketClientTask::DoDeferredTlsHandshake(TcpStream tcp_stream,
   boost::beast::get_lowest_layer(ssl_stream)
       .expires_after(options_.tls_handshake_timeout);
 
-  // Wrap in shared_ptr so it outlives the handshake lambda.
-  auto ssl_ptr = std::make_shared<SslStream>(std::move(ssl_stream));
   auto self = shared_from_this();
-  (*ssl_ptr).async_handshake(boost::asio::ssl::stream_base::client,
-                             [self, ssl_ptr](boost::system::error_code ec) {
-                               self->OnDeferredTlsHandshakeComplete(
-                                   ec, std::move(*ssl_ptr));
+  ssl_stream.async_handshake(boost::asio::ssl::stream_base::client,
+                             [self](boost::system::error_code ec) {
+                               self->OnDeferredTlsHandshakeComplete(ec);
                              });
 }
 
 void WebSocketClientTask::OnDeferredTlsHandshakeComplete(
-    boost::system::error_code ec, SslStream ssl_stream) {
+    boost::system::error_code ec) {
   if (IsClosingOrClosed()) {
+    pending_transport_.Reset();
     NotifyCloseOnce(boost::system::error_code{});
     return;
   }
 
   if (ec) {
+    pending_transport_.Close();
+    pending_transport_.Reset();
     FailAndClose(ec, "tls handshake failed");
     return;
   }
 
-  // TLS handshake succeeded — create WebSocket wrapper and start WS handshake.
-  CreateSecureWebSocketStream(std::move(ssl_stream));
+  // TLS handshake succeeded: promote the temporary TLS transport into the
+  // final WebSocket stream and clear the temporary slot.
+  CreateSecureWebSocketStream(std::move(pending_transport_.Ssl()));
+  pending_transport_.Reset();
   StartWebSocketHandshake();
 }
 
@@ -254,19 +258,21 @@ void WebSocketClientTask::StartWebSocketHandshake() {
   auto response_sp = AllocateShared<websocket::response_type>();
   auto self = shared_from_this();
 
-  if (ws_stream_ != nullptr) {
-    ConfigureClientHandshake(*ws_stream_, request_, options_);
+  if (websocket_stream_.IsWs()) {
+    auto& stream = websocket_stream_.Ws();
+    ConfigureClientHandshake(stream, request_, options_);
     StartWebSocketHandshakeForStream(
-        *ws_stream_, response_sp, host_, target_,
+        stream, response_sp, host_, target_,
         [self, response_sp](boost::system::error_code ec) {
           self->OnWebSocketHandshakeCompleted(ec, response_sp);
         });
     return;
   }
-  if (wss_stream_ != nullptr) {
-    ConfigureClientHandshake(*wss_stream_, request_, options_);
+  if (websocket_stream_.IsWss()) {
+    auto& stream = websocket_stream_.Wss();
+    ConfigureClientHandshake(stream, request_, options_);
     StartWebSocketHandshakeForStream(
-        *wss_stream_, response_sp, host_, target_,
+        stream, response_sp, host_, target_,
         [self, response_sp](boost::system::error_code ec) {
           self->OnWebSocketHandshakeCompleted(ec, response_sp);
         });

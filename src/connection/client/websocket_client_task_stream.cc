@@ -49,28 +49,30 @@ void WebSocketClientTask::Cancel() {
   }
 
   close_reason_ = CloseReason::kUserCancel;
+  const bool was_open = IsOpen();
   lifecycle_state_ = LifecycleState::kClosing;
 
-  if (IsOpen()) {
+  if (was_open) {
     auto self = shared_from_this();
-    if (ws_stream_ != nullptr) {
+    if (websocket_stream_.IsWs()) {
       StartWebSocketCloseForStream(
-          *ws_stream_,
+          websocket_stream_.Ws(),
           [self](boost::system::error_code ec) { self->NotifyCloseOnce(ec); });
       return;
     }
-    if (wss_stream_ != nullptr) {
+    if (websocket_stream_.IsWss()) {
       StartWebSocketCloseForStream(
-          *wss_stream_,
+          websocket_stream_.Wss(),
           [self](boost::system::error_code ec) { self->NotifyCloseOnce(ec); });
       return;
     }
   } else {
-    if (ws_stream_ != nullptr) {
-      AbortTransport(*ws_stream_);
+    pending_transport_.Close();
+    if (websocket_stream_.IsWs()) {
+      AbortTransport(websocket_stream_.Ws());
     }
-    if (wss_stream_ != nullptr) {
-      AbortTransport(*wss_stream_);
+    if (websocket_stream_.IsWss()) {
+      AbortTransport(websocket_stream_.Wss());
     }
   }
 
@@ -84,9 +86,10 @@ bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
 
   auto payload_sp = AllocateShared<std::string>(std::move(payload));
   auto self = shared_from_this();
-  if (ws_stream_ != nullptr) {
-    ws_stream_->binary(binary);
-    ws_stream_->async_write(
+  if (websocket_stream_.IsWs()) {
+    auto& stream = websocket_stream_.Ws();
+    stream.binary(binary);
+    stream.async_write(
         boost::asio::buffer(*payload_sp),
         [self, payload_sp](boost::system::error_code ec, std::size_t) {
           if (ec) {
@@ -95,9 +98,10 @@ bool WebSocketClientTask::WriteMessage(std::string payload, bool binary) {
         });
     return true;
   }
-  if (wss_stream_ != nullptr) {
-    wss_stream_->binary(binary);
-    wss_stream_->async_write(
+  if (websocket_stream_.IsWss()) {
+    auto& stream = websocket_stream_.Wss();
+    stream.binary(binary);
+    stream.async_write(
         boost::asio::buffer(*payload_sp),
         [self, payload_sp](boost::system::error_code ec, std::size_t) {
           if (ec) {
@@ -130,24 +134,24 @@ bool WebSocketClientTask::WriteControl(WebSocketControlKind kind,
 
 bool WebSocketClientTask::WritePingControl(std::string payload) {
   auto self = shared_from_this();
-  if (ws_stream_ != nullptr) {
-    ws_stream_->async_ping(websocket::ping_data(std::move(payload)),
-                           [self](boost::system::error_code ec) {
-                             if (ec) {
-                               self->NotifyError(
-                                   ec, "websocket client ping failed");
-                             }
-                           });
+  if (websocket_stream_.IsWs()) {
+    websocket_stream_.Ws().async_ping(
+        websocket::ping_data(std::move(payload)),
+        [self](boost::system::error_code ec) {
+          if (ec) {
+            self->NotifyError(ec, "websocket client ping failed");
+          }
+        });
     return true;
   }
-  if (wss_stream_ != nullptr) {
-    wss_stream_->async_ping(websocket::ping_data(std::move(payload)),
-                            [self](boost::system::error_code ec) {
-                              if (ec) {
-                                self->NotifyError(
-                                    ec, "websocket client ping failed");
-                              }
-                            });
+  if (websocket_stream_.IsWss()) {
+    websocket_stream_.Wss().async_ping(
+        websocket::ping_data(std::move(payload)),
+        [self](boost::system::error_code ec) {
+          if (ec) {
+            self->NotifyError(ec, "websocket client ping failed");
+          }
+        });
     return true;
   }
 
@@ -156,24 +160,24 @@ bool WebSocketClientTask::WritePingControl(std::string payload) {
 
 bool WebSocketClientTask::WritePongControl(std::string payload) {
   auto self = shared_from_this();
-  if (ws_stream_ != nullptr) {
-    ws_stream_->async_pong(websocket::ping_data(std::move(payload)),
-                           [self](boost::system::error_code ec) {
-                             if (ec) {
-                               self->NotifyError(
-                                   ec, "websocket client pong failed");
-                             }
-                           });
+  if (websocket_stream_.IsWs()) {
+    websocket_stream_.Ws().async_pong(
+        websocket::ping_data(std::move(payload)),
+        [self](boost::system::error_code ec) {
+          if (ec) {
+            self->NotifyError(ec, "websocket client pong failed");
+          }
+        });
     return true;
   }
-  if (wss_stream_ != nullptr) {
-    wss_stream_->async_pong(websocket::ping_data(std::move(payload)),
-                            [self](boost::system::error_code ec) {
-                              if (ec) {
-                                self->NotifyError(
-                                    ec, "websocket client pong failed");
-                              }
-                            });
+  if (websocket_stream_.IsWss()) {
+    websocket_stream_.Wss().async_pong(
+        websocket::ping_data(std::move(payload)),
+        [self](boost::system::error_code ec) {
+          if (ec) {
+            self->NotifyError(ec, "websocket client pong failed");
+          }
+        });
     return true;
   }
 
@@ -210,7 +214,7 @@ void WebSocketClientTask::FailAndClose(boost::system::error_code ec,
 
 void WebSocketClientTask::BeginReadLoop() {
   // Call chain: OnHandshakeComplete → BeginReadLoop
-  //   → ws_stream_/wss_stream_.async_read → OnWebSocketRead
+  //   → websocket_stream_.async_read → OnWebSocketRead
   //
   // Both ws and wss branches share the same completion handler.
   if (!IsOpen()) {
@@ -218,8 +222,8 @@ void WebSocketClientTask::BeginReadLoop() {
   }
 
   auto self = shared_from_this();
-  if (ws_stream_ != nullptr) {
-    WebSocketStream* stream = ws_stream_.get();
+  if (websocket_stream_.IsWs()) {
+    WebSocketStream* stream = &websocket_stream_.Ws();
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {
@@ -230,8 +234,8 @@ void WebSocketClientTask::BeginReadLoop() {
         });
     return;
   }
-  if (wss_stream_ != nullptr) {
-    SecureWebSocketStream* stream = wss_stream_.get();
+  if (websocket_stream_.IsWss()) {
+    SecureWebSocketStream* stream = &websocket_stream_.Wss();
     stream->async_read(
         ws_read_buffer_,
         [self, stream](boost::system::error_code ec, std::size_t) {

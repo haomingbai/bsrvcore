@@ -25,11 +25,14 @@
 #include <boost/asio/write.hpp>
 #include <boost/beast/core/stream_traits.hpp>
 #include <boost/system/errc.hpp>
+#include <charconv>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/core/types.h"
 
@@ -55,84 +58,119 @@ namespace {
  *             → OnDirectTcpConnect (lambda) → cb(slot)
  */
 
+struct DirectResolveState {
+  DirectResolveState(ConnectionKey key_in, IoContextExecutor executor_in,
+                     DirectStreamBuilder::AcquireCallback cb_in)
+      : key(std::move(key_in)),
+        executor(std::move(executor_in)),
+        resolver(executor),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey key;
+  IoContextExecutor executor;
+  TcpResolver resolver;
+  DirectStreamBuilder::AcquireCallback cb;
+};
+
+struct DirectTcpConnectState {
+  DirectTcpConnectState(ConnectionKey key_in, IoContextExecutor executor,
+                        DirectStreamBuilder::AcquireCallback cb_in)
+      : key(std::move(key_in)),
+        stream(std::move(executor)),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey key;
+  TcpStream stream;
+  DirectStreamBuilder::AcquireCallback cb;
+};
+
+struct DirectSslConnectState {
+  DirectSslConnectState(ConnectionKey key_in, IoContextExecutor executor,
+                        DirectStreamBuilder::AcquireCallback cb_in)
+      : key(std::move(key_in)),
+        stream(std::move(executor), *key.ssl_ctx),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey key;
+  SslStream stream;
+  DirectStreamBuilder::AcquireCallback cb;
+};
+
 /** @brief Connect plain TCP and produce a StreamSlot. */
 void DoDirectTcpConnect(ConnectionKey key, IoContextExecutor executor,
                         const TcpResolverResults& results,
                         DirectStreamBuilder::AcquireCallback cb) {
-  auto tcp_stream = std::make_unique<TcpStream>(executor);
-  tcp_stream->expires_after(std::chrono::seconds(2));
+  auto state = AllocateShared<DirectTcpConnectState>(
+      std::move(key), std::move(executor), std::move(cb));
+  state->stream.expires_after(std::chrono::seconds(2));
 
-  tcp_stream->async_connect(
-      results, [key = std::move(key), tcp_stream = std::move(tcp_stream),
-                cb = std::move(cb)](boost::system::error_code ec,
-                                    const TcpEndpoint&) mutable {
-        if (ec) {
-          cb(ec, StreamSlot{});
-          return;
-        }
-        StreamSlot slot;
-        slot.key = std::move(key);
-        slot.tcp_stream = std::move(tcp_stream);
-        slot.http_version = 11;
-        cb({}, std::move(slot));
-      });
+  state->stream.async_connect(results, [state](boost::system::error_code ec,
+                                               const TcpEndpoint&) mutable {
+    if (ec) {
+      state->cb(ec, StreamSlot{});
+      return;
+    }
+    StreamSlot slot;
+    slot.key = std::move(state->key);
+    slot.EmplaceTcp(std::move(state->stream));
+    slot.http_version = 11;
+    auto cb = std::move(state->cb);
+    cb({}, std::move(slot));
+  });
 }
 
 /** @brief Connect SSL (TCP + SNI + handshake) and produce a StreamSlot. */
 void DoDirectSslConnect(ConnectionKey key, IoContextExecutor executor,
                         const TcpResolverResults& results,
                         DirectStreamBuilder::AcquireCallback cb) {
-  auto ssl_stream = std::make_unique<SslStream>(executor, *key.ssl_ctx);
-  boost::beast::get_lowest_layer(*ssl_stream)
+  auto state = AllocateShared<DirectSslConnectState>(
+      std::move(key), std::move(executor), std::move(cb));
+  boost::beast::get_lowest_layer(state->stream)
       .expires_after(std::chrono::seconds(2));
 
-  boost::beast::get_lowest_layer(*ssl_stream)
-      .async_connect(results, [key = std::move(key),
-                               ssl_stream = std::move(ssl_stream),
-                               cb = std::move(cb)](boost::system::error_code ec,
-                                                   const TcpEndpoint&) mutable {
+  boost::beast::get_lowest_layer(state->stream)
+      .async_connect(results, [state](boost::system::error_code ec,
+                                      const TcpEndpoint&) mutable {
         if (ec) {
-          cb(ec, StreamSlot{});
+          state->cb(ec, StreamSlot{});
           return;
         }
 
         // SNI hostname.
-        if (SSL_set_tlsext_host_name(ssl_stream->native_handle(),
-                                     key.host.c_str()) != 1) {
-          cb(boost::system::error_code{static_cast<int>(::ERR_get_error()),
-                                       boost::asio::error::get_ssl_category()},
-             StreamSlot{});
+        if (SSL_set_tlsext_host_name(state->stream.native_handle(),
+                                     state->key.host.c_str()) != 1) {
+          state->cb(
+              boost::system::error_code{static_cast<int>(::ERR_get_error()),
+                                        boost::asio::error::get_ssl_category()},
+              StreamSlot{});
           return;
         }
 
         // Peer verification.
-        if (key.verify_peer) {
-          ssl_stream->set_verify_mode(boost::asio::ssl::verify_peer);
-          ssl_stream->set_verify_callback(
-              boost::asio::ssl::host_name_verification(key.host));
+        if (state->key.verify_peer) {
+          state->stream.set_verify_mode(boost::asio::ssl::verify_peer);
+          state->stream.set_verify_callback(
+              boost::asio::ssl::host_name_verification(state->key.host));
         } else {
-          ssl_stream->set_verify_mode(boost::asio::ssl::verify_none);
+          state->stream.set_verify_mode(boost::asio::ssl::verify_none);
         }
 
-        boost::beast::get_lowest_layer(*ssl_stream)
+        boost::beast::get_lowest_layer(state->stream)
             .expires_after(std::chrono::seconds(2));
 
-        // Wrap in shared_ptr so it outlives the handshake lambda.
-        auto ssl_ptr =
-            std::make_shared<std::unique_ptr<SslStream>>(std::move(ssl_stream));
-        (**ssl_ptr).async_handshake(
+        state->stream.async_handshake(
             boost::asio::ssl::stream_base::client,
-            [key = std::move(key), ssl_ptr,
-             cb = std::move(cb)](boost::system::error_code ec) mutable {
+            [state](boost::system::error_code ec) mutable {
               if (ec) {
-                cb(ec, StreamSlot{});
+                state->cb(ec, StreamSlot{});
                 return;
               }
               StreamSlot slot;
-              slot.key = std::move(key);
-              slot.ssl_stream = std::move(*ssl_ptr);
+              slot.key = std::move(state->key);
+              slot.EmplaceSsl(std::move(state->stream));
               slot.sni_hostname = slot.key.host;
               slot.http_version = 11;
+              auto cb = std::move(state->cb);
               cb({}, std::move(slot));
             });
       });
@@ -159,50 +197,33 @@ void DirectStreamBuilder::Acquire(ConnectionKey key, IoContextExecutor executor,
     return;
   }
 
-  // Share resolver across the async chain.
-  auto resolver = std::make_shared<TcpResolver>(executor);
+  auto state = AllocateShared<DirectResolveState>(
+      std::move(key), std::move(executor), std::move(cb));
 
-  // Copy host/port before the lambda capture moves `key`, since C++ argument
-  // evaluation order is unspecified.
-  const std::string resolve_host = key.host;
-  const std::string resolve_port = key.port;
+  const std::string resolve_host = state->key.host;
+  const std::string resolve_port = state->key.port;
 
-  resolver->async_resolve(
+  state->resolver.async_resolve(
       resolve_host, resolve_port,
-      [this_shared = shared_from_this(), key = std::move(key),
-       executor = std::move(executor), cb = std::move(cb),
-       resolver](boost::system::error_code ec,
-                 const TcpResolverResults& results) mutable {
+      [this_shared = shared_from_this(), state](
+          boost::system::error_code ec,
+          const TcpResolverResults& results) mutable {
         if (ec) {
-          cb(ec, StreamSlot{});
+          state->cb(ec, StreamSlot{});
           return;
         }
 
-        if (key.ssl_ctx != nullptr) {
-          DoDirectSslConnect(std::move(key), std::move(executor), results,
-                             std::move(cb));
+        if (state->key.ssl_ctx != nullptr) {
+          DoDirectSslConnect(std::move(state->key), state->executor, results,
+                             std::move(state->cb));
         } else {
-          DoDirectTcpConnect(std::move(key), std::move(executor), results,
-                             std::move(cb));
+          DoDirectTcpConnect(std::move(state->key), state->executor, results,
+                             std::move(state->cb));
         }
       });
 }
 
-void DirectStreamBuilder::Return(StreamSlot slot) {
-  boost::system::error_code ignored;
-  if (slot.ssl_stream) {
-    auto& socket = boost::beast::get_lowest_layer(*slot.ssl_stream).socket();
-    socket.cancel(ignored);
-    socket.shutdown(Tcp::socket::shutdown_both, ignored);
-    socket.close(ignored);
-  }
-  if (slot.tcp_stream) {
-    auto& socket = slot.tcp_stream->socket();
-    socket.cancel(ignored);
-    socket.shutdown(Tcp::socket::shutdown_both, ignored);
-    socket.close(ignored);
-  }
-}
+void DirectStreamBuilder::Return(StreamSlot slot) { slot.Stream().Close(); }
 
 // ---- PooledStreamBuilder ----
 
@@ -297,33 +318,59 @@ namespace {
  */
 
 /** @brief Connect plain TCP for deferred WSS and produce a StreamSlot. */
+struct WebSocketResolveState {
+  WebSocketResolveState(ConnectionKey key_in, IoContextExecutor executor_in,
+                        StreamBuilder::AcquireCallback cb_in)
+      : key(std::move(key_in)),
+        executor(std::move(executor_in)),
+        resolver(executor),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey key;
+  IoContextExecutor executor;
+  TcpResolver resolver;
+  StreamBuilder::AcquireCallback cb;
+};
+
+struct WebSocketTcpConnectState {
+  WebSocketTcpConnectState(ConnectionKey key_in, IoContextExecutor executor,
+                           StreamBuilder::AcquireCallback cb_in)
+      : key(std::move(key_in)),
+        stream(std::move(executor)),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey key;
+  TcpStream stream;
+  StreamBuilder::AcquireCallback cb;
+};
+
 void DoWebSocketTcpConnect(ConnectionKey key, IoContextExecutor executor,
                            const TcpResolverResults& results,
                            StreamBuilder::AcquireCallback cb) {
-  auto tcp_stream = std::make_unique<TcpStream>(executor);
-  tcp_stream->expires_after(std::chrono::seconds(2));
+  auto state = AllocateShared<WebSocketTcpConnectState>(
+      std::move(key), std::move(executor), std::move(cb));
+  state->stream.expires_after(std::chrono::seconds(2));
 
-  tcp_stream->async_connect(
-      results, [key = std::move(key), tcp_stream = std::move(tcp_stream),
-                cb = std::move(cb)](boost::system::error_code ec,
-                                    const TcpEndpoint&) mutable {
-        if (ec) {
-          cb(ec, StreamSlot{});
-          return;
-        }
+  state->stream.async_connect(results, [state](boost::system::error_code ec,
+                                               const TcpEndpoint&) mutable {
+    if (ec) {
+      state->cb(ec, StreamSlot{});
+      return;
+    }
 
-        // Return TcpStream with deferred SSL info.
-        // WebSocketClientTask will wrap this in websocket::stream<SslStream>
-        // and perform the TLS handshake itself.
-        StreamSlot slot;
-        slot.key = key;
-        slot.tcp_stream = std::move(tcp_stream);
-        slot.deferred_ssl_ctx = key.ssl_ctx;
-        slot.deferred_verify_peer = key.verify_peer;
-        slot.sni_hostname = key.host;
-        slot.http_version = 11;
-        cb({}, std::move(slot));
-      });
+    // Return TcpStream with deferred SSL info. WebSocketClientTask owns the
+    // WSS TLS handshake and promotes the handshaked transport into the final
+    // websocket::stream<SslStream>.
+    StreamSlot slot;
+    slot.key = state->key;
+    slot.EmplaceTcp(std::move(state->stream));
+    slot.deferred_ssl_ctx = state->key.ssl_ctx;
+    slot.deferred_verify_peer = state->key.verify_peer;
+    slot.sni_hostname = state->key.host;
+    slot.http_version = 11;
+    auto cb = std::move(state->cb);
+    cb({}, std::move(slot));
+  });
 }
 
 }  // namespace
@@ -362,26 +409,27 @@ void WebSocketStreamBuilder::Acquire(ConnectionKey key,
     return;
   }
 
-  // For WSS: resolve DNS + connect TCP only, defer TLS handshake.
-  // Beast's websocket::stream<SslStream> expects handshake after wrapping.
-  auto resolver = std::make_shared<TcpResolver>(executor);
+  // For WSS: resolve DNS + connect TCP only. TLS is deferred to
+  // WebSocketClientTask so it can own the WSS transition and final WebSocket
+  // stream construction.
+  auto state = AllocateShared<WebSocketResolveState>(
+      std::move(key), std::move(executor), std::move(cb));
 
-  const std::string resolve_host = key.host;
-  const std::string resolve_port = key.port;
+  const std::string resolve_host = state->key.host;
+  const std::string resolve_port = state->key.port;
 
-  resolver->async_resolve(
-      resolve_host, resolve_port,
-      [this_shared = shared_from_this(), key = std::move(key),
-       executor = std::move(executor), cb = std::move(cb),
-       resolver](boost::system::error_code ec,
-                 const TcpResolverResults& results) mutable {
-        if (ec) {
-          cb(ec, StreamSlot{});
-          return;
-        }
-        DoWebSocketTcpConnect(std::move(key), std::move(executor), results,
-                              std::move(cb));
-      });
+  state->resolver.async_resolve(resolve_host, resolve_port,
+                                [this_shared = shared_from_this(), state](
+                                    boost::system::error_code ec,
+                                    const TcpResolverResults& results) mutable {
+                                  if (ec) {
+                                    state->cb(ec, StreamSlot{});
+                                    return;
+                                  }
+                                  DoWebSocketTcpConnect(
+                                      std::move(state->key), state->executor,
+                                      results, std::move(state->cb));
+                                });
 }
 
 // ---- ProxyStreamBuilder ----
@@ -404,124 +452,155 @@ namespace {
 
 // Forward declaration: DoProxyTlsHandshake is called from DoProxyConnect's
 // lambda but defined after it.
-void DoProxyTlsHandshake(ConnectionKey original_key,
-                         std::shared_ptr<TcpStream> tcp_stream,
+struct ProxyConnectState {
+  ProxyConnectState(ConnectionKey original_key_in, TcpStream tcp_stream_in,
+                    StreamBuilder::AcquireCallback cb_in)
+      : original_key(std::move(original_key_in)),
+        tcp_stream(std::move(tcp_stream_in)),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey original_key;
+  TcpStream tcp_stream;
+  AllocatedString connect_request;
+  AllocatedString response_buffer;
+  StreamBuilder::AcquireCallback cb;
+};
+
+struct ProxyTlsState {
+  ProxyTlsState(ConnectionKey original_key_in, TcpStream tcp_stream,
+                StreamBuilder::AcquireCallback cb_in)
+      : original_key(std::move(original_key_in)),
+        ssl_stream(std::move(tcp_stream), *original_key.proxy_ssl_ctx),
+        cb(std::move(cb_in)) {}
+
+  ConnectionKey original_key;
+  SslStream ssl_stream;
+  StreamBuilder::AcquireCallback cb;
+};
+
+void DoProxyTlsHandshake(ConnectionKey original_key, TcpStream tcp_stream,
                          StreamBuilder::AcquireCallback cb);
 
 /** @brief Send CONNECT request and read response on the proxy TCP stream. */
-void DoProxyConnect(ConnectionKey original_key,
-                    std::shared_ptr<TcpStream> tcp_stream,
-                    StreamBuilder::AcquireCallback cb) {
+void DoProxyConnect(std::shared_ptr<ProxyConnectState> state) {
   // Build CONNECT request.
   const std::string connect_target =
-      original_key.host + ":" + original_key.port;
-  std::string connect_req = "CONNECT " + connect_target + " HTTP/1.1\r\n" +
-                            "Host: " + connect_target + "\r\n" +
-                            "Proxy-Connection: Keep-Alive\r\n";
-  if (!original_key.proxy_ssl_ctx) {
+      state->original_key.host + ":" + state->original_key.port;
+  state->connect_request = detail::ToAllocatedString("CONNECT ");
+  state->connect_request.append(connect_target.data(), connect_target.size());
+  state->connect_request.append(" HTTP/1.1\r\nHost: ");
+  state->connect_request.append(connect_target.data(), connect_target.size());
+  state->connect_request.append("\r\nProxy-Connection: Keep-Alive\r\n");
+  if (!state->original_key.proxy_ssl_ctx) {
     // Should not happen, but guard against it.
-    cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
+    state->cb(make_error_code(boost::system::errc::invalid_argument),
+              StreamSlot{});
     return;
   }
-  connect_req += "\r\n";
+  state->connect_request.append("\r\n");
 
-  auto buffer = std::make_shared<std::string>();
-  tcp_stream->expires_after(std::chrono::seconds(5));
+  state->tcp_stream.expires_after(std::chrono::seconds(5));
 
   boost::asio::async_write(
-      *tcp_stream, boost::asio::buffer(connect_req),
-      [tcp_stream, buffer, original_key = std::move(original_key),
-       cb = std::move(cb)](boost::system::error_code ec, std::size_t) mutable {
+      state->tcp_stream, boost::asio::buffer(state->connect_request),
+      [state](boost::system::error_code ec, std::size_t) mutable {
         if (ec) {
-          cb(ec, StreamSlot{});
+          state->cb(ec, StreamSlot{});
           return;
         }
 
         // Read CONNECT response.
-        tcp_stream->expires_after(std::chrono::seconds(5));
+        state->tcp_stream.expires_after(std::chrono::seconds(5));
         boost::asio::async_read_until(
-            *tcp_stream, boost::asio::dynamic_buffer(*buffer), "\r\n\r\n",
-            [tcp_stream, buffer, original_key = std::move(original_key),
-             cb = std::move(cb)](boost::system::error_code ec,
-                                 std::size_t) mutable {
+            state->tcp_stream,
+            boost::asio::dynamic_buffer(state->response_buffer), "\r\n\r\n",
+            [state](boost::system::error_code ec, std::size_t) mutable {
               if (ec) {
-                cb(ec, StreamSlot{});
+                state->cb(ec, StreamSlot{});
                 return;
               }
 
               // Parse status code from "HTTP/1.x STATUS ..."
-              const std::string& resp = *buffer;
+              const std::string_view resp{state->response_buffer.data(),
+                                          state->response_buffer.size()};
               const auto space1 = resp.find(' ');
               if (space1 == std::string::npos || space1 + 1 >= resp.size()) {
-                cb(make_error_code(boost::system::errc::protocol_error),
-                   StreamSlot{});
+                state->cb(make_error_code(boost::system::errc::protocol_error),
+                          StreamSlot{});
                 return;
               }
               const auto space2 = resp.find(' ', space1 + 1);
-              const std::string status_str =
+              const std::string_view status_sv =
                   resp.substr(space1 + 1, space2 == std::string::npos
                                               ? std::string::npos
                                               : space2 - space1 - 1);
-              const int status = std::stoi(status_str);
+              int status = 0;
+              const auto parse_result =
+                  std::from_chars(status_sv.data(),
+                                  status_sv.data() + status_sv.size(), status);
+              if (parse_result.ec != std::errc{}) {
+                state->cb(make_error_code(boost::system::errc::protocol_error),
+                          StreamSlot{});
+                return;
+              }
               if (status != 200) {
-                cb(make_error_code(boost::system::errc::connection_refused),
-                   StreamSlot{});
+                state->cb(
+                    make_error_code(boost::system::errc::connection_refused),
+                    StreamSlot{});
                 return;
               }
 
               // CONNECT succeeded — perform TLS handshake on the tunnel.
-              DoProxyTlsHandshake(std::move(original_key),
-                                  std::move(tcp_stream), std::move(cb));
+              DoProxyTlsHandshake(std::move(state->original_key),
+                                  std::move(state->tcp_stream),
+                                  std::move(state->cb));
             });
       });
 }
 
 /** @brief Perform TLS handshake on the CONNECT tunnel. */
-void DoProxyTlsHandshake(ConnectionKey original_key,
-                         std::shared_ptr<TcpStream> tcp_stream,
+void DoProxyTlsHandshake(ConnectionKey original_key, TcpStream tcp_stream,
                          StreamBuilder::AcquireCallback cb) {
-  auto ssl_stream = std::make_shared<SslStream>(std::move(*tcp_stream),
-                                                *original_key.proxy_ssl_ctx);
+  auto state = AllocateShared<ProxyTlsState>(
+      std::move(original_key), std::move(tcp_stream), std::move(cb));
 
   // SNI hostname = original target host.
-  if (SSL_set_tlsext_host_name(ssl_stream->native_handle(),
-                               original_key.host.c_str()) != 1) {
-    cb(boost::system::error_code{static_cast<int>(::ERR_get_error()),
-                                 boost::asio::error::get_ssl_category()},
-       StreamSlot{});
+  if (SSL_set_tlsext_host_name(state->ssl_stream.native_handle(),
+                               state->original_key.host.c_str()) != 1) {
+    state->cb(boost::system::error_code{static_cast<int>(::ERR_get_error()),
+                                        boost::asio::error::get_ssl_category()},
+              StreamSlot{});
     return;
   }
 
   // Peer verification.
-  if (original_key.verify_peer) {
-    ssl_stream->set_verify_mode(boost::asio::ssl::verify_peer);
-    ssl_stream->set_verify_callback(
-        boost::asio::ssl::host_name_verification(original_key.host));
+  if (state->original_key.verify_peer) {
+    state->ssl_stream.set_verify_mode(boost::asio::ssl::verify_peer);
+    state->ssl_stream.set_verify_callback(
+        boost::asio::ssl::host_name_verification(state->original_key.host));
   } else {
-    ssl_stream->set_verify_mode(boost::asio::ssl::verify_none);
+    state->ssl_stream.set_verify_mode(boost::asio::ssl::verify_none);
   }
 
-  boost::beast::get_lowest_layer(*ssl_stream)
+  boost::beast::get_lowest_layer(state->ssl_stream)
       .expires_after(std::chrono::seconds(5));
 
-  (*ssl_stream)
-      .async_handshake(
-          boost::asio::ssl::stream_base::client,
-          [original_key = std::move(original_key), ssl_stream,
-           cb = std::move(cb)](boost::system::error_code ec) mutable {
-            if (ec) {
-              cb(ec, StreamSlot{});
-              return;
-            }
+  state->ssl_stream.async_handshake(
+      boost::asio::ssl::stream_base::client,
+      [state](boost::system::error_code ec) mutable {
+        if (ec) {
+          state->cb(ec, StreamSlot{});
+          return;
+        }
 
-            StreamSlot slot;
-            slot.key = original_key;
-            slot.ssl_stream =
-                std::make_unique<SslStream>(std::move(*ssl_stream));
-            slot.sni_hostname = original_key.host;
-            slot.http_version = 11;
-            cb({}, std::move(slot));
-          });
+        StreamSlot slot;
+        slot.key = state->original_key;
+        slot.EmplaceSsl(std::move(state->ssl_stream));
+        slot.sni_hostname = state->original_key.host;
+        slot.http_version = 11;
+        auto cb = std::move(state->cb);
+        cb({}, std::move(slot));
+      });
 }
 
 /** @brief Handle TCP connection to proxy server. */
@@ -533,13 +612,14 @@ void OnProxyTcpAcquired(ConnectionKey original_key,
     return;
   }
 
-  if (!slot.tcp_stream) {
+  if (!slot.HasTcpStream()) {
     cb(make_error_code(boost::system::errc::invalid_argument), StreamSlot{});
     return;
   }
 
-  auto tcp_ptr = std::make_shared<TcpStream>(std::move(*slot.tcp_stream));
-  DoProxyConnect(std::move(original_key), std::move(tcp_ptr), std::move(cb));
+  auto state = AllocateShared<ProxyConnectState>(
+      std::move(original_key), std::move(slot.TcpStreamRef()), std::move(cb));
+  DoProxyConnect(std::move(state));
 }
 
 }  // namespace

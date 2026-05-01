@@ -62,11 +62,12 @@ void HttpSseClientTask::Impl::RunPostedNext(const std::shared_ptr<Impl>& self,
 }
 
 void HttpSseClientTask::Impl::DoReadNextChunk() {
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.read_body_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.read_body_timeout);
     http::async_read_some(
-        *ssl_stream_, buffer_, *parser_,
+        stream, buffer_, *parser_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -75,9 +76,10 @@ void HttpSseClientTask::Impl::DoReadNextChunk() {
     return;
   }
 
-  tcp_stream_->expires_after(options_.read_body_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.read_body_timeout);
   http::async_read_some(
-      *tcp_stream_, buffer_, *parser_,
+      stream, buffer_, *parser_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {

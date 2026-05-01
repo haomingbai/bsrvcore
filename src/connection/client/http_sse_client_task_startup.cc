@@ -110,12 +110,12 @@ void HttpSseClientTask::Impl::SetCreateError(
 
 void HttpSseClientTask::Impl::SetRawTcpStream(TcpStream stream) {
   // Raw mode: directly assign to working stream, no assembler/builder needed.
-  tcp_stream_ = std::make_unique<TcpStream>(std::move(stream));
+  stream_.EmplaceTcp(std::move(stream));
 }
 
 void HttpSseClientTask::Impl::SetRawSslStream(SslStream stream) {
   // Raw mode: directly assign to working stream, no assembler/builder needed.
-  ssl_stream_ = std::make_unique<SslStream>(std::move(stream));
+  stream_.EmplaceSsl(std::move(stream));
 }
 
 void HttpSseClientTask::Impl::SetAssembler(
@@ -161,7 +161,7 @@ void HttpSseClientTask::Impl::DoStart() {
 
   // Raw mode: streams already assigned via SetRawTcpStream/SetRawSslStream.
   if (!assembler_) {
-    if ((use_ssl_ && !ssl_stream_) || (!use_ssl_ && !tcp_stream_)) {
+    if ((use_ssl_ && !stream_.IsSsl()) || (!use_ssl_ && !stream_.IsTcp())) {
       FailStart(HttpSseClientErrorStage::kCreate,
                 make_error_code(boost::system::errc::invalid_argument));
       return;
@@ -205,28 +205,25 @@ void HttpSseClientTask::Impl::OnAcquireComplete(boost::system::error_code ec,
     return;
   }
 
-  // Move the acquired stream into the working stream member.
-  if (slot.ssl_stream) {
-    ssl_stream_ = std::make_unique<SslStream>(std::move(*slot.ssl_stream));
-  } else if (slot.tcp_stream) {
-    tcp_stream_ = std::make_unique<TcpStream>(std::move(*slot.tcp_stream));
-  } else {
+  if (!slot.Stream().HasStream()) {
     FailStart(HttpSseClientErrorStage::kConnect,
               make_error_code(boost::system::errc::not_connected));
     return;
   }
 
+  stream_ = std::move(slot.Stream());
   DoWriteRequest();
 }
 
 void HttpSseClientTask::Impl::DoWriteRequest() {
   request_.prepare_payload();
 
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.write_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.write_timeout);
     http::async_write(
-        *ssl_stream_, request_,
+        stream, request_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -235,9 +232,10 @@ void HttpSseClientTask::Impl::DoWriteRequest() {
     return;
   }
 
-  tcp_stream_->expires_after(options_.write_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.write_timeout);
   http::async_write(
-      *tcp_stream_, request_,
+      stream, request_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {
@@ -252,11 +250,12 @@ void HttpSseClientTask::Impl::OnWriteRequest(boost::system::error_code ec) {
   }
 
   parser_.emplace();
-  if (use_ssl_) {
-    boost::beast::get_lowest_layer(*ssl_stream_)
-        .expires_after(options_.read_header_timeout);
+  if (stream_.IsSsl()) {
+    auto& stream = stream_.Ssl();
+    boost::beast::get_lowest_layer(stream).expires_after(
+        options_.read_header_timeout);
     http::async_read_header(
-        *ssl_stream_, buffer_, *parser_,
+        stream, buffer_, *parser_,
         boost::asio::bind_executor(
             strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                  std::size_t) {
@@ -265,9 +264,10 @@ void HttpSseClientTask::Impl::OnWriteRequest(boost::system::error_code ec) {
     return;
   }
 
-  tcp_stream_->expires_after(options_.read_header_timeout);
+  auto& stream = stream_.Tcp();
+  stream.expires_after(options_.read_header_timeout);
   http::async_read_header(
-      *tcp_stream_, buffer_, *parser_,
+      stream, buffer_, *parser_,
       boost::asio::bind_executor(
           strand_, [self = shared_from_this()](boost::system::error_code ec,
                                                std::size_t) {
@@ -342,18 +342,7 @@ void HttpSseClientTask::Impl::DoCancel() {
 
   cancellation_state_ = CancellationState::kRequested;
 
-  boost::system::error_code ignored;
-  if (tcp_stream_) {
-    tcp_stream_->socket().cancel(ignored);
-    tcp_stream_->socket().shutdown(tcp::socket::shutdown_both, ignored);
-    tcp_stream_->socket().close(ignored);
-  }
-  if (ssl_stream_) {
-    auto& socket = boost::beast::get_lowest_layer(*ssl_stream_).socket();
-    socket.cancel(ignored);
-    socket.shutdown(tcp::socket::shutdown_both, ignored);
-    socket.close(ignored);
-  }
+  stream_.Close();
 }
 
 }  // namespace bsrvcore

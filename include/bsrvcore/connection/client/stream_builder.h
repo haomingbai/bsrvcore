@@ -145,19 +145,19 @@ class PooledStreamBuilder : public StreamBuilderDecorator {
 /**
  * @brief WebSocket-specific builder that defers TLS handshake for WSS.
  *
- * Beast's websocket::stream<SslStream> expects the TLS handshake to happen
- * AFTER the WebSocket wrapper is constructed (via
- * next_layer().async_handshake). DirectStreamBuilder completes the TLS
- * handshake before returning the stream, which breaks Beast's internal state
- * machine.
+ * DirectStreamBuilder completes TLS before returning an SslStream. WSS needs
+ * different ownership because the WebSocket client task must build the
+ * WebSocket stream around the TLS transport after it has prepared WebSocket
+ * handshake state. This builder therefore stops at a connected TcpStream and
+ * returns the TLS context as deferred metadata.
  *
  * WebSocketStreamBuilder solves this by:
  * - For WS (non-SSL): forwarding to the inner builder (plain TCP).
  * - For WSS (SSL): resolving DNS + connecting TCP, but NOT performing the
  *   TLS handshake. Returns a TcpStream with deferred_ssl_ctx and
- *   deferred_verify_peer set in the StreamSlot. WebSocketClientTask then
- *   wraps the TcpStream in websocket::stream<SslStream> and performs the
- *   handshake itself.
+ *   deferred_verify_peer set in the StreamSlot. WebSocketClientTask performs
+ *   TLS using a temporary SslStream and then promotes it into the final
+ *   websocket::stream<SslStream>.
  */
 class WebSocketStreamBuilder : public StreamBuilderDecorator {
  public:

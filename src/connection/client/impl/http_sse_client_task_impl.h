@@ -103,8 +103,7 @@ class HttpSseClientTask::Impl
   HttpSseClientTask::Executor callback_executor_;
   boost::asio::strand<HttpSseClientTask::Executor> strand_;
 
-  std::unique_ptr<TcpStream> tcp_stream_;
-  std::unique_ptr<SslStream> ssl_stream_;
+  ClientStream stream_;
 
   FlatBuffer buffer_;
   std::optional<http_sse_detail::http::response_parser<

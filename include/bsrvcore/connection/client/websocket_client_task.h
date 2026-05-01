@@ -24,6 +24,7 @@
 #include <optional>
 #include <string>
 
+#include "bsrvcore/connection/client/client_websocket_stream.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
@@ -130,15 +131,15 @@ class WebSocketClientTask
    *   → ssl_stream.async_handshake → OnDeferredTlsHandshakeComplete
    *   → CreateSecureWebSocketStream → StartWebSocketHandshake
    *
-   * Beast's websocket::stream<SslStream> expects the TLS handshake to
-   * happen after the WebSocket wrapper is constructed. This method wraps
-   * the acquired TcpStream in an SslStream, sets SNI and verify mode,
-   * then performs the handshake before creating the WebSocket wrapper.
+   * WebSocketStreamBuilder intentionally returns only a connected TcpStream
+   * for WSS so this task can control the WSS transition. This method stores
+   * a temporary SslStream in pending_transport_ for the async TLS handshake,
+   * then moves the handshaked stream into websocket_stream_ as the final
+   * SecureWebSocketStream before starting the WebSocket handshake.
    */
   void DoDeferredTlsHandshake(TcpStream tcp_stream, SslContextPtr ssl_ctx,
                               bool verify_peer);
-  void OnDeferredTlsHandshakeComplete(boost::system::error_code ec,
-                                      SslStream ssl_stream);
+  void OnDeferredTlsHandshakeComplete(boost::system::error_code ec);
   void StartWebSocketHandshake();
   void OnWebSocketHandshakeCompleted(
       boost::system::error_code ec,
@@ -182,8 +183,23 @@ class WebSocketClientTask
   bool use_ssl_{false};
   SslContextPtr ssl_ctx_;
   HttpClientRequest request_;
-  std::unique_ptr<WebSocketStream> ws_stream_;
-  std::unique_ptr<SecureWebSocketStream> wss_stream_;
+  /**
+   * @brief Final WebSocket transport used after WS/WSS setup.
+   *
+   * This owns websocket::stream<TcpStream> for WS or
+   * websocket::stream<SslStream> for WSS. Runtime reads, writes, ping/pong,
+   * and close operations use this member.
+   */
+  ClientWebSocketStream websocket_stream_;
+  /**
+   * @brief Temporary WSS TLS transport during deferred handshake.
+   *
+   * This is not a second live WebSocket stream. It replaces the pre-refactor
+   * heap-owned temporary SslStream used only to keep the TLS stream alive
+   * across async_handshake(). On success it is moved into websocket_stream_;
+   * on cancellation or failure it is closed/reset.
+   */
+  ClientStream pending_transport_;
   FlatBuffer ws_read_buffer_;
   HttpDoneCallback on_http_done_;
   LifecycleState lifecycle_state_{LifecycleState::kInit};

@@ -125,7 +125,7 @@ VerifyPathList CollectVerifyDirs() {
 
 DefaultClientSslContextState BuildDefaultClientSslContextState() {
   DefaultClientSslContextState state;
-  auto ssl_ctx = std::make_shared<SslContext>(SslContext::tls_client);
+  auto ssl_ctx = AllocateShared<SslContext>(SslContext::tls_client);
 
   bool loaded_any = false;
   boost::system::error_code first_error;

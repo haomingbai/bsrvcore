@@ -17,10 +17,11 @@
 #include <boost/asio/ssl/context.hpp>
 #include <chrono>
 #include <cstddef>
-#include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
+#include "bsrvcore/connection/client/client_stream.h"
 #include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
@@ -125,6 +126,9 @@ class StreamSlot {
    * the idle deadline (if set) has not expired.
    */
   [[nodiscard]] bool IsReusable() const noexcept {
+    if (!stream_.HasStream()) {
+      return false;
+    }
     if (upstream_closed) {
       return false;
     }
@@ -134,9 +138,33 @@ class StreamSlot {
     return true;
   }
 
+  [[nodiscard]] ClientStream& Stream() noexcept { return stream_; }
+
+  [[nodiscard]] const ClientStream& Stream() const noexcept { return stream_; }
+
+  [[nodiscard]] bool HasTcpStream() const noexcept { return stream_.IsTcp(); }
+
+  [[nodiscard]] bool HasSslStream() const noexcept { return stream_.IsSsl(); }
+
+  [[nodiscard]] TcpStream& TcpStreamRef() noexcept { return stream_.Tcp(); }
+
+  [[nodiscard]] const TcpStream& TcpStreamRef() const noexcept {
+    return stream_.Tcp();
+  }
+
+  [[nodiscard]] SslStream& SslStreamRef() noexcept { return stream_.Ssl(); }
+
+  [[nodiscard]] const SslStream& SslStreamRef() const noexcept {
+    return stream_.Ssl();
+  }
+
+  void EmplaceTcp(TcpStream stream) { stream_.EmplaceTcp(std::move(stream)); }
+
+  void EmplaceSsl(SslStream stream) { stream_.EmplaceSsl(std::move(stream)); }
+
+  void SetStream(ClientStream stream) { stream_ = std::move(stream); }
+
   ConnectionKey key;
-  std::unique_ptr<TcpStream> tcp_stream;
-  std::unique_ptr<SslStream> ssl_stream;
   std::string sni_hostname;
   int http_version{11};
   bool upstream_closed{false};
@@ -148,7 +176,8 @@ class StreamSlot {
    *
    * When a WebSocketStreamBuilder returns a TcpStream for WSS, this field
    * carries the SSL context so that WebSocketClientTask can perform the
-   * TLS handshake after wrapping the stream in websocket::stream<SslStream>.
+   * deferred TLS handshake before promoting the stream into the final
+   * websocket::stream<SslStream>.
    */
   SslContextPtr deferred_ssl_ctx;
 
@@ -156,6 +185,9 @@ class StreamSlot {
    * @brief Whether to verify TLS peer for deferred handshake (WebSocket WSS).
    */
   bool deferred_verify_peer{true};
+
+ private:
+  ClientStream stream_;
 };
 
 }  // namespace bsrvcore

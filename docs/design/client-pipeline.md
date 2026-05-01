@@ -107,23 +107,26 @@ builder_->Acquire(connection_key_, executor, callback)
 ```
 
 The callback receives a `StreamSlot` on completion. The builder is
-responsible for everything between the `ConnectionKey` and a ready-to-use
-stream: DNS resolution, TCP connect, optional TLS handshake, and validation of
-transport-specific connection requirements encoded in the `ConnectionKey`
-(for example, HTTPS/WSS requests that require a TLS context).
+responsible for everything between the `ConnectionKey` and an acquired
+transport: DNS resolution, TCP connect, optional TLS handshake, and validation
+of transport-specific connection requirements encoded in the `ConnectionKey`
+(for example, HTTPS/WSS requests that require a TLS context). WSS is the
+intentional exception to "optional TLS here": `WebSocketStreamBuilder` returns
+a connected TCP stream plus deferred TLS metadata so the WebSocket task can own
+the WSS transition.
 
 ```mermaid
 flowchart TD
     Acquire["builder_->Acquire(key, executor, cb)"]
     DNS["DNS resolve"]
     TCP["TCP connect"]
-    TLS{"TLS?"}
+    TLS{"TLS now?"}
     Slot["StreamSlot\n(TcpStream | SslStream)"]
     CB["OnAcquireComplete(slot)"]
 
     Acquire --> DNS --> TCP --> TLS
     TLS -- yes --> HandShake["TLS handshake"] --> Slot
-    TLS -- no --> Slot
+    TLS -- no / WSS deferred --> Slot
     Slot --> CB
 ```
 
@@ -134,12 +137,19 @@ Concrete builders:
 | `DirectStreamBuilder` | DNS → TCP connect → optional TLS; the baseline implementation |
 | `PooledStreamBuilder` | Decorator around an inner builder; serves a cached idle connection on hit; delegates to the inner builder on miss |
 | `ProxyStreamBuilder` | DNS → TCP connect to the proxy; sends HTTP `CONNECT` to establish the tunnel; performs TLS over the tunnel for HTTPS targets |
-| `WebSocketStreamBuilder` | DNS → TCP connect; skips TLS at this stage (the WebSocket upgrade task owns the TLS handshake) |
+| `WebSocketStreamBuilder` | DNS → TCP connect for WSS; skips TLS at this stage and returns deferred TLS metadata so the WebSocket task owns the TLS-to-WebSocket transition |
 
-`StreamSlot` is a small value type that owns either a `unique_ptr<TcpStream>`
-or a `unique_ptr<SslStream>`. Ownership is transferred from the builder to
-`OnAcquireComplete`, and later from the task back to the builder (via
-`done_hook_`) for potential pooling.
+`StreamSlot` is a small value type that owns a `ClientStream`, an inline
+variant of `TcpStream` or `SslStream`, plus connection metadata. Ownership is
+transferred from the builder to `OnAcquireComplete`, and later from the task
+back to the builder (via `done_hook_`) for potential pooling.
+
+For WSS, the acquired slot contains a connected `TcpStream` and
+`deferred_ssl_ctx`/`deferred_verify_peer`. `WebSocketClientTask` constructs a
+temporary `SslStream` in its `pending_transport_` member so the async TLS
+handshake has stable inline storage. After TLS succeeds, that stream is moved
+into the final `ClientWebSocketStream`; runtime WebSocket reads and writes use
+only the final WebSocket stream.
 
 ### Phase 3 — Task Execution
 
@@ -188,7 +198,8 @@ Consider the cross-product of features a client request might need:
 - Cookie injection (session vs. no session)
 - Proxy routing (no proxy / HTTP proxy / HTTPS CONNECT proxy)
 - Connection reuse (direct vs. pooled)
-- TLS handshake timing (normal vs. deferred for WebSocket)
+- TLS handshake timing (normal in the builder vs. deferred to
+  `WebSocketClientTask` for WSS)
 
 With conditional logic inside one class, each new feature multiplies the
 number of code paths. With decorators, each feature is a single wrapper that
