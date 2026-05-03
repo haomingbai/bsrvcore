@@ -1,0 +1,21 @@
+FROM alpine:3.21
+
+RUN apk add --no-cache \
+    bash \
+    boost-dev \
+    build-base \
+    ca-certificates \
+    cmake \
+    git \
+    gzip \
+    liburing-dev \
+    linux-headers \
+    ninja \
+    openssl-dev \
+    pkgconf \
+    tar \
+    yaml-cpp-dev
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]

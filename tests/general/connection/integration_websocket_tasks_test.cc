@@ -16,7 +16,6 @@
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/beast/websocket/stream.hpp>
 #include <boost/beast/websocket/stream_base.hpp>
-#include <boost/beast/websocket/stream_fwd.hpp>
 #include <boost/system/errc.hpp>
 #include <future>
 #include <memory>

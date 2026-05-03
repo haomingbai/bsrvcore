@@ -17,6 +17,7 @@ Tutorial-style manual (recommended):
 Maintainer / internals notes:
 
 - See [docs/design/index.md](docs/design/index.md)
+- Package-debug container environments are documented in [docs/testing.md](docs/testing.md#container-debug-environments).
 
 API reference:
 

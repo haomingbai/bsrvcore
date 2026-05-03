@@ -10,17 +10,13 @@
 
 #include "bsrvcore/connection/client/request_assembler.h"
 
-#include <features.h>
-
 #include <algorithm>
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
 #include <boost/beast/http/string_body.hpp>
-#include <boost/intrusive/list.hpp>
 #include <cctype>
 #include <chrono>
-#include <compare>
 #include <ctime>
 #include <iomanip>
 #include <locale>
@@ -105,16 +101,19 @@ inline std::optional<std::chrono::system_clock::time_point> ParseImfFixdate(
     return std::nullopt;
   }
 
-#if defined(_GNU_SOURCE) || defined(__GLIBC__)
-  time_t const t = timegm(&tm);
-  if (t == static_cast<time_t>(-1)) {
+  const std::chrono::year_month_day date{
+      std::chrono::year{tm.tm_year + 1900},
+      std::chrono::month{static_cast<unsigned>(tm.tm_mon + 1)},
+      std::chrono::day{static_cast<unsigned>(tm.tm_mday)}};
+  if (!date.ok() || tm.tm_hour < 0 || tm.tm_hour > 23 || tm.tm_min < 0 ||
+      tm.tm_min > 59 || tm.tm_sec < 0 || tm.tm_sec > 59) {
     return std::nullopt;
   }
-  return std::chrono::system_clock::from_time_t(t);
-#else
-  (void)tm;
-  return std::nullopt;
-#endif
+
+  const auto timestamp =
+      std::chrono::sys_days{date} + std::chrono::hours{tm.tm_hour} +
+      std::chrono::minutes{tm.tm_min} + std::chrono::seconds{tm.tm_sec};
+  return std::chrono::system_clock::time_point{timestamp};
 }
 
 }  // namespace

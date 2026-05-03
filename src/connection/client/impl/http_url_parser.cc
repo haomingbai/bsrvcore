@@ -10,7 +10,6 @@
 
 #include "http_url_parser.h"
 
-#include <boost/core/detail/string_view.hpp>
 #include <boost/system/result.hpp>
 #include <boost/url/parse.hpp>
 #include <boost/url/url_view.hpp>

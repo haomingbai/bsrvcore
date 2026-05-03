@@ -77,3 +77,33 @@ TEST(ProxyRequestAssemblerTest, HttpsTargetPreservesOriginFormAndTunnelSslCtx) {
   EXPECT_EQ(result.connection_key.ssl_ctx, nullptr);
   EXPECT_EQ(result.connection_key.proxy_ssl_ctx, ssl_ctx);
 }
+
+TEST(SessionRequestAssemblerTest, FutureExpiresCookieIsStoredAndInjected) {
+  bsrvcore::SessionRequestAssembler assembler;
+
+  assembler.SyncSetCookie("example.com", "/prefs/theme",
+                          "sid=alive; Path=/prefs; "
+                          "Expires=Wed, 31 Dec 2098 23:59:59 GMT");
+
+  EXPECT_EQ(assembler.CookieCount(), 1U);
+
+  auto request = MakeRequest(http::verb::get, "/prefs/theme");
+  assembler.MaybeInjectCookies(request, "example.com", request.target(), false);
+
+  EXPECT_EQ(request[http::field::cookie], "sid=alive");
+}
+
+TEST(SessionRequestAssemblerTest, PastExpiresCookieDeletesMatchingCookie) {
+  bsrvcore::SessionRequestAssembler assembler;
+
+  assembler.SyncSetCookie("example.com", "/prefs/theme",
+                          "sid=alive; Path=/prefs; "
+                          "Expires=Wed, 31 Dec 2098 23:59:59 GMT");
+  ASSERT_EQ(assembler.CookieCount(), 1U);
+
+  assembler.SyncSetCookie("example.com", "/prefs/theme",
+                          "sid=expired; Path=/prefs; "
+                          "Expires=Thu, 01 Jan 1970 00:00:00 GMT");
+
+  EXPECT_EQ(assembler.CookieCount(), 0U);
+}

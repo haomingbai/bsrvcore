@@ -1,0 +1,10 @@
+.git/
+*build*/
+.cache/
+.vscode/
+.venv*/
+*/__pycache__/
+.artifacts/
+.idea/
+.codex
+boai/

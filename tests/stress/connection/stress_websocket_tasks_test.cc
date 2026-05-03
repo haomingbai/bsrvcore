@@ -5,7 +5,6 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/beast/websocket/rfc6455.hpp>
 #include <boost/beast/websocket/stream.hpp>
-#include <boost/beast/websocket/stream_fwd.hpp>
 #include <boost/system/errc.hpp>
 #include <cstddef>
 #include <memory>

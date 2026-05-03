@@ -10,11 +10,9 @@
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
-#include <boost/beast/http/message_fwd.hpp>
 #include <boost/beast/http/read.hpp>
 #include <boost/beast/http/status.hpp>
 #include <boost/beast/http/string_body.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/beast/http/write.hpp>
 #include <boost/system/errc.hpp>

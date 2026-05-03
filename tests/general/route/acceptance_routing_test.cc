@@ -13,10 +13,8 @@
 #include <boost/beast/core/string.hpp>
 #include <boost/beast/http/fields.hpp>
 #include <boost/beast/http/message.hpp>
-#include <boost/beast/http/message_fwd.hpp>
 #include <boost/beast/http/status.hpp>
 #include <boost/beast/http/string_body.hpp>
-#include <boost/beast/http/string_body_fwd.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <memory>
 #include <string>

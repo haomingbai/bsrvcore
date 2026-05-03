@@ -17,6 +17,82 @@ It is based on the current repository implementation (public headers + internal 
 - GitHub Releases are created only for tag refs that match `v*`.
 - Release upload only collects final package files from the build tree. CPack internal files such as `control.tar.gz` and `data.tar.gz` are intentionally excluded.
 
+## Container debug environments
+
+The repository provides standard Linux package-debug images for maintainers and
+users who need to reproduce package builds locally. GitHub Actions still installs
+dependencies directly on the runner; these images are only for manual debugging.
+
+Build the images:
+
+```bash
+docker build -f containers/package-glibc/Containerfile -t bsrvcore-package-glibc .
+docker build -f containers/package-musl/Containerfile -t bsrvcore-package-musl .
+```
+
+Enter an image with the source tree mounted:
+
+```bash
+docker run --rm -it -v "$PWD":/workspace -w /workspace bsrvcore-package-glibc
+docker run --rm -it -v "$PWD":/workspace -w /workspace bsrvcore-package-musl
+```
+
+Inside `bsrvcore-package-musl`, reproduce the musl TGZ package build:
+
+```bash
+cmake -S . -B build-musl -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DBSRVCORE_BUILD_TESTS=OFF \
+  -DBSRVCORE_BUILD_EXAMPLES=OFF \
+  -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+  -DBSRVCORE_BUILD_TOOLS=ON \
+  "-DBSRVCORE_CPACK_GENERATORS=TGZ" \
+  -DBSRVCORE_PACKAGE_NAME_SUFFIX=-musl \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build build-musl --parallel
+cd build-musl
+cpack -G TGZ
+```
+
+Inside `bsrvcore-package-glibc`, reproduce the glibc DEB/TGZ package build:
+
+```bash
+cmake -S . -B build-glibc-deb -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DBSRVCORE_BUILD_TESTS=OFF \
+  -DBSRVCORE_BUILD_EXAMPLES=OFF \
+  -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+  -DBSRVCORE_BUILD_TOOLS=ON \
+  "-DBSRVCORE_CPACK_GENERATORS=DEB;TGZ" \
+  -DBSRVCORE_PACKAGE_NAME_SUFFIX=-glibc \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build build-glibc-deb --parallel
+cd build-glibc-deb
+cpack -G DEB
+cpack -G TGZ
+```
+
+Inside `bsrvcore-package-glibc`, reproduce the glibc RPM package build:
+
+```bash
+cmake -S . -B build-glibc-rpm -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DCMAKE_INSTALL_LIBDIR=lib64 \
+  -DBSRVCORE_BUILD_TESTS=OFF \
+  -DBSRVCORE_BUILD_EXAMPLES=OFF \
+  -DBSRVCORE_BUILD_BENCHMARKS=OFF \
+  -DBSRVCORE_BUILD_TOOLS=ON \
+  "-DBSRVCORE_CPACK_GENERATORS=RPM" \
+  -DBSRVCORE_PACKAGE_NAME_SUFFIX=-glibc \
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build build-glibc-rpm --parallel
+cd build-glibc-rpm
+cpack -G RPM
+```
+
 ## Compiler support policy
 
 - Current project support baseline is LLVM toolchains (Clang/LLVM).

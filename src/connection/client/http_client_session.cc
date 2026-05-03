@@ -10,7 +10,6 @@
 
 #include "bsrvcore/connection/client/http_client_session.h"
 
-#include <boost/beast/http/fields_fwd.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
 #include <new>
@@ -29,8 +28,6 @@
 namespace bsrvcore {
 
 namespace {
-
-namespace http = boost::beast::http;
 
 using connection_internal::ParseHttpUrl;
 

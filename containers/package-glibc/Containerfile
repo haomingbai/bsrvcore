@@ -1,0 +1,33 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get -o Acquire::Retries=5 update \
+  && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    cmake \
+    dpkg-dev \
+    fakeroot \
+    file \
+    git \
+    gzip \
+    libboost-dev \
+    libboost-json-dev \
+    libboost-program-options-dev \
+    libboost-regex-dev \
+    libboost-system-dev \
+    libboost-url-dev \
+    libssl-dev \
+    liburing-dev \
+    libyaml-cpp-dev \
+    ninja-build \
+    pkg-config \
+    rpm \
+    tar \
+    xz-utils \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace
+
+CMD ["/bin/bash"]
