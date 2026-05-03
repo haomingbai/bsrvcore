@@ -1,16 +1,29 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
 #include <chrono>
+#include <compare>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <iterator>
+#include <memory>
 #include <string>
+#include <system_error>
 #include <thread>
 
 #include "bsrvcore/connection/server/multipart_parser.h"
 #include "bsrvcore/connection/server/put_processor.h"
+#include "bsrvcore/core/types.h"
+#include "bsrvcore/file/file_writer.h"
 
 namespace {
 namespace http = boost::beast::http;

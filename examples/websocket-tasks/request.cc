@@ -13,13 +13,21 @@
  */
 
 #include <atomic>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/system/errc.hpp>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
 
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
 
 namespace {
 

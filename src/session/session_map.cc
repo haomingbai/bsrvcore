@@ -16,10 +16,12 @@
 #include <algorithm>
 #include <boost/system/error_code.hpp>
 #include <chrono>
+#include <compare>
 #include <cstddef>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"

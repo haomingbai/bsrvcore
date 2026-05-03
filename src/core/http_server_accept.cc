@@ -10,23 +10,22 @@
  * @details
  * Implements start/stop and asynchronous acceptor loop.
  */
-
-#if defined(__linux__)
-#include <asm-generic/socket.h>
-#endif
-
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/basic_socket_acceptor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/socket_base.hpp>
 #include <boost/beast/core/tcp_stream.hpp>
-#include <boost/beast/ssl/ssl_stream.hpp>
 #include <boost/system/error_code.hpp>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <shared_mutex>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -38,6 +37,7 @@
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/connection/server/stream_server_connection_impl.h"
 
 using namespace bsrvcore;
@@ -465,7 +465,7 @@ void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
   if (ssl_ctx != nullptr) {
     SslStream ssl_stream(std::move(stream), *ssl_ctx);
     auto ssl_exec = ssl_stream.get_executor();
-    connection_internal::HttpServerConnectionImpl<SslStream>::Create(
+    connection_internal::StreamServerConnectionImpl<SslStream>::Create(
         std::move(ssl_stream), ssl_exec, this, header_read_expiry_,
         keep_alive_timeout_, kHasMaxConnection_, &available_connection_num_,
         endpoint_index)
@@ -474,7 +474,7 @@ void HttpServer::StartAcceptedConnection(std::size_t endpoint_index,
   }
 
   auto stream_exec = stream.get_executor();
-  connection_internal::HttpServerConnectionImpl<TcpStream>::Create(
+  connection_internal::StreamServerConnectionImpl<TcpStream>::Create(
       std::move(stream), stream_exec, this, header_read_expiry_,
       keep_alive_timeout_, kHasMaxConnection_, &available_connection_num_,
       endpoint_index)

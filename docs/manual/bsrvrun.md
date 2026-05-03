@@ -184,7 +184,7 @@ class PrefixLoggerFactory : public bsrvcore::bsrvrun::LoggerFactory {
         prefix = value;
       }
     }
-    return bsrvcore::AllocateShared<PrefixLogger>(std::move(prefix));
+    return std::make_shared<PrefixLogger>(std::move(prefix));
   }
 };
 
@@ -236,17 +236,20 @@ BSRVCORE_BSRVRUN_SERVICE_FACTORY_EXPORT GetServiceFactory() {
 
 class HelloFactory : public bsrvcore::bsrvrun::HttpRequestHandlerFactory {
  public:
-  std::unique_ptr<bsrvcore::HttpRequestHandler> Get(
+  bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Get(
       bsrvcore::bsrvrun::ParameterMap* params) override {
     (void)params;
-    return std::make_unique<bsrvcore::FunctionRouteHandler<std::function<void(std::shared_ptr<bsrvcore::HttpServerTask>)>>>(
-        [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    using Handler = bsrvcore::FunctionRouteHandler<
+        std::function<void(const std::shared_ptr<bsrvcore::HttpServerTask>&)>>;
+    return bsrvcore::AdoptUniqueAs<bsrvcore::HttpRequestHandler>(
+        std::make_unique<Handler>(
+        [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
           std::string body = "hello from plugin";
           if (auto* service = task->GetService<GreetingService>(0)) {
             body = service->prefix + body;
           }
           task->SetBody(std::move(body));
-        });
+        }));
   }
 };
 

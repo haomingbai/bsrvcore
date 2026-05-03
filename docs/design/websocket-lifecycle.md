@@ -109,7 +109,8 @@ but connection has already been dropped by unrelated lifetime edges.
 
 ## Stream Abstraction Update
 
-Internal connection abstraction is now named `StreamServerConnection` to reflect
+Internal connection types use `StreamServerConnection` for the abstract base and
+`StreamServerConnectionImpl<S>` for the concrete stream template to reflect
 that one connection object may host:
 
 - HTTP request/response lifecycle
@@ -123,7 +124,7 @@ Key interface points used by `WebSocketServerTask`:
 - `DoWebSocketControl`
 - `DoWebSocketClose`
 
-Implemented by the stream template layer in:
+Concrete transport behavior is implemented by the stream template layer in:
 
 - `src/connection/include_exported/bsrvcore/internal/connection/server/stream_server_connection_impl.h`
 

@@ -3,6 +3,7 @@
 #include <boost/system/errc.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
 

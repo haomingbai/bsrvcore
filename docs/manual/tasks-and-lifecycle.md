@@ -129,12 +129,12 @@ server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
 ### When to Capture Explicitly
 
 If your handler needs to retain the request lifetime (e.g., for CPU-bound or
-async work), capture by move:
+async work), copy the shared pointer once and capture that copy:
 
 ```cpp
-[task = std::move(task)]() {
-  // Now the shared_ptr is copied into the lambda
-  // Handler lifetime extended until lambda completes
+auto keep_alive = task;
+[keep_alive = std::move(keep_alive)]() {
+  // Handler lifetime is extended until the lambda completes.
 }
 ```
 

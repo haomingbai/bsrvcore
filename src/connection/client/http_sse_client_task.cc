@@ -10,9 +10,10 @@
 
 #include "bsrvcore/connection/client/http_sse_client_task.h"
 
-#include <boost/asio/ssl/context.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
+#include <new>
+#include <optional>
 #include <string>
 #include <utility>
 

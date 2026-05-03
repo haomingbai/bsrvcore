@@ -1,23 +1,35 @@
 #include <gtest/gtest.h>
 
-#include <boost/asio/io_context.hpp>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/buffer.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/write.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
-#include <boost/beast/websocket.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/beast/websocket/ssl.hpp>
+#include <boost/beast/websocket/stream.hpp>
+#include <boost/beast/websocket/stream_base.hpp>
+#include <boost/beast/websocket/stream_fwd.hpp>
+#include <boost/system/errc.hpp>
 #include <future>
 #include <memory>
 #include <optional>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
 #include "test_tls_context.h"
 
 namespace {

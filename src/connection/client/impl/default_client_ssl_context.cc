@@ -22,6 +22,9 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 

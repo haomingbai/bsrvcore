@@ -30,18 +30,29 @@ namespace route_internal {
  */
 struct HttpRouteResultInternal
     : public CopyableMovable<HttpRouteResultInternal> {
+  /** @brief Concrete path matched by the router. */
   AllocatedString current_location;
+  /** @brief Route template that produced the match. */
   AllocatedString route_template;
+  /** @brief Extracted route parameters. */
   AllocatedStringMap parameters;
+  /** @brief Aspect handlers selected for the route. */
   AllocatedVector<HttpRequestAspectHandler*> aspects;
+  /** @brief Matched request handler. */
   HttpRequestHandler* handler{};
+  /** @brief Effective maximum request body size. */
   std::size_t max_body_size{};
+  /** @brief Effective read timeout in milliseconds. */
   std::size_t read_expiry{};
+  /** @brief Effective write timeout in milliseconds. */
   std::size_t write_expiry{};
 };
 
 /**
  * @brief Convert internal allocator-backed route result to public result.
+ *
+ * @param internal Internal route result to copy from.
+ * @return Public route result.
  */
 inline HttpRouteResult ToPublicRouteResult(
     const HttpRouteResultInternal& internal) {
@@ -64,6 +75,9 @@ inline HttpRouteResult ToPublicRouteResult(
 
 /**
  * @brief Move-convert internal allocator-backed route result to public result.
+ *
+ * @param internal Internal route result to move from.
+ * @return Public route result.
  */
 inline HttpRouteResult ToPublicRouteResult(HttpRouteResultInternal&& internal) {
   HttpRouteResult public_result;
@@ -85,6 +99,9 @@ inline HttpRouteResult ToPublicRouteResult(HttpRouteResultInternal&& internal) {
 
 /**
  * @brief Convert public route result to internal allocator-backed result.
+ *
+ * @param public_result Public route result to copy from.
+ * @return Internal allocator-backed route result.
  */
 inline HttpRouteResultInternal ToInternalRouteResult(
     const HttpRouteResult& public_result) {
@@ -108,6 +125,9 @@ inline HttpRouteResultInternal ToInternalRouteResult(
 
 /**
  * @brief Move-convert public route result to allocator-backed internal result.
+ *
+ * @param public_result Public route result to move from.
+ * @return Internal allocator-backed route result.
  */
 inline HttpRouteResultInternal ToInternalRouteResult(
     HttpRouteResult&& public_result) {

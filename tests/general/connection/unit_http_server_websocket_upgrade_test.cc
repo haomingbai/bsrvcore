@@ -1,8 +1,17 @@
 #include <gtest/gtest.h>
 
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/system/errc.hpp>
 #include <memory>
+#include <string>
+#include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
@@ -24,7 +33,7 @@ class NoopWebSocketHandler : public bsrvcore::WebSocketHandler {
 };
 
 TEST(HttpServerWebSocketUpgradeTest, IsWebSocketRequestFalseForNormalHttp) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/check",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -40,7 +49,7 @@ TEST(HttpServerWebSocketUpgradeTest, IsWebSocketRequestFalseForNormalHttp) {
 }
 
 TEST(HttpServerWebSocketUpgradeTest, IsWebSocketRequestTrueForUpgradeHeaders) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/check",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -63,7 +72,7 @@ TEST(HttpServerWebSocketUpgradeTest, IsWebSocketRequestTrueForUpgradeHeaders) {
 
 TEST(HttpServerWebSocketUpgradeTest,
      UpgradeToWebSocketReturnsFalseWhenRequestIsNotUpgrade) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/upgrade",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           EXPECT_FALSE(task->IsWebSocketUpgradeMarked());

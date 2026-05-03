@@ -1,14 +1,23 @@
 #include <gtest/gtest.h>
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/system/errc.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/connection/client/http_client_session.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
+
+namespace bsrvcore {
+struct HttpClientResult;
+}  // namespace bsrvcore
 
 namespace {
 namespace http = boost::beast::http;

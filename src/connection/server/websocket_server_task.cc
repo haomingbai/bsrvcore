@@ -10,7 +10,9 @@
 
 #include "bsrvcore/connection/server/websocket_server_task.h"
 
-#include <boost/beast/websocket.hpp>
+#include <atomic>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/beast/websocket/error.hpp>
 #include <boost/system/errc.hpp>
 #include <mutex>
 #include <shared_mutex>

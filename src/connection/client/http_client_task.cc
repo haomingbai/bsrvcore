@@ -10,11 +10,14 @@
 
 #include "bsrvcore/connection/client/http_client_task.h"
 
-#include <boost/asio/ssl/context.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/json/error.hpp>
+#include <boost/json/parse.hpp>
+#include <boost/json/serialize.hpp>
 #include <boost/system/errc.hpp>
-#include <boost/system/error_code.hpp>
 #include <memory>
+#include <new>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -26,6 +29,14 @@
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_client_task_impl.h"
 #include "impl/http_url_parser.h"
+
+namespace boost {
+namespace beast {
+namespace http {
+enum class verb;
+}  // namespace http
+}  // namespace beast
+}  // namespace boost
 
 namespace bsrvcore {
 
@@ -81,7 +92,6 @@ std::shared_ptr<HttpClientTask> HttpClientTask::CreateAssembledTask(
     boost::system::error_code create_ec) {
   auto assembler = connection_internal::GetDefaultRequestAssembler();
   auto builder = connection_internal::GetDefaultDirectStreamBuilder();
-  assembler->SetStreamBuilder(builder);
 
   const bool use_ssl = (scheme == "https");
   auto impl = AllocateShared<Impl>(

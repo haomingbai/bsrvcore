@@ -1,6 +1,6 @@
 /**
  * @file stream_server_connection_message_queue.h
- * @brief Message queue implementation for HttpServerConnectionImpl.
+ * @brief Message queue implementation for StreamServerConnectionImpl.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-13
  *
@@ -9,7 +9,7 @@
  *
  * @details
  * This header defines the nested MessageQueue class of
- * HttpServerConnectionImpl. It is included by
+ * StreamServerConnectionImpl. It is included by
  * stream_server_connection_impl.h
  * after the outer template class definition, so the nested class keeps access
  * to private members of the outer class (e.g. stream_).
@@ -39,11 +39,11 @@
 #include <variant>
 
 template <ValidStream S>
-class HttpServerConnectionImpl<S>::MessageQueue
+class StreamServerConnectionImpl<S>::MessageQueue
     : public std::enable_shared_from_this<
-          typename HttpServerConnectionImpl<S>::MessageQueue> {
+          typename StreamServerConnectionImpl<S>::MessageQueue> {
  public:
-  explicit MessageQueue(std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp)
+  explicit MessageQueue(std::weak_ptr<StreamServerConnectionImpl<S>> conn_wp)
       : conn_wp_(std::move(conn_wp)),
 
         queue_size_(0),
@@ -325,7 +325,7 @@ class HttpServerConnectionImpl<S>::MessageQueue
 
   // ---- members ----
   AllocatedDeque<std::variant<BodyMessage, HeaderMessage>> queue_;
-  std::weak_ptr<HttpServerConnectionImpl<S>> conn_wp_;
+  std::weak_ptr<StreamServerConnectionImpl<S>> conn_wp_;
   bool is_writing_{false};
 
   std::mutex cv_mutex_;

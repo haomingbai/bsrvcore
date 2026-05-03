@@ -29,11 +29,21 @@ namespace bsrvcore::bsrvrun {
 class HttpRequestAspectHandlerFactory
     : public bsrvcore::NonCopyableNonMovable<HttpRequestAspectHandlerFactory> {
  public:
-  /** @brief Legacy aspect construction entry point used by existing plugins. */
+  /**
+   * @brief Legacy aspect construction entry point used by existing plugins.
+   *
+   * @param parameters Runtime configuration parameters for the aspect.
+   * @return Newly created request aspect handler.
+   */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Get(
       ParameterMap* parameters) = 0;
 
-  /** @brief Preferred aspect construction entry point. */
+  /**
+   * @brief Preferred aspect construction entry point.
+   *
+   * @param parameters Runtime configuration parameters for the aspect.
+   * @return Newly created request aspect handler.
+   */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestAspectHandler> Create(
       ParameterMap* parameters) {
     return Get(parameters);

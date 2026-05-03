@@ -13,17 +13,17 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_SSE_CLIENT_TASK_H_
 #define BSRVCORE_CONNECTION_CLIENT_HTTP_SSE_CLIENT_TASK_H_
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/system/errc.hpp>
 #include <chrono>
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>
 
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/core/trait.h"
+#include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 
@@ -106,29 +106,88 @@ class HttpSseClientTask
   /** @brief Callback type for Start()/Next(). */
   using Callback = std::function<void(const HttpSseClientResult&)>;
 
-  /** @brief Create plain HTTP SSE task from host/port/target. */
+  /**
+   * @brief Create plain HTTP SSE task from host/port/target.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttp(
       Executor io_executor, std::string host, std::string port,
       std::string target, HttpSseClientOptions options = {});
-  /** @brief Create plain HTTP SSE task with a dedicated callback executor. */
+  /**
+   * @brief Create plain HTTP SSE task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttp(
       Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, HttpSseClientOptions options = {});
 
-  /** @brief Create HTTPS SSE task from host/port/target. */
+  /**
+   * @brief Create HTTPS SSE task from host/port/target.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
       Executor io_executor, std::string host, std::string port,
       std::string target, HttpSseClientOptions options = {});
-  /** @brief Create HTTPS SSE task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS SSE task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
       Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, HttpSseClientOptions options = {});
-  /** @brief Create HTTPS SSE task from host/port/target with caller-provided
-   * SSL context. */
+  /**
+   * @brief Create HTTPS SSE task from host/port/target with caller-provided
+   * SSL context.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param ssl_ctx TLS context to use for the HTTPS connection.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
       Executor io_executor, SslContextPtr ssl_ctx, std::string host,
       std::string port, std::string target, HttpSseClientOptions options = {});
-  /** @brief Create HTTPS SSE task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS SSE task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param ssl_ctx TLS context to use for the HTTPS connection.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttps(
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       std::string host, std::string port, std::string target,
@@ -139,21 +198,55 @@ class HttpSseClientTask
    *
    * Supports both `http://` and `https://`. HTTPS URLs allocate an internal
    * client SSL context and load system default trust roots.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task, or a task carrying a create
+   * error.
    */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
       Executor io_executor, const std::string& url,
       HttpSseClientOptions options = {});
-  /** @brief Create SSE task from URL with a dedicated callback executor. */
+  /**
+   * @brief Create SSE task from URL with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task, or a task carrying a create
+   * error.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
       Executor io_executor, Executor callback_executor, const std::string& url,
       HttpSseClientOptions options = {});
 
-  /** @brief Create SSE task from URL with SSL context. */
+  /**
+   * @brief Create SSE task from URL with SSL context.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param ssl_ctx TLS context used when `url` is HTTPS.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task, or a task carrying a create
+   * error.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
       Executor io_executor, SslContextPtr ssl_ctx, const std::string& url,
       HttpSseClientOptions options = {});
-  /** @brief Create SSE task from URL with SSL and a dedicated callback
-   * executor. */
+  /**
+   * @brief Create SSE task from URL with SSL and a dedicated callback
+   * executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param ssl_ctx TLS context used when `url` is HTTPS.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task, or a task carrying a create
+   * error.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateFromUrl(
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       const std::string& url, HttpSseClientOptions options = {});
@@ -162,11 +255,28 @@ class HttpSseClientTask
    * @brief Create HTTP SSE task from an already connected TCP stream.
    *
    * The passed stream is moved into the task and consumed by Start().
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param stream Connected TCP stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
    */
   static std::shared_ptr<HttpSseClientTask> CreateHttpRaw(
       Executor io_executor, TcpStream stream, std::string host,
       std::string target, HttpSseClientOptions options = {});
-  /** @brief Create HTTP SSE raw task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTP SSE raw task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param stream Connected TCP stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttpRaw(
       Executor io_executor, Executor callback_executor, TcpStream stream,
       std::string host, std::string target, HttpSseClientOptions options = {});
@@ -176,16 +286,37 @@ class HttpSseClientTask
    * stream.
    *
    * The passed stream is moved into the task and consumed by Start().
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param stream Connected and handshaked SSL stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
    */
   static std::shared_ptr<HttpSseClientTask> CreateHttpsRaw(
       Executor io_executor, SslStream stream, std::string host,
       std::string target, HttpSseClientOptions options = {});
-  /** @brief Create HTTPS SSE raw task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS SSE raw task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param stream Connected and handshaked SSL stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param options Per-request SSE client options.
+   * @return Newly created unstarted SSE task.
+   */
   static std::shared_ptr<HttpSseClientTask> CreateHttpsRaw(
       Executor io_executor, Executor callback_executor, SslStream stream,
       std::string host, std::string target, HttpSseClientOptions options = {});
 
-  /** @brief Access mutable request before Start(). */
+  /**
+   * @brief Access mutable request before Start().
+   *
+   * @return Mutable request object owned by the task.
+   */
   HttpRequest& Request() noexcept;
 
   /**
@@ -201,11 +332,23 @@ class HttpSseClientTask
   /** @brief Request cancellation and close underlying transport. */
   void Cancel();
 
-  /** @brief Whether the latest terminal state is a failure. */
+  /**
+   * @brief Whether the latest terminal state is a failure.
+   *
+   * @return True when the last terminal result has an error.
+   */
   bool Failed() const noexcept;
-  /** @brief Latest failure code, if any. */
+  /**
+   * @brief Latest failure code, if any.
+   *
+   * @return Stored error code, or success when none is recorded.
+   */
   boost::system::error_code ErrorCode() const noexcept;
-  /** @brief Latest failure stage, if any. */
+  /**
+   * @brief Latest failure stage, if any.
+   *
+   * @return Pipeline stage where the last failure occurred.
+   */
   HttpSseClientErrorStage ErrorStage() const noexcept;
 
   ~HttpSseClientTask();

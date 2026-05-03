@@ -13,15 +13,23 @@
  */
 
 // BEGIN README_SNIPPET: session_context
-#include <bsrvcore/bsrvcore.h>
-
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <iostream>
 #include <memory>
 #include <string>
 #include <utility>
+
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
+#include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/session/attribute.h"
+#include "bsrvcore/session/context.h"
 
 class UserAttribute : public bsrvcore::CloneableAttribute<UserAttribute> {
  public:
@@ -33,7 +41,7 @@ class UserAttribute : public bsrvcore::CloneableAttribute<UserAttribute> {
 };
 
 int main() {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/session",
@@ -42,8 +50,8 @@ int main() {
             auto session = task->GetSession();
 
             if (session && !session->HasAttribute("user")) {
-              session->SetAttribute(
-                  "user", bsrvcore::AllocateShared<UserAttribute>("guest"));
+              session->SetAttribute("user",
+                                    std::make_shared<UserAttribute>("guest"));
             }
 
             std::string user_name = "unknown";

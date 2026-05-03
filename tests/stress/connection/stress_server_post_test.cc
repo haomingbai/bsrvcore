@@ -4,11 +4,13 @@
 #include <barrier>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <mutex>
 #include <random>
 #include <stop_token>
+#include <string>
 #include <thread>
 #include <vector>
 

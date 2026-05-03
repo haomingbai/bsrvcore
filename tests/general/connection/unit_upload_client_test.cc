@@ -1,17 +1,28 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <future>
 #include <memory>
 #include <string>
+#include <system_error>
+#include <utility>
 
-#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/multipart_generator.h"
 #include "bsrvcore/connection/client/put_generator.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
+#include "bsrvcore/file/file_reader.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -48,7 +59,7 @@ bsrvcore::HttpClientResult RunPreparedTask(
 }  // namespace
 
 TEST(UploadClientTest, PutGeneratorReadsFileAndCreatesRunnableTask) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kPut, "/echo",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody(task->GetRequest().body());
@@ -92,7 +103,7 @@ TEST(UploadClientTest, PutGeneratorReadsFileAndCreatesRunnableTask) {
 
 TEST(UploadClientTest,
      MultipartGeneratorBuildsMultipartBodyWithTextAndFileParts) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/echo-multipart",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -167,7 +178,7 @@ TEST(UploadClientTest, PutGeneratorReportsErrorForMissingReader) {
 }
 
 TEST(UploadClientTest, PutGeneratorOutlivesCallerDuringTaskPreparation) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kPut, "/echo",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody(task->GetRequest().body());

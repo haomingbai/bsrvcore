@@ -17,14 +17,18 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cstddef>
 #include <iostream>
 #include <memory>
+#include <string>
 
-#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 
 int main() {
@@ -38,7 +42,7 @@ int main() {
   options.has_max_connection = true;
   options.max_connection = 1024;
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  auto server = std::make_unique<bsrvcore::HttpServer>(options);
   server->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)
       ->SetDefaultMaxBodySize(static_cast<std::size_t>(1024 * 1024))

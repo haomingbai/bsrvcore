@@ -1,13 +1,23 @@
 #include <gtest/gtest.h>
 
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <boost/system/errc.hpp>
+#include <boost/system/system_error.hpp>
 #include <future>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -40,7 +50,7 @@ inline bsrvcore::HttpClientResponse DoSessionRequest(
 }  // namespace
 
 TEST(HttpClientSessionTest, CookieRoundTripIsInjectedOnNextRequest) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -69,7 +79,7 @@ TEST(HttpClientSessionTest, CookieRoundTripIsInjectedOnNextRequest) {
 }
 
 TEST(HttpClientSessionTest, SecureCookieNotSentOverHttp) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set_secure",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -97,7 +107,7 @@ TEST(HttpClientSessionTest, SecureCookieNotSentOverHttp) {
 }
 
 TEST(HttpClientSessionTest, PathPrefixMatchingWorks) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set_path",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

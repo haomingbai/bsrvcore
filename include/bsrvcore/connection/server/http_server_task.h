@@ -70,9 +70,14 @@ struct HttpServerTaskDeleter;
 struct HttpPostTaskDeleter;
 }  // namespace task_internal
 
+/** @brief Connection ownership mode selected by a server task lifecycle. */
 enum class HttpTaskConnectionLifecycleMode {
+  /** @brief Framework writes the response and continues/closes automatically.
+   */
   kAutomatic,
+  /** @brief User code owns response flushing and connection cycling. */
   kManual,
+  /** @brief Lifecycle hands the connection to a WebSocket task. */
   kWebSocket,
 };
 
@@ -532,6 +537,11 @@ class HttpPreServerTask
 
   /**
    * @brief Internal overload that accepts allocator-backed route result.
+   *
+   * @param req Incoming HTTP request.
+   * @param route_result Allocator-backed routing result.
+   * @param conn Connection for this request.
+   * @return Shared pointer to pre-phase task.
    */
   static std::shared_ptr<HttpPreServerTask> Create(
       HttpRequest req, route_internal::HttpRouteResultInternal route_result,
@@ -575,6 +585,11 @@ class HttpServerTask : public HttpTaskBase,
    *
    * Prefer this factory over constructors to ensure allocations are bound to
    * Boost.Asio's allocator mechanism.
+   *
+   * @param req Incoming HTTP request.
+   * @param route_result Routing result.
+   * @param conn Connection for this request.
+   * @return Shared pointer to route-handler task.
    */
   static std::shared_ptr<HttpServerTask> Create(
       HttpRequest req, HttpRouteResult route_result,
@@ -582,6 +597,11 @@ class HttpServerTask : public HttpTaskBase,
 
   /**
    * @brief Internal overload that accepts allocator-backed route result.
+   *
+   * @param req Incoming HTTP request.
+   * @param route_result Allocator-backed routing result.
+   * @param conn Connection for this request.
+   * @return Shared pointer to route-handler task.
    */
   static std::shared_ptr<HttpServerTask> Create(
       HttpRequest req, route_internal::HttpRouteResultInternal route_result,

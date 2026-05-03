@@ -10,8 +10,16 @@
 
 #include <gtest/gtest.h>
 
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <future>
 #include <memory>
 #include <sstream>
@@ -21,6 +29,7 @@
 #include "bsrvcore/core/http_server.h"
 #include "bsrvrun_plugins/test_service_api.h"
 #include "config_loader.h"
+#include "config_types.h"
 #include "plugin_loader.h"
 #include "server_builder.h"
 #include "test_http_client_task.h"
@@ -97,8 +106,7 @@ TEST(BsrvRunRuntimeIntegrationTest, AppliesGlobalAndTerminalAspects) {
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
@@ -155,8 +163,7 @@ TEST(BsrvRunRuntimeIntegrationTest,
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
@@ -209,8 +216,7 @@ TEST(BsrvRunRuntimeIntegrationTest, IgnoreDefaultRouteMapsToExclusiveRoute) {
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
@@ -266,8 +272,7 @@ TEST(BsrvRunRuntimeIntegrationTest,
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   auto service = server->GetServiceProvider(2).Get<TestServiceData>();
@@ -335,8 +340,7 @@ TEST(BsrvRunRuntimeIntegrationTest, InstallsLoggerPluginFromConfig) {
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
@@ -386,15 +390,13 @@ TEST(BsrvRunRuntimeIntegrationTest, CpuRouteRunsOnWorkerPool) {
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
 
-  auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
-  auto worker_promise =
-      bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto io_promise = std::make_shared<std::promise<std::thread::id>>();
+  auto worker_promise = std::make_shared<std::promise<std::thread::id>>();
   auto io_future = io_promise->get_future();
   auto worker_future = worker_promise->get_future();
 
@@ -461,15 +463,13 @@ TEST(BsrvRunRuntimeIntegrationTest,
   const auto config =
       bsrvcore::runtime::LoadConfigFromFile(config_path.string());
   bsrvcore::runtime::PluginLoader loader;
-  auto server =
-      bsrvcore::AllocateUnique<bsrvcore::HttpServer>(config.thread_count);
+  auto server = std::make_unique<bsrvcore::HttpServer>(config.thread_count);
   bsrvcore::runtime::ApplyConfigToServer(config, &loader, server.get());
 
   ASSERT_TRUE(server->Start());
 
-  auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
-  auto worker_promise =
-      bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto io_promise = std::make_shared<std::promise<std::thread::id>>();
+  auto worker_promise = std::make_shared<std::promise<std::thread::id>>();
   auto io_future = io_promise->get_future();
   auto worker_future = worker_promise->get_future();
 

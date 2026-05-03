@@ -64,6 +64,11 @@ flowchart TD
 
 ## Change Safety Notes
 
+- `HttpRouteTable` does not own an internal lock. Direct callers must not
+  mutate and route the same table concurrently.
+- `HttpServer` provides the intended synchronization boundary: configuration
+  methods take the server mutex, and request routing treats the table as
+  read-only after `Start()`.
 - Do not make route matching mutate tree structure during request handling.
 - Do not assume `pqueue_` and `map_` sizes are equal.
 - Do not shorten session expiry for live sessions unless the public API is

@@ -13,26 +13,34 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 
-#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/error.hpp>
+#include <boost/asio/io_context.hpp>
+#include <boost/asio/ip/basic_resolver_iterator.hpp>
 #include <boost/asio/read_until.hpp>
-#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
 #include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
 #include <boost/asio/write.hpp>
+#include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/stream_traits.hpp>
 #include <boost/system/errc.hpp>
 #include <charconv>
+#include <cstddef>
+#include <deque>
 #include <memory>
 #include <mutex>
+#include <new>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <unordered_map>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/client_stream.h"
 #include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/core/types.h"
 

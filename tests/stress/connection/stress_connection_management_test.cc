@@ -1,10 +1,18 @@
 #include <gtest/gtest.h>
 
 #include <barrier>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <cstddef>
+#include <memory>
 #include <random>
 #include <stop_token>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/connection/server/http_server_task.h"
@@ -25,7 +33,7 @@ using bsrvcore::test::stress::WaitCounter;
 TEST(StressConnectionManagementTest, ConcurrentConnectionEstablishAndClose) {
   const auto cfg = LoadStressConfig(8, 80, 120000);
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("pong");
@@ -71,7 +79,7 @@ TEST(StressConnectionManagementTest, ConcurrentConnectionEstablishAndClose) {
 TEST(StressConnectionManagementTest, ConcurrentLargePostPayloads) {
   const auto cfg = LoadStressConfig(6, 60, 120000);
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/echo-size",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

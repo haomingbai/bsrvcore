@@ -19,13 +19,20 @@
 #include <bsrvcore/connection/client/request_assembler.h>
 #include <bsrvcore/connection/client/stream_builder.h>
 
-#include <boost/asio/io_context.hpp>
+#include <boost/asio/ssl/context.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/system/error_code.hpp>
 #include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <utility>
+
+#include "bsrvcore/connection/client/stream_slot.h"
+#include "bsrvcore/core/types.h"
 
 int main() {
   namespace http = boost::beast::http;
@@ -82,14 +89,14 @@ int main() {
           return;
         }
 
-        if (!slot.ssl_stream) {
+        if (!slot.HasSslStream()) {
           std::cerr << "Expected a TLS stream from proxy builder\n";
           finished = true;
           return;
         }
 
         task = bsrvcore::HttpClientTask::CreateHttpsRaw(
-            ioc.get_executor(), std::move(*slot.ssl_stream),
+            ioc.get_executor(), std::move(slot.SslStreamRef()),
             assembled.connection_key.host,
             std::string(assembled.request.target()), assembled.request.method(),
             options);

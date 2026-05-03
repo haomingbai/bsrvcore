@@ -16,7 +16,11 @@
  */
 
 #include <chrono>
+#include <compare>
 #include <cstddef>
+#include <string>
+#include <unordered_map>
+#include <utility>
 
 #include "bsrvcore/internal/session/session_map.h"
 

@@ -1,8 +1,16 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <barrier>
-#include <chrono>
+#include <boost/asio/ip/address.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <cstddef>
+#include <memory>
 #include <random>
 #include <stop_token>
 #include <string>
@@ -49,7 +57,7 @@ TEST(StressServerRuntimeTest, CyclicServerStartStop) {
 TEST(StressServerRuntimeTest, MultipleListenersUnderConcurrentLoad) {
   const auto cfg = LoadStressConfig(6, 60, 120000);
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/ping",
       [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {

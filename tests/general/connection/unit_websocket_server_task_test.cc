@@ -1,10 +1,18 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/io_context.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/system/errc.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/connection/server/websocket_server_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
 
 namespace {
 

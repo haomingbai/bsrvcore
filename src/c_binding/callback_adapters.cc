@@ -1,5 +1,10 @@
 #include "internal/callback_adapters.h"
 
+#include <memory>
+
+#include "bsrvcore/connection/server/http_server_task.h"
+#include "internal/common.h"
+
 namespace bsrvcore::c_binding_internal {
 
 RouteHandlerAdapter::RouteHandlerAdapter(bsrvcore_http_handler_fn fn)

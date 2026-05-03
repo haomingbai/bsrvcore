@@ -16,8 +16,6 @@
 #ifndef BSRVCORE_INTERNAL_ROUTE_EMPTY_ROUTE_HANDLER_H_
 #define BSRVCORE_INTERNAL_ROUTE_EMPTY_ROUTE_HANDLER_H_
 
-#include <memory>
-
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_handler.h"
 

@@ -1,11 +1,18 @@
 #include <gtest/gtest.h>
 
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/stream_slot.h"
+#include "bsrvcore/core/types.h"
 
 namespace {
 namespace http = boost::beast::http;

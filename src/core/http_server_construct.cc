@@ -13,19 +13,27 @@
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/io_context.hpp>
 #include <bthpool/bthpool.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
-#include <utility>
+#include <thread>
 #include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/trait.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/session/session_map.h"
 #include "bsrvcore/session/context.h"
 #include "internal/empty_logger.h"
+
+namespace bsrvcore {
+class HttpRouteTable;
+class SessionMap;
+}  // namespace bsrvcore
 
 using namespace bsrvcore;
 

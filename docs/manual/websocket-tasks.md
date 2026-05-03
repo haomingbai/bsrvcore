@@ -48,14 +48,14 @@ Use normal routing, then detect and upgrade:
 
 ```cpp
 server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ws",
-  [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+  [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
     if (!task->IsWebSocketRequest()) {
       task->SetBody("not websocket upgrade");
       return;
     }
 
     const bool upgraded = task->UpgradeToWebSocket(
-      bsrvcore::AllocateUnique<MyWebSocketHandler>());
+      std::make_unique<MyWebSocketHandler>());
 
     if (!upgraded) {
       task->SetBody("upgrade failed");
@@ -86,7 +86,7 @@ bsrvcore::IoContext ioc;
 auto task = bsrvcore::WebSocketClientTask::CreateFromUrl(
   ioc.get_executor(),
   "ws://127.0.0.1:8080/ws",
-  bsrvcore::AllocateUnique<MyWebSocketHandler>());
+  std::make_unique<MyWebSocketHandler>());
 
 task->OnHttpDone([](const bsrvcore::HttpClientResult& r) {
   // Handshake result and response headers.

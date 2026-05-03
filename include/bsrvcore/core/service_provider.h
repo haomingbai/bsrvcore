@@ -19,8 +19,14 @@ namespace bsrvcore {
  * @brief Opaque non-owning wrapper around one service-provider pointer.
  */
 struct ServiceProvider {
+  /** @brief Opaque service pointer; ownership remains with the server. */
   void* pointer{nullptr};
 
+  /**
+   * @brief Cast the stored service pointer to the requested type.
+   *
+   * @return Stored pointer cast to `T*`.
+   */
   template <typename T>
   [[nodiscard]] T* Get() const noexcept {
     return static_cast<T*>(pointer);

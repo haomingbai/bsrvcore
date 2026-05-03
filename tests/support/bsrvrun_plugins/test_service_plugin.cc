@@ -2,7 +2,9 @@
 #include <string>
 
 #include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/plugin_export.h"
 #include "bsrvcore/bsrvrun/service_factory.h"
+#include "bsrvcore/bsrvrun/string.h"
 #include "test_service_api.h"
 
 namespace {

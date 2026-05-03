@@ -13,6 +13,8 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/plugin_export.h"
+#include "bsrvcore/bsrvrun/string.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 
@@ -60,7 +62,8 @@ class DemoAspectFactory
       }
     }
 
-    return bsrvcore::AllocateUnique<DemoAspect>(pre, post);
+    return bsrvcore::AdoptUniqueAs<bsrvcore::HttpRequestAspectHandler>(
+        std::make_unique<DemoAspect>(pre, post));
   }
 };
 

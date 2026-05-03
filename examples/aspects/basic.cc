@@ -16,17 +16,21 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <iostream>
 #include <memory>
+#include <string>
 
-#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 
 int main() {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddGlobalAspect(
           [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {

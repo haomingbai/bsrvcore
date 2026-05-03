@@ -10,6 +10,7 @@
 
 #include "bsrvcore/internal/route/computing_route_handler.h"
 
+#include <functional>
 #include <memory>
 #include <utility>
 
@@ -30,8 +31,7 @@ void ComputingRouteHandler::Service(
     return;
   }
 
-  task->Dispatch(
-      [task = std::move(task), inner]() mutable { inner->Service(task); });
+  task->Dispatch([task, inner]() mutable { inner->Service(task); });
 }
 
 OwnedPtr<HttpRequestHandler> WrapComputingHandler(

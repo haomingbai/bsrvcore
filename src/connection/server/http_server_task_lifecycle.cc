@@ -8,16 +8,27 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <atomic>
 #include <boost/asio/bind_allocator.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cassert>
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <new>
 #include <shared_mutex>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/websocket_server_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
+#include "bsrvcore/route/http_route_result.h"
 #include "internal/server/http_server_task_detail.h"
 
 namespace bsrvcore {

@@ -19,7 +19,6 @@
 #define BSRVCORE_INTERNAL_ROUTE_HTTP_ROUTE_TABLE_LAYER_H_
 
 #include <cstddef>
-#include <string>
 #include <string_view>
 
 #include "bsrvcore/allocator/allocator.h"
@@ -27,8 +26,8 @@
 
 namespace bsrvcore {
 
-class HttpRequestHandler;
 class HttpRequestAspectHandler;
+class HttpRequestHandler;
 class HttpRouteTable;
 
 namespace route_internal {

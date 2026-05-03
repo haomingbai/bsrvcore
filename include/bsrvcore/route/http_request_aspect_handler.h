@@ -42,19 +42,20 @@ class HttpPostServerTask;
  * // Example authentication aspect
  * class AuthAspect : public HttpRequestAspectHandler {
  * public:
- *   void PreService(std::shared_ptr<HttpPreServerTask> task) override {
+ *   void PreService(const std::shared_ptr<HttpPreServerTask>& task) override {
  *     if (task->GetRequest().find(HttpField::authorization) ==
  *         task->GetRequest().end()) {
  *       task->GetResponse().result(HttpStatus::unauthorized);
  *       task->SetBody("Unauthorized");
- *       return; // Stop further processing
+ *       return;
  *     }
  *     // Continue to main handler
  *   }
  *
- *   void PostService(std::shared_ptr<HttpPostServerTask> task) override {
+ *   void PostService(const std::shared_ptr<HttpPostServerTask>& task) override
+ * {
  *     // Log successful authentication
- *     task->Log(LogLevel::Info, "Request authenticated successfully");
+ *     task->Log(LogLevel::kInfo, "Request authenticated successfully");
  *   }
  * };
  * @endcode
@@ -66,8 +67,9 @@ class HttpRequestAspectHandler
    * @brief Execute before the main request handler
    * @param task Pre-phase task being processed
    *
-   * @note Can modify the request or short-circuit processing by setting
-   *       a response early (e.g., for authentication failures)
+   * @note Can modify the request and accumulated response. Setting a response
+   *       here does not stop later aspects or the main route handler; explicit
+   *       short-circuiting would require a separate lifecycle API.
    */
   virtual void PreService(const std::shared_ptr<HttpPreServerTask>& task) = 0;
 
@@ -93,20 +95,20 @@ class HttpRequestAspectHandler
  * implementations for simple aspect logic.
  *
  * @tparam F1 Type of pre-service function (should accept
- * std::shared_ptr<HttpPreServerTask>)
+ * const std::shared_ptr<HttpPreServerTask>&)
  * @tparam F2 Type of post-service function (should accept
- * std::shared_ptr<HttpPostServerTask>)
+ * const std::shared_ptr<HttpPostServerTask>&)
  *
  * @code
  * // Example using lambda functions
  * auto logging_aspect = AllocateUnique<FunctionRequestAspectHandler<
- *   std::function<void(std::shared_ptr<HttpPreServerTask>)>,
- *   std::function<void(std::shared_ptr<HttpPostServerTask>)>
+ *   std::function<void(const std::shared_ptr<HttpPreServerTask>&)>,
+ *   std::function<void(const std::shared_ptr<HttpPostServerTask>&)>
  * >>(
- *   [](auto task) { // Pre-service
+ *   [](const std::shared_ptr<HttpPreServerTask>& task) { // Pre-service
  *     std::cout << "Request: " << task->GetRequest().target() << std::endl;
  *   },
- *   [](auto task) { // Post-service
+ *   [](const std::shared_ptr<HttpPostServerTask>& task) { // Post-service
  *     std::cout << "Response: " << task->GetResponse().result() << std::endl;
  *   }
  * );

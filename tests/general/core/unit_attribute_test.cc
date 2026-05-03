@@ -1,7 +1,7 @@
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/session/attribute.h"
 

@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_FILE_FILE_READER_H_
 #define BSRVCORE_FILE_FILE_READER_H_
 
+#include <boost/asio/any_io_executor.hpp>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -32,32 +33,71 @@ class FileReader : public std::enable_shared_from_this<FileReader>,
   /** @brief Completion callback for async read operations. */
   using Callback = std::function<void(std::shared_ptr<FileReadingState>)>;
 
-  /** @brief Create a reader with separate work and callback executors. */
+  /**
+   * @brief Create a reader with separate work and callback executors.
+   *
+   * @param path File path to read.
+   * @param work_executor Executor used for disk work.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @return File reader instance.
+   */
   [[nodiscard]] static std::shared_ptr<FileReader> Create(
       std::filesystem::path path, IoExecutor work_executor,
       IoExecutor callback_executor);
-  /** @brief Create a reader using the same executor for work and callbacks. */
+  /**
+   * @brief Create a reader using the same executor for work and callbacks.
+   *
+   * @param path File path to read.
+   * @param executor Executor used for work and callbacks.
+   * @return File reader instance.
+   */
   [[nodiscard]] static std::shared_ptr<FileReader> Create(
       std::filesystem::path path, IoExecutor executor = {});
 
   /** @brief Destroy the reader. */
   ~FileReader();
 
-  /** @brief Whether the reader references a non-empty filesystem path. */
+  /**
+   * @brief Whether the reader references a non-empty filesystem path.
+   *
+   * @return True when the reader has a usable path.
+   */
   [[nodiscard]] bool IsValid() const noexcept;
-  /** @brief Return the referenced filesystem path. */
+  /**
+   * @brief Return the referenced filesystem path.
+   *
+   * @return Path configured for this reader.
+   */
   [[nodiscard]] const std::filesystem::path& GetPath() const noexcept;
 
-  /** @brief Start an asynchronous disk read into a caller-supplied state. */
+  /**
+   * @brief Start an asynchronous disk read into a caller-supplied state.
+   *
+   * @param state State object populated by the read.
+   * @param callback Completion callback.
+   * @return True when asynchronous reading was started.
+   */
   [[nodiscard]] bool AsyncReadFromDisk(std::shared_ptr<FileReadingState> state,
                                        Callback callback = {}) const;
-  /** @brief Start an asynchronous disk read using an internally created state.
+  /**
+   * @brief Start an asynchronous disk read using an internally created state.
+   *
+   * @param callback Completion callback.
+   * @return True when asynchronous reading was started.
    */
   [[nodiscard]] bool AsyncReadFromDisk(Callback callback = {}) const;
 
-  /** @brief Return the executor used for disk work dispatch. */
+  /**
+   * @brief Return the executor used for disk work dispatch.
+   *
+   * @return Work executor.
+   */
   [[nodiscard]] IoExecutor GetWorkExecutor() const noexcept;
-  /** @brief Return the executor used for completion callbacks. */
+  /**
+   * @brief Return the executor used for completion callbacks.
+   *
+   * @return Callback executor.
+   */
   [[nodiscard]] IoExecutor GetCallbackExecutor() const noexcept;
 
  private:

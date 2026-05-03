@@ -11,11 +11,14 @@
 #include "server_builder.h"
 
 #include <boost/asio/ip/address.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <optional>
 #include <stdexcept>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/route/computing_route_handler.h"
 #include "config_types.h"
 #include "plugin_loader.h"

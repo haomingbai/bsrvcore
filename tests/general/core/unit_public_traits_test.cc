@@ -2,8 +2,9 @@
 
 #include <boost/asio/thread_pool.hpp>
 #include <memory>
+#include <string>
 #include <type_traits>
-#include <utility>
+#include <typeindex>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/http_request_aspect_handler_factory.h"
@@ -35,7 +36,15 @@
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_route_result.h"
 #include "bsrvcore/session/attribute.h"
-#include "bsrvcore/session/context.h"
+
+namespace bsrvcore {
+template <typename Derived>
+struct CopyableMovable;
+template <typename Derived>
+struct MovableOnly;
+template <typename Derived>
+struct NonCopyableNonMovable;
+}  // namespace bsrvcore
 
 namespace {
 

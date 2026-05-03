@@ -14,11 +14,11 @@
 #include <utility>
 
 #include "bsrvcore/connection/client/http_client_task.h"
-#include "bsrvcore/connection/client/request_assembler.h"
-#include "bsrvcore/connection/client/stream_builder.h"
 #include "impl/http_client_task_impl.h"
 
 namespace bsrvcore {
+class RequestAssembler;
+class StreamBuilder;
 
 void HttpClientTask::Impl::SetOnConnected(Callback cb) {
   std::scoped_lock const lock(callback_mutex_);

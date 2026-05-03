@@ -15,8 +15,8 @@
 
 #include <concepts>
 #include <cstddef>
-#include <cstdint>
 #include <deque>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <new>
@@ -34,6 +34,10 @@ namespace bsrvcore {
 /**
  * @brief Allocate memory with optional alignment.
  *
+ * @param size Number of bytes to allocate.
+ * @param alignment Required alignment in bytes.
+ * @return Pointer to allocated storage.
+ *
  * @note This declaration is part of the public ABI.
  */
 [[nodiscard]] void* Allocate(std::size_t size,
@@ -41,6 +45,10 @@ namespace bsrvcore {
 
 /**
  * @brief Deallocate memory allocated by Allocate().
+ *
+ * @param ptr Pointer previously returned by Allocate(), or null.
+ * @param size Number of bytes originally allocated when known.
+ * @param alignment Alignment originally requested when known.
  *
  * @note This declaration is part of the public ABI.
  */
@@ -64,10 +72,21 @@ class Allocator : public CopyableMovable<Allocator<T>> {
   Allocator() noexcept = default;
 
   template <typename U>
-  /** @brief Construct from allocator of another value type. */
-  explicit Allocator(const Allocator<U>& /*unused*/) noexcept {}
+  /**
+   * @brief Construct from allocator of another value type.
+   *
+   * @param other Source allocator; all bsrvcore allocators are interchangeable.
+   */
+  explicit Allocator(const Allocator<U>& other) noexcept {
+    (void)other;
+  }
 
-  /** @brief Allocate storage for `n` objects of type `T`. */
+  /**
+   * @brief Allocate storage for `n` objects of type `T`.
+   *
+   * @param n Number of `T` objects to reserve raw storage for.
+   * @return Pointer to uninitialized storage, or null when `n` is zero.
+   */
   [[nodiscard]] T* allocate(std::size_t n) {
     if (n == 0) {
       return nullptr;
@@ -78,7 +97,12 @@ class Allocator : public CopyableMovable<Allocator<T>> {
     return static_cast<T*>(Allocate(sizeof(T) * n, alignof(T)));
   }
 
-  /** @brief Release storage previously obtained from allocate(). */
+  /**
+   * @brief Release storage previously obtained from allocate().
+   *
+   * @param ptr Pointer returned by allocate(), or null.
+   * @param n Number of `T` objects originally allocated.
+   */
   void deallocate(T* ptr, std::size_t n) noexcept {
     if (ptr == nullptr) {
       return;
@@ -127,16 +151,35 @@ namespace detail {
  * @brief Transparent hash for string-like keys.
  */
 struct TransparentStringHash {
+  /** @brief Enable heterogeneous lookup for string-like keys. */
   using is_transparent = void;
 
+  /**
+   * @brief Hash a string view.
+   *
+   * @param value String view to hash.
+   * @return Hash value for `value`.
+   */
   std::size_t operator()(std::string_view value) const noexcept {
     return std::hash<std::string_view>{}(value);
   }
 
+  /**
+   * @brief Hash a standard string.
+   *
+   * @param value Standard string to hash.
+   * @return Hash value for `value`.
+   */
   std::size_t operator()(const std::string& value) const noexcept {
     return (*this)(std::string_view{value});
   }
 
+  /**
+   * @brief Hash an allocator-backed string.
+   *
+   * @param value Allocator-backed string to hash.
+   * @return Hash value for `value`.
+   */
   std::size_t operator()(const AllocatedString& value) const noexcept {
     return (*this)(std::string_view{value});
   }
@@ -146,8 +189,16 @@ struct TransparentStringHash {
  * @brief Transparent equality for string-like keys.
  */
 struct TransparentStringEqual {
+  /** @brief Enable heterogeneous equality for string-like keys. */
   using is_transparent = void;
 
+  /**
+   * @brief Compare two string-like values as string views.
+   *
+   * @param lhs Left value to compare.
+   * @param rhs Right value to compare.
+   * @return True when both values have identical string-view contents.
+   */
   template <typename L, typename R>
     requires(std::is_convertible_v<const L&, std::string_view> &&
              std::is_convertible_v<const R&, std::string_view>)
@@ -156,19 +207,43 @@ struct TransparentStringEqual {
   }
 };
 
+/**
+ * @brief Copy a string view into an allocator-backed string.
+ *
+ * @param value String view to copy.
+ * @return Allocator-backed string containing `value`.
+ */
 inline AllocatedString ToAllocatedString(std::string_view value) {
   return {value.begin(), value.end()};
 }
 
+/**
+ * @brief Copy a string view into a standard string.
+ *
+ * @param value String view to copy.
+ * @return Standard string containing `value`.
+ */
 inline std::string ToStdString(std::string_view value) {
   return {value.begin(), value.end()};
 }
 
+/**
+ * @brief Copy a vector into allocator-backed storage.
+ *
+ * @param values Source vector.
+ * @return Allocator-backed vector containing copied values.
+ */
 template <typename T, typename Alloc>
 AllocatedVector<T> ToAllocatedVector(const std::vector<T, Alloc>& values) {
   return {values.begin(), values.end()};
 }
 
+/**
+ * @brief Move or copy a vector into allocator-backed storage.
+ *
+ * @param values Source vector to move from when allocators differ.
+ * @return Allocator-backed vector containing the source values.
+ */
 template <typename T, typename Alloc>
 AllocatedVector<T> ToAllocatedVector(std::vector<T, Alloc>&& values) {
   if constexpr (std::is_same_v<Alloc, Allocator<T>>) {
@@ -183,11 +258,23 @@ AllocatedVector<T> ToAllocatedVector(std::vector<T, Alloc>&& values) {
   }
 }
 
+/**
+ * @brief Copy allocator-backed vector into standard storage.
+ *
+ * @param values Source allocator-backed vector.
+ * @return Standard vector containing copied values.
+ */
 template <typename T>
 std::vector<T> ToStdVector(const AllocatedVector<T>& values) {
   return {values.begin(), values.end()};
 }
 
+/**
+ * @brief Move allocator-backed vector into standard storage.
+ *
+ * @param values Source allocator-backed vector to move from.
+ * @return Standard vector containing moved values.
+ */
 template <typename T>
 std::vector<T> ToStdVector(AllocatedVector<T>&& values) {
   std::vector<T> out;
@@ -198,11 +285,23 @@ std::vector<T> ToStdVector(AllocatedVector<T>&& values) {
   return out;
 }
 
+/**
+ * @brief Copy a deque into allocator-backed storage.
+ *
+ * @param values Source deque.
+ * @return Allocator-backed deque containing copied values.
+ */
 template <typename T, typename Alloc>
 AllocatedDeque<T> ToAllocatedDeque(const std::deque<T, Alloc>& values) {
   return {values.begin(), values.end()};
 }
 
+/**
+ * @brief Move or copy a deque into allocator-backed storage.
+ *
+ * @param values Source deque to move from when allocators differ.
+ * @return Allocator-backed deque containing the source values.
+ */
 template <typename T, typename Alloc>
 AllocatedDeque<T> ToAllocatedDeque(std::deque<T, Alloc>&& values) {
   if constexpr (std::is_same_v<Alloc, Allocator<T>>) {
@@ -216,11 +315,23 @@ AllocatedDeque<T> ToAllocatedDeque(std::deque<T, Alloc>&& values) {
   }
 }
 
+/**
+ * @brief Copy allocator-backed deque into standard storage.
+ *
+ * @param values Source allocator-backed deque.
+ * @return Standard deque containing copied values.
+ */
 template <typename T>
 std::deque<T> ToStdDeque(const AllocatedDeque<T>& values) {
   return {values.begin(), values.end()};
 }
 
+/**
+ * @brief Move allocator-backed deque into standard storage.
+ *
+ * @param values Source allocator-backed deque to move from.
+ * @return Standard deque containing moved values.
+ */
 template <typename T>
 std::deque<T> ToStdDeque(AllocatedDeque<T>&& values) {
   std::deque<T> out;
@@ -230,6 +341,12 @@ std::deque<T> ToStdDeque(AllocatedDeque<T>&& values) {
   return out;
 }
 
+/**
+ * @brief Copy an unordered map into allocator-backed storage.
+ *
+ * @param values Source unordered map.
+ * @return Allocator-backed unordered map containing copied entries.
+ */
 template <typename K, typename V, typename Hash, typename KeyEqual,
           typename Alloc>
 AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
@@ -242,6 +359,12 @@ AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
   return out;
 }
 
+/**
+ * @brief Move an unordered map into allocator-backed storage.
+ *
+ * @param values Source unordered map to move entries from.
+ * @return Allocator-backed unordered map containing moved entries.
+ */
 template <typename K, typename V, typename Hash, typename KeyEqual,
           typename Alloc>
 AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
@@ -255,6 +378,12 @@ AllocatedUnorderedMap<K, V, Hash, KeyEqual> ToAllocatedUnorderedMap(
   return out;
 }
 
+/**
+ * @brief Copy allocator-backed unordered map into standard storage.
+ *
+ * @param values Source allocator-backed unordered map.
+ * @return Standard unordered map containing copied entries.
+ */
 template <typename K, typename V, typename Hash, typename KeyEqual>
 std::unordered_map<K, V, Hash, KeyEqual> ToStdUnorderedMap(
     const AllocatedUnorderedMap<K, V, Hash, KeyEqual>& values) {
@@ -266,6 +395,12 @@ std::unordered_map<K, V, Hash, KeyEqual> ToStdUnorderedMap(
   return out;
 }
 
+/**
+ * @brief Move allocator-backed unordered map into standard storage.
+ *
+ * @param values Source allocator-backed unordered map to move entries from.
+ * @return Standard unordered map containing moved entries.
+ */
 template <typename K, typename V, typename Hash, typename KeyEqual>
 std::unordered_map<K, V, Hash, KeyEqual> ToStdUnorderedMap(
     AllocatedUnorderedMap<K, V, Hash, KeyEqual>&& values) {
@@ -305,23 +440,39 @@ class OwnedDeleter : public CopyableMovable<OwnedDeleter> {
 
   /** @brief Construct an empty deleter. */
   OwnedDeleter() noexcept = default;
-  /** @brief Construct a deleter from a raw destroy function. */
+  /**
+   * @brief Construct a deleter from a raw destroy function.
+   *
+   * @param fn Function used to destroy and release a stored object.
+   */
   explicit OwnedDeleter(DestroyFn fn) noexcept : fn_(fn) {}
 
   template <typename T>
-  /** @brief Create a deleter bound to a concrete object type. */
+  /**
+   * @brief Create a deleter bound to a concrete object type.
+   *
+   * @return Deleter that destroys `T` and releases bsrvcore storage.
+   */
   static OwnedDeleter ForType() noexcept {
     return OwnedDeleter{&DestroyImpl<T>};
   }
 
   template <typename T>
-  /** @brief Create a deleter that uses system `delete`. */
+  /**
+   * @brief Create a deleter that uses system `delete`.
+   *
+   * @return Deleter that destroys `T` through `delete`.
+   */
   static OwnedDeleter ForDelete() noexcept {
     return OwnedDeleter{&DeleteImpl<T>};
   }
 
   template <typename T>
-  /** @brief Destroy and free one allocator-owned object. */
+  /**
+   * @brief Destroy and free one allocator-owned object.
+   *
+   * @param ptr Pointer to destroy, or null.
+   */
   void operator()(T* ptr) const noexcept {
     if (ptr == nullptr || fn_ == nullptr) {
       return;
@@ -345,13 +496,18 @@ class OwnedDeleter : public CopyableMovable<OwnedDeleter> {
   DestroyFn fn_{nullptr};
 };
 
-template <typename T>
 /** @brief Unique pointer that releases memory through bsrvcore allocator ABI.
  */
+template <typename T>
 using OwnedPtr = std::unique_ptr<T, OwnedDeleter>;
 
+/**
+ * @brief Allocate and construct one object owned by `OwnedPtr`.
+ *
+ * @param args Constructor arguments forwarded to `T`.
+ * @return Owned pointer with allocator-backed destruction.
+ */
 template <typename T, typename... Args>
-/** @brief Allocate and construct one object owned by `OwnedPtr`. */
 [[nodiscard]] OwnedPtr<T> AllocateUnique(Args&&... args) {
   void* raw = Allocate(sizeof(T), alignof(T));
   try {
@@ -363,10 +519,14 @@ template <typename T, typename... Args>
   }
 }
 
+/**
+ * @brief Allocate `Derived`, return as `OwnedPtr<Base>` with derived deleter.
+ *
+ * @param args Constructor arguments forwarded to `Derived`.
+ * @return Owned pointer typed as `Base` and destroyed as `Derived`.
+ */
 template <typename Base, typename Derived, typename... Args>
   requires std::derived_from<Derived, Base>
-/** @brief Allocate `Derived`, return as `OwnedPtr<Base>` with derived deleter.
- */
 [[nodiscard]] OwnedPtr<Base> AllocateUniqueAs(Args&&... args) {
   auto derived = AllocateUnique<Derived>(std::forward<Args>(args)...);
   return OwnedPtr<Base>(static_cast<Base*>(derived.release()),
@@ -379,6 +539,9 @@ template <typename Base, typename Derived, typename... Args>
  * The adopted pointer is destroyed through system `delete` with `Derived`
  * static type, which preserves correct destruction when registered via
  * `std::make_unique`.
+ *
+ * @param ptr System-owned pointer to adopt.
+ * @return Owned pointer typed as `Base` and destroyed through `delete`.
  */
 template <typename Base, typename Derived>
   requires std::derived_from<Derived, Base>
@@ -392,14 +555,24 @@ template <typename Base, typename Derived>
                         OwnedDeleter::ForDelete<Derived>());
 }
 
+/**
+ * @brief Allocate and construct one shared object with bsrvcore allocator.
+ *
+ * @param args Constructor arguments forwarded to `T`.
+ * @return Shared pointer to the constructed object.
+ */
 template <typename T, typename... Args>
-/** @brief Allocate and construct one shared object with bsrvcore allocator. */
 [[nodiscard]] std::shared_ptr<T> AllocateShared(Args&&... args) {
   return std::allocate_shared<T>(Allocator<T>{}, std::forward<Args>(args)...);
 }
 
+/**
+ * @brief Allocate raw storage and construct one object in-place.
+ *
+ * @param args Constructor arguments forwarded to `T`.
+ * @return Raw pointer to the constructed object.
+ */
 template <typename T, typename... Args>
-/** @brief Allocate raw storage and construct one object in-place. */
 [[nodiscard]] T* AllocateConstruct(Args&&... args) {
   void* raw = Allocate(sizeof(T), alignof(T));
   try {
@@ -410,8 +583,12 @@ template <typename T, typename... Args>
   }
 }
 
+/**
+ * @brief Destroy one object and release its allocator-owned storage.
+ *
+ * @param ptr Pointer returned by AllocateConstruct(), or null.
+ */
 template <typename T>
-/** @brief Destroy one object and release its allocator-owned storage. */
 void DestroyDeallocate(T* ptr) noexcept {
   if (ptr == nullptr) {
     return;

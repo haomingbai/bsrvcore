@@ -9,18 +9,30 @@
  */
 
 #include <algorithm>
+#include <array>
+#include <boost/system/result.hpp>
 #include <boost/url/parse.hpp>
+#include <boost/url/segments_base.hpp>
+#include <boost/url/segments_view.hpp>
 #include <boost/url/url_view.hpp>
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
 #include "internal/http_route_table_detail.h"
 #include "internal/http_route_table_layer.h"
+
+namespace bsrvcore {
+class HttpRequestAspectHandler;
+enum class HttpRequestMethod : std::uint8_t;
+}  // namespace bsrvcore
 
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestMethod;
@@ -39,8 +51,12 @@ HttpRouteResultInternal HttpRouteTable::RouteInternal(
     HttpRequestMethod method, std::string_view target) noexcept {
   using boost::urls::parse_uri_reference;
 
-  HttpRouteTableLayer* route_layer =
-      entrance_[static_cast<std::size_t>(method)].get();
+  const auto method_idx = static_cast<std::size_t>(method);
+  if (method_idx >= entrance_.size()) {
+    return BuildDefaultRouteResultInternal(method);
+  }
+
+  HttpRouteTableLayer* route_layer = entrance_[method_idx].get();
   if (route_layer == nullptr) {
     return BuildDefaultRouteResultInternal(method);
   }
@@ -213,6 +229,8 @@ AllocatedVector<HttpRequestAspectHandler*> HttpRouteTable::CollectAspects(
   auto method_idx = static_cast<std::size_t>(method);
 
   std::size_t reserve_size = global_aspects_.size();
+  // Invalid methods are routed through the fallback before this point, so only
+  // valid method buckets contribute method-specific aspects.
   if (method_idx < global_specific_aspects_.size()) {
     reserve_size += global_specific_aspects_[method_idx].size();
   }

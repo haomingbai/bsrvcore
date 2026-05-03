@@ -8,8 +8,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <atomic>
 #include <cstddef>
-#include <memory>
+#include <cstdint>
 #include <mutex>
 #include <string_view>
 #include <utility>
@@ -19,9 +20,12 @@
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/internal/route/computing_route_handler.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/route/http_request_aspect_handler.h"
-#include "bsrvcore/route/http_request_handler.h"
-#include "bsrvcore/route/http_request_method.h"
+
+namespace bsrvcore {
+class HttpRequestAspectHandler;
+class HttpRequestHandler;
+enum class HttpRequestMethod : std::uint8_t;
+}  // namespace bsrvcore
 
 using namespace bsrvcore;
 

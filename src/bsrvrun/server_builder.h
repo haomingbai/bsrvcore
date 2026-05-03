@@ -13,8 +13,13 @@
 #ifndef BSRVCORE_BSRVRUN_SERVER_BUILDER_H_
 #define BSRVCORE_BSRVRUN_SERVER_BUILDER_H_
 
-#include "config_types.h"
-#include "plugin_loader.h"
+namespace bsrvcore {
+class HttpServer;
+namespace runtime {
+class PluginLoader;
+struct ServerConfig;
+}  // namespace runtime
+}  // namespace bsrvcore
 
 namespace bsrvcore::runtime {
 

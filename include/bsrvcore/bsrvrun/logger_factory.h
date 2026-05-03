@@ -30,7 +30,12 @@ namespace bsrvcore::bsrvrun {
  */
 class LoggerFactory : public bsrvcore::NonCopyableNonMovable<LoggerFactory> {
  public:
-  /** @brief Create one logger instance from runtime parameters. */
+  /**
+   * @brief Create one logger instance from runtime parameters.
+   *
+   * @param parameters Runtime configuration parameters for the logger.
+   * @return Logger instance to install on the server.
+   */
   [[nodiscard]] virtual std::shared_ptr<bsrvcore::Logger> Create(
       ParameterMap* parameters) = 0;
 

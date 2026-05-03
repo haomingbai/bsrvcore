@@ -12,25 +12,36 @@
 #include <openssl/ssl.h>
 
 #include <algorithm>
-#include <boost/asio/error.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/context.hpp>
 #include <boost/asio/ssl/error.hpp>
 #include <boost/asio/ssl/host_name_verification.hpp>
 #include <boost/asio/ssl/stream_base.hpp>
 #include <boost/asio/ssl/verify_mode.hpp>
+#include <boost/beast/core/basic_stream.hpp>
+#include <boost/beast/core/role.hpp>
 #include <boost/beast/core/stream_traits.hpp>
 #include <boost/beast/http/field.hpp>
-#include <boost/beast/websocket.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/beast/websocket/stream_base.hpp>
 #include <boost/system/errc.hpp>
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/client_stream.h"
+#include "bsrvcore/connection/client/client_websocket_stream.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
+#include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 

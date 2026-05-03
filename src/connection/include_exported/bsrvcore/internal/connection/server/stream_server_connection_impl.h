@@ -49,6 +49,7 @@
 #include <utility>
 #include <variant>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/internal/connection/server/stream_server_connection.h"
 
@@ -100,18 +101,18 @@ concept ValidStream = requires(S s) {
 };
 
 template <ValidStream S>
-class HttpServerConnectionImpl : public StreamServerConnection {
+class StreamServerConnectionImpl : public StreamServerConnection {
  public:
   using UpgradeWebSocketStream = BasicWebSocketStream<S>;
   class MessageQueue;
 
   // Constructor receives shared server runtime controls from accept path.
-  HttpServerConnectionImpl(S stream, IoExecutor io_executor, HttpServer* srv,
-                           std::size_t header_read_expiry,
-                           std::size_t keep_alive_timeout,
-                           bool has_max_connection,
-                           std::atomic<std::int64_t>* available_connection_num,
-                           std::size_t endpoint_index)
+  StreamServerConnectionImpl(
+      S stream, IoExecutor io_executor, HttpServer* srv,
+      std::size_t header_read_expiry, std::size_t keep_alive_timeout,
+      bool has_max_connection,
+      std::atomic<std::int64_t>* available_connection_num,
+      std::size_t endpoint_index)
       : StreamServerConnection(std::move(io_executor), srv, header_read_expiry,
                                keep_alive_timeout, has_max_connection,
                                available_connection_num, endpoint_index),
@@ -122,13 +123,13 @@ class HttpServerConnectionImpl : public StreamServerConnection {
     //
     // Prefer using the static Create(...) factory which constructs the
     // shared_ptr and then attaches the message_queue_ immediately:
-    //   auto conn = HttpServerConnectionImpl<Stream>::Create(...);
+    //   auto conn = StreamServerConnectionImpl<Stream>::Create(...);
   }
 
   // Preferred factory: ensures connection is owned by shared_ptr and then
   // creates message_queue_ which stores a weak_ptr back to the connection.
   template <typename... Args>
-  static std::shared_ptr<HttpServerConnectionImpl<S>> Create(Args&&... args);
+  static std::shared_ptr<StreamServerConnectionImpl<S>> Create(Args&&... args);
 
   void DoClose() override {
     if (closed_.exchange(true, std::memory_order_acq_rel)) {
@@ -261,8 +262,9 @@ class HttpServerConnectionImpl : public StreamServerConnection {
   void ClearMessage() override;
 
  private:
-  // Ensure message_queue_ is created. If already created, no-op.
-  void EnsureMessageQueueCreated();
+  // Ensure streaming flushes have a queue anchored to a shared connection.
+  [[nodiscard]] bool EnsureMessageQueueCreated();
+  void CloseStreamBestEffort() noexcept;
   void DoWebSocketPingControl(std::string payload,
                               WebSocketWriteCallback callback);
   void DoWebSocketPongControl(std::string payload,
@@ -274,46 +276,53 @@ class HttpServerConnectionImpl : public StreamServerConnection {
   HttpResponse resp_;
   S stream_;
   std::mutex mtx_;
-  std::shared_ptr<MessageQueue> message_queue_;  // now shared
-  std::unique_ptr<UpgradeWebSocketStream> ws_stream_;
+  std::shared_ptr<MessageQueue> message_queue_;
+  OwnedPtr<UpgradeWebSocketStream> ws_stream_;
   std::atomic<bool> closed_;
 };
 
 // Keep the MessageQueue definition out of the main header to reduce size.
-// It remains a nested class (HttpServerConnectionImpl<S>::MessageQueue), so
+// It remains a nested class (StreamServerConnectionImpl<S>::MessageQueue), so
 // it keeps access to the outer class' private members.
 #include "bsrvcore/internal/connection/server/detail/stream_server_connection_message_queue.h"
 
 template <ValidStream S>
 template <typename... Args>
-std::shared_ptr<HttpServerConnectionImpl<S>>
-HttpServerConnectionImpl<S>::Create(Args&&... args) {
-  auto conn =
-      AllocateShared<HttpServerConnectionImpl<S>>(std::forward<Args>(args)...);
+std::shared_ptr<StreamServerConnectionImpl<S>>
+StreamServerConnectionImpl<S>::Create(Args&&... args) {
+  auto conn = AllocateShared<StreamServerConnectionImpl<S>>(
+      std::forward<Args>(args)...);
   // Now conn is owned by shared_ptr; create message_queue_ with weak ref.
   conn->message_queue_ =
-      AllocateShared<typename HttpServerConnectionImpl<S>::MessageQueue>(
-          std::weak_ptr<HttpServerConnectionImpl<S>>(conn));
+      AllocateShared<typename StreamServerConnectionImpl<S>::MessageQueue>(
+          std::weak_ptr<StreamServerConnectionImpl<S>>(conn));
   return conn;
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoFlushResponseHeader(
+void StreamServerConnectionImpl<S>::DoFlushResponseHeader(
     HttpResponseHeader header, std::size_t write_expiry) {
-  EnsureMessageQueueCreated();
-  // Capture shared_ptr to message_queue_ inside AddHeader to keep it alive.
+  if (!EnsureMessageQueueCreated()) {
+    CloseStreamBestEffort();
+    return;
+  }
+
   message_queue_->AddHeader(std::move(header), write_expiry);
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoFlushResponseBody(
+void StreamServerConnectionImpl<S>::DoFlushResponseBody(
     std::string body, std::size_t write_expiry) {
-  EnsureMessageQueueCreated();
+  if (!EnsureMessageQueueCreated()) {
+    CloseStreamBestEffort();
+    return;
+  }
+
   message_queue_->AddBody(std::move(body), write_expiry);
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketAccept(
+void StreamServerConnectionImpl<S>::DoWebSocketAccept(
     HttpRequest req, HttpResponseHeader response_header,
     WebSocketAcceptCallback callback) {
   if (!IsServerRunning() || !IsStreamAvailable()) {
@@ -336,8 +345,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketAccept(
           return;
         }
 
-        ws_stream_ =
-            std::make_unique<UpgradeWebSocketStream>(std::move(stream_));
+        ws_stream_ = AllocateUnique<UpgradeWebSocketStream>(std::move(stream_));
         ws_stream_->set_option(
             boost::beast::websocket::stream_base::timeout::suggested(
                 boost::beast::role_type::server));
@@ -369,7 +377,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketAccept(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketRead(
+void StreamServerConnectionImpl<S>::DoWebSocketRead(
     WebSocketReadCallback callback) {
   if (!IsServerRunning() || !IsStreamAvailable()) {
     callback(make_error_code(boost::system::errc::not_connected),
@@ -409,7 +417,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketRead(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketWrite(
+void StreamServerConnectionImpl<S>::DoWebSocketWrite(
     std::string payload, bool binary, WebSocketWriteCallback callback) {
   if (!IsServerRunning() || !IsStreamAvailable()) {
     callback(make_error_code(boost::system::errc::not_connected));
@@ -441,7 +449,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketWrite(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketControl(
+void StreamServerConnectionImpl<S>::DoWebSocketControl(
     WebSocketControlKind kind, std::string payload,
     WebSocketWriteCallback callback) {
   if (!IsServerRunning() || !IsStreamAvailable()) {
@@ -474,7 +482,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketControl(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketPingControl(
+void StreamServerConnectionImpl<S>::DoWebSocketPingControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_ping(
       WebSocketPingData(std::move(payload)),
@@ -488,7 +496,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketPingControl(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketPongControl(
+void StreamServerConnectionImpl<S>::DoWebSocketPongControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_pong(
       WebSocketPingData(std::move(payload)),
@@ -502,7 +510,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketPongControl(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketCloseControl(
+void StreamServerConnectionImpl<S>::DoWebSocketCloseControl(
     std::string payload, WebSocketWriteCallback callback) {
   ws_stream_->async_close(
       WebSocketCloseReason(std::move(payload)),
@@ -516,7 +524,7 @@ void HttpServerConnectionImpl<S>::DoWebSocketCloseControl(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::DoWebSocketClose(
+void StreamServerConnectionImpl<S>::DoWebSocketClose(
     WebSocketWriteCallback callback) {
   if (!IsStreamAvailable()) {
     callback(boost::system::error_code{});
@@ -544,32 +552,47 @@ void HttpServerConnectionImpl<S>::DoWebSocketClose(
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::ClearMessage() {
+void StreamServerConnectionImpl<S>::ClearMessage() {
   if (message_queue_) {
     message_queue_->Wait();
   }
 }
 
 template <ValidStream S>
-void HttpServerConnectionImpl<S>::EnsureMessageQueueCreated() {
-  // If already created, nothing to do.
+bool StreamServerConnectionImpl<S>::EnsureMessageQueueCreated() {
+  std::scoped_lock const lock(mtx_);
   if (message_queue_) {
+    return true;
+  }
+
+  // weak_from_this() is valid only after construction is complete and the
+  // object is managed by shared_ptr. Without that ownership, queued streaming
+  // writes cannot safely keep the connection alive.
+  auto locked = this->weak_from_this().lock();
+  if (!locked) {
+    return false;
+  }
+
+  auto conn_sp =
+      std::static_pointer_cast<StreamServerConnectionImpl<S>>(locked);
+  message_queue_ =
+      AllocateShared<typename StreamServerConnectionImpl<S>::MessageQueue>(
+          std::weak_ptr<StreamServerConnectionImpl<S>>(conn_sp));
+  return true;
+}
+
+template <ValidStream S>
+void StreamServerConnectionImpl<S>::CloseStreamBestEffort() noexcept {
+  if (closed_.exchange(true, std::memory_order_acq_rel)) {
     return;
   }
 
-  // Try to create it using weak_from_this() (works only if object is owned
-  // by shared_ptr). If weak_from_this is empty, message_queue_ will be
-  // created later when AddBody/AddHeader runs (they call this again).
-  auto weak = this->weak_from_this();
-  if (auto locked = weak.lock()) {
-    std::scoped_lock const lock(mtx_);
-    if (!message_queue_) {
-      auto conn_sp =
-          std::static_pointer_cast<HttpServerConnectionImpl<S>>(locked);
-      message_queue_ =
-          AllocateShared<typename HttpServerConnectionImpl<S>::MessageQueue>(
-              std::weak_ptr<HttpServerConnectionImpl<S>>(conn_sp));
-    }
+  boost::system::error_code ec;
+  auto& socket = ws_stream_ != nullptr ? helper::GetLowestSocket(*ws_stream_)
+                                       : helper::GetLowestSocket(stream_);
+  if (socket.is_open()) {
+    socket.shutdown(Tcp::socket::shutdown_both, ec);
+    socket.close(ec);
   }
 }
 

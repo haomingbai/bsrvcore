@@ -1,9 +1,16 @@
 #include <gtest/gtest.h>
 
-#include <boost/beast/core/string.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
@@ -41,7 +48,7 @@ std::string ExtractSessionCookie(
 }  // namespace
 
 TEST(SessionAcceptanceTest, ExistingSessionCookieIsReusedWithoutReset) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/session",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody(task->GetSessionId());
@@ -62,7 +69,7 @@ TEST(SessionAcceptanceTest, ExistingSessionCookieIsReusedWithoutReset) {
 }
 
 TEST(SessionAcceptanceTest, GeneratedSessionCookiePreservesSessionState) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/remember/{value}",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -75,8 +82,8 @@ TEST(SessionAcceptanceTest, GeneratedSessionCookiePreservesSessionState) {
         auto stored = std::dynamic_pointer_cast<StoredValueAttribute>(
             session->GetAttribute("stored"));
         if (!stored) {
-          session->SetAttribute(
-              "stored", bsrvcore::AllocateShared<StoredValueAttribute>(*value));
+          session->SetAttribute("stored",
+                                std::make_shared<StoredValueAttribute>(*value));
           stored = std::dynamic_pointer_cast<StoredValueAttribute>(
               session->GetAttribute("stored"));
         }

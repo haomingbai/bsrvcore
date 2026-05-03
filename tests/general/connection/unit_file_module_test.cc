@@ -1,16 +1,23 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/io_context.hpp>
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <future>
+#include <iterator>
+#include <memory>
 #include <string>
+#include <system_error>
 #include <thread>
+#include <utility>
 
-#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/file/file_reader.h"
+#include "bsrvcore/file/file_state.h"
 #include "bsrvcore/file/file_writer.h"
 
 namespace {

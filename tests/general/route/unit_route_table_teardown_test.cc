@@ -1,10 +1,17 @@
 #include <gtest/gtest.h>
 
+#include <cstddef>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/route/http_request_method.h"
+
+namespace bsrvcore {
+class HttpServerTask;
+}  // namespace bsrvcore
 
 namespace {
 
@@ -21,7 +28,7 @@ std::string MakeDeepRoute(std::size_t depth) {
 }  // namespace
 
 TEST(RouteTableTeardownTest, DestroysDeepRouteTreeIteratively) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(1);
+  auto server = std::make_unique<bsrvcore::HttpServer>(1);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, MakeDeepRoute(4096),
                         [](std::shared_ptr<bsrvcore::HttpServerTask>) {});
 
@@ -30,7 +37,7 @@ TEST(RouteTableTeardownTest, DestroysDeepRouteTreeIteratively) {
 }
 
 TEST(RouteTableTeardownTest, DestroysMountedDeepBlueprintTreeIteratively) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(1);
+  auto server = std::make_unique<bsrvcore::HttpServer>(1);
   auto blue_print = bsrvcore::BluePrintFactory::Create();
   blue_print.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet,
                            MakeDeepRoute(4096),

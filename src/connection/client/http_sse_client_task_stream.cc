@@ -11,13 +11,23 @@
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/error.hpp>
 #include <boost/asio/post.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/stream_traits.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/error.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/system/errc.hpp>
 #include <cstddef>
+#include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 #include <utility>
 
+#include "bsrvcore/connection/client/client_stream.h"
+#include "bsrvcore/connection/client/http_sse_client_task.h"
 #include "impl/http_sse_client_task_impl.h"
 
 namespace bsrvcore {

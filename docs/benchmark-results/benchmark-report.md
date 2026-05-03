@@ -182,7 +182,7 @@ The snapshot is published once at `Start()` and cleared at `Stop()`. During the 
 
 ### mimalloc-Backed Allocation
 
-All internal allocations go through mimalloc, a modern allocator with per-thread caches, eager page clearing, and low fragmentation. Custom `OwnedPtr<T>` (type-erased deleter) and `AllocateUnique<T>()` ensure all framework objects bypass the default allocator. The `Allocator<T>` STL adapter enables transparent use in all standard containers (`AllocatedVector`, `AllocatedStringMap`, etc.).
+Runtime hot-path allocations go through mimalloc, a modern allocator with per-thread caches, eager page clearing, and low fragmentation. Custom `OwnedPtr<T>` (type-erased deleter) and `AllocateUnique<T>()` keep framework-owned runtime objects off the default allocator. The `Allocator<T>` STL adapter enables allocator-backed containers (`AllocatedVector`, `AllocatedStringMap`, etc.) where the runtime needs them.
 
 **Code**: `src/allocator/allocator.cc`, `include/bsrvcore/allocator/allocator.h`
 

@@ -22,7 +22,6 @@
 #include <memory>
 #include <mutex>
 #include <string>
-#include <unordered_map>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"

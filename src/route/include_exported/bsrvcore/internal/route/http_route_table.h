@@ -8,8 +8,9 @@
  * SPDX-License-Identifier: MIT
  *
  * @details
- * Thread-safe HTTP routing system supporting route parameters, aspect-oriented
- * programming, exclusive routes, and configurable request limits.
+ * Server-configured, read-mostly HTTP routing system supporting route
+ * parameters, aspect-oriented programming, exclusive routes, and configurable
+ * request limits.
  */
 
 #pragma once
@@ -20,7 +21,6 @@
 #include <array>
 #include <boost/url/url_view.hpp>
 #include <cstddef>
-#include <shared_mutex>
 #include <string_view>
 
 #include "bsrvcore/allocator/allocator.h"
@@ -40,7 +40,7 @@ class HttpRouteTableLayer;
 }
 
 /**
- * @brief Thread-safe HTTP routing table with AOP support
+ * @brief Server-configured, read-mostly HTTP routing table with AOP support
  *
  * Manages HTTP route registration and matching with support for:
  * - Route parameters (e.g., /users/{id})
@@ -50,22 +50,26 @@ class HttpRouteTableLayer;
  *
  * @code
  * // Example usage
- * auto route_table = AllocateUnique<HttpRouteTable>();
+ * auto route_table = std::make_unique<HttpRouteTable>();
  *
  * // Add a regular route
- * route_table->AddRouteEntry(HttpRequestMethod::GET, "/users/{id}",
+ * route_table->AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
  *                           AllocateUnique<UserHandler>());
  *
  * // Add an exclusive route (static file serving)
- * route_table->AddExclusiveRouteEntry(HttpRequestMethod::GET, "/static",
+ * route_table->AddExclusiveRouteEntry(HttpRequestMethod::kGet, "/static",
  *                                    AllocateUnique<StaticFileHandler>());
  *
  * // Add a global aspect (authentication)
  * route_table->AddGlobalAspect(AllocateUnique<AuthAspect>());
  *
  * // Route a request
- * auto result = route_table->Route(HttpRequestMethod::GET, "/users/123");
+ * auto result = route_table->Route(HttpRequestMethod::kGet, "/users/123");
  * @endcode
+ *
+ * @note Direct callers must not mutate and route the same table
+ *       concurrently. `HttpServer` serializes configuration with its own lock
+ *       and treats the route table as read-only after `Start()`.
  */
 class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
  public:
@@ -359,7 +363,6 @@ class HttpRouteTable : NonCopyableNonMovable<HttpRouteTable> {
       OwnedPtr<route_internal::HttpRouteTableLayer>& root) noexcept;
 
   static constexpr size_t kHttpRequestMethodNum = 9;
-  std::shared_mutex mtx_;  ///< Read-write lock for thread safety
   std::array<OwnedPtr<route_internal::HttpRouteTableLayer>,
              kHttpRequestMethodNum>
       entrance_;  ///< Routing layers per HTTP method

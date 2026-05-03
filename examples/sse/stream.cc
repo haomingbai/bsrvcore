@@ -18,7 +18,10 @@
 #include <atomic>
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
@@ -26,9 +29,9 @@
 #include <string>
 #include <utility>
 
-#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 
 namespace {
@@ -122,7 +125,7 @@ void ScheduleHeartbeat(const std::shared_ptr<bsrvcore::HttpServerTask>& task,
 }  // namespace
 
 int main() {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/events",
@@ -140,7 +143,7 @@ int main() {
             task->WriteHeader(std::move(header));
             task->WriteBody(": stream opened\n\n");
 
-            auto state = bsrvcore::AllocateShared<SseStreamState>();
+            auto state = std::make_shared<SseStreamState>();
             ScheduleCounter(task, state);
             ScheduleHeartbeat(task, state);
           })

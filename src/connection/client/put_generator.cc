@@ -10,17 +10,25 @@
 
 #include "bsrvcore/connection/client/put_generator.h"
 
+#include <atomic>
 #include <boost/asio/post.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/async_waiter.h"
+#include "bsrvcore/file/file_reader.h"
+#include "bsrvcore/file/file_state.h"
 #include "bsrvcore/file/file_writer.h"
 #include "impl/default_client_ssl_context.h"
 #include "impl/http_url_parser.h"

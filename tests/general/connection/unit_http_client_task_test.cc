@@ -1,17 +1,33 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/address.hpp>
-#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <boost/json/array.hpp>
+#include <boost/json/error.hpp>
+#include <boost/json/object.hpp>
+#include <boost/json/value.hpp>
+#include <boost/json/value_ref.hpp>
+#include <boost/json/value_to.hpp>
+#include <boost/system/errc.hpp>
 #include <future>
 #include <memory>
 #include <string>
 #include <thread>
-#include <vector>
+#include <utility>
 
+#include "bsrvcore/connection/client/client_stream.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
+#include "bsrvcore/connection/client/stream_slot.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/types.h"
@@ -56,7 +72,7 @@ TEST(ClientStreamTest, TracksEmptyTcpSslAndMoveStates) {
 }
 
 TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("pong");
@@ -89,7 +105,7 @@ TEST(HttpClientTaskTest, BasicGetDoneCallbackSuccess) {
 }
 
 TEST(HttpClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/raw",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("raw-ok");
@@ -170,7 +186,7 @@ TEST(HttpClientTaskTest, HttpsFactoryWithoutSslContextFailsInBuilderPhase) {
 }
 
 TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/assembled",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("assembled-ok");
@@ -236,7 +252,7 @@ TEST(HttpClientTaskTest, ExplicitPipelineHandsBuilderStreamToRawTask) {
 }
 
 TEST(HttpClientTaskTest, ChunkCallbackReceivesBodyData) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/chunk",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("chunked-body-data");
@@ -282,7 +298,7 @@ TEST(HttpClientTaskTest, HttpsUrlWithoutSslContextStillCreatesTask) {
 }
 
 TEST(HttpClientTaskTest, JsonHelpersRoundTripRequestAndResponse) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/echo-json",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -325,7 +341,7 @@ TEST(HttpClientTaskTest, JsonHelpersRoundTripRequestAndResponse) {
 }
 
 TEST(HttpClientTaskTest, JsonResponseHelpersReportTypeAndSyntaxErrors) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/json-array",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -390,7 +406,7 @@ TEST(HttpClientTaskTest, CallbackSettersReturnSharedPointerForChaining) {
 }
 
 TEST(HttpClientTaskTest, DoneCallbackUsesConfiguredCallbackExecutor) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/callback",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetBody("ok");

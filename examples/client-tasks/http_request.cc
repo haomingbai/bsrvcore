@@ -10,12 +10,18 @@
 
 #include <bsrvcore/connection/client/http_client_task.h>
 
-#include <boost/asio/io_context.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <boost/beast/http/verb.hpp>
+#include <boost/system/errc.hpp>
 #include <chrono>
 #include <future>
 #include <iostream>
+#include <memory>
 #include <string>
+
+#include "bsrvcore/core/types.h"
 
 int main() {
   namespace http = boost::beast::http;

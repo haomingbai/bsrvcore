@@ -57,10 +57,19 @@ struct ConnectionKey {
    */
   SslContextPtr proxy_ssl_ctx;
 
-  /** @brief Whether this connection goes through a proxy. */
+  /**
+   * @brief Whether this connection goes through a proxy.
+   *
+   * @return True when proxy_host is set.
+   */
   [[nodiscard]] bool has_proxy() const noexcept { return !proxy_host.empty(); }
 
-  /** @brief Equality comparison for unordered container lookup. */
+  /**
+   * @brief Equality comparison for unordered container lookup.
+   *
+   * @param other Key to compare against.
+   * @return True when both keys describe the same reusable connection.
+   */
   bool operator==(const ConnectionKey& other) const noexcept {
     return scheme == other.scheme && host == other.host && port == other.port &&
            ssl_ctx == other.ssl_ctx && verify_peer == other.verify_peer &&
@@ -72,7 +81,12 @@ struct ConnectionKey {
  * @brief Hash functor for ConnectionKey.
  */
 struct ConnectionKeyHash {
-  /** @brief Compute combined hash for ConnectionKey. */
+  /**
+   * @brief Compute combined hash for ConnectionKey.
+   *
+   * @param k Connection key to hash.
+   * @return Hash value for unordered containers.
+   */
   std::size_t operator()(const ConnectionKey& k) const noexcept {
     std::size_t h = 0;
     auto combine = [&h](std::size_t v) {
@@ -102,7 +116,11 @@ class StreamSlot {
 
   /** @brief Move constructor. */
   StreamSlot(StreamSlot&&) noexcept = default;
-  /** @brief Move assignment. */
+  /**
+   * @brief Move assignment.
+   *
+   * @return Reference to this slot.
+   */
   StreamSlot& operator=(StreamSlot&&) noexcept = default;
 
   /** @brief Not copyable. */
@@ -114,6 +132,9 @@ class StreamSlot {
    * @brief Check whether *this is compatible with the given connection key.
    *
    * Compatibility means the two keys are equal.
+   *
+   * @param other Connection key to compare against this slot's key.
+   * @return True when `other` can reuse this slot.
    */
   [[nodiscard]] bool IsCompatible(const ConnectionKey& other) const noexcept {
     return key == other;
@@ -124,6 +145,8 @@ class StreamSlot {
    *
    * A slot is reusable when the upstream has not closed the connection and
    * the idle deadline (if set) has not expired.
+   *
+   * @return True when the slot can serve another request.
    */
   [[nodiscard]] bool IsReusable() const noexcept {
     if (!stream_.HasStream()) {
@@ -138,37 +161,98 @@ class StreamSlot {
     return true;
   }
 
+  /**
+   * @brief Return mutable owned client stream.
+   *
+   * @return Mutable stream wrapper reference.
+   */
   [[nodiscard]] ClientStream& Stream() noexcept { return stream_; }
 
+  /**
+   * @brief Return const owned client stream.
+   *
+   * @return Const stream wrapper reference.
+   */
   [[nodiscard]] const ClientStream& Stream() const noexcept { return stream_; }
 
+  /**
+   * @brief Whether the slot currently owns a TCP stream.
+   *
+   * @return True when TcpStreamRef() may be used.
+   */
   [[nodiscard]] bool HasTcpStream() const noexcept { return stream_.IsTcp(); }
 
+  /**
+   * @brief Whether the slot currently owns an SSL stream.
+   *
+   * @return True when SslStreamRef() may be used.
+   */
   [[nodiscard]] bool HasSslStream() const noexcept { return stream_.IsSsl(); }
 
+  /**
+   * @brief Return mutable TCP stream; requires HasTcpStream().
+   *
+   * @return Mutable TCP stream reference.
+   */
   [[nodiscard]] TcpStream& TcpStreamRef() noexcept { return stream_.Tcp(); }
 
+  /**
+   * @brief Return const TCP stream; requires HasTcpStream().
+   *
+   * @return Const TCP stream reference.
+   */
   [[nodiscard]] const TcpStream& TcpStreamRef() const noexcept {
     return stream_.Tcp();
   }
 
+  /**
+   * @brief Return mutable SSL stream; requires HasSslStream().
+   *
+   * @return Mutable SSL stream reference.
+   */
   [[nodiscard]] SslStream& SslStreamRef() noexcept { return stream_.Ssl(); }
 
+  /**
+   * @brief Return const SSL stream; requires HasSslStream().
+   *
+   * @return Const SSL stream reference.
+   */
   [[nodiscard]] const SslStream& SslStreamRef() const noexcept {
     return stream_.Ssl();
   }
 
+  /**
+   * @brief Replace owned stream with a TCP stream.
+   *
+   * @param stream TCP stream to move into the slot.
+   */
   void EmplaceTcp(TcpStream stream) { stream_.EmplaceTcp(std::move(stream)); }
 
+  /**
+   * @brief Replace owned stream with an SSL stream.
+   *
+   * @param stream SSL stream to move into the slot.
+   */
   void EmplaceSsl(SslStream stream) { stream_.EmplaceSsl(std::move(stream)); }
 
+  /**
+   * @brief Replace owned stream with a pre-built ClientStream.
+   *
+   * @param stream Stream wrapper to move into the slot.
+   */
   void SetStream(ClientStream stream) { stream_ = std::move(stream); }
 
+  /** @brief Connection identity for this slot. */
   ConnectionKey key;
+  /** @brief SNI hostname used for TLS handshakes. */
   std::string sni_hostname;
+  /** @brief HTTP version associated with this connection. */
   int http_version{11};
+  /** @brief Whether the upstream indicated the connection is closed. */
   bool upstream_closed{false};
+  /** @brief Number of requests served by this reusable slot. */
   std::size_t requests_served{0};
+  /** @brief Optional absolute time after which the idle slot expires. */
   std::optional<std::chrono::steady_clock::time_point> idle_deadline;
 
   /**

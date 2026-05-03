@@ -15,6 +15,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -22,7 +23,9 @@
 #include "bsrvcore/route/http_request_method.h"
 #include "config_loader_detail.h"
 #include "config_types.h"
+#include "yaml-cpp/node/detail/iterator.h"
 #include "yaml-cpp/node/node.h"
+#include "yaml-cpp/yaml.h"
 
 namespace bsrvcore::runtime::config_loader_detail {
 

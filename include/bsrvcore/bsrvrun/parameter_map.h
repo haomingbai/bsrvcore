@@ -27,9 +27,20 @@ namespace bsrvcore::bsrvrun {
  */
 class ParameterMap : public bsrvcore::CopyableMovable<ParameterMap> {
  public:
-  /** @brief Return the value associated with one key. */
+  /**
+   * @brief Return the value associated with one key.
+   *
+   * @param key Parameter key to look up.
+   * @return Value associated with `key`, or an implementation-defined empty
+   * value when absent.
+   */
   [[nodiscard]] virtual String Get(const String& key) const = 0;
-  /** @brief Set or replace one key-value pair. */
+  /**
+   * @brief Set or replace one key-value pair.
+   *
+   * @param key Parameter key to update.
+   * @param value Parameter value to store.
+   */
   virtual void Set(const String& key, const String& value) = 0;
 
   virtual ~ParameterMap() = default;

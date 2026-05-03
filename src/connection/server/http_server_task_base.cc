@@ -8,18 +8,27 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/bind_allocator.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/json/error.hpp>
+#include <boost/json/parse.hpp>
+#include <boost/json/serialize.hpp>
 #include <boost/system/error_code.hpp>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -29,11 +38,14 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
-#include "bsrvcore/core/logger.h"
-#include "bsrvcore/session/context.h"
+#include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/service_provider.h"
+#include "bsrvcore/core/types.h"
 #include "internal/server/http_server_task_detail.h"
 
 namespace bsrvcore {
+class Context;
+enum class LogLevel : std::uint8_t;
 
 namespace {
 

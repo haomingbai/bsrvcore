@@ -1,4 +1,18 @@
+#include <stddef.h>
+
+#include <boost/asio/ip/address.hpp>
+#include <boost/system/errc.hpp>
+#include <cstdint>
+
+#include "bsrvcore-c/bsrvcore.h"
+#include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/core/http_server.h"
 #include "internal/callback_adapters.h"
+#include "internal/common.h"
+
+namespace bsrvcore {
+enum class HttpRequestMethod : std::uint8_t;
+}  // namespace bsrvcore
 
 namespace cbind = bsrvcore::c_binding_internal;
 
@@ -68,8 +82,7 @@ bsrvcore_result_t bsrvcore_server_add_listen(bsrvcore_server_t* server,
                                              size_t io_threads) {
   return cbind::Guard([&]() {
     if (cbind::ValidateServer(server) != BSRVCORE_RESULT_OK ||
-        cbind::ValidateStringArg(host) != BSRVCORE_RESULT_OK ||
-        io_threads == 0) {
+        cbind::ValidateStringArg(host) != BSRVCORE_RESULT_OK) {
       return BSRVCORE_RESULT_INVALID_ARGUMENT;
     }
 

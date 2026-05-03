@@ -2,25 +2,37 @@
 
 #include <atomic>
 #include <barrier>
-#include <boost/asio/connect.hpp>
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/basic_resolver_iterator.hpp>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/core/string.hpp>
-#include <boost/beast/core/tcp_stream.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <boost/beast/http/write.hpp>
+#include <boost/system/errc.hpp>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>
+#include <exception>
+#include <memory>
 #include <mutex>
 #include <stop_token>
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "stress_test_common.h"
 #include "test_http_client_task.h"
@@ -140,7 +152,7 @@ TEST(StressKeepAliveRouteParamTest,
   bsrvcore::HttpServerExecutorOptions options;
   options.core_thread_num = cfg.server_threads;
   options.max_thread_num = cfg.server_threads;
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  auto server = std::make_unique<bsrvcore::HttpServer>(options);
   server->SetHeaderReadExpiry(5000)
       ->SetDefaultReadExpiry(5000)
       ->SetDefaultWriteExpiry(5000)

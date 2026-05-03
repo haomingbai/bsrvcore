@@ -8,20 +8,27 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <array>
 #include <cstddef>
-#include <string>
+#include <cstdint>
+#include <memory>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/route/http_request_aspect_handler.h"
-#include "bsrvcore/route/http_request_handler.h"
-#include "bsrvcore/route/http_request_method.h"
 #include "impl/http_route_target_validator.h"
 #include "internal/empty_route_handler.h"
 #include "internal/http_route_table_detail.h"
 #include "internal/http_route_table_layer.h"
+
+namespace bsrvcore {
+class HttpRequestAspectHandler;
+class HttpRequestHandler;
+class HttpRouteTable;
+enum class HttpRequestMethod : std::uint8_t;
+}  // namespace bsrvcore
 
 using bsrvcore::HttpRequestAspectHandler;
 using bsrvcore::HttpRequestHandler;

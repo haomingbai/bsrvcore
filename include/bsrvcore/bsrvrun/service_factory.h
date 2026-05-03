@@ -28,10 +28,19 @@ namespace bsrvcore::bsrvrun {
  */
 class ServiceFactory : public bsrvcore::NonCopyableNonMovable<ServiceFactory> {
  public:
-  /** @brief Create one service instance from runtime parameters. */
+  /**
+   * @brief Create one service instance from runtime parameters.
+   *
+   * @param parameters Runtime configuration parameters for the service.
+   * @return Opaque service pointer owned by this factory contract.
+   */
   virtual void* GenerateService(ParameterMap* parameters) = 0;
 
-  /** @brief Destroy one service instance previously created by this factory. */
+  /**
+   * @brief Destroy one service instance previously created by this factory.
+   *
+   * @param service Service pointer returned by GenerateService().
+   */
   virtual void DestroyService(void* service) = 0;
 
   virtual ~ServiceFactory() = default;

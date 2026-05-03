@@ -126,33 +126,33 @@ aliases. Prefer names such as `bsrvcore::IoExecutor`, `bsrvcore::SslContext`,
 #include <memory>
 
 int main() {
-    // Worker threads for Post/SetTimer callbacks.
-    auto server = std::make_unique<bsrvcore::HttpServer>(4);
-    server
-            ->AddRouteEntry(
-                    bsrvcore::HttpRequestMethod::kGet, "/hello",
-                    [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
-                        task->GetResponse().result(bsrvcore::HttpStatus::ok);
-                        task->SetField(bsrvcore::HttpField::content_type,
-                                                     "text/plain; charset=utf-8");
-                        task->SetBody("Hello, bsrvcore.");
-                    })
-                ->AddListen(
-                    bsrvcore::TcpEndpoint(boost::asio::ip::make_address("0.0.0.0"),
-                                          8080),
-                    2);
+  // Worker threads for Post/SetTimer callbacks.
+  auto server = std::make_unique<bsrvcore::HttpServer>(4);
+  server
+      ->AddRouteEntry(
+          bsrvcore::HttpRequestMethod::kGet, "/hello",
+          [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
+            task->GetResponse().result(bsrvcore::HttpStatus::ok);
+            task->SetField(bsrvcore::HttpField::content_type,
+                           "text/plain; charset=utf-8");
+            task->SetBody("Hello, bsrvcore.");
+          })
+      ->AddListen(
+          bsrvcore::TcpEndpoint(boost::asio::ip::make_address("0.0.0.0"),
+                                8080),
+          2);
 
-              if (!server->Start()) {
-        std::cerr << "Failed to start server." << std::endl;
-        return 1;
-    }
+  if (!server->Start()) {
+    std::cerr << "Failed to start server." << std::endl;
+    return 1;
+  }
 
-    std::cout << "Listening on http://0.0.0.0:8080/hello" << std::endl;
-    std::cout << "Press Enter to stop." << std::endl;
-    std::cin.get();
+  std::cout << "Listening on http://0.0.0.0:8080/hello" << std::endl;
+  std::cout << "Press Enter to stop." << std::endl;
+  std::cin.get();
 
-    server->Stop();
-    return 0;
+  server->Stop();
+  return 0;
 }
 ```
 
@@ -230,9 +230,8 @@ requires:
 4. **Lambda handlers** (in examples and application code) auto-adapt—no changes
    needed.
 5. **Object handler/aspect ownership choices**:
-   - `AllocateUnique<T>()` keeps registration objects on bsrvcore allocator.
-   - `std::make_unique<T>()` is also accepted by registration APIs; bsrvcore
-     adopts ownership and destroys those objects with system `delete`.
+   - Application code and examples should normally use `std::make_unique<T>()`.
+   - bsrvcore runtime internals use allocator-backed ownership on hot paths.
 
 **Benefit**: ~5-15% throughput improvement in typical request paths through
 reduced atomic reference-count operations. See [IO Thread Optimizations in the

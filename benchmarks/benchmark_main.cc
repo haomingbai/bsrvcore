@@ -1,5 +1,9 @@
+#include <exception>
 #include <filesystem>
 #include <iostream>
+#include <optional>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include "benchmark_cli.h"

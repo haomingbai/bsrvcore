@@ -8,7 +8,7 @@ This is the core server-side flow for one inbound request.
 sequenceDiagram
     participant C as Client
     participant S as HttpServer
-    participant X as HttpServerConnection
+    participant X as StreamServerConnectionImpl
     participant R as HttpRouteTable
     participant P as HttpPreServerTask
     participant H as HttpServerTask
@@ -97,10 +97,11 @@ deferred callback, CPU-bound task), it **must capture the shared_ptr explicitly*
 server.AddRouteEntry(
     HttpRequestMethod::kGet, "/async-work",
     [](const std::shared_ptr<HttpServerTask>& task) {
-      // Capture by move to extend lifetime
+      // Copy once from the const-ref parameter to extend lifetime.
+      auto keep_alive = task;
       auto cpu_task = worker_pool->Enqueue(
-          [task = std::move(task)]() {
-            task->SetBody("expensive computation result");
+          [keep_alive = std::move(keep_alive)]() {
+            keep_alive->SetBody("expensive computation result");
           });
     });
 ```
@@ -123,27 +124,25 @@ When scheduling work on a CPU-bound thread pool or with system async (e.g.,
 `std::async`), the task holder **must preserve the shared_ptr lifetime**:
 
 ```cpp
-// ❌ CPU work loses connection while request/response writes are pending
+// ❌ Capturing only a reference can outlive the handler parameter.
 auto cpu_task_bad = std::async(std::launch::async,
-    [](const std::shared_ptr<HttpServerTask>& task) {
-      // task reference valid here, but:
-      // - shared_ptr destroyed after function exit
-      // - post-phase runs, finalizes response
-      // - CPU work starts, but connection may already be closed
+    [&task]() {
       cpu_expensive_computation();
-      task->SetBody("result");  // ❌ May fail; connection closed
-    }, task);
+      task->SetBody("result");  // ❌ dangling reference after handler returns
+    });
 
 // ✅ CPU work prolongs request lifetime
+auto keep_alive = task;
 auto cpu_task_good = std::async(std::launch::async,
-    [task = std::move(task)]() {  // Capture by move
+    [keep_alive = std::move(keep_alive)]() {
       cpu_expensive_computation();
-      task->SetBody("result");  // ✅ Safe; connection held until shared_ptr destroyed
+      keep_alive->SetBody("result");
     });
 ```
 
-The difference: moving the shared_ptr into the lambda extends its lifetime until
-the lambda completes, keeping the connection alive for response finalization.
+Passing `task` by value into `std::async` or copying it before a lambda capture
+also preserves lifetime. What is unsafe is retaining only a reference to the
+handler parameter after the handler returns.
 
 ## Failure Semantics
 

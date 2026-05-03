@@ -1,6 +1,13 @@
 #include <gtest/gtest.h>
 
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <cstddef>
 #include <string>
 
 #include "bsrvcore-c/bsrvcore.h"
@@ -102,10 +109,11 @@ struct CServerGuard {
   bsrvcore_server_t* server{nullptr};
 };
 
-unsigned short StartCServer(const CServerGuard& guard) {
+unsigned short StartCServer(const CServerGuard& guard,
+                            std::size_t io_threads = 1) {
   const auto port = FindFreePort();
   const auto add_listen =
-      bsrvcore_server_add_listen(guard.server, "127.0.0.1", port, 1);
+      bsrvcore_server_add_listen(guard.server, "127.0.0.1", port, io_threads);
   if (add_listen != BSRVCORE_RESULT_OK) {
     ADD_FAILURE() << "bsrvcore_server_add_listen failed: " << add_listen;
     return 0;
@@ -143,6 +151,21 @@ TEST(CBindingHttpServerTest, StatelessRouteCanSetFullResponse) {
   ASSERT_EQ(BSRVCORE_RESULT_OK,
             bsrvcore_server_is_running(guard.server, &running));
   EXPECT_EQ(1, running);
+}
+
+TEST(CBindingHttpServerTest, AddListenAcceptsZeroIoThreadsAsDefault) {
+  CServerGuard guard;
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_create(2, &guard.server));
+  ASSERT_EQ(BSRVCORE_RESULT_OK,
+            bsrvcore_server_add_route(guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                      "/hello", hello_handler));
+
+  const auto port = StartCServer(guard, 0);
+  ASSERT_NE(0, port);
+
+  auto response = DoRequestWithRetry(http::verb::get, port, "/hello", "");
+  EXPECT_EQ(response.result(), http::status::ok);
+  EXPECT_EQ(response.body(), "hello");
 }
 
 TEST(CBindingHttpServerTest, StatefulRouteCanReadHeadersAndBody) {

@@ -9,31 +9,45 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <openssl/err.h>
-#include <openssl/ssl.h>
-
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/error.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/asio/ssl/error.hpp>
-#include <boost/asio/ssl/host_name_verification.hpp>
-#include <boost/asio/ssl/stream_base.hpp>
-#include <boost/asio/ssl/verify_mode.hpp>
+#include <boost/asio/strand.hpp>
+#include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/stream_traits.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/error.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/parser.hpp>
+#include <boost/beast/http/read.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/write.hpp>
+#include <boost/optional/optional.hpp>
 #include <boost/system/errc.hpp>
 #include <cstddef>
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
 
+#include "bsrvcore/connection/client/client_stream.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
 #include "bsrvcore/connection/client/stream_slot.h"
+#include "bsrvcore/core/types.h"
 #include "impl/http_client_task_impl.h"
+
+namespace boost {
+namespace beast {
+namespace http {
+enum class verb;
+}  // namespace http
+}  // namespace beast
+}  // namespace boost
 
 namespace bsrvcore {
 

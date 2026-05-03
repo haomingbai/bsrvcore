@@ -14,7 +14,11 @@
 
 #include <boost/asio/ip/address.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
 #include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/system/errc.hpp>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -22,6 +26,7 @@
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/websocket/websocket_task_base.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 
 namespace {
@@ -54,7 +59,7 @@ class ExampleServerWebSocketHandler : public bsrvcore::WebSocketHandler {
 }  // namespace
 
 int main() {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/ws/tasks",

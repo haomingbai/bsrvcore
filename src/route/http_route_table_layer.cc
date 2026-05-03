@@ -15,13 +15,10 @@
 
 #include <cstddef>
 #include <exception>
+#include <memory>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
-
-#include "bsrvcore/route/http_request_aspect_handler.h"
-#include "bsrvcore/route/http_request_handler.h"
-
-class HttpRequestHandler;
 
 using namespace bsrvcore::route_internal;
 

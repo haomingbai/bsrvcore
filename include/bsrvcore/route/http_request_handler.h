@@ -38,22 +38,21 @@ class HttpServerTask;
  * // Example custom handler
  * class UserHandler : public HttpRequestHandler {
  * public:
- *   void Service(std::shared_ptr<HttpServerTask> task) override {
- *     auto& request = task->GetRequest();
- *     auto& response = task->GetResponse();
+ *   void Service(const std::shared_ptr<HttpServerTask>& task) override {
+ *     const auto& request = task->GetRequest();
  *
- *     if (request.method == HttpRequestMethod::GET) {
- *       response.body = "User data";
- *       response.status = 200;
+ *     if (request.method == HttpRequestMethod::kGet) {
+ *       task->GetResponse().result(HttpStatus::ok);
+ *       task->SetBody("User data");
  *     } else {
- *       response.status = 405; // Method Not Allowed
+ *       task->GetResponse().result(HttpStatus::method_not_allowed);
  *     }
  *   }
  * };
  *
  * // Register with route table
- * route_table->AddRouteEntry(HttpRequestMethod::GET, "/users",
- *                           AllocateUnique<UserHandler>());
+ * server->AddRouteEntry(HttpRequestMethod::kGet, "/users",
+ *                           std::make_unique<UserHandler>());
  * @endcode
  */
 class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
@@ -62,8 +61,9 @@ class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
    * @brief Process an HTTP request and generate response
    * @param task HTTP server task containing request and response objects
    *
-   * @note Implementations should read from task->GetRequest() and
-   *       write to task->GetResponse() or task->SetResponse()
+   * @note Implementations should read from task->GetRequest() and write status
+   *       through task->GetResponse().result(), plus response helpers such as
+   *       task->SetBody() and task->SetField().
    */
   virtual void Service(const std::shared_ptr<HttpServerTask>& task) = 0;
 
@@ -82,20 +82,21 @@ class HttpRequestHandler : public NonCopyableNonMovable<HttpRequestHandler> {
  * handling with logging.
  *
  * @tparam Fn Type of callable object (must accept
- * std::shared_ptr<HttpServerTask>)
+ * const std::shared_ptr<HttpServerTask>&)
  *
  * @code
  * // Example using lambda function
  * auto handler = AllocateUnique<FunctionRouteHandler<
- *   std::function<void(std::shared_ptr<HttpServerTask>)>
+ *   std::function<void(const std::shared_ptr<HttpServerTask>&)>
  * >>(
- *   [](std::shared_ptr<HttpServerTask> task) {
- *     task->SetResponse(200, "Hello, World!");
+ *   [](const std::shared_ptr<HttpServerTask>& task) {
+ *     task->GetResponse().result(HttpStatus::ok);
+ *     task->SetBody("Hello, World!");
  *   }
  * );
  *
  * // Example using free function
- * void HandleRequest(std::shared_ptr<HttpServerTask> task) {
+ * void HandleRequest(const std::shared_ptr<HttpServerTask>& task) {
  *   // ... process request
  * }
  *

@@ -2,12 +2,22 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 #include "bsrvcore/core/blue_print.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/route/http_route_result.h"
+
+namespace bsrvcore {
+class HttpPostServerTask;
+class HttpPreServerTask;
+class HttpServerTask;
+}  // namespace bsrvcore
 
 namespace {
 
@@ -45,9 +55,9 @@ TEST(BluePrintTest, MountsRouteTreeUnderPrefix) {
   bsrvcore::HttpServer server(1);
 
   auto blue_print = bsrvcore::BluePrintFactory::Create();
-  auto handler = bsrvcore::AllocateUnique<DummyHandler>("mounted");
+  auto handler = std::make_unique<DummyHandler>("mounted");
   auto* handler_ptr = handler.get();
-  auto aspect = bsrvcore::AllocateUnique<DummyAspect>("route");
+  auto aspect = std::make_unique<DummyAspect>("route");
   auto* aspect_ptr = aspect.get();
 
   blue_print
@@ -108,9 +118,9 @@ TEST(BluePrintTest, MountsSubtreeAspectsUnderPrefixWithoutTerminalFallback) {
   bsrvcore::HttpServer server(1);
 
   auto blue_print = bsrvcore::BluePrintFactory::Create();
-  auto handler = bsrvcore::AllocateUnique<DummyHandler>("mounted");
+  auto handler = std::make_unique<DummyHandler>("mounted");
   auto* handler_ptr = handler.get();
-  auto aspect = bsrvcore::AllocateUnique<DummyAspect>("subtree");
+  auto aspect = std::make_unique<DummyAspect>("subtree");
   auto* aspect_ptr = aspect.get();
 
   blue_print
@@ -135,17 +145,17 @@ TEST(BluePrintTest, MountsSubtreeAspectsUnderPrefixWithoutTerminalFallback) {
 TEST(BluePrintTest, RouteCollectsGlobalMethodSubtreeAndTerminalAspectsInOrder) {
   bsrvcore::HttpServer server(1);
 
-  auto handler = bsrvcore::AllocateUnique<DummyHandler>("leaf");
+  auto handler = std::make_unique<DummyHandler>("leaf");
   auto* handler_ptr = handler.get();
-  auto global_aspect = bsrvcore::AllocateUnique<DummyAspect>("global");
+  auto global_aspect = std::make_unique<DummyAspect>("global");
   auto* global_ptr = global_aspect.get();
-  auto method_aspect = bsrvcore::AllocateUnique<DummyAspect>("method");
+  auto method_aspect = std::make_unique<DummyAspect>("method");
   auto* method_ptr = method_aspect.get();
-  auto parent_subtree = bsrvcore::AllocateUnique<DummyAspect>("parent");
+  auto parent_subtree = std::make_unique<DummyAspect>("parent");
   auto* parent_ptr = parent_subtree.get();
-  auto leaf_subtree = bsrvcore::AllocateUnique<DummyAspect>("leaf-subtree");
+  auto leaf_subtree = std::make_unique<DummyAspect>("leaf-subtree");
   auto* leaf_subtree_ptr = leaf_subtree.get();
-  auto terminal_aspect = bsrvcore::AllocateUnique<DummyAspect>("terminal");
+  auto terminal_aspect = std::make_unique<DummyAspect>("terminal");
   auto* terminal_ptr = terminal_aspect.get();
 
   server.AddGlobalAspect(std::move(global_aspect))
@@ -170,14 +180,39 @@ TEST(BluePrintTest, RouteCollectsGlobalMethodSubtreeAndTerminalAspectsInOrder) {
   EXPECT_EQ(result.aspects[4], terminal_ptr);
 }
 
+TEST(BluePrintTest, InvalidMethodFallsBackToDefaultWithGlobalAspectsOnly) {
+  bsrvcore::HttpServer server(1);
+
+  auto default_handler = std::make_unique<DummyHandler>("default");
+  auto* default_ptr = default_handler.get();
+  auto global_aspect = std::make_unique<DummyAspect>("global");
+  auto* global_ptr = global_aspect.get();
+  auto method_aspect = std::make_unique<DummyAspect>("method");
+  auto* method_ptr = method_aspect.get();
+
+  server.SetDefaultHandler(std::move(default_handler))
+      ->AddGlobalAspect(std::move(global_aspect))
+      ->AddGlobalAspect(bsrvcore::HttpRequestMethod::kGet,
+                        std::move(method_aspect));
+
+  auto result =
+      server.Route(static_cast<bsrvcore::HttpRequestMethod>(255), "/somewhere");
+  EXPECT_EQ(result.handler, default_ptr);
+  EXPECT_EQ(result.current_location, "/");
+  EXPECT_EQ(result.route_template, "/");
+  ASSERT_EQ(result.aspects.size(), 1u);
+  EXPECT_EQ(result.aspects[0], global_ptr);
+  EXPECT_NE(result.aspects[0], method_ptr);
+}
+
 TEST(BluePrintTest, ExclusiveRouteKeepsMatchedSubtreeAspectsOnDeeperPath) {
   bsrvcore::HttpServer server(1);
 
-  auto subtree_aspect = bsrvcore::AllocateUnique<DummyAspect>("static");
+  auto subtree_aspect = std::make_unique<DummyAspect>("static");
   auto* subtree_ptr = subtree_aspect.get();
-  auto exclusive_handler = bsrvcore::AllocateUnique<DummyHandler>("static");
+  auto exclusive_handler = std::make_unique<DummyHandler>("static");
   auto* exclusive_ptr = exclusive_handler.get();
-  auto param_handler = bsrvcore::AllocateUnique<DummyHandler>("param");
+  auto param_handler = std::make_unique<DummyHandler>("param");
 
   server
       .AddAspect(bsrvcore::HttpRequestMethod::kGet, "/static",
@@ -198,14 +233,14 @@ TEST(BluePrintTest, ExclusiveRouteKeepsMatchedSubtreeAspectsOnDeeperPath) {
 TEST(BluePrintTest, RejectsConflictingMountWithoutOverwritingExistingRoute) {
   bsrvcore::HttpServer server(1);
 
-  auto existing = bsrvcore::AllocateUnique<DummyHandler>("existing");
+  auto existing = std::make_unique<DummyHandler>("existing");
   auto* existing_ptr = existing.get();
   ASSERT_NE(existing_ptr, nullptr);
   server.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/api/users/{id}",
                        std::move(existing));
 
   auto blue_print = bsrvcore::BluePrintFactory::Create();
-  auto conflicting = bsrvcore::AllocateUnique<DummyHandler>("conflicting");
+  auto conflicting = std::make_unique<DummyHandler>("conflicting");
   auto* conflicting_ptr = conflicting.get();
   blue_print.AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
                            std::move(conflicting));

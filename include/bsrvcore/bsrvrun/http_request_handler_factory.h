@@ -29,12 +29,21 @@ namespace bsrvcore::bsrvrun {
 class HttpRequestHandlerFactory
     : public bsrvcore::NonCopyableNonMovable<HttpRequestHandlerFactory> {
  public:
-  /** @brief Legacy handler construction entry point used by existing plugins.
+  /**
+   * @brief Legacy handler construction entry point used by existing plugins.
+   *
+   * @param parameters Runtime configuration parameters for the handler.
+   * @return Newly created request handler.
    */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Get(
       ParameterMap* parameters) = 0;
 
-  /** @brief Preferred handler construction entry point. */
+  /**
+   * @brief Preferred handler construction entry point.
+   *
+   * @param parameters Runtime configuration parameters for the handler.
+   * @return Newly created request handler.
+   */
   virtual bsrvcore::OwnedPtr<bsrvcore::HttpRequestHandler> Create(
       ParameterMap* parameters) {
     return Get(parameters);

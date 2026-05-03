@@ -12,7 +12,7 @@
 
 #include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
-#include <boost/system/error_code.hpp>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>

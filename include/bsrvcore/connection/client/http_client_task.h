@@ -13,23 +13,21 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_TASK_H_
 #define BSRVCORE_CONNECTION_CLIENT_HTTP_CLIENT_TASK_H_
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/ssl/context.hpp>
-#include <boost/beast/http.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/system/errc.hpp>
 #include <chrono>
 #include <cstddef>
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast http headers require std::uint32_t on some toolchains.
 #include <functional>
 #include <memory>
 #include <string>
 
-#include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 
-class HttpClientSession;
 class SessionRequestAssembler;
 
 /**
@@ -63,7 +61,11 @@ struct ProxyConfig {
    */
   std::string auth;
 
-  /** @brief Whether proxy is configured. */
+  /**
+   * @brief Whether proxy is configured.
+   *
+   * @return True when `host` is non-empty.
+   */
   [[nodiscard]] bool enabled() const noexcept { return !host.empty(); }
 };
 
@@ -196,11 +198,30 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
 
   /**
    * @brief Create plain HTTP task from host/port/target.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
    */
   static std::shared_ptr<HttpClientTask> CreateHttp(
       Executor io_executor, std::string host, std::string port,
       std::string target, HttpVerb method, HttpClientOptions options = {});
-  /** @brief Create plain HTTP task with a dedicated callback executor. */
+  /**
+   * @brief Create plain HTTP task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
+   */
   static std::shared_ptr<HttpClientTask> CreateHttp(
       Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, HttpVerb method,
@@ -208,11 +229,30 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
 
   /**
    * @brief Create HTTPS task from host/port/target.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
    */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, std::string host, std::string port,
       std::string target, HttpVerb method, HttpClientOptions options = {});
-  /** @brief Create HTTPS task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
+   */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, Executor callback_executor, std::string host,
       std::string port, std::string target, HttpVerb method,
@@ -220,13 +260,34 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
   /**
    * @brief Create HTTPS task from host/port/target with caller-provided SSL
    * context.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param ssl_ctx TLS context to use for the HTTPS connection.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
    */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, SslContextPtr ssl_ctx, std::string host,
       std::string port, std::string target, HttpVerb method,
       HttpClientOptions options = {});
-  /** @brief Create HTTPS task with a dedicated callback executor and SSL
-   * context. */
+  /**
+   * @brief Create HTTPS task with a dedicated callback executor and SSL
+   * context.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param ssl_ctx TLS context to use for the HTTPS connection.
+   * @param host Target host name.
+   * @param port Target service port.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
+   */
   static std::shared_ptr<HttpClientTask> CreateHttps(
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       std::string host, std::string port, std::string target, HttpVerb method,
@@ -237,22 +298,54 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    *
    * Supports both `http://` and `https://`. HTTPS URLs allocate an internal
    * client SSL context and load system default trust roots.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task, or a task carrying a create error.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       Executor io_executor, const std::string& url, HttpVerb method,
       HttpClientOptions options = {});
-  /** @brief Create task from URL with a dedicated callback executor. */
+  /**
+   * @brief Create task from URL with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task, or a task carrying a create error.
+   */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       Executor io_executor, Executor callback_executor, const std::string& url,
       HttpVerb method, HttpClientOptions options = {});
 
   /**
    * @brief Create task from URL with SSL context.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param ssl_ctx TLS context used when `url` is HTTPS.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task, or a task carrying a create error.
    */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       Executor io_executor, SslContextPtr ssl_ctx, const std::string& url,
       HttpVerb method, HttpClientOptions options = {});
-  /** @brief Create HTTPS task from URL with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS task from URL with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param ssl_ctx TLS context used when `url` is HTTPS.
+   * @param url Absolute `http://` or `https://` URL.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task, or a task carrying a create error.
+   */
   static std::shared_ptr<HttpClientTask> CreateFromUrl(
       Executor io_executor, Executor callback_executor, SslContextPtr ssl_ctx,
       const std::string& url, HttpVerb method, HttpClientOptions options = {});
@@ -261,11 +354,30 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    * @brief Create HTTP task from an already connected TCP stream.
    *
    * The passed stream is moved into the task and consumed by Start().
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param stream Connected TCP stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
    */
   static std::shared_ptr<HttpClientTask> CreateHttpRaw(
       Executor io_executor, TcpStream stream, std::string host,
       std::string target, HttpVerb method, HttpClientOptions options = {});
-  /** @brief Create HTTP raw task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTP raw task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param stream Connected TCP stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
+   */
   static std::shared_ptr<HttpClientTask> CreateHttpRaw(
       Executor io_executor, Executor callback_executor, TcpStream stream,
       std::string host, std::string target, HttpVerb method,
@@ -276,27 +388,68 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    * stream.
    *
    * The passed stream is moved into the task and consumed by Start().
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param stream Connected and handshaked SSL stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
    */
   static std::shared_ptr<HttpClientTask> CreateHttpsRaw(
       Executor io_executor, SslStream stream, std::string host,
       std::string target, HttpVerb method, HttpClientOptions options = {});
-  /** @brief Create HTTPS raw task with a dedicated callback executor. */
+  /**
+   * @brief Create HTTPS raw task with a dedicated callback executor.
+   *
+   * @param io_executor Executor used for network I/O.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @param stream Connected and handshaked SSL stream to move into the task.
+   * @param host Target host name used for request headers.
+   * @param target HTTP request target.
+   * @param method HTTP request method.
+   * @param options Per-request client options.
+   * @return Newly created unstarted task.
+   */
   static std::shared_ptr<HttpClientTask> CreateHttpsRaw(
       Executor io_executor, Executor callback_executor, SslStream stream,
       std::string host, std::string target, HttpVerb method,
       HttpClientOptions options = {});
 
-  /** @brief Register connected-stage callback. */
+  /**
+   * @brief Register connected-stage callback.
+   *
+   * @param cb Callback invoked when the connection is established.
+   * @return Shared task pointer for fluent callback registration.
+   */
   std::shared_ptr<HttpClientTask> OnConnected(Callback cb);
-  /** @brief Register header-stage callback. */
+  /**
+   * @brief Register header-stage callback.
+   *
+   * @param cb Callback invoked when response headers are received.
+   * @return Shared task pointer for fluent callback registration.
+   */
   std::shared_ptr<HttpClientTask> OnHeader(Callback cb);
-  /** @brief Register chunk-stage callback. */
+  /**
+   * @brief Register chunk-stage callback.
+   *
+   * @param cb Callback invoked for each response body chunk.
+   * @return Shared task pointer for fluent callback registration.
+   */
   std::shared_ptr<HttpClientTask> OnChunk(Callback cb);
-  /** @brief Register done-stage callback (final convergence point). */
+  /**
+   * @brief Register done-stage callback (final convergence point).
+   *
+   * @param cb Callback invoked when the task reaches terminal state.
+   * @return Shared task pointer for fluent callback registration.
+   */
   std::shared_ptr<HttpClientTask> OnDone(Callback cb);
 
   /**
    * @brief Access mutable request before Start().
+   *
+   * @return Mutable request object owned by the task.
    */
   HttpClientRequest& Request() noexcept;
 
@@ -321,11 +474,23 @@ class HttpClientTask : public std::enable_shared_from_this<HttpClientTask>,
    */
   void Cancel();
 
-  /** @brief Whether the latest terminal state is a failure. */
+  /**
+   * @brief Whether the latest terminal state is a failure.
+   *
+   * @return True when the last terminal result has an error.
+   */
   bool Failed() const noexcept;
-  /** @brief Latest failure code, if any. */
+  /**
+   * @brief Latest failure code, if any.
+   *
+   * @return Stored error code, or success when none is recorded.
+   */
   boost::system::error_code ErrorCode() const noexcept;
-  /** @brief Latest failure stage, if any. */
+  /**
+   * @brief Latest failure stage, if any.
+   *
+   * @return Pipeline stage where the last failure occurred.
+   */
   HttpClientErrorStage ErrorStage() const noexcept;
 
   ~HttpClientTask();

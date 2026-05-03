@@ -2,11 +2,23 @@
 
 #include <atomic>
 #include <barrier>
+#include <boost/asio/ip/address.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <cstddef>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <stop_token>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/connection/server/http_server_task.h"
@@ -50,7 +62,7 @@ TEST(StressSessionAcceptanceTest,
                << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->SetDefaultSessionTimeout(60 * 1000)->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/session/counter",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -61,7 +73,7 @@ TEST(StressSessionAcceptanceTest,
             session->GetAttribute("counter"));
         if (!counter) {
           session->SetAttribute("counter",
-                                bsrvcore::AllocateShared<CounterAttribute>());
+                                std::make_shared<CounterAttribute>());
           counter = std::dynamic_pointer_cast<CounterAttribute>(
               session->GetAttribute("counter"));
         }
@@ -158,7 +170,7 @@ TEST(StressSessionAcceptanceTest,
                << " seed=" << cfg.seed
                << " timeout_ms=" << cfg.timeout.count());
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->SetDefaultSessionTimeout(30 * 1000)->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/session/init",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {

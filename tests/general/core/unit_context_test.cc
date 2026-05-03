@@ -32,7 +32,7 @@ TEST(ContextTest, SetGetHas) {
 
   EXPECT_FALSE(ctx.HasAttribute("k1"));
 
-  auto attr = bsrvcore::AllocateShared<IntAttribute>(42);
+  auto attr = std::make_shared<IntAttribute>(42);
   ctx.SetAttribute("k1", attr);
 
   EXPECT_TRUE(ctx.HasAttribute("k1"));
@@ -51,7 +51,7 @@ TEST(ContextTest, ConcurrentSetGet) {
 
   for (int i = 0; i < kKeys; ++i) {
     ctx.SetAttribute("k" + std::to_string(i),
-                     bsrvcore::AllocateShared<IntAttribute>(i));
+                     std::make_shared<IntAttribute>(i));
   }
 
   std::barrier sync{kThreads};
@@ -64,7 +64,7 @@ TEST(ContextTest, ConcurrentSetGet) {
       for (int i = 0; i < kIterations; ++i) {
         int idx = (t + i) % kKeys;
         auto key = "k" + std::to_string(idx);
-        ctx.SetAttribute(key, bsrvcore::AllocateShared<IntAttribute>(idx + 1));
+        ctx.SetAttribute(key, std::make_shared<IntAttribute>(idx + 1));
         auto got = ctx.GetAttribute(key);
         ASSERT_NE(got, nullptr);
       }

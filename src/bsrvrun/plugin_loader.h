@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 #define BSRVCORE_BSRVRUN_PLUGIN_LOADER_H_
 
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -21,15 +22,17 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
-#include "config_types.h"
 
 namespace bsrvcore {
 class HttpServer;
 class Logger;
+namespace runtime {
+struct FactoryConfig;
+struct ServiceConfig;
+}  // namespace runtime
 }  // namespace bsrvcore
 
 namespace bsrvcore::bsrvrun {
-class LoggerFactory;
 class ServiceFactory;
 }  // namespace bsrvcore::bsrvrun
 

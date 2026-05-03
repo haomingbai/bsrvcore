@@ -6,10 +6,11 @@ FetchContent_Declare(
   googletest
   URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
 )
+set(BUILD_GMOCK OFF CACHE BOOL "Build GoogleMock for bsrvcore tests" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 # Relax warnings for GoogleTest — third-party code we don't control.
-foreach(_gtest_target IN ITEMS gtest gtest_main gmock gmock_main)
+foreach(_gtest_target IN ITEMS gtest gtest_main)
   if(TARGET ${_gtest_target})
     set_target_properties(${_gtest_target} PROPERTIES
       COMPILE_OPTIONS ""
@@ -27,11 +28,10 @@ function(bsrvcore_add_test target_name source_file label)
     PRIVATE
       bsrvcore
       GTest::gtest_main
-      GTest::gmock
   )
 
   # Keep sanitizer settings consistent with library build (Debug config).
-  if(NOT MSVC)
+  if(BSRVCORE_ENABLE_ASAN AND NOT MSVC)
     target_compile_options(${target_name}
       PRIVATE
         "$<$<CONFIG:Debug>:-fsanitize=address>"

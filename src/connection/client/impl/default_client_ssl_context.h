@@ -13,9 +13,7 @@
 #ifndef BSRVCORE_CONNECTION_CLIENT_IMPL_DEFAULT_CLIENT_SSL_CONTEXT_H_
 #define BSRVCORE_CONNECTION_CLIENT_IMPL_DEFAULT_CLIENT_SSL_CONTEXT_H_
 
-#include <boost/asio/ssl/context.hpp>
 #include <boost/system/error_code.hpp>
-#include <memory>
 #include <string>
 
 #include "bsrvcore/core/types.h"

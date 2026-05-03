@@ -11,8 +11,18 @@
 #include <gtest/gtest.h>
 
 #include <boost/beast/core/string.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
+#include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
@@ -38,7 +48,7 @@ bool HasHeader(const http::response<http::string_body>& response,
 }  // namespace
 
 TEST(RoutingAcceptanceTest, InvalidRoutePatternDoesNotBecomeReachable) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "abc",
       [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
@@ -55,7 +65,7 @@ TEST(RoutingAcceptanceTest, InvalidRoutePatternDoesNotBecomeReachable) {
 }
 
 TEST(RoutingAcceptanceTest, ParametricRouteExposesPublicRouteMetadata) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
       [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
@@ -74,7 +84,7 @@ TEST(RoutingAcceptanceTest, ParametricRouteExposesPublicRouteMetadata) {
 }
 
 TEST(RoutingAcceptanceTest, ExclusiveRouteBypassesParametricRoute) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server
       ->AddExclusiveRouteEntry(
           bsrvcore::HttpRequestMethod::kGet, "/static",
@@ -98,7 +108,7 @@ TEST(RoutingAcceptanceTest, ExclusiveRouteBypassesParametricRoute) {
 }
 
 TEST(RoutingAcceptanceTest, LegacyAndViewRouteMetadataStayConsistent) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/users/{id}",
       [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {

@@ -33,16 +33,28 @@ class HttpClientSessionAttribute
  public:
   /** @brief Construct an empty session attribute. */
   HttpClientSessionAttribute() = default;
-  /** @brief Construct an attribute from a session pointer. */
+  /**
+   * @brief Construct an attribute from a session pointer.
+   *
+   * @param session Session pointer to store.
+   */
   explicit HttpClientSessionAttribute(
       std::shared_ptr<HttpClientSession> session)
       : session_(std::move(session)) {}
 
-  /** @brief Return the stored session pointer. */
+  /**
+   * @brief Return the stored session pointer.
+   *
+   * @return Stored session pointer, or null.
+   */
   [[nodiscard]] std::shared_ptr<HttpClientSession> Get() const noexcept {
     return session_;
   }
-  /** @brief Replace the stored session pointer. */
+  /**
+   * @brief Replace the stored session pointer.
+   *
+   * @param session New session pointer to store.
+   */
   void Set(std::shared_ptr<HttpClientSession> session) {
     session_ = std::move(session);
   }
@@ -72,6 +84,10 @@ inline constexpr std::string_view kHttpClientSessionAttributeKey =
 
 /**
  * @brief Get an HttpClientSession from Context, or nullptr if missing.
+ *
+ * @param ctx Context to read from.
+ * @param key Attribute key used to look up the session.
+ * @return Stored session pointer, or null when missing.
  */
 inline std::shared_ptr<HttpClientSession> GetHttpClientSession(
     const std::shared_ptr<Context>& ctx,
@@ -86,6 +102,10 @@ inline std::shared_ptr<HttpClientSession> GetHttpClientSession(
 
 /**
  * @brief Get or create an HttpClientSession in Context.
+ *
+ * @param ctx Context to read from and update.
+ * @param key Attribute key used to store the session.
+ * @return Existing or newly created session, or null when `ctx` is null.
  */
 inline std::shared_ptr<HttpClientSession> GetOrCreateHttpClientSession(
     const std::shared_ptr<Context>& ctx,

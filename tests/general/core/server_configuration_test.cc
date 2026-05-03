@@ -16,8 +16,12 @@
 
 #include <algorithm>
 #include <atomic>
+#include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/ip/address.hpp>
 #include <boost/asio/post.hpp>
 #include <chrono>
+#include <cstddef>
+#include <functional>
 #include <future>
 #include <memory>
 #include <string>
@@ -30,6 +34,7 @@
 #include "bsrvcore/route/http_request_aspect_handler.h"
 #include "bsrvcore/route/http_request_handler.h"
 #include "bsrvcore/route/http_request_method.h"
+#include "bsrvcore/route/http_route_result.h"
 
 namespace {
 constexpr auto kAsyncWaitTimeout = std::chrono::seconds(10);
@@ -38,7 +43,7 @@ constexpr auto kAsyncWaitTimeout = std::chrono::seconds(10);
 TEST(Server, DisableConfigurationWhenRunning) {
   using namespace bsrvcore;
 
-  auto server = AllocateUnique<HttpServer>();
+  auto server = std::make_unique<HttpServer>();
 
   auto start_res = server->Start();
   ASSERT_TRUE(start_res);
@@ -54,7 +59,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   HttpRequestHandler* handler_raw = nullptr;
 
   auto th = std::thread([&server, &handler_raw] {
-    auto handler = AllocateUnique<MyRouteHandler>();
+    auto handler = std::make_unique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
   });
@@ -70,7 +75,7 @@ TEST(Server, DisableConfigurationWhenRunning) {
   server->Stop();
 
   th = std::thread([&server, &handler_raw] {
-    auto handler = AllocateUnique<MyRouteHandler>();
+    auto handler = std::make_unique<MyRouteHandler>();
     handler_raw = handler.get();
     server->SetDefaultHandler(std::move(handler));
   });
@@ -93,7 +98,7 @@ TEST(Server, ConstructWithExecutorOptionsAndPost) {
   HttpServer server(options);
   ASSERT_TRUE(server.Start());
 
-  auto promise = AllocateShared<std::promise<bool>>();
+  auto promise = std::make_shared<std::promise<bool>>();
   auto future = promise->get_future();
   server.Post([promise] { promise->set_value(true); });
 
@@ -146,7 +151,7 @@ TEST(Server, SetTimerDispatchesCallback) {
   HttpServer server(1);
   ASSERT_TRUE(server.Start());
 
-  auto promise = AllocateShared<std::promise<std::thread::id>>();
+  auto promise = std::make_shared<std::promise<std::thread::id>>();
   auto future = promise->get_future();
   auto caller_id = std::this_thread::get_id();
 
@@ -166,7 +171,7 @@ TEST(Server, GetExecutorSupportsAsioPost) {
   HttpServer server(1);
   ASSERT_TRUE(server.Start());
 
-  auto promise = AllocateShared<std::promise<bool>>();
+  auto promise = std::make_shared<std::promise<bool>>();
   auto future = promise->get_future();
 
   boost::asio::post(server.GetExecutor(),
@@ -189,8 +194,8 @@ TEST(Server, DispatchAndIoContextHelpersTargetExpectedExecutors) {
   ASSERT_TRUE(server.Start());
 
   auto caller_id = std::this_thread::get_id();
-  auto worker_promise = AllocateShared<std::promise<std::thread::id>>();
-  auto io_promise = AllocateShared<std::promise<std::thread::id>>();
+  auto worker_promise = std::make_shared<std::promise<std::thread::id>>();
+  auto io_promise = std::make_shared<std::promise<std::thread::id>>();
   auto worker_future = worker_promise->get_future();
   auto io_future = io_promise->get_future();
 

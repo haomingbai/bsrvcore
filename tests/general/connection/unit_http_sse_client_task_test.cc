@@ -1,7 +1,13 @@
 #include <gtest/gtest.h>
 
+#include <boost/asio/any_io_executor.hpp>
 #include <boost/asio/executor_work_guard.hpp>
 #include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/system/errc.hpp>
+#include <boost/system/system_error.hpp>
+#include <exception>
 #include <functional>
 #include <future>
 #include <memory>
@@ -14,6 +20,7 @@
 #include "bsrvcore/connection/client/sse_event_parser.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "test_http_client_task.h"
 
@@ -25,7 +32,7 @@ using bsrvcore::test::StartServerWithRoutes;
 }  // namespace
 
 TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetField(http::field::content_type,
@@ -40,12 +47,12 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 
-  auto parser = bsrvcore::AllocateShared<bsrvcore::SseEventParser>();
-  auto events = bsrvcore::AllocateShared<std::vector<bsrvcore::SseEvent>>();
-  auto completion = bsrvcore::AllocateShared<std::promise<void>>();
+  auto parser = std::make_shared<bsrvcore::SseEventParser>();
+  auto events = std::make_shared<std::vector<bsrvcore::SseEvent>>();
+  auto completion = std::make_shared<std::promise<void>>();
   auto future = completion->get_future();
-  auto done = bsrvcore::AllocateShared<bool>(false);
-  auto saw_next = bsrvcore::AllocateShared<bool>(false);
+  auto done = std::make_shared<bool>(false);
+  auto saw_next = std::make_shared<bool>(false);
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, completion, done, saw_next,
@@ -99,7 +106,7 @@ TEST(HttpSseClientTaskTest, StartAndNextPullEvents) {
 }
 
 TEST(HttpSseClientTaskTest, RawFactoryUsesProvidedConnectedTcpStream) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/raw-events",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetField(http::field::content_type,
@@ -188,7 +195,7 @@ TEST(HttpSseClientTaskTest, ParserAllocatedFeedParsesSamplePayload) {
 }
 
 TEST(HttpSseClientTaskTest, StartCallbackUsesConfiguredCallbackExecutor) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events-callback",
                         [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetField(http::field::content_type,

@@ -1,26 +1,31 @@
 #include "benchmark_runner.h"
 
+#include <sys/types.h>
+
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/http/field.hpp>
 #include <boost/beast/http/verb.hpp>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
+#include <compare>
 #include <csignal>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <numeric>
-#include <optional>
 #include <regex>
 #include <sstream>
 #include <stdexcept>
@@ -39,6 +44,7 @@
 
 #include "benchmark_subprocess.h"
 #include "benchmark_util.h"
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
 
 namespace {

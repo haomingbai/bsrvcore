@@ -47,7 +47,7 @@ enum class SameSite : uint8_t {
  *
  * @code
  * // Example usage in request handler
- * void Service(std::shared_ptr<HttpServerTask> task) override {
+ * void Service(const std::shared_ptr<HttpServerTask>& task) override {
  *   ServerSetCookie cookie;
  *   cookie.SetName("session_id")
  *         .SetValue("abc123def456")
@@ -58,7 +58,8 @@ enum class SameSite : uint8_t {
  *         .SetSameSite(SameSite::kStrict);
  *
  *   task->SetField("Set-Cookie", cookie.ToString());
- *   task->SetResponse(200, "Login successful");
+ *   task->GetResponse().result(HttpStatus::ok);
+ *   task->SetBody("Login successful");
  * }
  *
  * // Example with expiration date

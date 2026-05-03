@@ -1,15 +1,23 @@
 #include "benchmark_subprocess.h"
 
+#include <stdlib.h>
+#include <sys/types.h>
+
 #include <algorithm>
 #include <cerrno>
+#include <compare>
 #include <cstring>
+#include <exception>
 #include <fstream>
 #include <iostream>
+#include <optional>
+#include <ratio>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <utility>
 
 #include "benchmark_runner.h"
 #include "benchmark_scenarios.h"

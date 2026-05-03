@@ -31,7 +31,11 @@ class FileWriter;
  */
 class FileWritingState : public NonCopyableNonMovable<FileWritingState> {
  public:
-  /** @brief Create an empty shared write state object. */
+  /**
+   * @brief Create an empty shared write state object.
+   *
+   * @return Shared write state.
+   */
   [[nodiscard]] static std::shared_ptr<FileWritingState> Create() {
     struct SharedEnabler final : FileWritingState {
       SharedEnabler() : FileWritingState(PrivateTag{}) {}
@@ -59,7 +63,11 @@ class FileWritingState : public NonCopyableNonMovable<FileWritingState> {
  */
 class FileReadingState : public NonCopyableNonMovable<FileReadingState> {
  public:
-  /** @brief Create an empty shared read state object. */
+  /**
+   * @brief Create an empty shared read state object.
+   *
+   * @return Shared read state.
+   */
   [[nodiscard]] static std::shared_ptr<FileReadingState> Create() {
     struct SharedEnabler final : FileReadingState {
       SharedEnabler() : FileReadingState(PrivateTag{}) {}

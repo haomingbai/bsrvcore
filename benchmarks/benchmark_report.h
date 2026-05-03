@@ -5,7 +5,15 @@
 #include <string_view>
 #include <vector>
 
-#include "benchmark_types.h"
+namespace bsrvcore {
+namespace benchmark {
+struct CellResult;
+struct CliConfig;
+struct EnvironmentInfo;
+struct RunSettings;
+struct ScenarioDefinition;
+}  // namespace benchmark
+}  // namespace bsrvcore
 
 namespace bsrvcore::benchmark {
 

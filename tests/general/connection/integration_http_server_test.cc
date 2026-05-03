@@ -13,16 +13,38 @@
 #include <gtest/gtest.h>
 
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/io_context.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/message_fwd.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/string_body_fwd.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <boost/json/error.hpp>
+#include <boost/json/object.hpp>
+#include <boost/json/parse.hpp>
+#include <boost/json/value.hpp>
+#include <boost/json/value_to.hpp>
+#include <boost/system/errc.hpp>
 #include <chrono>
+#include <compare>
+#include <cstddef>
+#include <exception>
 #include <filesystem>
 #include <fstream>
+#include <functional>
+#include <future>
+#include <iterator>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <thread>
+#include <utility>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/put_processor.h"
@@ -95,7 +117,7 @@ bool WaitUntilSocketClosed(boost::asio::ip::tcp::socket& socket,
 
 // Verify basic GET/POST handling end-to-end.
 TEST(HttpServerIntegrationTest, BasicGetAndPost) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(4);
+  auto server = std::make_unique<bsrvcore::HttpServer>(4);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/ping",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -125,7 +147,7 @@ TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
   options.has_max_connection = true;
   options.max_connection = 1;
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  auto server = std::make_unique<bsrvcore::HttpServer>(options);
   server->SetHeaderReadExpiry(500)->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/ping",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -167,7 +189,7 @@ TEST(HttpServerIntegrationTest, MaxConnectionDropsExcessSockets) {
 
 // Verify aspect order across global/method/subtree/terminal hooks.
 TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
 
   server
       ->AddGlobalAspect(
@@ -225,9 +247,9 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
 
 // Verify post phase starts only after service task references are released.
 TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   auto held_task =
-      bsrvcore::AllocateShared<std::shared_ptr<bsrvcore::HttpServerTask>>();
+      std::make_shared<std::shared_ptr<bsrvcore::HttpServerTask>>();
 
   server
       ->AddGlobalAspect(
@@ -255,7 +277,7 @@ TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
 
 TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
   const auto path = MakeTempPath("put-dump");
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
 
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPut, "/dump",
@@ -281,7 +303,7 @@ TEST(HttpServerIntegrationTest, PutProcessorAsyncDumpCompletesBeforeResponse) {
 }
 
 TEST(HttpServerIntegrationTest, JsonHelpersParseAndSetObjectBody) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/json",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -321,7 +343,7 @@ TEST(HttpServerIntegrationTest, JsonHelpersParseAndSetObjectBody) {
 }
 
 TEST(HttpServerIntegrationTest, ParseRequestJsonRejectsNonObjectRoot) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/json-object-only",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -346,7 +368,7 @@ TEST(HttpServerIntegrationTest, ParseRequestJsonRejectsNonObjectRoot) {
 }
 
 TEST(HttpServerIntegrationTest, TryParseRequestJsonReturnsFalseOnSyntaxError) {
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(2);
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kPost, "/json-try-parse",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -369,7 +391,7 @@ TEST(HttpServerIntegrationTest,
   options.core_thread_num = 1;
   options.max_thread_num = 1;
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(options);
+  auto server = std::make_unique<bsrvcore::HttpServer>(options);
   server
       ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/io",
                       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -408,9 +430,8 @@ TEST(HttpServerIntegrationTest,
   ServerGuard guard(std::move(server));
   const auto port = StartServerWithRoutes(guard);
 
-  auto io_promise = bsrvcore::AllocateShared<std::promise<std::thread::id>>();
-  auto worker_promise =
-      bsrvcore::AllocateShared<std::promise<std::thread::id>>();
+  auto io_promise = std::make_shared<std::promise<std::thread::id>>();
+  auto worker_promise = std::make_shared<std::promise<std::thread::id>>();
   auto io_future = io_promise->get_future();
   auto worker_future = worker_promise->get_future();
 

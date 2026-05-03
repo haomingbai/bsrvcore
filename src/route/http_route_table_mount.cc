@@ -8,19 +8,28 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <array>
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
 #include "bsrvcore/route/cloneable_http_request_handler.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
 #include "impl/http_route_target_validator.h"
 #include "internal/http_route_table_detail.h"
 #include "internal/http_route_table_layer.h"
+
+namespace bsrvcore {
+class HttpRouteTable;
+}  // namespace bsrvcore
 
 using bsrvcore::HttpRouteTable;
 using bsrvcore::route_internal::HttpRouteTableLayer;

@@ -2,9 +2,14 @@
 
 #include <filesystem>
 #include <fstream>
+#include <optional>
+#include <stdexcept>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 #include "config_loader.h"
+#include "config_types.h"
 
 namespace {
 

@@ -1,3 +1,9 @@
+#include <stddef.h>
+
+#include <boost/intrusive/list.hpp>
+
+#include "bsrvcore-c/bsrvcore.h"
+#include "bsrvcore/connection/server/http_server_task.h"
 #include "internal/common.h"
 
 namespace cbind = bsrvcore::c_binding_internal;

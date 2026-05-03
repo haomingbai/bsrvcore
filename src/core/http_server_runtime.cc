@@ -14,15 +14,18 @@
 
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/dispatch.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/asio/steady_timer.hpp>
 #include <boost/system/error_code.hpp>
 #include <chrono>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,11 +34,20 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/http_server.h"
 #include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/service_provider.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/route/http_route_table.h"
 #include "bsrvcore/internal/session/session_map.h"
-#include "bsrvcore/route/http_request_method.h"
 #include "bsrvcore/route/http_route_result.h"
-#include "bsrvcore/session/context.h"
+
+namespace bsrvcore {
+class Context;
+enum class HttpRequestMethod : std::uint8_t;
+
+namespace route_internal {
+struct HttpRouteResultInternal;
+}  // namespace route_internal
+}  // namespace bsrvcore
 
 using namespace bsrvcore;
 

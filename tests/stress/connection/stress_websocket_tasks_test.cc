@@ -3,15 +3,21 @@
 #include <atomic>
 #include <barrier>
 #include <boost/asio/ip/tcp.hpp>
-#include <boost/beast/websocket.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/beast/websocket/stream.hpp>
+#include <boost/beast/websocket/stream_fwd.hpp>
+#include <boost/system/errc.hpp>
 #include <cstddef>
 #include <memory>
 #include <stop_token>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
 #include "stress_test_common.h"
 
 namespace {

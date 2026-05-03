@@ -14,6 +14,7 @@
 #include <boost/beast/http/verb.hpp>
 
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 
 using namespace bsrvcore;

@@ -1,12 +1,15 @@
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <future>
 #include <memory>
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/async_waiter.h"
 
 TEST(AsyncWaiterTest, TemplateWaiterExpandsMoveOnlyValues) {

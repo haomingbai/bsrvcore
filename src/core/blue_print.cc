@@ -11,17 +11,20 @@
 #include "bsrvcore/core/blue_print.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <string_view>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/internal/route/http_route_table.h"
-#include "bsrvcore/route/cloneable_http_request_aspect_handler.h"
-#include "bsrvcore/route/cloneable_http_request_handler.h"
-#include "bsrvcore/route/http_request_method.h"
 
 namespace bsrvcore {
+class CloneableHttpRequestAspectHandler;
+class CloneableHttpRequestHandler;
+class HttpRequestAspectHandler;
+class HttpRequestHandler;
+enum class HttpRequestMethod : std::uint8_t;
 
 class BluePrint::Impl {
  public:

@@ -107,25 +107,25 @@ using HttpServerExecutorOptions = HttpServerRuntimeOptions;
  *
  * @code
  * // Example server setup
- * auto server = AllocateUnique<HttpServer>();
+ * auto server = std::make_unique<HttpServer>();
  *
  * server->AddRouteEntry(HttpRequestMethod::kGet, "/",
- *                      [](auto task) {
+ *                      [](const std::shared_ptr<HttpServerTask>& task) {
  *                        task->GetResponse().result(HttpStatus::ok);
  *                        task->SetBody("Hello World");
  *                      })
  *      ->AddRouteEntry(HttpRequestMethod::kGet, "/users/{id}",
- *                      [](auto task) {
+ *                      [](const std::shared_ptr<HttpServerTask>& task) {
  *                        auto id = task->GetPathParameter("id");
  *                        task->GetResponse().result(HttpStatus::ok);
  *                        task->SetBody("User: " +
  *                                      (id ? *id : std::string("unknown")));
  *                      })
- *      ->AddGlobalAspect([](auto task) { // Pre-service
+ *      ->AddGlobalAspect([](const std::shared_ptr<HttpPreServerTask>& task) {
  *                        std::cout << "Request: " <<
  * task->GetRequest().target();
  *                      },
- *                      [](auto task) { // Post-service
+ *                      [](const std::shared_ptr<HttpPostServerTask>& task) {
  *                        std::cout << "Response: " <<
  * task->GetResponse().result();
  *                      })
@@ -138,15 +138,22 @@ using HttpServerExecutorOptions = HttpServerRuntimeOptions;
  */
 class HttpServer : public NonCopyableNonMovable<HttpServer> {
  public:
+  /** @brief Service registry type exposed by the server. */
   using ServiceProvider = bsrvcore::ServiceProvider;
 
+  /** @brief Native thread handle type returned by the platform runtime. */
   using ThreadNativeHandle =
       decltype(std::declval<std::thread>().native_handle());
 
+  /** @brief Runtime thread identity and listener shard metadata. */
   struct ThreadNativeHandleRecord {
+    /** @brief Platform-native thread handle. */
     ThreadNativeHandle native_handle{};
+    /** @brief Listener endpoint index served by this thread. */
     std::size_t endpoint_index{std::numeric_limits<std::size_t>::max()};
+    /** @brief Worker shard index within the endpoint. */
     std::size_t shard_index{0};
+    /** @brief Whether this record describes the control thread. */
     bool is_control{false};
   };
 
@@ -263,6 +270,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a route with a handler allocated via `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param handler Handler object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
@@ -292,6 +304,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a computing route with a handler from `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param handler Handler object to adopt and run on the worker pool.
+   * @return Pointer to server for method chaining.
    */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
@@ -356,6 +373,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add an exclusive route with a handler from `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param handler Handler object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
@@ -398,6 +420,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a subtree aspect from `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
@@ -445,6 +472,11 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a terminal aspect from `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param url Route pattern.
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
@@ -491,6 +523,10 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a method-scoped global aspect from `std::make_unique`.
+   *
+   * @param method HTTP method.
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
@@ -510,6 +546,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Add a global aspect from `std::make_unique`.
+   *
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
@@ -670,6 +709,9 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
 
   /**
    * @brief Set default request handler from `std::make_unique`.
+   *
+   * @param handler Handler object to adopt.
+   * @return Pointer to server for method chaining.
    */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
@@ -733,6 +775,7 @@ class HttpServer : public NonCopyableNonMovable<HttpServer> {
   /**
    * @brief Set default session timeout
    * @param timeout Session timeout in milliseconds
+   * @return Pointer to server for method chaining
    */
   HttpServer* SetDefaultSessionTimeout(std::size_t timeout);
 

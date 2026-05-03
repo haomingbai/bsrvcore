@@ -14,6 +14,7 @@
 #include "internal/empty_route_handler.h"
 
 #include <memory>
+#include <string>
 
 #include "bsrvcore/connection/server/http_server_task.h"
 

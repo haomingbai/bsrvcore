@@ -53,13 +53,15 @@ struct CopyableOnly {
   CopyableOnly& operator=(CopyableOnly&&) = delete;
   /// @endcond
 
-  /// @brief CRTP helper to access derived class instance
+  /// @brief CRTP helper to access derived class instance.
+  /// @return Mutable reference to the derived instance.
   [[nodiscard]]
   Derived& derived() noexcept {
     return static_cast<Derived&>(*this);
   }
 
-  /// @brief CRTP helper to access const derived class instance
+  /// @brief CRTP helper to access const derived class instance.
+  /// @return Const reference to the derived instance.
   [[nodiscard]]
   const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
@@ -101,13 +103,15 @@ struct MovableOnly {
       default;  // allow move-assign
   /// @endcond
 
-  /// @brief CRTP helper to access derived class instance
+  /// @brief CRTP helper to access derived class instance.
+  /// @return Mutable reference to the derived instance.
   [[nodiscard]]
   Derived& derived() noexcept {
     return static_cast<Derived&>(*this);
   }
 
-  /// @brief CRTP helper to access const derived class instance
+  /// @brief CRTP helper to access const derived class instance.
+  /// @return Const reference to the derived instance.
   [[nodiscard]]
   const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
@@ -144,13 +148,15 @@ struct CopyableMovable {
   CopyableMovable(CopyableMovable&&) noexcept = default;
   CopyableMovable& operator=(CopyableMovable&&) noexcept = default;
   /// @endcond
-  /// @brief CRTP helper to access derived class instance
+  /// @brief CRTP helper to access derived class instance.
+  /// @return Mutable reference to the derived instance.
   [[nodiscard]]
   Derived& derived() noexcept {
     return static_cast<Derived&>(*this);
   }
 
-  /// @brief CRTP helper to access const derived class instance
+  /// @brief CRTP helper to access const derived class instance.
+  /// @return Const reference to the derived instance.
   [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }
@@ -188,13 +194,15 @@ struct NonCopyableNonMovable {
   NonCopyableNonMovable(NonCopyableNonMovable&&) = delete;
   NonCopyableNonMovable& operator=(NonCopyableNonMovable&&) = delete;
   /// @endcond
-  /// @brief CRTP helper to access derived class instance
+  /// @brief CRTP helper to access derived class instance.
+  /// @return Mutable reference to the derived instance.
   [[nodiscard]]
   Derived& derived() noexcept {
     return static_cast<Derived&>(*this);
   }
 
-  /// @brief CRTP helper to access const derived class instance
+  /// @brief CRTP helper to access const derived class instance.
+  /// @return Const reference to the derived instance.
   [[nodiscard]] const Derived& derived() const noexcept {
     return static_cast<const Derived&>(*this);
   }

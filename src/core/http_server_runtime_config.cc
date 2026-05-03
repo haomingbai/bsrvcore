@@ -8,16 +8,20 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/ssl/context.hpp>
+#include <atomic>
 #include <cstddef>
 #include <memory>
 #include <mutex>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/session/session_map.h"
+
+namespace bsrvcore {
+class Logger;
+}  // namespace bsrvcore
 
 using namespace bsrvcore;
 

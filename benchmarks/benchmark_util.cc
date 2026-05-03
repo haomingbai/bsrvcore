@@ -8,10 +8,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <iomanip>
-#include <limits>
 #include <numeric>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -19,6 +20,8 @@
 #include <system_error>
 #include <thread>
 #include <tuple>
+#include <utility>
+#include <variant>
 #include <vector>
 
 #ifndef BSRVCORE_BENCHMARK_COMPILER_ID

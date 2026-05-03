@@ -12,16 +12,16 @@
  * writing.
  */
 
+#include <algorithm>
 #include <atomic>
 #include <boost/asio/any_io_executor.hpp>
+#include <boost/asio/basic_waitable_timer.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/post.hpp>
-#include <boost/asio/steady_timer.hpp>
-#include <boost/beast/core/flat_buffer.hpp>
 #include <boost/beast/http/parser.hpp>
 #include <boost/beast/http/string_body.hpp>
+#include <boost/optional/optional.hpp>
 #include <boost/system/error_code.hpp>
-#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -35,9 +35,14 @@
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/core/http_server.h"
-#include "bsrvcore/core/logger.h"
+#include "bsrvcore/core/trait.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/internal/connection/server/stream_server_connection.h"
-#include "bsrvcore/session/context.h"
+
+namespace bsrvcore {
+class Context;
+enum class LogLevel : std::uint8_t;
+}  // namespace bsrvcore
 
 using bsrvcore::FlatBuffer;
 using bsrvcore::HttpRequestParser;

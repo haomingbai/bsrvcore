@@ -1,11 +1,14 @@
 #include "benchmark_report.h"
 
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 
+#include "benchmark_types.h"
 #include "benchmark_util.h"
 
 namespace bsrvcore::benchmark {

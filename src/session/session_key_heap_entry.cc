@@ -14,6 +14,7 @@
 #include "bsrvcore/internal/session/detail/session_key_heap_entry.h"
 
 #include <chrono>
+#include <compare>
 #include <string>
 #include <utility>
 

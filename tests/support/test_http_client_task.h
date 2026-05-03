@@ -11,6 +11,7 @@
 #include <thread>
 #include <utility>
 
+#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/core/http_server.h"
 
@@ -32,6 +33,9 @@ inline unsigned short FindFreePort() {
 struct ServerGuard {
   explicit ServerGuard(bsrvcore::OwnedPtr<bsrvcore::HttpServer> srv)
       : server(std::move(srv)) {}
+
+  explicit ServerGuard(std::unique_ptr<bsrvcore::HttpServer> srv)
+      : server(bsrvcore::AdoptUniqueAs<bsrvcore::HttpServer>(std::move(srv))) {}
 
   ~ServerGuard() {
     // Stop is expected to be safe to call multiple times.

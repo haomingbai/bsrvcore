@@ -14,11 +14,10 @@
 #define BSRVCORE_CONNECTION_CLIENT_STREAM_BUILDER_H_
 
 #include <boost/system/error_code.hpp>
-#include <deque>
+#include <chrono>
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <unordered_map>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/stream_slot.h"
@@ -59,6 +58,8 @@ class StreamBuilder : public std::enable_shared_from_this<StreamBuilder>,
    * @brief Return a previously acquired stream.
    *
    * Implementations decide whether to cache or close the stream.
+   *
+   * @param slot Stream slot previously returned by Acquire().
    */
   virtual void Return(StreamSlot slot) = 0;
 };
@@ -70,7 +71,11 @@ class StreamBuilder : public std::enable_shared_from_this<StreamBuilder>,
  */
 class DirectStreamBuilder : public StreamBuilder {
  public:
-  /** @brief Create a DirectStreamBuilder. */
+  /**
+   * @brief Create a DirectStreamBuilder.
+   *
+   * @return Shared direct stream builder.
+   */
   static std::shared_ptr<DirectStreamBuilder> Create();
 
   void Acquire(ConnectionKey key, IoContextExecutor executor,
@@ -97,8 +102,14 @@ class StreamBuilderDecorator : public StreamBuilder {
   void Return(StreamSlot slot) override;
 
  protected:
+  /**
+   * @brief Construct with the inner builder to decorate.
+   *
+   * @param inner Wrapped builder used by default forwarding behavior.
+   */
   explicit StreamBuilderDecorator(std::shared_ptr<StreamBuilder> inner);
 
+  /** @brief Wrapped builder used by default forwarding behavior. */
   std::shared_ptr<StreamBuilder> inner_;
 };
 
@@ -120,6 +131,7 @@ class PooledStreamBuilder : public StreamBuilderDecorator {
    * @param inner Inner builder used for creating new connections on pool miss.
    * @param idle_timeout Maximum idle duration before a pooled slot is
    * discarded.
+   * @return Shared pooled stream builder.
    */
   static std::shared_ptr<PooledStreamBuilder> Create(
       std::shared_ptr<StreamBuilder> inner,
@@ -166,6 +178,7 @@ class WebSocketStreamBuilder : public StreamBuilderDecorator {
    *
    * @param inner Inner builder for WS (non-SSL) connections.
    * @param ssl_ctx SSL context for WSS connections.
+   * @return Shared WebSocket stream builder.
    */
   static std::shared_ptr<WebSocketStreamBuilder> Create(
       std::shared_ptr<StreamBuilder> inner, SslContextPtr ssl_ctx);
@@ -202,6 +215,7 @@ class ProxyStreamBuilder : public StreamBuilderDecorator {
    * @brief Create a ProxyStreamBuilder.
    *
    * @param inner Inner builder for non-proxy and HTTP proxy connections.
+   * @return Shared proxy stream builder.
    */
   static std::shared_ptr<ProxyStreamBuilder> Create(
       std::shared_ptr<StreamBuilder> inner);

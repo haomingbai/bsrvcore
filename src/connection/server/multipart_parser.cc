@@ -10,14 +10,16 @@
 
 #include "bsrvcore/connection/server/multipart_parser.h"
 
-#include <boost/asio/any_io_executor.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
 #include <cstddef>
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
 #include <filesystem>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"

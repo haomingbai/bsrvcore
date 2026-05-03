@@ -38,7 +38,7 @@ namespace bsrvcore {
  * logger->Log(LogLevel::kError, "Failed to connect to database");
  *
  * // Example usage in HTTP request handler
- * void Service(std::shared_ptr<HttpServerTask> task) override {
+ * void Service(const std::shared_ptr<HttpServerTask>& task) override {
  *   task->Log(LogLevel::kDebug, "Processing request: " +
  * task->GetRequest().target());
  *
@@ -67,20 +67,17 @@ enum class LogLevel : std::uint8_t {
  * Concrete implementations can provide logging to console, files, network,
  * or other destinations while maintaining a consistent interface.
  *
- * @note The destructor is deleted to prevent direct instantiation of the
- *       abstract base class. Derived classes must implement their own
- *       destruction logic.
+ * @note This is an abstract base class. Derived loggers should be owned by
+ *       `std::shared_ptr<Logger>` when passed to `HttpServer::SetLogger()`.
  *
  * @code
  * // Example custom logger implementation
  * class FileLogger : public Logger {
  * public:
- *   FileLogger(const std::string& filename) : file_(filename) {}
+ *   explicit FileLogger(const std::string& filename) : file_(filename) {}
  *
- *   void Log(LogLevel level, std::string_view message) override {
- *     auto timestamp = std::chrono::system_clock::now();
- *     file_ << "[" << timestamp << "] [" << LevelToString(level) << "] "
- *           << message << std::endl;
+ *   void Log(LogLevel level, std::string message) override {
+ *     file_ << "[" << LevelToString(level) << "] " << message << std::endl;
  *   }
  *
  *   ~FileLogger() override {
@@ -104,7 +101,7 @@ enum class LogLevel : std::uint8_t {
  * };
  *
  * // Usage in application
- * auto logger = AllocateUnique<FileLogger>("server.log");
+ * auto logger = std::make_shared<FileLogger>("server.log");
  * server->SetLogger(std::move(logger));
  * @endcode
  */

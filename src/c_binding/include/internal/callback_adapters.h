@@ -3,7 +3,9 @@
 #ifndef BSRVCORE_C_BINDING_INTERNAL_CALLBACK_ADAPTERS_H_
 #define BSRVCORE_C_BINDING_INTERNAL_CALLBACK_ADAPTERS_H_
 
-#include "internal/common.h"
+#include "bsrvcore-c/bsrvcore.h"
+#include "bsrvcore/route/http_request_aspect_handler.h"
+#include "bsrvcore/route/http_request_handler.h"
 
 namespace bsrvcore::c_binding_internal {
 

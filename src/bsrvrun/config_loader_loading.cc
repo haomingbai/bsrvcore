@@ -14,7 +14,6 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
-#include <utility>
 
 #include "config_loader.h"
 #include "config_loader_detail.h"

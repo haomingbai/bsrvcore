@@ -9,16 +9,24 @@
  */
 
 #include <boost/asio/buffer.hpp>
-#include <boost/asio/ip/tcp.hpp>
+#include <boost/beast/core/basic_stream.hpp>
 #include <boost/beast/core/buffers_to_string.hpp>
 #include <boost/beast/core/stream_traits.hpp>
-#include <boost/beast/websocket.hpp>
+#include <boost/beast/ssl/ssl_stream.hpp>
+#include <boost/beast/websocket/error.hpp>
+#include <boost/beast/websocket/rfc6455.hpp>
+#include <boost/system/errc.hpp>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
+#include "bsrvcore/connection/client/client_stream.h"
+#include "bsrvcore/connection/client/client_websocket_stream.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
+#include "bsrvcore/connection/websocket/websocket_task_base.h"
+#include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 

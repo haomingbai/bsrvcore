@@ -111,8 +111,7 @@ Execution model notes:
   lifecycle naturally.
 - Aspect chain collection appends handlers directly into one allocator-backed
   vector during routing; it no longer builds per-layer temporary vectors first.
-- For object registration, both `AllocateUnique<T>()` and
-  `std::make_unique<T>()` are supported. `AllocateUnique<T>()` keeps bsrvcore
-  allocator ownership, while `std::make_unique<T>()` stays on system `delete`.
+- For object registration, application code should normally use
+  `std::make_unique<T>()`. bsrvcore adopts that ownership at the API boundary.
 
 Next: [Sessions, context, cookies](sessions-context-cookies.md).

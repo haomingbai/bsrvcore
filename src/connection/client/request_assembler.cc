@@ -8,18 +8,19 @@
  * SPDX-License-Identifier: MIT
  */
 
-// Fix the compilation error about http field
-#include <cstdint>  // NOLINT(misc-include-cleaner): Boost.Beast field.hpp requires std::uint32_t on some toolchains.
-// End fix
+#include "bsrvcore/connection/client/request_assembler.h"
 
-#include <time.h>
+#include <features.h>
 
 #include <algorithm>
-#include <boost/beast/http.hpp>
 #include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/intrusive/list.hpp>
 #include <cctype>
 #include <chrono>
-#include <cstddef>
+#include <compare>
 #include <ctime>
 #include <iomanip>
 #include <locale>
@@ -30,9 +31,12 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "bsrvcore/allocator/allocator.h"
-#include "bsrvcore/connection/client/request_assembler.h"
+#include "bsrvcore/connection/client/http_client_task.h"
+#include "bsrvcore/connection/client/stream_slot.h"
+#include "bsrvcore/core/types.h"
 
 namespace bsrvcore {
 
@@ -114,13 +118,6 @@ inline std::optional<std::chrono::system_clock::time_point> ParseImfFixdate(
 }
 
 }  // namespace
-
-// ---- RequestAssembler base ----
-
-void RequestAssembler::SetStreamBuilder(
-    std::shared_ptr<StreamBuilder> builder) {
-  stream_builder_ = std::move(builder);
-}
 
 void RequestAssembler::OnResponseHeader(const HttpResponseHeader& /*header*/,
                                         std::string_view /*host*/,

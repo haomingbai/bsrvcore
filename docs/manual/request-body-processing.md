@@ -73,7 +73,7 @@ Typical pattern:
 ```cpp
 server->AddRouteEntry(
     bsrvcore::HttpRequestMethod::kPost, "/upload",
-    [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
       namespace http = boost::beast::http;
 
       auto multipart = bsrvcore::MultipartParser::Create(*task);
@@ -123,7 +123,7 @@ If you need the final write result, use the writer directly:
 ```cpp
 server->AddRouteEntry(
     bsrvcore::HttpRequestMethod::kPut, "/blob",
-    [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+    [](const std::shared_ptr<bsrvcore::HttpServerTask>& task) {
       namespace http = boost::beast::http;
 
       auto put = bsrvcore::PutProcessor::Create(*task);

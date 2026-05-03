@@ -30,7 +30,7 @@ flowchart LR
     Runtime["bsrvrun YAML + plugins"] --> Server
     ServerLib --> Server
     Server --> Accept["Accept loop / endpoint runtimes"]
-    Accept --> Conn["HttpServerConnection"]
+    Accept --> Conn["StreamServerConnectionImpl"]
     Conn --> Route["HttpRouteTable"]
     Route --> Tasks["Pre / Service / Post tasks"]
     Tasks --> Session["SessionMap"]
@@ -43,7 +43,8 @@ flowchart LR
 
 - `HttpServer` owns route table, session map, thread-pool resources, and
   endpoint runtimes.
-- Each accepted socket becomes one `HttpServerConnection`.
+- Each accepted socket becomes one concrete `StreamServerConnectionImpl<S>`,
+  exposed to lifecycle code through the `StreamServerConnection` base class.
 - One request creates one shared `HttpTaskSharedState`, then three lightweight
   task views may be built on top of it: pre, service, and post.
 - Session state is stored in `SessionMap` and shared through `Context`.

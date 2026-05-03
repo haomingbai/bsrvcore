@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <memory>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
@@ -29,7 +30,10 @@
 
 namespace bsrvcore {
 
+class HttpPostServerTask;
+class HttpPreServerTask;
 class HttpRouteTable;
+class HttpServerTask;
 
 /**
  * @brief One-shot mountable route tree.
@@ -43,16 +47,34 @@ class BluePrint : public MovableOnly<BluePrint> {
   BluePrint();
   /** @brief Move-construct a blueprint. */
   BluePrint(BluePrint&&) noexcept;
-  /** @brief Move-assign a blueprint. */
+  /**
+   * @brief Move-assign a blueprint.
+   *
+   * @return Reference to this blueprint.
+   */
   BluePrint& operator=(BluePrint&&) noexcept;
   /** @brief Destroy the blueprint. */
   ~BluePrint();
 
-  /** @brief Add a route entry with an owned handler object. */
+  /**
+   * @brief Add a route entry with an owned handler object.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Handler object to own.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* AddRouteEntry(HttpRequestMethod method, std::string_view url,
                            OwnedPtr<HttpRequestHandler> handler);
 
-  /** @brief Add a route entry with `std::make_unique` handler. */
+  /**
+   * @brief Add a route entry with `std::make_unique` handler.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Handler object to adopt.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
   BluePrint* AddRouteEntry(HttpRequestMethod method, std::string_view url,
@@ -62,9 +84,16 @@ class BluePrint : public MovableOnly<BluePrint> {
         AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
   }
 
-  /** @brief Add a route entry from a callable. */
+  /**
+   * @brief Add a route entry from a callable.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param func Callable used to construct a route handler wrapper.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Func>
-    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+    requires requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
       { fn(task) };
     }
   BluePrint* AddRouteEntry(HttpRequestMethod method, std::string_view url,
@@ -75,12 +104,26 @@ class BluePrint : public MovableOnly<BluePrint> {
         AllocateUnique<FunctionRouteHandler<Fn>>(std::forward<Func>(func)));
   }
 
-  /** @brief Add an exclusive route entry with an owned handler object. */
+  /**
+   * @brief Add an exclusive route entry with an owned handler object.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Handler object to own.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
                                     std::string_view url,
                                     OwnedPtr<HttpRequestHandler> handler);
 
-  /** @brief Add an exclusive route entry with `std::make_unique` handler. */
+  /**
+   * @brief Add an exclusive route entry with `std::make_unique` handler.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Handler object to adopt.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Handler>
     requires std::derived_from<Handler, HttpRequestHandler>
   BluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
@@ -91,9 +134,16 @@ class BluePrint : public MovableOnly<BluePrint> {
         AdoptUniqueAs<HttpRequestHandler, Handler>(std::move(handler)));
   }
 
-  /** @brief Add an exclusive route entry from a callable. */
+  /**
+   * @brief Add an exclusive route entry from a callable.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param func Callable used to construct a route handler wrapper.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Func>
-    requires requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+    requires requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
       { fn(task) };
     }
   BluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
@@ -104,11 +154,25 @@ class BluePrint : public MovableOnly<BluePrint> {
         AllocateUnique<FunctionRouteHandler<Fn>>(std::forward<Func>(func)));
   }
 
-  /** @brief Add a subtree aspect entry with an owned aspect object. */
+  /**
+   * @brief Add a subtree aspect entry with an owned aspect object.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param aspect Aspect object to own.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
                        OwnedPtr<HttpRequestAspectHandler> aspect);
 
-  /** @brief Add a subtree aspect entry with `std::make_unique` aspect. */
+  /**
+   * @brief Add a subtree aspect entry with `std::make_unique` aspect.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
   BluePrint* AddAspect(HttpRequestMethod method, std::string_view url,
@@ -118,11 +182,19 @@ class BluePrint : public MovableOnly<BluePrint> {
         AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
   }
 
-  /** @brief Add a subtree aspect entry from pre/post callables. */
+  /**
+   * @brief Add a subtree aspect entry from pre/post callables.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param f1 Callable invoked during the pre phase.
+   * @param f2 Callable invoked during the post phase.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
       { fn1(pre_task) };
       { fn2(post_task) };
     }
@@ -136,11 +208,25 @@ class BluePrint : public MovableOnly<BluePrint> {
             std::forward<F1>(f1), std::forward<F2>(f2)));
   }
 
-  /** @brief Add a terminal aspect entry with an owned aspect object. */
+  /**
+   * @brief Add a terminal aspect entry with an owned aspect object.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param aspect Aspect object to own.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
                                OwnedPtr<HttpRequestAspectHandler> aspect);
 
-  /** @brief Add a terminal aspect entry with `std::make_unique` aspect. */
+  /**
+   * @brief Add a terminal aspect entry with `std::make_unique` aspect.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param aspect Aspect object to adopt.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename Aspect>
     requires std::derived_from<Aspect, HttpRequestAspectHandler>
   BluePrint* AddTerminalAspect(HttpRequestMethod method, std::string_view url,
@@ -150,11 +236,19 @@ class BluePrint : public MovableOnly<BluePrint> {
         AdoptUniqueAs<HttpRequestAspectHandler, Aspect>(std::move(aspect)));
   }
 
-  /** @brief Add a terminal aspect entry from pre/post callables. */
+  /**
+   * @brief Add a terminal aspect entry from pre/post callables.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param f1 Callable invoked during the pre phase.
+   * @param f2 Callable invoked during the post phase.
+   * @return Pointer to this blueprint for chaining.
+   */
   template <typename F1, typename F2>
-    requires requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+    requires requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
       { fn1(pre_task) };
       { fn2(post_task) };
     }
@@ -168,13 +262,34 @@ class BluePrint : public MovableOnly<BluePrint> {
             std::forward<F1>(f1), std::forward<F2>(f2)));
   }
 
-  /** @brief Override read timeout for one route. */
+  /**
+   * @brief Override read timeout for one route.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param expiry Read timeout in seconds.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* SetReadExpiry(HttpRequestMethod method, std::string_view url,
                            std::size_t expiry);
-  /** @brief Override write timeout for one route. */
+  /**
+   * @brief Override write timeout for one route.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param expiry Write timeout in seconds.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* SetWriteExpiry(HttpRequestMethod method, std::string_view url,
                             std::size_t expiry);
-  /** @brief Override maximum body size for one route. */
+  /**
+   * @brief Override maximum body size for one route.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param size Maximum request body size in bytes.
+   * @return Pointer to this blueprint for chaining.
+   */
   BluePrint* SetMaxBodySize(HttpRequestMethod method, std::string_view url,
                             std::size_t size);
 
@@ -182,6 +297,7 @@ class BluePrint : public MovableOnly<BluePrint> {
   bool MountInto(std::string_view prefix, HttpRouteTable& route_table) &&;
 
   class Impl;
+
   OwnedPtr<Impl> impl_;
 
   friend class HttpServer;
@@ -196,17 +312,35 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   ReuseableBluePrint();
   /** @brief Move-construct a reusable blueprint. */
   ReuseableBluePrint(ReuseableBluePrint&&) noexcept;
-  /** @brief Move-assign a reusable blueprint. */
+  /**
+   * @brief Move-assign a reusable blueprint.
+   *
+   * @return Reference to this reusable blueprint.
+   */
   ReuseableBluePrint& operator=(ReuseableBluePrint&&) noexcept;
   /** @brief Destroy the reusable blueprint. */
   ~ReuseableBluePrint();
 
-  /** @brief Add a route entry with a cloneable handler object. */
+  /**
+   * @brief Add a route entry with a cloneable handler object.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Cloneable handler object to own.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* AddRouteEntry(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestHandler> handler);
 
-  /** @brief Add a route entry with `std::make_unique` cloneable handler. */
+  /**
+   * @brief Add a route entry with `std::make_unique` cloneable handler.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Cloneable handler object to adopt.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   template <typename Handler>
     requires std::derived_from<Handler, CloneableHttpRequestHandler>
   ReuseableBluePrint* AddRouteEntry(HttpRequestMethod method,
@@ -217,10 +351,17 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
                              std::move(handler)));
   }
 
-  /** @brief Add a route entry from a copyable callable. */
+  /**
+   * @brief Add a route entry from a copyable callable.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param func Copyable callable used to construct a route handler wrapper.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   template <typename Func>
     requires std::copy_constructible<std::decay_t<Func>> &&
-             requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+             requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
                { fn(task) };
              }
   ReuseableBluePrint* AddRouteEntry(HttpRequestMethod method,
@@ -231,7 +372,14 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
                              std::forward<Func>(func)));
   }
 
-  /** @brief Add an exclusive route entry with a cloneable handler object. */
+  /**
+   * @brief Add an exclusive route entry with a cloneable handler object.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Cloneable handler object to own.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* AddExclusiveRouteEntry(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestHandler> handler);
@@ -239,6 +387,11 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   /**
    * @brief Add an exclusive route entry with `std::make_unique` cloneable
    * handler.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param handler Cloneable handler object to adopt.
+   * @return Pointer to this reusable blueprint for chaining.
    */
   template <typename Handler>
     requires std::derived_from<Handler, CloneableHttpRequestHandler>
@@ -251,10 +404,17 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::move(handler)));
   }
 
-  /** @brief Add an exclusive route entry from a copyable callable. */
+  /**
+   * @brief Add an exclusive route entry from a copyable callable.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param func Copyable callable used to construct a route handler wrapper.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   template <typename Func>
     requires std::copy_constructible<std::decay_t<Func>> &&
-             requires(std::shared_ptr<HttpServerTask> task, Func fn) {
+             requires(const std::shared_ptr<HttpServerTask>& task, Func fn) {
                { fn(task) };
              }
   ReuseableBluePrint* AddExclusiveRouteEntry(HttpRequestMethod method,
@@ -267,7 +427,14 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::forward<Func>(func)));
   }
 
-  /** @brief Add a subtree aspect entry with a cloneable aspect object. */
+  /**
+   * @brief Add a subtree aspect entry with a cloneable aspect object.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param aspect Cloneable aspect object to own.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* AddAspect(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
@@ -275,6 +442,11 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   /**
    * @brief Add a subtree aspect entry with `std::make_unique` cloneable
    * aspect.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param aspect Cloneable aspect object to adopt.
+   * @return Pointer to this reusable blueprint for chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, CloneableHttpRequestAspectHandler>
@@ -285,13 +457,21 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
                          std::move(aspect)));
   }
 
-  /** @brief Add a subtree aspect entry from copyable pre/post callables. */
+  /**
+   * @brief Add a subtree aspect entry from copyable pre/post callables.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route subtree template relative to the blueprint root.
+   * @param f1 Copyable callable invoked during the pre phase.
+   * @param f2 Copyable callable invoked during the post phase.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   template <typename F1, typename F2>
     requires std::copy_constructible<std::decay_t<F1>> &&
              std::copy_constructible<std::decay_t<F2>> &&
-             requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+             requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
                { fn1(pre_task) };
                { fn2(post_task) };
              }
@@ -305,7 +485,14 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::forward<F1>(f1), std::forward<F2>(f2)));
   }
 
-  /** @brief Add a terminal aspect entry with a cloneable aspect object. */
+  /**
+   * @brief Add a terminal aspect entry with a cloneable aspect object.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param aspect Cloneable aspect object to own.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* AddTerminalAspect(
       HttpRequestMethod method, std::string_view url,
       OwnedPtr<CloneableHttpRequestAspectHandler> aspect);
@@ -313,6 +500,11 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   /**
    * @brief Add a terminal aspect entry with `std::make_unique` cloneable
    * aspect.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param aspect Cloneable aspect object to adopt.
+   * @return Pointer to this reusable blueprint for chaining.
    */
   template <typename Aspect>
     requires std::derived_from<Aspect, CloneableHttpRequestAspectHandler>
@@ -325,13 +517,21 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::move(aspect)));
   }
 
-  /** @brief Add a terminal aspect entry from copyable pre/post callables. */
+  /**
+   * @brief Add a terminal aspect entry from copyable pre/post callables.
+   *
+   * @param method HTTP method bucket for the aspect.
+   * @param url Route template relative to the blueprint root.
+   * @param f1 Copyable callable invoked during the pre phase.
+   * @param f2 Copyable callable invoked during the post phase.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   template <typename F1, typename F2>
     requires std::copy_constructible<std::decay_t<F1>> &&
              std::copy_constructible<std::decay_t<F2>> &&
-             requires(std::shared_ptr<HttpPreServerTask> pre_task,
-                      std::shared_ptr<HttpPostServerTask> post_task, F1 fn1,
-                      F2 fn2) {
+             requires(const std::shared_ptr<HttpPreServerTask>& pre_task,
+                      const std::shared_ptr<HttpPostServerTask>& post_task,
+                      F1 fn1, F2 fn2) {
                { fn1(pre_task) };
                { fn2(post_task) };
              }
@@ -346,13 +546,34 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
             std::forward<F1>(f1), std::forward<F2>(f2)));
   }
 
-  /** @brief Override read timeout for one reusable route entry. */
+  /**
+   * @brief Override read timeout for one reusable route entry.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param expiry Read timeout in seconds.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* SetReadExpiry(HttpRequestMethod method,
                                     std::string_view url, std::size_t expiry);
-  /** @brief Override write timeout for one reusable route entry. */
+  /**
+   * @brief Override write timeout for one reusable route entry.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param expiry Write timeout in seconds.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* SetWriteExpiry(HttpRequestMethod method,
                                      std::string_view url, std::size_t expiry);
-  /** @brief Override maximum body size for one reusable route entry. */
+  /**
+   * @brief Override maximum body size for one reusable route entry.
+   *
+   * @param method HTTP method bucket for the route.
+   * @param url Route template relative to the blueprint root.
+   * @param size Maximum request body size in bytes.
+   * @return Pointer to this reusable blueprint for chaining.
+   */
   ReuseableBluePrint* SetMaxBodySize(HttpRequestMethod method,
                                      std::string_view url, std::size_t size);
 
@@ -360,6 +581,7 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
   bool MountInto(std::string_view prefix, HttpRouteTable& route_table) const;
 
   class Impl;
+
   OwnedPtr<Impl> impl_;
 
   friend class HttpServer;
@@ -370,9 +592,17 @@ class ReuseableBluePrint : public MovableOnly<ReuseableBluePrint> {
  */
 class BluePrintFactory : public NonCopyableNonMovable<BluePrintFactory> {
  public:
-  /** @brief Create a one-shot blueprint. */
+  /**
+   * @brief Create a one-shot blueprint.
+   *
+   * @return Empty one-shot blueprint.
+   */
   static BluePrint Create();
-  /** @brief Create a reusable blueprint. */
+  /**
+   * @brief Create a reusable blueprint.
+   *
+   * @return Empty reusable blueprint.
+   */
   static ReuseableBluePrint CreateReuseable();
 };
 

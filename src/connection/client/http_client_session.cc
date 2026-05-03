@@ -10,16 +10,16 @@
 
 #include "bsrvcore/connection/client/http_client_session.h"
 
-#include <boost/asio/ssl/context.hpp>
-#include <boost/beast/http/verb.hpp>
+#include <boost/beast/http/fields_fwd.hpp>
 #include <boost/system/errc.hpp>
 #include <memory>
+#include <new>
+#include <optional>
 #include <string>
 #include <utility>
 
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/connection/client/http_client_task.h"
-#include "bsrvcore/connection/client/request_assembler.h"
 #include "bsrvcore/connection/client/stream_builder.h"
 #include "bsrvcore/connection/client/websocket_client_task.h"
 #include "impl/default_client_assembler_builder.h"

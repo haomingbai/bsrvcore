@@ -15,6 +15,8 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 

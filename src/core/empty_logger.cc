@@ -15,8 +15,6 @@
 
 #include <string>
 
-#include "bsrvcore/core/logger.h"
-
 void bsrvcore::internal::EmptyLogger::Log(
     [[maybe_unused]] bsrvcore::LogLevel level,
     [[maybe_unused]] std::string log) {}

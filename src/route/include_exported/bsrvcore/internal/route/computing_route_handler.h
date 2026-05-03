@@ -13,8 +13,6 @@
 #ifndef BSRVCORE_INTERNAL_ROUTE_COMPUTING_ROUTE_HANDLER_H_
 #define BSRVCORE_INTERNAL_ROUTE_COMPUTING_ROUTE_HANDLER_H_
 
-#include <memory>
-
 #include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/core/trait.h"
 #include "bsrvcore/route/http_request_handler.h"

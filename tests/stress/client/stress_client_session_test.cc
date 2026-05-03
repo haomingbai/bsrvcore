@@ -1,18 +1,32 @@
 #include <gtest/gtest.h>
 
+#include <boost/beast/http/field.hpp>
+#include <boost/beast/http/fields.hpp>
+#include <boost/beast/http/message.hpp>
+#include <boost/beast/http/status.hpp>
+#include <boost/beast/http/string_body.hpp>
+#include <boost/beast/http/verb.hpp>
+#include <boost/system/errc.hpp>
+#include <boost/system/system_error.hpp>
+#include <cstddef>
+#include <exception>
 #include <functional>
 #include <future>
 #include <memory>
+#include <stop_token>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "bsrvcore/connection/client/http_client_session.h"
+#include "bsrvcore/connection/client/http_client_task.h"
 #include "bsrvcore/connection/client/http_sse_client_task.h"
 #include "bsrvcore/connection/client/sse_event_parser.h"
 #include "bsrvcore/connection/server/http_server_task.h"
 #include "bsrvcore/connection/server/server_set_cookie.h"
 #include "bsrvcore/core/http_server.h"
+#include "bsrvcore/core/types.h"
 #include "bsrvcore/route/http_request_method.h"
 #include "stress_test_common.h"
 #include "test_http_client_task.h"
@@ -48,7 +62,7 @@ bsrvcore::HttpClientResponse DoSessionRequest(
 TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
   const auto cfg = LoadStressConfig(8, 120, 120000);
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(
       bsrvcore::HttpRequestMethod::kGet, "/set",
       [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
@@ -92,7 +106,7 @@ TEST(StressClientSessionTest, ConcurrentClientTasksWithSharedCookieJar) {
 TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   const auto cfg = LoadStressConfig(6, 100, 120000);
 
-  auto server = bsrvcore::AllocateUnique<bsrvcore::HttpServer>(cfg.threads);
+  auto server = std::make_unique<bsrvcore::HttpServer>(cfg.threads);
   server->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/events",
                         [cfg](std::shared_ptr<bsrvcore::HttpServerTask> task) {
                           task->SetField(http::field::content_type,
@@ -113,11 +127,11 @@ TEST(StressClientSessionTest, SseClientPullsBurstEvents) {
   auto client = bsrvcore::HttpSseClientTask::CreateHttp(
       ioc.get_executor(), "127.0.0.1", std::to_string(port), "/events");
 
-  auto parser = bsrvcore::AllocateShared<bsrvcore::SseEventParser>();
-  auto events = bsrvcore::AllocateShared<std::vector<bsrvcore::SseEvent>>();
-  auto completion = bsrvcore::AllocateShared<std::promise<void>>();
+  auto parser = std::make_shared<bsrvcore::SseEventParser>();
+  auto events = std::make_shared<std::vector<bsrvcore::SseEvent>>();
+  auto completion = std::make_shared<std::promise<void>>();
   auto future = completion->get_future();
-  auto done = bsrvcore::AllocateShared<bool>(false);
+  auto done = std::make_shared<bool>(false);
 
   std::function<void()> pull_next;
   pull_next = [client, parser, events, completion, done, &pull_next]() {

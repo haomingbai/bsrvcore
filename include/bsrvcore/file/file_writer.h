@@ -13,6 +13,7 @@
 #ifndef BSRVCORE_FILE_FILE_WRITER_H_
 #define BSRVCORE_FILE_FILE_WRITER_H_
 
+#include <boost/asio/any_io_executor.hpp>
 #include <cstddef>
 #include <filesystem>
 #include <functional>
@@ -34,38 +35,89 @@ class FileWriter : public std::enable_shared_from_this<FileWriter>,
   /** @brief Completion callback for async write operations. */
   using Callback = std::function<void(std::shared_ptr<FileWritingState>)>;
 
-  /** @brief Create a writer with separate work and callback executors. */
+  /**
+   * @brief Create a writer with separate work and callback executors.
+   *
+   * @param payload Bytes to own in memory.
+   * @param work_executor Executor used for disk work.
+   * @param callback_executor Executor used to deliver callbacks.
+   * @return File writer instance.
+   */
   [[nodiscard]] static std::shared_ptr<FileWriter> Create(
       std::string_view payload, IoExecutor work_executor,
       IoExecutor callback_executor);
-  /** @brief Create a writer using the same executor for work and callbacks. */
+  /**
+   * @brief Create a writer using the same executor for work and callbacks.
+   *
+   * @param payload Bytes to own in memory.
+   * @param executor Executor used for work and callbacks.
+   * @return File writer instance.
+   */
   [[nodiscard]] static std::shared_ptr<FileWriter> Create(
       std::string_view payload, IoExecutor executor = {});
 
   /** @brief Destroy the writer and release its owned buffer. */
   ~FileWriter();
 
-  /** @brief Whether the writer holds a valid payload buffer. */
+  /**
+   * @brief Whether the writer holds a valid payload buffer.
+   *
+   * @return True when the writer has a usable payload buffer.
+   */
   [[nodiscard]] bool IsValid() const noexcept;
-  /** @brief Return the payload size in bytes. */
+  /**
+   * @brief Return the payload size in bytes.
+   *
+   * @return Payload size in bytes.
+   */
   [[nodiscard]] std::size_t Size() const noexcept;
-  /** @brief Return a pointer to the internal payload bytes. */
+  /**
+   * @brief Return a pointer to the internal payload bytes.
+   *
+   * @return Pointer to the owned payload bytes.
+   */
   [[nodiscard]] const char* Data() const noexcept;
-  /** @brief Copy the payload into a caller-provided buffer. */
+  /**
+   * @brief Copy the payload into a caller-provided buffer.
+   *
+   * @param dest Destination buffer.
+   * @param dest_size Destination buffer size in bytes.
+   * @return True when the payload fit in the destination buffer.
+   */
   [[nodiscard]] bool CopyTo(void* dest, std::size_t dest_size) const noexcept;
 
-  /** @brief Start an asynchronous disk write into a caller-supplied state. */
+  /**
+   * @brief Start an asynchronous disk write into a caller-supplied state.
+   *
+   * @param path Destination file path.
+   * @param state State object populated by the write.
+   * @param callback Completion callback.
+   * @return True when asynchronous writing was started.
+   */
   [[nodiscard]] bool AsyncWriteToDisk(std::filesystem::path path,
                                       std::shared_ptr<FileWritingState> state,
                                       Callback callback = {}) const;
-  /** @brief Start an asynchronous disk write using an internally created state.
+  /**
+   * @brief Start an asynchronous disk write using an internally created state.
+   *
+   * @param path Destination file path.
+   * @param callback Completion callback.
+   * @return True when asynchronous writing was started.
    */
   [[nodiscard]] bool AsyncWriteToDisk(std::filesystem::path path,
                                       Callback callback = {}) const;
 
-  /** @brief Return the executor used for disk work dispatch. */
+  /**
+   * @brief Return the executor used for disk work dispatch.
+   *
+   * @return Work executor.
+   */
   [[nodiscard]] IoExecutor GetWorkExecutor() const noexcept;
-  /** @brief Return the executor used for completion callbacks. */
+  /**
+   * @brief Return the executor used for completion callbacks.
+   *
+   * @return Callback executor.
+   */
   [[nodiscard]] IoExecutor GetCallbackExecutor() const noexcept;
 
  private:

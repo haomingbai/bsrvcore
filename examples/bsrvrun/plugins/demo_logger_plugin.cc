@@ -7,10 +7,12 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 
-#include "bsrvcore/allocator/allocator.h"
 #include "bsrvcore/bsrvrun/logger_factory.h"
 #include "bsrvcore/bsrvrun/parameter_map.h"
+#include "bsrvcore/bsrvrun/plugin_export.h"
+#include "bsrvcore/bsrvrun/string.h"
 #include "bsrvcore/core/logger.h"
 
 namespace {
@@ -60,7 +62,7 @@ class DemoLoggerFactory final : public bsrvcore::bsrvrun::LoggerFactory {
         prefix = value;
       }
     }
-    return bsrvcore::AllocateShared<DemoLogger>(std::move(prefix));
+    return std::make_shared<DemoLogger>(std::move(prefix));
   }
 };
 
