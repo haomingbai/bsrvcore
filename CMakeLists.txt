@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(bsrvcore VERSION 0.19.0 LANGUAGES C CXX)
+project(bsrvcore VERSION 0.20.0 LANGUAGES C CXX)
 
 if(POLICY CMP0167)
   # Keep CMP0167 scoped to Apple toolchains only: Homebrew Boost can miss
