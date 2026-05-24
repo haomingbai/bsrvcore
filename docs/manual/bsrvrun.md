@@ -5,6 +5,14 @@
 It reads a YAML file, loads logger/service/handler/aspect factories from shared
 libraries, and builds an `HttpServer` from configuration.
 
+The intended use is runtime assembly for one bsrvcore release: ship
+`bsrvrun`, `libbsrvcore`, and its plugins together, or rebuild plugins when the
+matching C++ dependency set changes. This keeps the tool useful for deployments
+that need YAML-driven startup without promising a stable C++ plugin ABI.
+
+For a stable foreign-language ABI, use the standalone C binding under
+`include/bsrvcore-c/` instead.
+
 ## Config path resolution
 
 `bsrvrun` resolves config in this order:
@@ -122,9 +130,9 @@ routes:
 - Handler/aspect code can read a slot with `task->GetService<T>(slot)` when the
   plugin shares the concrete service type definition.
 
-## Plugin ABI contract
+## Plugin compatibility model
 
-Public ABI headers live under `include/bsrvcore/bsrvrun/`.
+Public bsrvrun plugin headers live under `include/bsrvcore/bsrvrun/`.
 
 - `bsrvcore::bsrvrun::String`
 - `bsrvcore::bsrvrun::ParameterMap`
@@ -132,6 +140,25 @@ Public ABI headers live under `include/bsrvcore/bsrvrun/`.
 - `bsrvcore::bsrvrun::ServiceFactory`
 - `bsrvcore::bsrvrun::HttpRequestHandlerFactory`
 - `bsrvcore::bsrvrun::HttpRequestAspectHandlerFactory`
+
+These headers define the plugin interface used by the runtime loader. They do
+not form a stable C++ ABI across arbitrary bsrvcore, compiler, standard
+library, Boost, OpenSSL, or build-mode changes. In practice, plugins should be
+compiled and tested with the exact bsrvcore release and toolchain/dependency
+set used by the target deployment.
+
+Rebuild plugins when any of these change:
+
+- bsrvcore version or public headers
+- compiler, standard library, or C++ ABI mode
+- Boost/OpenSSL versions that participate in public API types
+- debug/release mode or other ABI-affecting build flags
+
+`bsrvcore::bsrvrun::String` and `ParameterMap` keep configuration parameter
+passing narrow and avoid exposing STL containers for that one path. Handler,
+aspect, logger, and service plugins still use C++ virtual interfaces and
+bsrvcore runtime objects, so they should be treated as same-release plugin
+interfaces rather than stable binary contracts.
 
 Each plugin should export one fixed symbol:
 
@@ -149,7 +176,9 @@ from shared libraries on every platform, including Windows DLLs:
 - `BSRVCORE_BSRVRUN_SERVICE_FACTORY_EXPORT`
 
 These macros include `extern "C"` and the required export visibility
-attributes. The returned factory pointer is not owned by `HttpServer`.
+attributes for the entry-point symbol name. They do not make the objects
+returned by that symbol C ABI stable. The returned factory pointer is not owned
+by `HttpServer`.
 
 Plugins that previously exported only `extern "C"` should be rebuilt with
 these macros before they are loaded on Windows. Otherwise `bsrvrun` can fail

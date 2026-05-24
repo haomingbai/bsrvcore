@@ -67,6 +67,13 @@ See also:
 
 - [C bindings and packaging](c-bindings-and-packaging.md)
 
+## bsrvrun Plugin Boundary
+
+`bsrvrun` loads C++ plugins to assemble an `HttpServer` from YAML. That
+boundary is meant for plugins shipped with the same bsrvcore release and
+compatible compiler/dependency set. It is not the project's stable ABI surface;
+use the C binding when a stable binary interface is required.
+
 ## Source Anchors
 
 - Server runtime: [`src/core/http_server_accept.cc`](../../src/core/http_server_accept.cc),

@@ -1,6 +1,6 @@
 /**
  * @file string.cc
- * @brief Implementation of ABI-oriented bsrvcore::bsrvrun::String.
+ * @brief Implementation of bsrvcore::bsrvrun::String.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-16
  *

@@ -34,13 +34,18 @@ APIs explicitly.
 
 ## bsrvrun Plugins
 
-The bsrvrun handler/aspect plugin factory ABI returns `OwnedPtr`. Plugin
+The bsrvrun handler/aspect plugin factory interface returns `OwnedPtr`. Plugin
 examples and tests may construct ordinary C++ objects with `std::make_unique`
 and return them via `AdoptUniqueAs(...)` so plugin code does not need to perform
 custom allocator allocation itself.
 
 Logger factories return `std::shared_ptr`, so plugin loggers should normally use
 `std::make_shared`.
+
+These plugin interfaces are same-release C++ boundaries. They help package and
+load runtime modules, but they are not intended to remain binary-compatible
+across unrelated toolchains, standard libraries, dependency versions, or
+bsrvcore releases.
 
 ## Benchmarks
 

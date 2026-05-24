@@ -264,6 +264,9 @@ design docs](docs/design/request-lifecycle.md#io-thread-optimizations-via-const-
 
 `bsrvrun` is installed in the runtime package and starts a server from YAML.
 It can load logger, service, handler, and aspect factories from shared libraries.
+These plugins use the C++ bsrvcore public API and should be built as part of
+the same release/deployment as the matching `bsrvrun` and `libbsrvcore`.
+They are not a long-term stable C++ ABI boundary.
 
 Config path resolution order:
 
@@ -277,7 +280,7 @@ Run:
 bsrvrun -c ./bsrvrun.yaml
 ```
 
-For full schema and plugin ABI contract, see:
+For full schema and plugin compatibility notes, see:
 
 - [docs/manual/bsrvrun.md](docs/manual/bsrvrun.md)
 

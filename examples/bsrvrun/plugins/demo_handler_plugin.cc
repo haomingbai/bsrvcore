@@ -3,7 +3,7 @@
  * @brief Minimal bsrvrun handler plugin used by examples and tests.
  *
  * The exported factory returns a handler that appends a configured body suffix.
- * This keeps the plugin ABI example intentionally small and easy to copy.
+ * This keeps the plugin interface example intentionally small and easy to copy.
  */
 
 #include <cctype>

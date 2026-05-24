@@ -1,6 +1,6 @@
 /**
  * @file string.h
- * @brief ABI-oriented string type for bsrvrun plugin boundaries.
+ * @brief Narrow string type for bsrvrun plugin configuration parameters.
  * @author Haoming Bai <haomingbai@hotmail.com>
  * @date   2026-03-16
  *
@@ -22,7 +22,7 @@
 namespace bsrvcore::bsrvrun {
 
 /**
- * @brief Lightweight string type used for runtime config/plugin ABI.
+ * @brief Lightweight string type used for runtime config/plugin parameters.
  */
 class String : public bsrvcore::CopyableMovable<String> {
  public:
@@ -117,7 +117,7 @@ class String : public bsrvcore::CopyableMovable<String> {
 };
 
 /**
- * @brief Compare two ABI strings for equality.
+ * @brief Compare two bsrvrun strings for equality.
  *
  * @param lhs Left string.
  * @param rhs Right string.
@@ -125,7 +125,7 @@ class String : public bsrvcore::CopyableMovable<String> {
  */
 bool operator==(const String& lhs, const String& rhs) noexcept;
 /**
- * @brief Compare two ABI strings for inequality.
+ * @brief Compare two bsrvrun strings for inequality.
  *
  * @param lhs Left string.
  * @param rhs Right string.
