@@ -96,6 +96,16 @@ extern "C" void post_global(bsrvcore_http_post_server_task_t* task) {
   (void)bsrvcore_http_post_server_task_append_response_body(task, "postG|", 6);
 }
 
+extern "C" void pre_failure(bsrvcore_http_pre_server_task_t* task) {
+  (void)bsrvcore_http_pre_server_task_append_response_body(task, "preF|", 5);
+  (void)bsrvcore_http_pre_server_task_set_status(task, 401);
+  (void)bsrvcore_http_pre_server_task_mark_aspect_failure(task);
+}
+
+extern "C" void post_failure(bsrvcore_http_post_server_task_t* task) {
+  (void)bsrvcore_http_post_server_task_append_response_body(task, "postF|", 6);
+}
+
 namespace {
 
 using bsrvcore::test::DoRequestWithRetry;
@@ -261,4 +271,29 @@ TEST(CBindingHttpServerTest, RouteAspectActsAsSubtreeAspectOnlyOnSuccess) {
   auto parent = DoRequestWithRetry(http::verb::get, port, "/tree", "");
   EXPECT_EQ(parent.body().find("preS|"), std::string::npos);
   EXPECT_EQ(parent.body().find("postS|"), std::string::npos);
+}
+
+TEST(CBindingHttpServerTest,
+     PreAspectFailureSkipsRemainingPreCallbacksAndRoute) {
+  CServerGuard guard;
+
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_create(2, &guard.server));
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_global_aspect(
+                                    guard.server, pre_global, post_global));
+  ASSERT_EQ(BSRVCORE_RESULT_OK,
+            bsrvcore_server_add_route(guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                      "/fail/leaf", order_handler));
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_route_aspect(
+                                    guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                    "/fail", pre_failure, post_failure));
+  ASSERT_EQ(BSRVCORE_RESULT_OK, bsrvcore_server_add_terminal_aspect(
+                                    guard.server, BSRVCORE_HTTP_METHOD_GET,
+                                    "/fail/leaf", pre_terminal, post_terminal));
+
+  const auto port = StartCServer(guard);
+  ASSERT_NE(0, port);
+
+  auto response = DoRequestWithRetry(http::verb::get, port, "/fail/leaf", "");
+  EXPECT_EQ(response.result(), http::status::unauthorized);
+  EXPECT_EQ(response.body(), "preG|preF|postF|postG|");
 }

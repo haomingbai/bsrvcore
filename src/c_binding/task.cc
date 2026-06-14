@@ -71,6 +71,12 @@ BSRVCORE_DEFINE_TASK_API(bsrvcore_http_post_server_task_t,
                          bsrvcore::HttpPostServerTask,
                          bsrvcore_http_post_server_task)
 
+bsrvcore_result_t bsrvcore_http_pre_server_task_mark_aspect_failure(
+    bsrvcore_http_pre_server_task_t* task) {
+  return cbind::Guard(
+      [&]() { return cbind::MarkAspectFailureForWrapper(task); });
+}
+
 }  // extern "C"
 
 #undef BSRVCORE_DEFINE_TASK_API

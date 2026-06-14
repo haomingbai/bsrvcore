@@ -151,6 +151,11 @@ void FinalizePostPhaseConnection(
   }
 }
 
+bool IsAspectFailureMarked(
+    const std::shared_ptr<task_internal::HttpTaskSharedState>& state) {
+  return state && state->aspect_failure_marked.load(std::memory_order_acquire);
+}
+
 template <typename Task>
 inline void DestroyLifecycleTask(
     const std::shared_ptr<task_internal::HttpTaskSharedState>& state,
@@ -177,8 +182,23 @@ void HttpPreTaskDeleter::operator()(HttpPreServerTask* ptr) const {
   // Releasing the pre task is the exact point where pre hooks stop mutating
   // shared request state, so the next lifecycle hop can safely build the
   // service task.
-  if (state->route_result.handler == nullptr ||
-      !IsTaskEnvironmentAvailable(state)) {
+  if (!IsTaskEnvironmentAvailable(state)) {
+    TryCloseConnection(state);
+    return;
+  }
+
+  if (IsAspectFailureMarked(state)) {
+    auto* raw =
+        connection_internal::helper::AllocateTaskObject<HttpPostServerTask>(
+            state);
+    new (raw) HttpPostServerTask(state);
+    auto task = std::shared_ptr<HttpPostServerTask>(
+        raw, HttpPostTaskDeleter{state}, state->handler_alloc);
+    task->Start();
+    return;
+  }
+
+  if (state->route_result.handler == nullptr) {
     TryCloseConnection(state);
     return;
   }
@@ -258,6 +278,10 @@ HttpPreServerTask::HttpPreServerTask(
 
 HttpPreServerTask::~HttpPreServerTask() = default;
 
+void HttpPreServerTask::MarkAspectFailure() noexcept {
+  GetState().aspect_failure_marked.store(true, std::memory_order_release);
+}
+
 void HttpPreServerTask::Start() {
   auto conn = GetState().conn.load();
   if (!conn) {
@@ -287,12 +311,19 @@ void HttpPreServerTask::DoPreService(
   }
 
   while (curr_idx < state.route_result.aspects.size()) {
+    if (state.aspect_failure_marked.load(std::memory_order_acquire)) {
+      return;
+    }
+    state.aspect_unwind_start_index.store(curr_idx, std::memory_order_release);
     try {
       // Pre aspects run in registration order and share mutable access to the
       // eventual response. Exceptions are swallowed so one hook cannot abort
       // the entire request pipeline implicitly.
       state.route_result.aspects[curr_idx]->PreService(self);
     } catch (...) {
+    }
+    if (state.aspect_failure_marked.load(std::memory_order_acquire)) {
+      return;
     }
     ++curr_idx;
   }
@@ -375,7 +406,15 @@ void HttpPostServerTask::Start() {
     return;
   }
 
-  const auto last_idx = state.route_result.aspects.size() - 1;
+  const auto curr_idx =
+      state.aspect_failure_marked.load(std::memory_order_acquire)
+          ? state.aspect_unwind_start_index.load(std::memory_order_acquire)
+          : state.route_result.aspects.size() - 1;
+  if (curr_idx >= state.route_result.aspects.size()) {
+    assert(false);
+    return;
+  }
+
   auto conn = state.conn.load();
   if (!conn) {
     return;
@@ -383,10 +422,10 @@ void HttpPostServerTask::Start() {
 
   auto self = shared_from_this();
   conn->DispatchToConnectionExecutor(boost::asio::bind_allocator(
-      state.handler_alloc, [self = std::move(self), last_idx]() mutable {
+      state.handler_alloc, [self = std::move(self), curr_idx]() mutable {
         // Post hooks unwind in reverse order, mirroring middleware stacks where
         // terminal aspects exit before subtree and outer/global aspects.
-        RunScheduledPostPhase(std::move(self), last_idx);
+        RunScheduledPostPhase(std::move(self), curr_idx);
       }));
 }
 

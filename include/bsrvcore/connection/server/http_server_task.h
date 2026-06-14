@@ -553,6 +553,18 @@ class HttpPreServerTask
   void Start();
 
   /**
+   * @brief Short-circuit the remaining pre-aspect chain and route handler.
+   *
+   * @details
+   * Intended for use from `PreService()`. After the current pre-aspect returns,
+   * the lifecycle skips remaining pre-aspects and the route handler, then
+   * starts `PostService()` at the current aspect and unwinds already-entered
+   * aspects in reverse order. Callers should set the response status/body
+   * before marking failure.
+   */
+  void MarkAspectFailure() noexcept;
+
+  /**
    * @brief Destructor.
    */
   ~HttpPreServerTask() override;

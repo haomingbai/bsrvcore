@@ -558,6 +558,18 @@ bsrvcore_result_t bsrvcore_http_pre_server_task_set_response(
     const char* content_type, const char* body, size_t len);
 
 /**
+ * @brief Short-circuit remaining pre-aspects and the route handler.
+ * @param task Borrowed pre-aspect task handle.
+ * @return `BSRVCORE_RESULT_OK` on success.
+ *
+ * After the current pre-aspect callback returns, post-aspects unwind from the
+ * current aspect back outward. Call this after setting the response
+ * status/body.
+ */
+bsrvcore_result_t bsrvcore_http_pre_server_task_mark_aspect_failure(
+    bsrvcore_http_pre_server_task_t* task);
+
+/**
  * @brief Read a request header from a post-aspect task.
  * @param task Borrowed post-aspect task handle.
  * @param key Header field name.

@@ -222,6 +222,12 @@ Use:
 given route. `bsrvcore_server_add_terminal_aspect*` keeps the old exact-route
 behavior.
 
+A pre-aspect can stop the rest of the pre chain and skip the route callback by
+setting the response and calling
+`bsrvcore_http_pre_server_task_mark_aspect_failure()`. Post callbacks then run
+from the current aspect back outward; callbacks whose pre half did not run are
+not called.
+
 Callback types:
 
 - `bsrvcore_http_pre_aspect_fn`

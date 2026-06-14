@@ -20,10 +20,14 @@ sequenceDiagram
     R-->>X: HttpRouteResult
     X->>P: Create shared task state
     P->>P: Run pre aspects in order
+    alt Pre aspect marks failure
+        P->>O: Skip service; start post at current aspect
+    else Pre phase succeeds
     P->>H: Custom deleter constructs service task
     H->>H: Run route handler
     Note over H: Async handler may retain shared_ptr<HttpServerTask>
     H->>O: Last task reference released
+    end
     O->>O: Run post aspects in reverse order
     O->>X: FinalizeResponse()
     X-->>C: Write response / keep-alive or close
@@ -38,6 +42,8 @@ sequenceDiagram
   calls.
 - Keeping `std::shared_ptr<HttpServerTask>` alive is the built-in mechanism for
   deferred/asynchronous response completion.
+- `HttpPreServerTask::MarkAspectFailure()` records an explicit AOP failure. The
+  pre-task deleter checks that flag before constructing the service task.
 
 ## Automatic vs Manual Response Finalization
 
@@ -115,6 +121,9 @@ Pre and post aspects receive the same const-ref parameter and follow identical
 rules:
 
 - Post aspects run in **reverse order** as handlers are destroyed.
+- If a pre-aspect calls `MarkAspectFailure()`, post execution starts at that
+  aspect's index and unwinds outward; deeper aspects and the route handler are
+  skipped.
 - If an aspect needs to defer work (e.g., logging to async storage), it must
   capture the const-ref explicitly.
 
@@ -148,6 +157,10 @@ handler parameter after the handler returns.
 
 - If the stream or server is no longer available, delayed callbacks stop
   scheduling work.
+- Pre-aspects can explicitly short-circuit the request with
+  `MarkAspectFailure()`. The lifecycle preserves the response already written by
+  the aspect, skips remaining pre-aspects and service, then runs post-aspects
+  for already-entered aspects in reverse order.
 - Aspect and handler exceptions are swallowed inside lifecycle loops; they do
   not automatically synthesize an error response.
 - Closing the connection clears the shared `conn` pointer so late callbacks can

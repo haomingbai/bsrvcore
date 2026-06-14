@@ -243,6 +243,57 @@ TEST(HttpServerIntegrationTest, AspectOrderIsDeterministic) {
             "preG|preM|preP|preS|preT|handler|postT|postS|postP|postM|postG|");
 }
 
+TEST(HttpServerIntegrationTest,
+     PreAspectFailureSkipsRemainingPreAspectsAndServiceThenUnwinds) {
+  auto server = std::make_unique<bsrvcore::HttpServer>(2);
+
+  server
+      ->AddGlobalAspect(
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preG|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postG|");
+          })
+      ->AddGlobalAspect(
+          bsrvcore::HttpRequestMethod::kGet,
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preM|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postM|");
+          })
+      ->AddAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/fail",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preF|");
+            task->GetResponse().result(http::status::unauthorized);
+            task->MarkAspectFailure();
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postF|");
+          })
+      ->AddRouteEntry(bsrvcore::HttpRequestMethod::kGet, "/fail/leaf",
+                      [](std::shared_ptr<bsrvcore::HttpServerTask> task) {
+                        task->AppendBody("handler|");
+                      })
+      ->AddTerminalAspect(
+          bsrvcore::HttpRequestMethod::kGet, "/fail/leaf",
+          [](std::shared_ptr<bsrvcore::HttpPreServerTask> task) {
+            task->AppendBody("preT|");
+          },
+          [](std::shared_ptr<bsrvcore::HttpPostServerTask> task) {
+            task->AppendBody("postT|");
+          });
+
+  ServerGuard guard(std::move(server));
+  const auto port = StartServerWithRoutes(guard);
+
+  auto res = DoRequestWithRetry(http::verb::get, port, "/fail/leaf", "");
+  EXPECT_EQ(res.result(), http::status::unauthorized);
+  EXPECT_EQ(res.body(), "preG|preM|preF|postF|postM|postG|");
+}
+
 // Verify post phase starts only after service task references are released.
 TEST(HttpServerIntegrationTest, PostPhaseWaitsForServiceTaskRelease) {
   auto server = std::make_unique<bsrvcore::HttpServer>(2);

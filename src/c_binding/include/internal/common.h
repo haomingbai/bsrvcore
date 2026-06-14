@@ -298,6 +298,15 @@ bsrvcore_result_t SetResponseForWrapper(TaskWrapper* task, int status_code,
                                      body, len);
 }
 
+inline bsrvcore_result_t MarkAspectFailureForWrapper(
+    bsrvcore_http_pre_server_task_t* task) {
+  if (ValidateTask(task) != BSRVCORE_RESULT_OK) {
+    return BSRVCORE_RESULT_INVALID_ARGUMENT;
+  }
+  task->native->MarkAspectFailure();
+  return BSRVCORE_RESULT_OK;
+}
+
 }  // namespace bsrvcore::c_binding_internal
 
 #endif  // BSRVCORE_C_BINDING_INTERNAL_COMMON_H_

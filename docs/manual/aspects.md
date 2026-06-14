@@ -99,12 +99,37 @@ For a request to `/api/ping`, a common chain looks like:
 8. Method-global Post
 9. Global Post
 
+## Short-circuiting from Pre
+
+A pre-aspect can stop the rest of the pre chain and skip the route handler:
+
+```cpp
+server->AddGlobalAspect(
+  [](const std::shared_ptr<bsrvcore::HttpPreServerTask>& task) {
+    if (task->GetRequest().find(bsrvcore::HttpField::authorization) ==
+        task->GetRequest().end()) {
+      task->GetResponse().result(bsrvcore::HttpStatus::unauthorized);
+      task->SetBody("Unauthorized");
+      task->MarkAspectFailure();
+    }
+  },
+  [](const std::shared_ptr<bsrvcore::HttpPostServerTask>& task) {
+    task->SetField("X-Auth-Checked", "1");
+  });
+```
+
+After `MarkAspectFailure()`, the current pre-aspect returns normally. The
+lifecycle then skips any deeper pre-aspects and the route handler, creates the
+post task, and runs `PostService()` from the current aspect back outward. Aspects
+whose `PreService()` did not run do not receive `PostService()`.
+
 Execution model notes:
 
 - Aspects are treated as **small synchronous tasks**.
 - Pre aspects run directly on the request I/O execution path in registration
   order.
-- The route handler then runs immediately unless the route was registered with
+- The route handler then runs immediately unless a pre-aspect called
+  `MarkAspectFailure()` or the route was registered with
   `AddComputingRouteEntry()`.
 - Post aspects begin only after the last `HttpServerTask` reference is
   released, so asynchronous handler work can defer the second half of the

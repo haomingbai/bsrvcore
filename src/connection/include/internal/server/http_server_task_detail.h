@@ -102,6 +102,8 @@ struct HttpTaskSharedState {
   HttpServer* srv;
   std::atomic_bool keep_alive;
   std::atomic<HttpTaskConnectionLifecycleMode> connection_mode;
+  std::atomic_bool aspect_failure_marked{false};
+  std::atomic_size_t aspect_unwind_start_index{0};
   std::atomic<WebSocketUpgradeState> websocket_upgrade_state{
       WebSocketUpgradeState::kNone};
   mutable std::shared_mutex websocket_upgrade_handler_mtx;

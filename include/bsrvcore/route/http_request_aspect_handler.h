@@ -67,9 +67,9 @@ class HttpRequestAspectHandler
    * @brief Execute before the main request handler
    * @param task Pre-phase task being processed
    *
-   * @note Can modify the request and accumulated response. Setting a response
-   *       here does not stop later aspects or the main route handler; explicit
-   *       short-circuiting would require a separate lifecycle API.
+   * @note Can modify the request and accumulated response. To stop later
+   *       pre-aspects and skip the main route handler, set the response and
+   * call `HttpPreServerTask::MarkAspectFailure()`.
    */
   virtual void PreService(const std::shared_ptr<HttpPreServerTask>& task) = 0;
 
