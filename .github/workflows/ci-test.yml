@@ -195,7 +195,8 @@ jobs:
         shell: pwsh
         run: |
           $stressFlag = if ('${{ matrix.suite }}' -eq 'stress') { 'ON' } else { 'OFF' }
-          cmake -S . -B build -G "Ninja Multi-Config" `
+          cmake -S . -B build -G Ninja `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
             -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
             -DVCPKG_TARGET_TRIPLET="$env:VCPKG_TARGET_TRIPLET" `
             -DBUILD_SHARED_LIBS=OFF `
@@ -216,7 +217,7 @@ jobs:
       - name: Build Windows test tree
         if: runner.os == 'Windows'
         shell: pwsh
-        run: cmake --build build --config RelWithDebInfo --parallel
+        run: cmake --build build --parallel
 
       - name: Run Linux tests
         if: runner.os == 'Linux'
@@ -232,4 +233,4 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          ctest --test-dir build --build-config RelWithDebInfo --output-on-failure --parallel 4 -L '${{ matrix.suite }}'
+          ctest --test-dir build --output-on-failure --parallel 4 -L '${{ matrix.suite }}'
