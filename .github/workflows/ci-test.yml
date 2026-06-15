@@ -154,6 +154,19 @@ jobs:
           "VCPKG_DOWNLOADS=$downloadsDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "VCPKG_DEFAULT_BINARY_CACHE=$archivesDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Setup MSVC developer environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Verify Windows MSVC toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          where.exe cl
+          cl
+
       - name: Configure Linux test tree
         if: runner.os == 'Linux'
         run: |
@@ -197,6 +210,8 @@ jobs:
           $stressFlag = if ('${{ matrix.suite }}' -eq 'stress') { 'ON' } else { 'OFF' }
           cmake -S . -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_C_COMPILER=cl `
+            -DCMAKE_CXX_COMPILER=cl `
             -DCMAKE_TOOLCHAIN_FILE="$env:CMAKE_TOOLCHAIN_FILE" `
             -DVCPKG_TARGET_TRIPLET="$env:VCPKG_TARGET_TRIPLET" `
             -DBUILD_SHARED_LIBS=OFF `
