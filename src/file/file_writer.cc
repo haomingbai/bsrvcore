@@ -55,7 +55,6 @@ struct AsyncFileWriteOp {
         callback(std::move(callback_in)) {}
 
   void Run() {
-    state->path = path;
     state->size = writer->Size();
 
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
@@ -156,6 +155,12 @@ bool FileWriter::AsyncWriteToDisk(std::filesystem::path path,
   if (!state) {
     state = FileWritingState::Create();
   }
+
+  // Publish the destination path synchronously on the calling thread. The
+  // asynchronous operation never writes to the shared state's path, so the
+  // caller may read it as soon as this call returns; size/ec/reader remain
+  // valid only once the completion callback has run.
+  state->path = path;
 
   auto self = std::const_pointer_cast<FileWriter>(this->shared_from_this());
   auto op = AllocateShared<AsyncFileWriteOp>(

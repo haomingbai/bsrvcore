@@ -43,6 +43,22 @@ function(bsrvcore_add_test target_name source_file label)
     )
   endif()
 
+  # Test executables must be instrumented together with the library.
+  # Uninstrumented tests lose happens-before edges that live in test-instantiated
+  # templates (e.g. libstdc++ std::promise/future futex atomics), which makes
+  # ThreadSanitizer report false data races on properly synchronized reads.
+  if(BSRVCORE_ENABLE_TSAN AND NOT MSVC)
+    target_compile_options(${target_name}
+      PRIVATE
+        "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fsanitize=thread>"
+        "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fno-omit-frame-pointer>"
+    )
+    target_link_options(${target_name}
+      PRIVATE
+        "$<$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>:-fsanitize=thread>"
+    )
+  endif()
+
   target_include_directories(${target_name}
     PRIVATE
       ${CMAKE_SOURCE_DIR}/include

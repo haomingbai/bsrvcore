@@ -54,8 +54,6 @@ struct AsyncFileReadOp {
         callback(std::move(callback_in)) {}
 
   void Run() {
-    state->path = reader->GetPath();
-
     std::error_code fs_ec;
     const auto size = std::filesystem::file_size(reader->GetPath(), fs_ec);
     if (fs_ec) {
@@ -144,6 +142,12 @@ bool FileReader::AsyncReadFromDisk(std::shared_ptr<FileReadingState> state,
   if (!state) {
     state = FileReadingState::Create();
   }
+
+  // Publish the source path synchronously on the calling thread. The
+  // asynchronous operation never writes to the shared state's path, so the
+  // caller may read it as soon as this call returns; size/ec/writer remain
+  // valid only once the completion callback has run.
+  state->path = path_;
 
   auto self = std::const_pointer_cast<FileReader>(this->shared_from_this());
   auto op = AllocateShared<AsyncFileReadOp>(std::move(self), std::move(state),

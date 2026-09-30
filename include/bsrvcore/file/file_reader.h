@@ -73,6 +73,11 @@ class FileReader : public std::enable_shared_from_this<FileReader>,
   /**
    * @brief Start an asynchronous disk read into a caller-supplied state.
    *
+   * The state's `path` is populated synchronously on the calling thread and
+   * may be read once this call returns. The remaining state fields are
+   * populated asynchronously and become safe to read only after the
+   * completion callback has run.
+   *
    * @param state State object populated by the read.
    * @param callback Completion callback.
    * @return True when asynchronous reading was started.

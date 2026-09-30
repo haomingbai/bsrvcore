@@ -43,13 +43,22 @@ class FileWritingState : public NonCopyableNonMovable<FileWritingState> {
     return AllocateShared<SharedEnabler>();
   }
 
-  /** @brief Destination path requested by the write operation. */
+  /** @brief Destination path requested by the write operation.
+
+      Populated synchronously by FileWriter::AsyncWriteToDisk() on the calling
+      thread, so it is safe to read as soon as that call returns. */
   std::filesystem::path path;
-  /** @brief Final write error code, default-constructed on success. */
+  /** @brief Final write error code, default-constructed on success.
+
+      Valid only after the completion callback has run. */
   std::error_code ec;
-  /** @brief Number of bytes attempted or written. */
+  /** @brief Number of bytes attempted or written.
+
+      Valid only after the completion callback has run. */
   std::size_t size{0};
-  /** @brief Reader created for the written file on success. */
+  /** @brief Reader created for the written file on success.
+
+      Valid only after the completion callback has run. */
   std::shared_ptr<FileReader> reader;
 
  private:
@@ -75,13 +84,22 @@ class FileReadingState : public NonCopyableNonMovable<FileReadingState> {
     return AllocateShared<SharedEnabler>();
   }
 
-  /** @brief Source path requested by the read operation. */
+  /** @brief Source path requested by the read operation.
+
+      Populated synchronously by FileReader::AsyncReadFromDisk() on the calling
+      thread, so it is safe to read as soon as that call returns. */
   std::filesystem::path path;
-  /** @brief Final read error code, default-constructed on success. */
+  /** @brief Final read error code, default-constructed on success.
+
+      Valid only after the completion callback has run. */
   std::error_code ec;
-  /** @brief Number of bytes read from disk. */
+  /** @brief Number of bytes read from disk.
+
+      Valid only after the completion callback has run. */
   std::size_t size{0};
-  /** @brief Writer created from the loaded file content on success. */
+  /** @brief Writer created from the loaded file content on success.
+
+      Valid only after the completion callback has run. */
   std::shared_ptr<FileWriter> writer;
 
  private:

@@ -89,6 +89,11 @@ class FileWriter : public std::enable_shared_from_this<FileWriter>,
   /**
    * @brief Start an asynchronous disk write into a caller-supplied state.
    *
+   * The state's `path` is populated synchronously on the calling thread and
+   * may be read once this call returns. The remaining state fields are
+   * populated asynchronously and become safe to read only after the
+   * completion callback has run.
+   *
    * @param path Destination file path.
    * @param state State object populated by the write.
    * @param callback Completion callback.
