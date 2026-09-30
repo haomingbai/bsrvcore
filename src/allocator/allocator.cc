@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdlib>
+#include <limits>
 #include <new>
 
 #ifdef _WIN32
@@ -23,7 +25,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
-#else
+#elif defined(BSRVCORE_USE_MIMALLOC)
 #include <mimalloc.h>
 #endif
 
@@ -109,7 +111,7 @@ void* Allocate(std::size_t size, std::size_t alignment) {
   // static bsrvcore builds. Using the process heap keeps Allocate/Deallocate
   // ABI-safe even when the caller and callee live in different modules.
   return AllocateFromProcessHeap(size, alignment);
-#else
+#elif defined(BSRVCORE_USE_MIMALLOC)
   void* ptr = nullptr;
   if (alignment <= alignof(std::max_align_t)) {
     ptr = mi_malloc(size);
@@ -122,6 +124,24 @@ void* Allocate(std::size_t size, std::size_t alignment) {
   }
 
   return ptr;
+#else
+  if (alignment <= alignof(std::max_align_t)) {
+    if (void* ptr = std::malloc(size)) {
+      return ptr;
+    }
+    throw std::bad_alloc();
+  }
+
+  if (size > std::numeric_limits<std::size_t>::max() - alignment) {
+    throw std::bad_alloc();
+  }
+  // C11 aligned_alloc requires the size to be a multiple of the alignment.
+  const std::size_t aligned_size =
+      (size + alignment - 1) / alignment * alignment;
+  if (void* ptr = std::aligned_alloc(alignment, aligned_size)) {
+    return ptr;
+  }
+  throw std::bad_alloc();
 #endif
 }
 
@@ -138,19 +158,21 @@ void Deallocate(void* ptr, std::size_t /*size*/,
 #ifdef _WIN32
     return;
 #else
-    mi_free(ptr);
+    free(ptr);
     return;
 #endif
   }
 
 #ifdef _WIN32
   DeallocateToProcessHeap(ptr, alignment);
-#else
+#elif defined(BSRVCORE_USE_MIMALLOC)
   if (alignment <= alignof(std::max_align_t)) {
     mi_free(ptr);
   } else {
     mi_free_aligned(ptr, alignment);
   }
+#else
+  free(ptr);
 #endif
 }
 
